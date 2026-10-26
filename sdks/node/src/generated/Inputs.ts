@@ -9,11 +9,15 @@ export interface MarketingFeature {
 }
 
 export type BroadcastPayoutsBatchInput = {
-  signed_transaction: string;
   payouts: string[];
+  signed_transaction?: string | undefined;
+  transaction_hash?: string | undefined;
 };
 
-export type BuildPayoutsBatchInput = { payouts: string[] };
+export type BuildPayoutsBatchInput = {
+  payouts: string[];
+  replace?: boolean | undefined;
+};
 
 export type CancelPaymentIntentInput = {
   cancellation_reason?:

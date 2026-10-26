@@ -132,12 +132,71 @@ export interface PayoutResponse {
   failure_message?: string;
 }
 
+/** `payout` moves funds; `approval` is the one-time allowance signed first */
+export type PayoutBatchTransactionType = 'payout' | 'approval';
+
+/** Lifecycle of a payout batch transaction */
+export type PayoutBatchStatus =
+  | 'built'
+  | 'broadcast'
+  | 'paid'
+  | 'failed'
+  | 'replaced';
+
+/**
+ * Internal record of one built payout batch transaction. At most one batch
+ * per wallet is `built` or `broadcast` at a time, which serialises nonces.
+ * @zoneless_extension
+ */
+export interface PayoutBatch {
+  id: string;
+  object: 'payout_batch';
+  platform_account: string;
+  /** Platform wallet that signs the transaction (EIP-55) */
+  wallet_address: string;
+  chain_id: number | null;
+  /** Sender nonce; the nonce actually used once a wallet broadcast is seen */
+  nonce: number | null;
+  /** On-chain batch id (`keccak256` of the sorted payout ids); null for approvals */
+  batch_id: string | null;
+  /** Payout ids paid by this transaction; empty for approvals */
+  payouts: string[];
+  /** Total of the included payouts in cents */
+  total_amount: number;
+  transaction_type: PayoutBatchTransactionType;
+  status: PayoutBatchStatus;
+  /** Latest hash submitted for this batch */
+  transaction_hash: string | null;
+  /** Every hash submitted for this batch (re-prices and wallet speed-ups) */
+  transaction_hashes: string[];
+  /** How the first broadcast arrived, or null while `built` */
+  broadcast_mode: 'signed_transaction' | 'transaction_hash' | null;
+  to: string | null;
+  unsigned_transaction: string;
+  gas_limit: string | null;
+  max_fee_per_gas: string | null;
+  max_priority_fee_per_gas: string | null;
+  /** Block number when the batch was built; reconcile searches logs from here */
+  build_block: number | null;
+  /** Batch this one superseded, if any */
+  replaces: string | null;
+  /** Batch that superseded this one, if any */
+  replaced_by: string | null;
+  livemode: boolean;
+  created: number;
+  updated: number;
+}
+
 /**
  * Response from the build endpoint for batch payouts.
  * Contains an unsigned transaction ready for local signing.
  */
 export interface PayoutBatchBuildResponse {
   object: 'payout_batch_build';
+  /** Id of the payout batch record this transaction belongs to */
+  payout_batch: string;
+  /** Id of the batch this build superseded (`replace: true`), or null */
+  replaced_payout_batch: string | null;
   /** Serialized unsigned transaction for the active settlement rail */
   unsigned_transaction: string;
   /** Estimated network fee in atomic units of `fee_currency`, as a decimal string */
@@ -150,11 +209,17 @@ export interface PayoutBatchBuildResponse {
   nonce: number | null;
   /** Contract or address the transaction calls, or null when the rail has none */
   to: string | null;
+  /** Gas limit as a decimal string, or null when the rail has none */
+  gas_limit: string | null;
+  /** EIP-1559 max fee per gas in wei, or null when the rail has none */
+  max_fee_per_gas: string | null;
+  /** EIP-1559 priority fee per gas in wei, or null when the rail has none */
+  max_priority_fee_per_gas: string | null;
   /** `payout` moves funds; `approval` is a one-time allowance to sign first */
-  transaction_type: 'payout' | 'approval';
-  /** Identifier of the on-chain batch, or null when the rail has none */
+  transaction_type: PayoutBatchTransactionType;
+  /** Identifier of the on-chain batch, or null for an approval */
   batch_id: string | null;
-  /** Array of payout objects included in the transaction */
+  /** Array of payout objects included in the transaction (empty for an approval) */
   payouts: Payout[];
   /** Total amount in cents being paid out */
   total_amount: number;
@@ -170,14 +235,34 @@ export interface PayoutBatchBroadcastResponse {
   object: 'payout_batch_broadcast';
   /** Hash of the broadcast transaction */
   transaction_hash: string;
-  /** Status of the broadcast */
+  /** `pending` means submitted but not yet confirmed; payouts stay `in_transit` */
   status: 'paid' | 'failed' | 'pending';
+  /** Whether the transaction paid payouts or granted the payout allowance */
+  transaction_type: PayoutBatchTransactionType;
   /** URL to view the transaction on a blockchain explorer */
   viewer_url: string;
-  /** Array of updated payout objects */
+  /** Array of updated payout objects (empty for an approval) */
   payouts: Payout[];
+  /** Error code if the transaction failed */
+  failure_code?: PayoutFailureCode;
   /** Error message if the transaction failed */
   failure_message?: string;
+}
+
+/**
+ * Result of reconciling a platform's outstanding payout batches.
+ * @zoneless_extension
+ */
+export interface ReconcileResponse {
+  object: 'payout_reconcile';
+  /** Outstanding batches examined */
+  reconciled: number;
+  /** Batches settled as paid */
+  paid: number;
+  /** Batches settled as failed or replaced */
+  failed: number;
+  /** Batches still waiting for confirmations */
+  pending: number;
 }
 
 /**

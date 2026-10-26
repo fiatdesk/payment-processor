@@ -114,22 +114,35 @@ router.post(
 
 /**
  * POST /v1/payouts/build
- * Build an unsigned batch payout transaction for multiple pending payouts.
+ * Build an unsigned batch payout transaction for pending payouts.
  * This enables self-custodial payouts where the platform signs transactions locally.
  *
  * Required parameters:
- * - payouts: Array of payout IDs to include in the batch (max 10)
+ * - payouts: Array of payout IDs to include in the batch (max 100)
+ *
+ * Optional parameters:
+ * - replace: Supersede the wallet's outstanding batch. Re-prices it at the
+ *   same nonce (same payouts, fees x1.125) or, while it is only built,
+ *   replaces it with a different set. Without it, a second build for the
+ *   wallet fails with 409 payout_batch_in_progress.
  *
  * Returns:
+ * - payout_batch: Id of the batch record; replaced_payout_batch: the batch it superseded
  * - unsigned_transaction: Serialized unsigned transaction for the active settlement rail
- * - estimated_fee: Estimated network fee in atomic units of fee_currency
+ * - estimated_fee: Upper-bound network fee in atomic units of fee_currency
  * - fee_currency: Currency the network fee is paid in
- * - chain_id, nonce, to: Transaction target details (null when the rail has none)
- * - transaction_type: 'payout', or 'approval' for a one-time allowance
- * - batch_id: On-chain batch identifier (null when the rail has none)
+ * - chain_id, nonce, to, gas_limit, max_fee_per_gas, max_priority_fee_per_gas:
+ *   Transaction details (null when the rail has none)
+ * - transaction_type: 'payout', or 'approval' when the platform wallet must first
+ *   approve the payout contract (payouts is then empty; sign, broadcast, build again)
+ * - batch_id: On-chain batch identifier (null for an approval)
  * - payouts: Array of payout objects included in the transaction
  * - total_amount: Total amount in cents being paid out
  * - recipients_count: Number of recipients in the transaction
+ *
+ * Errors: 400 for blacklisted or sanctioned recipients and an underfunded
+ * wallet, 409 payout_batch_in_progress while another batch is outstanding,
+ * 400 use_wallet_speed_up when re-pricing a batch a wallet broadcast.
  *
  * Platform authentication is required.
  */
@@ -139,19 +152,22 @@ router.post(
   ValidateRequest(BuildPayoutsBatchSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const platformAccountId = req.user.account;
-    const { payouts } = req.body;
+    const { payouts, replace } = req.body;
 
     Logger.info('Building batch payout transaction', {
       platformAccountId,
       payoutCount: payouts.length,
+      replace: replace === true,
     });
 
     const result = await payoutModule.BuildPayoutsBatch(platformAccountId, {
       payouts,
+      replace,
     });
 
     Logger.info('Batch payout transaction built successfully', {
       platformAccountId,
+      payoutBatch: result.payout_batch,
       payoutCount: result.payouts.length,
       totalAmount: result.total_amount,
       transactionType: result.transaction_type,
@@ -163,19 +179,24 @@ router.post(
 
 /**
  * POST /v1/payouts/broadcast
- * Broadcast a signed batch payout transaction to the settlement network.
- * Updates all included payouts to 'paid' or 'failed' status based on the result.
+ * Broadcast a batch payout transaction and settle its payouts.
  *
- * Required parameters:
- * - signed_transaction: Signed transaction, serialized for the active settlement rail
- * - payouts: Array of payout IDs included in the transaction
+ * Required parameters (exactly one of the first two):
+ * - signed_transaction: Signed transaction; the API submits it
+ * - transaction_hash: Hash of a transaction the platform wallet already submitted
+ * - payouts: The payout IDs returned by build (empty for an approval)
  *
  * Returns:
  * - transaction_hash: Hash of the broadcast transaction
- * - status: 'paid' or 'failed'
+ * - status: 'paid', 'failed', or 'pending' (not yet confirmed; payouts stay
+ *   in_transit and settle through reconcile)
+ * - transaction_type: 'payout' or 'approval'
  * - viewer_url: URL to view the transaction on a blockchain explorer
  * - payouts: Array of updated payout objects
- * - failure_message: Error message if the transaction failed
+ * - failure_code, failure_message: Why the transaction failed
+ *
+ * Errors: 409 payout_batch_mismatch when the transaction or payouts differ
+ * from the built batch, 409 transaction_not_found when a hash is not visible.
  *
  * Platform authentication is required.
  * Webhooks (payout.paid or payout.failed) are sent for each payout.
@@ -186,24 +207,53 @@ router.post(
   ValidateRequest(BroadcastPayoutsBatchSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const platformAccountId = req.user.account;
-    const { signed_transaction, payouts } = req.body;
+    const { signed_transaction, transaction_hash, payouts } = req.body;
 
     Logger.info('Broadcasting batch payout transaction', {
       platformAccountId,
       payoutCount: payouts.length,
+      mode: signed_transaction ? 'signed_transaction' : 'transaction_hash',
     });
 
     const result = await payoutModule.BroadcastPayoutsBatch(platformAccountId, {
       signed_transaction,
+      transaction_hash,
       payouts,
     });
 
     Logger.info('Batch payout transaction broadcast completed', {
       platformAccountId,
       status: result.status,
+      transactionType: result.transaction_type,
       transactionHash: result.transaction_hash,
       payoutCount: result.payouts.length,
     });
+
+    res.json(result);
+  })
+);
+
+/**
+ * POST /v1/payouts/reconcile
+ * Settle the platform's outstanding payout batches from the chain: confirmed
+ * batches become paid, reverted ones failed (refunded), and batches whose
+ * nonce another transaction used without paying them are replaced. Build and
+ * broadcast also reconcile first.
+ *
+ * Returns a payout_reconcile object with reconciled, paid, failed and
+ * pending batch counts.
+ *
+ * Platform authentication is required.
+ */
+router.post(
+  '/reconcile',
+  RequirePlatform(),
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    const platformAccountId = req.user.account;
+
+    const result = await payoutModule.ReconcilePayoutBatches(platformAccountId);
+
+    Logger.info('Payout batches reconciled', { platformAccountId, ...result });
 
     res.json(result);
   })

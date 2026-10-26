@@ -477,3 +477,91 @@ apps/api/src/modules/chains/Chain.ts
 apps/api/tsconfig.spec.json
 eslint.config.mjs
 ```
+
+## Task 8: Payouts on Ethereum (build, broadcast, reconcile)
+
+Batch payouts now settle on Ethereum through the `PayoutBatch` contract. The money rule: a payout is refunded only after a final reverted receipt, or once reconcile proves its batch's nonce went to another transaction **and** no `BatchPaid` log for its batch id exists. Every other uncertainty (timeouts, RPC or log-range errors, a hash not yet visible) leaves the state untouched.
+
+- **Build** (`POST /v1/payouts/build`, up to 100 payouts) returns an unsigned EIP-1559 transaction:
+  - The new fields are `payout_batch`, `replaced_payout_batch`, `gas_limit`, `max_fee_per_gas` and `max_priority_fee_per_gas`.
+  - Fees: `gas_limit` is `estimateGas` × 1.2, and `max_fee_per_gas` is 2 × base fee + priority fee.
+  - If the wallet's allowance to PayoutBatch is below the total, build returns `transaction_type: 'approval'` (`approve(PayoutBatch, MaxUint256)`) with `payouts: []`.
+  - Before building it rejects, with a 400 that lists the offenders: invalid addresses, recipients the USDC issuer blacklisted (`account_frozen`), sanctioned recipients (`sanctioned_address`), and a wallet balance below the total (`insufficient_funds`).
+- **Nonce lock.** The new internal `PayoutBatches` collection (`pob_z_…`) records each built transaction. A unique partial index on `{chain_id, wallet_address}` covering `status ∈ {built, broadcast}` allows one outstanding batch per wallet, on every rail (`chain_id` and `nonce` are null on the simulated rail).
+  - Two concurrent builds cannot share a nonce: the second insert hits a duplicate key (11000), which maps to `409 payout_batch_in_progress`.
+  - `replace: true` re-prices the outstanding batch in place: same payouts, nonce and `batch_id`, fees ≥ 1.125×, earlier hashes kept.
+  - It can also supersede a batch that was only built with a different set; the old batch becomes `replaced`.
+  - A batch broadcast from a wallet (`transaction_hash`) is refused with `400 use_wallet_speed_up`.
+  - `CancelPayout` refuses payouts held by an outstanding batch.
+- **Tenant scoping.** The nonce lock stays global per `{chain_id, wallet_address}`, because nonces are per wallet. Only the build-time lock check reads across platforms.
+  - Another platform's outstanding batch on a shared wallet blocks a build with a generic `409 payout_batch_in_progress`, and `replace: true` never re-prices or supersedes it.
+  - Broadcast, reconcile and every batch transition load and update only the caller's own batches: `platform_account` is part of each lookup and of the transition filter.
+  - Errors never name another platform's payout or batch ids.
+- **Broadcast** takes `signed_transaction` or `transaction_hash` (exactly one), plus the batch's payout ids (`[]` for the approval). The response gains `transaction_type`.
+  - A signed transaction must match the built one (signer, chain id, nonce, `to`, calldata) before anything changes.
+  - The batch (`broadcast` + hash) and its payouts (`in_transit`) are then saved in one transaction **before** `eth_sendRawTransaction`. If the node rejects the transaction, both are restored.
+  - A hash must come from the platform wallet with the built `to` and calldata. The wallet's actual nonce is recorded. If the hash is not visible within 60 s, broadcast returns `409 transaction_not_found`.
+  - Posting the same hash again returns the current state. A matching speed-up hash at the same nonce is appended to `transaction_hashes`; anything else is `409 payout_batch_mismatch`.
+  - Broadcast waits up to 60 s for `ETH_CONFIRMATIONS`:
+    - `status: 1` with the matching `BatchPaid` log → `paid`.
+    - `status: 0` → `failed` with a refund. The revert reason is replayed: `Blacklistable: account is blacklisted` maps to `account_frozen`, anything else to `blockchain_error`.
+    - Timeout → `pending`, with payouts still `in_transit` and no refund.
+- **Reconcile** (`POST /v1/payouts/reconcile`, `ReconcilePayoutBatches`) runs at the start of build and broadcast and on demand. It reads the nonce at `latest - ETH_CONFIRMATIONS` before checking receipts. For built and broadcast batches:
+  - A confirmed own receipt settles the batch.
+  - Otherwise, once the nonce is consumed, a `BatchPaid(payer, USDC, batchId)` log from `PayoutBatch` in `build_block .. latest - ETH_CONFIRMATIONS` with the same count and total → `paid`. This covers wallet speed-ups and clients that never called broadcast.
+  - With no such log → `replaced`. Broadcast payouts become `failed` and are refunded; a built batch's payouts stay `pending`; approvals have no payout effect.
+- **Ethereum rail** (`Ethereum.ts`):
+  - New methods: `BuildBatchPayoutTransaction`, `BuildApprovalTransaction`, `MatchPayoutTransaction`, `BroadcastSignedTransaction`, `WaitForReceipt`, `GetTransactionStatus`, `FindBatchPayment`, `GetAccountNonce` (pending or confirmed) and `IsBlacklisted`.
+  - The allowance and balance checks and `isBlacklisted` go through one multicall. It runs deployless where the chain has no Multicall3 (Anvil).
+  - The simulated rail implements the same interface.
+- **Pure helpers** in `chains/PayoutEncoding.ts`: `ComputeBatchId`, `EncodeDisperseCall`, `ParsePayoutReceipt` and `MapRevertToFailureCode`.
+- **Sanctions** (§4.8): `CheckWalletAddresses` adds the chain's Chainalysis oracle (`isSanctioned`, through multicall) to the static list. It is skipped on the simulated rail, and RPC failures log a warning without blocking. Payout build screens every recipient.
+- **Startup (A2):** `BuildConfigFromEnv` resolves the chain env on the on-chain rail, so `ETH_CHAIN_ID` in live mode or a bad `ETH_CONFIRMATIONS` fails at boot.
+- **Test address (A3):** `Ethereum.spec` rejects an all-uppercase address (correction C2).
+- **Schemas, types and SDK:**
+  - `BuildPayoutsBatchSchema` adds `replace` and allows up to 100 payouts.
+  - `BroadcastPayoutsBatchSchema` makes `signed_transaction` and `transaction_hash` optional (exactly one required), and `payouts` allows 0–100.
+  - New `PayoutBatch` and `ReconcileResponse` types.
+  - SDK: `payouts.reconcile()`. Signing changes land in Task 9.
+- **Docs:** build, broadcast and reconcile pages, including the residual wallet-broadcast nonce risk.
+- **Tests:**
+  - New Anvil spec, `Payouts.anvil.spec.ts`: approval → payout with exact recipient balances, a blacklisted build → 400, a revert after build → `account_frozen` with a refund, a wallet-sent hash, and reconcile `replaced` and `BatchPaid` paths.
+  - The in-memory `MemoryDatabase` test helper backs the payout state-machine specs.
+
+Added:
+
+```
+apps/api/src/__tests__/PayoutBatchStore.spec.ts
+apps/api/src/__tests__/PayoutEncoding.spec.ts
+apps/api/src/__tests__/SanctionsScreening.spec.ts
+apps/api/src/__tests__/anvil/Payouts.anvil.spec.ts
+apps/api/src/__tests__/mocks/MemoryDatabase.ts
+apps/api/src/modules/PayoutBatchStore.ts
+apps/api/src/modules/chains/PayoutEncoding.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/Database.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/SanctionsScreening.ts
+apps/api/src/modules/chains/Chain.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/payouts.routes.ts
+apps/docs/src/app/pages/docs/data/payouts.ts
+libs/shared-schemas/src/lib/PayoutSchema.ts
+libs/shared-types/src/lib/Payout.ts
+sdks/node/src/__tests__/Payouts.spec.ts
+sdks/node/src/generated/Inputs.ts
+sdks/node/src/resources/Payouts.ts
+```

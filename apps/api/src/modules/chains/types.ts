@@ -31,7 +31,49 @@ export interface UnsignedPayoutBatch extends UnsignedTransaction {
   recipients_count: number;
   transaction_type: 'payout' | 'approval';
   batch_id: string | null;
+  /** Gas limit as a decimal string; null when the rail has none */
+  gas_limit: string | null;
+  /** EIP-1559 fees in wei as decimal strings; null when the rail has none */
+  max_fee_per_gas: string | null;
+  max_priority_fee_per_gas: string | null;
+  /** Latest block when the transaction was built; null when the rail has none */
+  block_number: number | null;
 }
+
+/** Inputs for building a payout batch (or its approval) transaction. */
+export interface PayoutBuildOptions {
+  /** Off-chain batch id emitted on-chain so receipts tie back to payouts */
+  batchId?: string;
+  /** Reuse this nonce (a replacement) instead of the next pending nonce */
+  nonce?: number;
+  /** Fees of the transaction being replaced; the new fees are at least 1.125x */
+  replacing?: {
+    maxFeePerGas: string | null;
+    maxPriorityFeePerGas: string | null;
+  };
+}
+
+/** What a payout batch transaction must be, taken from the batch record. */
+export interface PayoutTransactionExpectation {
+  wallet: string;
+  chainId: number | null;
+  /** Nonce the batch is bound to (the wallet's actual nonce once known) */
+  nonce: number | null;
+  /** The unsigned transaction returned by build */
+  unsignedTransaction: string;
+  transactionType: 'payout' | 'approval';
+  batchId: string | null;
+  recipientsCount: number;
+  totalCents: number;
+  /** First block that can hold the batch transaction */
+  fromBlock: number | null;
+}
+
+/** Whether a submitted transaction is the one the batch was built for. */
+export type PayoutTransactionMatch =
+  | { status: 'match'; transactionHash: string; nonce: number | null }
+  | { status: 'mismatch'; reason: string }
+  | { status: 'not_found' };
 
 export interface BroadcastResult {
   transaction_hash: string;

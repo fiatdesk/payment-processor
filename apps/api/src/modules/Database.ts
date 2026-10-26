@@ -450,6 +450,7 @@ export class Database {
       'Events',
       'ExternalWallets',
       'LoginLinks',
+      'PayoutBatches',
       'Payouts',
       'Persons',
       'TopUps',
@@ -490,6 +491,17 @@ export class Database {
 
     if (collectionName === 'WebhookDeliveries') {
       flexibleSchema.index({ status: 1, next_attempt_at: 1 });
+    }
+
+    if (collectionName === 'PayoutBatches') {
+      // Payout nonce lock: one built or broadcast batch per wallet and chain.
+      flexibleSchema.index(
+        { chain_id: 1, wallet_address: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { status: { $in: ['built', 'broadcast'] } },
+        }
+      );
     }
 
     return mongoose.model(collectionName, flexibleSchema);

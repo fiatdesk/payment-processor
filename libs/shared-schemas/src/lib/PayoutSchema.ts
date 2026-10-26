@@ -107,34 +107,67 @@ export const ListPayoutsSchema = z.object({
 
 export type ListPayoutsInput = z.infer<typeof ListPayoutsSchema>;
 
+/** Maximum payouts in one batch transaction (about 5.1 M gas on Ethereum). */
+export const MAX_BATCH_PAYOUTS = 100;
+
+const PayoutIdsSchema = z
+  .array(z.string().min(1, 'Payout ID cannot be empty'))
+  .max(
+    MAX_BATCH_PAYOUTS,
+    `Maximum ${MAX_BATCH_PAYOUTS} payouts per batch transaction`
+  );
+
 /**
  * Schema for building a batch payout transaction.
  * Takes an array of pending payout IDs and returns an unsigned transaction.
  */
 export const BuildPayoutsBatchSchema = z.object({
   /** Array of payout IDs to include in the batch transaction */
-  payouts: z
-    .array(z.string().min(1, 'Payout ID cannot be empty'))
-    .min(1, 'At least one payout ID is required')
-    .max(10, 'Maximum 10 payouts per batch transaction'),
+  payouts: PayoutIdsSchema.min(1, 'At least one payout ID is required'),
+
+  /**
+   * Supersede the wallet's outstanding batch: re-price it at the same nonce
+   * with higher fees, or replace a batch that was built but never broadcast.
+   */
+  replace: z.boolean().optional(),
 });
 
 export type BuildPayoutsBatchInput = z.infer<typeof BuildPayoutsBatchSchema>;
 
 /**
- * Schema for broadcasting a signed batch payout transaction.
- * Takes the signed transaction and the payout IDs it contains.
+ * Schema for broadcasting a batch payout transaction. Send either the signed
+ * transaction (the API submits it) or the hash of a transaction your wallet
+ * already submitted, never both.
  */
-export const BroadcastPayoutsBatchSchema = z.object({
-  /** The signed transaction, serialized for the active settlement rail */
-  signed_transaction: z.string().min(1, 'Signed transaction is required'),
+export const BroadcastPayoutsBatchSchema = z
+  .object({
+    /** The signed transaction, serialized for the active settlement rail */
+    signed_transaction: z
+      .string()
+      .min(1, 'Signed transaction cannot be empty')
+      .optional(),
 
-  /** Array of payout IDs included in this transaction (for verification and status updates) */
-  payouts: z
-    .array(z.string().min(1, 'Payout ID cannot be empty'))
-    .min(1, 'At least one payout ID is required')
-    .max(10, 'Maximum 10 payouts per batch transaction'),
-});
+    /** Hash of a transaction the platform wallet already broadcast */
+    transaction_hash: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{64}$/, 'Transaction hash must be 0x + 64 hex')
+      .optional(),
+
+    /**
+     * Payout IDs in this transaction, matching the build. Empty for the
+     * one-time approval transaction.
+     */
+    payouts: PayoutIdsSchema,
+  })
+  .refine(
+    (data) =>
+      (data.signed_transaction === undefined) !==
+      (data.transaction_hash === undefined),
+    {
+      message: 'Provide exactly one of signed_transaction or transaction_hash',
+      path: ['signed_transaction'],
+    }
+  );
 
 export type BroadcastPayoutsBatchInput = z.infer<
   typeof BroadcastPayoutsBatchSchema

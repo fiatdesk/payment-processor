@@ -85,6 +85,48 @@ describe('AppConfig', () => {
     });
   });
 
+  describe('startup chain validation', () => {
+    function BootConfig() {
+      let config: unknown;
+      jest.isolateModules(() => {
+        config = require('../modules/AppConfig').GetAppConfig();
+      });
+      return config;
+    }
+
+    it('refuses ETH_CHAIN_ID in live mode at boot', () => {
+      process.env.LIVEMODE = 'true';
+      process.env.ETH_CHAIN_ID = '31337';
+
+      expect(BootConfig).toThrow(
+        'ETH_CHAIN_ID is only allowed when LIVEMODE=false'
+      );
+    });
+
+    it('refuses a bad ETH_CONFIRMATIONS at boot on the on-chain rail', () => {
+      process.env.SETTLEMENT_RAIL = 'onchain';
+      process.env.ETH_CONFIRMATIONS = 'two';
+
+      expect(BootConfig).toThrow(
+        'ETH_CONFIRMATIONS must be a positive integer'
+      );
+    });
+
+    it('does not read the chain settings on the simulated rail', () => {
+      process.env.ETH_CONFIRMATIONS = 'two';
+
+      expect(BootConfig()).toMatchObject({ settlement_rail: 'simulated' });
+    });
+
+    it('boots an on-chain rail with valid chain settings', () => {
+      process.env.SETTLEMENT_RAIL = 'onchain';
+      process.env.ETH_CHAIN_ID = '31337';
+      process.env.ETH_CONFIRMATIONS = '1';
+
+      expect(BootConfig()).toMatchObject({ settlement_rail: 'onchain' });
+    });
+  });
+
   describe('ReloadRailSettingsForTests', () => {
     it('lets ResetChainClientsForTests move a memoised simulated rail on-chain', () => {
       jest.isolateModules(() => {

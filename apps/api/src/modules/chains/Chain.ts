@@ -77,6 +77,14 @@ export function GetWalletClient(privateKey: Hex): WalletClient {
   });
 }
 
+/**
+ * True when the chain has no Multicall3 deployment (Anvil); viem then runs
+ * multicall reads deployless, through `eth_call` with the bytecode inline.
+ */
+export function IsDeploylessMulticall(): boolean {
+  return !VIEM_CHAINS[GetChainConfig().chainId].contracts?.multicall3;
+}
+
 /** Changes on every reset so callers can drop state tied to old clients. */
 export function ChainClientsGeneration(): number {
   return generation;

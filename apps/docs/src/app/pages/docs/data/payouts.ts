@@ -14,6 +14,7 @@ export const PAYOUTS_SUBSECTION: DocSubSection = {
     { id: 'cancel', title: 'Cancel a payout' },
     { id: 'build', title: 'Build a payout batch' },
     { id: 'broadcast', title: 'Broadcast a payout batch' },
+    { id: 'reconcile', title: 'Reconcile payout batches' },
   ],
 };
 
@@ -332,6 +333,7 @@ export const PAYOUTS_OVERVIEW_PAGE: DocPage = {
     { method: 'POST', path: '/v1/payouts/:id/cancel', pageId: 'cancel' },
     { method: 'POST', path: '/v1/payouts/build', pageId: 'build' },
     { method: 'POST', path: '/v1/payouts/broadcast', pageId: 'broadcast' },
+    { method: 'POST', path: '/v1/payouts/reconcile', pageId: 'reconcile' },
   ]),
   events: GetResourceEventAttributes('payout'),
   sections: [
@@ -910,22 +912,33 @@ const BUILD_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     type: 'array',
     required: true,
     description:
-      'Array of payout IDs to include in the batch transaction. Maximum 10 payouts per batch.',
+      'Array of pending payout IDs to pay in one transaction. Maximum 100 payouts per batch.',
     enumNote:
       '<strong>Zoneless-specific:</strong> This endpoint is unique to Zoneless and enables self-custodial payout processing where your platform signs transactions locally.',
+  },
+  {
+    name: 'replace',
+    type: 'boolean',
+    description:
+      '<strong>Zoneless extension:</strong> Supersede the platform wallet’s outstanding batch at the same nonce. A batch broadcast with <code>signed_transaction</code> is re-priced (same payouts, fees at least 1.125× the original). A batch that was built but never broadcast can be replaced with a different set of payouts; the response names it in <code>replaced_payout_batch</code>. A batch broadcast from a wallet with <code>transaction_hash</code> cannot be re-priced here (<code>400 use_wallet_speed_up</code>); speed it up in the wallet instead.',
   },
 ];
 
 const BUILD_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "object": "payout_batch_build",
-  "unsigned_transaction": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAHDw...",
-  "estimated_fee": "5000",
-  "fee_currency": "sol",
-  "chain_id": null,
-  "nonce": null,
-  "to": null,
+  "payout_batch": "pob_z_7Kq2LmN4pRsT8vWx",
+  "replaced_payout_batch": null,
+  "unsigned_transaction": "0x02f083aa36a7058459682f0085037e11d6008301d4c0947b1822e76a3c...",
+  "estimated_fee": "1800000000000000",
+  "fee_currency": "eth",
+  "chain_id": 11155111,
+  "nonce": 5,
+  "to": "0x7b1822E76A3CD9aE5f942c234AC4b8D02223b3e5",
+  "gas_limit": "120000",
+  "max_fee_per_gas": "15000000000",
+  "max_priority_fee_per_gas": "1500000000",
   "transaction_type": "payout",
-  "batch_id": null,
+  "batch_id": "0x970dccf67e9501c2cc95d6a962be9d77f8779bc54a1c30cf1541726095af7dbd",
   "payouts": [
     {
       "id": "po_z_1Nv0FGQ9RKHgCVdK",
@@ -950,7 +963,7 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
   id: 'build',
   title: 'Build a payout batch',
   description:
-    'Build an unsigned batch payout transaction for multiple pending payouts. This enables self-custodial payouts where your platform signs transactions locally using your Solana wallet.',
+    'Build one unsigned Ethereum transaction that pays up to 100 pending payouts from your platform wallet. Your platform signs it locally, so the API never holds the wallet key.',
   endpoints: [{ method: 'POST', path: '/v1/payouts/build' }],
   sections: [
     {
@@ -959,7 +972,21 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Self-custodial signing: ',
-          text: 'This endpoint returns an unsigned Solana transaction. Sign it locally with your platform\'s secret key, then use the <a href="#payouts-broadcast">broadcast endpoint</a> to submit it to the blockchain.',
+          text: 'This endpoint returns an unsigned EIP-1559 transaction for your platform wallet. Sign it with the wallet’s private key (or send it from a browser wallet), then call the <a href="#payouts-broadcast">broadcast endpoint</a>. The wallet pays the gas in ETH; <code>estimated_fee</code> is the upper bound <code>gas_limit × max_fee_per_gas</code> in wei.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'One-time approval: ',
+          text: 'Payouts go through the PayoutBatch contract, which moves USDC from your wallet with a standing allowance. The first build for a wallet returns <code>transaction_type: "approval"</code> with an empty <code>payouts</code> array: sign and broadcast it with <code>payouts: []</code>, then build again to get the payout transaction.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'warning',
+          title: 'One batch at a time: ',
+          text: 'A wallet has at most one batch that is built or broadcast but not yet settled, so two builds never share a nonce. A second build fails with <code>409 payout_batch_in_progress</code> until the batch settles, or use <code>replace: true</code>. Payouts in an outstanding batch cannot be canceled.',
           html: true,
         },
         {
@@ -977,7 +1004,12 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>payout_batch_build</code> object containing the serialized unsigned transaction for the active settlement rail, the estimated network fee (<code>estimated_fee</code> in atomic units of <code>fee_currency</code>), the transaction details (<code>chain_id</code>, <code>nonce</code>, <code>to</code>, <code>transaction_type</code>, <code>batch_id</code>), and the payout objects included in the batch.',
+          text: 'Returns a <code>payout_batch_build</code> object with the serialized unsigned transaction, its details (<code>chain_id</code>, <code>nonce</code>, <code>to</code>, <code>gas_limit</code>, <code>max_fee_per_gas</code>, <code>max_priority_fee_per_gas</code>, <code>estimated_fee</code>), the <code>transaction_type</code>, the on-chain <code>batch_id</code> (the transaction emits it so the batch can be matched later), and the payouts included. The payouts stay <code>pending</code> until broadcast.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'Before building, the API checks that every recipient address is valid, not blacklisted by the USDC issuer (<code>400 account_frozen</code>) and passes sanctions screening (<code>400 sanctioned_address</code>), and that the wallet holds enough USDC (<code>400 insufficient_funds</code>). The error lists the offending payouts.',
           html: true,
         },
       ],
@@ -1012,6 +1044,9 @@ const buildResult = await zoneless.payouts.build({
   ]
 });
 
+if (buildResult.transaction_type === 'approval') {
+  // Sign and broadcast the one-time approval, then build again
+}
 console.log(buildResult.unsigned_transaction);
 console.log(buildResult.total_amount); // 160000 cents`,
             },
@@ -1035,25 +1070,35 @@ const BROADCAST_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     name: 'signed_transaction',
     type: 'string',
     required: true,
+    requiredText: 'Required unless transaction_hash is set',
     description:
-      "The signed transaction, serialized for the active settlement rail. Sign the unsigned transaction from the build endpoint using your platform's wallet.",
+      'The signed transaction, serialized as <code>0x</code> hex. Sign the <code>unsigned_transaction</code> from the build endpoint with your platform wallet. The API checks that it is the built transaction (signer, chain, nonce, contract and calldata) before submitting it.',
+  },
+  {
+    name: 'transaction_hash',
+    type: 'string',
+    required: true,
+    requiredText: 'Required unless signed_transaction is set',
+    description:
+      '<strong>Zoneless extension:</strong> Hash of a transaction your wallet already submitted, for example with <code>eth_sendTransaction</code> from a browser wallet. The API checks that it comes from the platform wallet and calls the built contract with the built calldata, then waits for it. Posting the same hash again returns the current state; the hash of a wallet speed-up of the same transaction is tracked as well.',
   },
   {
     name: 'payouts',
     type: 'array',
     required: true,
     description:
-      'Array of payout IDs included in the transaction. Must match the payouts used in the build request.',
+      'The payout IDs returned by build. Use an empty array for the approval transaction.',
     enumNote:
-      'This is used to verify the transaction contents and update payout statuses after broadcasting.',
+      'They must match the outstanding batch exactly, otherwise the request fails with <code>409 payout_batch_mismatch</code>.',
   },
 ];
 
 const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "object": "payout_batch_broadcast",
-  "transaction_hash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "transaction_hash": "0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4",
   "status": "paid",
-  "viewer_url": "https://solscan.io/tx/5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "transaction_type": "payout",
+  "viewer_url": "https://sepolia.etherscan.io/tx/0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4",
   "payouts": [
     {
       "id": "po_z_1Nv0FGQ9RKHgCVdK",
@@ -1062,9 +1107,9 @@ const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
       "amount": 110000,
       "status": "paid",
       "metadata": {
-        "network": "solana-mainnet",
-        "blockchain_tx": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
-        "viewer_url": "https://solscan.io/tx/5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+        "network": "ethereum",
+        "blockchain_tx": "0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4",
+        "viewer_url": "https://sepolia.etherscan.io/tx/0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4"
       }
     },
     {
@@ -1074,9 +1119,9 @@ const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
       "amount": 50000,
       "status": "paid",
       "metadata": {
-        "network": "solana-mainnet",
-        "blockchain_tx": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
-        "viewer_url": "https://solscan.io/tx/5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+        "network": "ethereum",
+        "blockchain_tx": "0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4",
+        "viewer_url": "https://sepolia.etherscan.io/tx/0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4"
       }
     }
   ]
@@ -1086,7 +1131,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
   id: 'broadcast',
   title: 'Broadcast a payout batch',
   description:
-    'Broadcast a signed batch payout transaction to the Solana network. This endpoint submits your signed transaction and updates all included payouts to paid or failed status.',
+    'Submit a signed batch payout transaction, or report one your wallet already sent, and settle its payouts once it is confirmed on Ethereum.',
   endpoints: [{ method: 'POST', path: '/v1/payouts/broadcast' }],
   sections: [
     {
@@ -1095,7 +1140,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Important: ',
-          text: 'The transaction must be signed before calling this endpoint. Use your Solana wallet to sign the <code>unsigned_transaction</code> returned by the <a href="#payouts-build">build endpoint</a>.',
+          text: 'Send exactly one of <code>signed_transaction</code> or <code>transaction_hash</code>, for the batch returned by the <a href="#payouts-build">build endpoint</a>. Payouts move to <code>in_transit</code> when the transaction is submitted.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -1106,13 +1151,30 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>payout_batch_broadcast</code> object containing the <code>transaction_hash</code>, status, viewer URL, and the updated payout objects. All payouts will have their status set to <code>paid</code> on success or <code>failed</code> if the transaction failed.',
+          text: 'Returns a <code>payout_batch_broadcast</code> object with the <code>transaction_hash</code>, <code>status</code>, <code>transaction_type</code>, viewer URL and the updated payouts. The API waits up to 60 seconds for <code>ETH_CONFIRMATIONS</code> confirmations. <code>paid</code> means the batch was confirmed; <code>failed</code> means the transaction reverted, the payouts are <code>failed</code> and their amounts return to the connected accounts’ balances (<code>failure_code: "account_frozen"</code> when the USDC issuer blacklisted a recipient).',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: '<code>pending</code> means the transaction was submitted but not confirmed in time. The payouts stay <code>in_transit</code> and are never refunded while the transaction can still be mined; <a href="#payouts-reconcile">reconcile</a> settles them later.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'Errors: <code>409 payout_batch_mismatch</code> when the transaction or payouts do not match the outstanding batch, and <code>409 transaction_not_found</code> when a <code>transaction_hash</code> is not visible on the network within the wait; the batch stays as it was in both cases.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'warning',
+          title: 'Wallet broadcasts: ',
+          text: 'Wallets choose their own nonce. If a wallet sends a built batch and broadcast is never called, and another transaction from the platform wallet takes the built nonce first, reconcile can release the batch as <code>replaced</code> while the wallet’s transaction is still pending. If it is mined later, its payouts are paid on-chain but show <code>pending</code>. Call broadcast with the hash as soon as the wallet sends, and do not send other transactions from the platform wallet while a batch is outstanding.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Webhooks' },
         {
           type: 'paragraph',
-          text: 'After broadcasting, Zoneless sends <code>payout.paid</code> or <code>payout.failed</code> webhook events for each payout in the batch.',
+          text: 'When a batch settles, <code>payout.paid</code> or <code>payout.failed</code> webhook events are sent for each payout in the batch.',
           html: true,
         },
       ],
@@ -1128,7 +1190,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
   -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "signed_transaction": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAHDw...",
+    "signed_transaction": "0x02f8b383aa36a7058459682f0085037e11d6008301d4c0947b1822e7...",
     "payouts": [
       "po_z_1Nv0FGQ9RKHgCVdK",
       "po_z_2Xw1GHR0SKIiDWeL"
@@ -1142,15 +1204,15 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
 
 // After signing the transaction from build()
 const result = await zoneless.payouts.broadcast({
-  signed_transaction: signedTxBase64,
+  signed_transaction: signedTransaction,
   payouts: [
     'po_z_1Nv0FGQ9RKHgCVdK',
     'po_z_2Xw1GHR0SKIiDWeL'
   ],
 });
 
-console.log(result.transaction_hash);
-console.log(result.viewer_url); // Link to Solscan`,
+console.log(result.status); // 'paid', 'failed' or 'pending'
+console.log(result.viewer_url); // Link to Etherscan`,
             },
           ],
         },
@@ -1229,6 +1291,112 @@ console.log(
   ],
 };
 
+// ============================================
+// Reconcile Payout Batches
+// ============================================
+const RECONCILE_ATTRIBUTES: Attribute[] = [
+  {
+    name: 'object',
+    type: 'string',
+    description:
+      'String representing the object’s type: <code>payout_reconcile</code>.',
+  },
+  {
+    name: 'reconciled',
+    type: 'integer',
+    description: 'Outstanding batches (built or broadcast) that were examined.',
+  },
+  {
+    name: 'paid',
+    type: 'integer',
+    description: 'Batches confirmed on-chain and settled as paid.',
+  },
+  {
+    name: 'failed',
+    type: 'integer',
+    description:
+      'Batches whose transaction reverted, or whose nonce another transaction used without paying the batch. Broadcast payouts are refunded; payouts of a batch that was only built go back to <code>pending</code>.',
+  },
+  {
+    name: 'pending',
+    type: 'integer',
+    description:
+      'Batches still waiting for confirmations, or that could not be checked; they are left unchanged.',
+  },
+];
+
+const RECONCILE_RESPONSE_JSON = `{
+  "object": "payout_reconcile",
+  "reconciled": 2,
+  "paid": 1,
+  "failed": 0,
+  "pending": 1
+}`;
+
+export const PAYOUTS_RECONCILE_PAGE: DocPage = {
+  id: 'reconcile',
+  title: 'Reconcile payout batches',
+  description:
+    'Settle your platform’s outstanding payout batches from the chain. Use it after a broadcast returned pending, or after a wallet sent a batch without calling broadcast.',
+  endpoints: [{ method: 'POST', path: '/v1/payouts/reconcile' }],
+  sections: [
+    {
+      left: [
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: 'Build and broadcast also reconcile first. A batch is <strong>paid</strong> once its transaction, or any confirmed transaction that emitted its <code>batch_id</code> (such as a wallet speed-up), is confirmed. It is <strong>failed</strong> when its own transaction reverted, and <strong>replaced</strong> when another transaction used its nonce without paying it. When the chain cannot be read, nothing changes.',
+          html: true,
+        },
+        { type: 'heading', level: 2, text: 'Parameters' },
+        {
+          type: 'paragraph',
+          text: 'No parameters.',
+        },
+        { type: 'heading', level: 2, text: 'Returns' },
+        {
+          type: 'paragraph',
+          text: 'Returns a <code>payout_reconcile</code> object with the number of batches examined and how each was settled. Settled payouts send <code>payout.paid</code> or <code>payout.failed</code> webhook events.',
+          html: true,
+        },
+        {
+          type: 'attributes',
+          attributes: RECONCILE_ATTRIBUTES,
+        },
+      ],
+      right: [
+        {
+          type: 'code',
+          endpoint: { method: 'POST', path: '/v1/payouts/reconcile' },
+          tabs: [
+            {
+              id: 'curl',
+              label: 'cURL',
+              code: `curl -X POST https://api.yourdomain.com/v1/payouts/reconcile \\
+  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+            },
+            {
+              id: 'node',
+              label: 'Node.js',
+              code: `${NODE_INIT}
+
+const result = await zoneless.payouts.reconcile();
+
+console.log(\`\${result.paid} paid, \${result.pending} still pending\`);`,
+            },
+          ],
+        },
+        {
+          type: 'object',
+          title: 'RESPONSE',
+          code: RECONCILE_RESPONSE_JSON,
+        },
+      ],
+    },
+  ],
+};
+
 export const PAYOUTS_PAGES: DocPage[] = [
   PAYOUTS_OVERVIEW_PAGE,
   PAYOUTS_CREATE_PAGE,
@@ -1238,4 +1406,5 @@ export const PAYOUTS_PAGES: DocPage[] = [
   PAYOUTS_CANCEL_PAGE,
   PAYOUTS_BUILD_PAGE,
   PAYOUTS_BROADCAST_PAGE,
+  PAYOUTS_RECONCILE_PAGE,
 ];

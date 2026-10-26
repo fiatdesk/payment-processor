@@ -5,12 +5,65 @@
  */
 
 import type { Settlement } from '../../modules/chains/Settlement';
-import type { UnsignedTransaction } from '../../modules/chains/types';
+import type {
+  BroadcastResult,
+  PayoutBuildOptions,
+  PayoutTransactionExpectation,
+  PayoutTransactionMatch,
+  TransferRecipient,
+  UnsignedPayoutBatch,
+  UnsignedTransaction,
+} from '../../modules/chains/types';
 
 /** Anvil default accounts #0 and #1 (public test keys). */
 export const MOCK_PLAN_OWNER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const MOCK_PAYER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 export const MOCK_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+export const MOCK_PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+/** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
+export const MOCK_PAYOUT_NONCE = 7;
+
+/** A hash passes through (lowercased); anything else stands for a raw tx. */
+export function MockTransactionHash(signedOrHash: string): string {
+  return /^0x[0-9a-fA-F]{64}$/.test(signedOrHash)
+    ? signedOrHash.toLowerCase()
+    : `0xhash_of_${signedOrHash}`;
+}
+
+export function MockReceipt(
+  status: BroadcastResult['status'],
+  hash: string,
+  extra: Partial<BroadcastResult> = {}
+): BroadcastResult {
+  return {
+    transaction_hash: hash,
+    status,
+    viewer_url: `https://sepolia.etherscan.io/tx/${hash}`,
+    ...extra,
+  };
+}
+
+export function MockPayoutBatch(
+  transactionType: UnsignedPayoutBatch['transaction_type'],
+  recipientsCount: number,
+  options?: PayoutBuildOptions
+): UnsignedPayoutBatch {
+  return {
+    unsigned_transaction: `0x02unsigned_${transactionType}`,
+    estimated_fee: '180000000000000',
+    fee_currency: 'eth',
+    chain_id: 11155111,
+    nonce: options?.nonce ?? MOCK_PAYOUT_NONCE,
+    to: transactionType === 'payout' ? MOCK_PAYOUT_BATCH : MOCK_USDC,
+    recipients_count: recipientsCount,
+    transaction_type: transactionType,
+    batch_id: transactionType === 'payout' ? options?.batchId ?? null : null,
+    gas_limit: '60000',
+    max_fee_per_gas: options?.replacing ? '3375000000' : '3000000000',
+    max_priority_fee_per_gas: options?.replacing ? '1125000000' : '1000000000',
+    block_number: 100,
+  };
+}
 
 function MockUnsignedTransaction(
   unsignedTransaction: string
@@ -24,6 +77,8 @@ function MockUnsignedTransaction(
     to: null,
   };
 }
+
+type ReceiptArgs = [string, PayoutTransactionExpectation];
 
 export function CreateMockSettlement(): jest.Mocked<Settlement> {
   return {
@@ -42,17 +97,41 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     GetNativeBalance: jest.fn().mockResolvedValue(1),
     GetUSDCBalance: jest.fn().mockResolvedValue(100),
     GetIncomingDeposits: jest.fn().mockResolvedValue([]),
-    BuildBatchPayoutTransaction: jest.fn().mockResolvedValue({
-      ...MockUnsignedTransaction('0x02unsigned'),
-      recipients_count: 1,
-      transaction_type: 'payout',
-      batch_id: null,
-    }),
-    BroadcastSignedTransaction: jest.fn().mockResolvedValue({
-      status: 'paid',
-      transaction_hash: 'sig123',
-      viewer_url: 'https://sepolia.etherscan.io/tx/sig123',
-    }),
+    BuildBatchPayoutTransaction: jest.fn(
+      async (
+        _sender: string,
+        recipients: TransferRecipient[],
+        options?: PayoutBuildOptions
+      ) => MockPayoutBatch('payout', recipients.length, options)
+    ),
+    BuildApprovalTransaction: jest.fn(
+      async (_sender: string, options?: PayoutBuildOptions) =>
+        MockPayoutBatch('approval', 0, options)
+    ),
+    GetTransactionHash: jest.fn(MockTransactionHash),
+    MatchPayoutTransaction: jest.fn(
+      async (
+        signedOrHash: string,
+        expected: PayoutTransactionExpectation
+      ): Promise<PayoutTransactionMatch> => ({
+        status: 'match',
+        transactionHash: MockTransactionHash(signedOrHash),
+        nonce: expected.nonce,
+      })
+    ),
+    BroadcastSignedTransaction: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
+      async (signedOrHash) =>
+        MockReceipt('paid', MockTransactionHash(signedOrHash))
+    ),
+    WaitForReceipt: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
+      async (hash) => MockReceipt('paid', hash)
+    ),
+    GetTransactionStatus: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
+      async (hash) => MockReceipt('pending', hash)
+    ),
+    FindBatchPayment: jest.fn().mockResolvedValue(null),
+    GetAccountNonce: jest.fn().mockResolvedValue(MOCK_PAYOUT_NONCE),
+    IsBlacklisted: jest.fn().mockResolvedValue([]),
     BuildCheckoutPaymentTransaction: jest
       .fn()
       .mockResolvedValue(MockUnsignedTransaction('0x02unsigned')),

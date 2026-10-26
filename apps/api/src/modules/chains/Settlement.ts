@@ -17,6 +17,9 @@ import type {
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
   IncomingDeposit,
+  PayoutBuildOptions,
+  PayoutTransactionExpectation,
+  PayoutTransactionMatch,
   RailDescription,
   TransferRecipient,
   UnsignedPayoutBatch,
@@ -38,11 +41,55 @@ export interface Settlement {
     limit: number,
     processed: Set<string>
   ): Promise<IncomingDeposit[]>;
+  /**
+   * Unsigned batch payout, or the one-time approval when the platform
+   * wallet's allowance does not cover the batch.
+   */
   BuildBatchPayoutTransaction(
     sender: string,
-    recipients: TransferRecipient[]
+    recipients: TransferRecipient[],
+    options?: PayoutBuildOptions
   ): Promise<UnsignedPayoutBatch>;
-  BroadcastSignedTransaction(signed: string): Promise<BroadcastResult>;
+  BuildApprovalTransaction(
+    sender: string,
+    options?: PayoutBuildOptions
+  ): Promise<UnsignedPayoutBatch>;
+  /** Hash of a raw signed transaction, or a normalised hash; null if unknown. */
+  GetTransactionHash(signedOrHash: string): string | null;
+  /** Checks a raw signed transaction or a broadcast hash against a batch. */
+  MatchPayoutTransaction(
+    signedOrHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<PayoutTransactionMatch>;
+  /**
+   * Submits a raw signed transaction (a hash was submitted by the wallet),
+   * then waits for confirmations. Throws only when a raw transaction was not
+   * accepted; a timeout resolves `pending`.
+   */
+  BroadcastSignedTransaction(
+    signedOrHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<BroadcastResult>;
+  WaitForReceipt(
+    transactionHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<BroadcastResult>;
+  /** Settles from a confirmed receipt without waiting; `pending` otherwise. */
+  GetTransactionStatus(
+    transactionHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<BroadcastResult>;
+  /** A confirmed on-chain payment of the batch by any transaction, or null. */
+  FindBatchPayment(
+    expected: PayoutTransactionExpectation
+  ): Promise<BroadcastResult | null>;
+  /** Next nonce at the pending or confirmed block; null when the rail has none. */
+  GetAccountNonce(
+    address: string,
+    block: 'pending' | 'confirmed'
+  ): Promise<number | null>;
+  /** The addresses the token issuer has blacklisted. */
+  IsBlacklisted(addresses: string[]): Promise<string[]>;
   BuildCheckoutPaymentTransaction(
     payer: string,
     merchant: string,
@@ -256,23 +303,88 @@ export class SimulatedSettlement implements Settlement {
 
   async BuildBatchPayoutTransaction(
     _sender: string,
-    recipients: TransferRecipient[]
+    recipients: TransferRecipient[],
+    options?: PayoutBuildOptions
   ): Promise<UnsignedPayoutBatch> {
+    return SimulatedPayoutBatch('payout', recipients.length, options);
+  }
+
+  async BuildApprovalTransaction(
+    _sender: string,
+    options?: PayoutBuildOptions
+  ): Promise<UnsignedPayoutBatch> {
+    return SimulatedPayoutBatch('approval', 0, options);
+  }
+
+  GetTransactionHash(): string | null {
+    return null;
+  }
+
+  async MatchPayoutTransaction(
+    _signedOrHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<PayoutTransactionMatch> {
     return {
-      ...DummyUnsignedTransaction(),
-      recipients_count: recipients.length,
-      transaction_type: 'payout',
-      batch_id: null,
+      status: 'match',
+      transactionHash: SimulatedPayoutHash(expected),
+      nonce: null,
     };
   }
 
-  async BroadcastSignedTransaction(_signed: string): Promise<BroadcastResult> {
-    return {
-      transaction_hash: 'sim_sig_payout',
-      status: 'paid',
-      viewer_url: '',
-    };
+  async BroadcastSignedTransaction(
+    _signedOrHash: string,
+    expected: PayoutTransactionExpectation
+  ): Promise<BroadcastResult> {
+    return SimulatedPaid(SimulatedPayoutHash(expected));
   }
+
+  async WaitForReceipt(transactionHash: string): Promise<BroadcastResult> {
+    return SimulatedPaid(transactionHash);
+  }
+
+  async GetTransactionStatus(
+    transactionHash: string
+  ): Promise<BroadcastResult> {
+    return SimulatedPaid(transactionHash);
+  }
+
+  async FindBatchPayment(): Promise<BroadcastResult | null> {
+    return null;
+  }
+
+  async GetAccountNonce(): Promise<number | null> {
+    return null;
+  }
+
+  async IsBlacklisted(): Promise<string[]> {
+    return [];
+  }
+}
+
+function SimulatedPayoutBatch(
+  transactionType: UnsignedPayoutBatch['transaction_type'],
+  recipientsCount: number,
+  options?: PayoutBuildOptions
+): UnsignedPayoutBatch {
+  return {
+    ...DummyUnsignedTransaction(),
+    recipients_count: recipientsCount,
+    transaction_type: transactionType,
+    batch_id: transactionType === 'payout' ? options?.batchId ?? null : null,
+    gas_limit: null,
+    max_fee_per_gas: null,
+    max_priority_fee_per_gas: null,
+    block_number: null,
+  };
+}
+
+/** Simulated settlement has no hashes; one per batch keeps records distinct. */
+function SimulatedPayoutHash(expected: PayoutTransactionExpectation): string {
+  return `sim_sig_payout:${expected.batchId ?? expected.transactionType}`;
+}
+
+function SimulatedPaid(transactionHash: string): BroadcastResult {
+  return { transaction_hash: transactionHash, status: 'paid', viewer_url: '' };
 }
 
 let activeRail: { key: string; settlement: Settlement } | null = null;

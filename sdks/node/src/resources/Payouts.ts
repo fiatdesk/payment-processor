@@ -8,6 +8,7 @@ import {
   PayoutBatchBuildResponse,
   PayoutBatchBroadcastResponse,
   ProcessPendingResult,
+  ReconcileResponse,
   ListResponse,
 } from '@zoneless/shared-types';
 import type {
@@ -115,6 +116,29 @@ export class Payouts extends BaseResource {
     return this.client.Post<PayoutBatchBroadcastResponse>(
       '/payouts/broadcast',
       params,
+      options
+    );
+  }
+
+  /**
+   * Settle the platform's outstanding payout batches from the chain. A
+   * broadcast that returned `pending` settles here once it is confirmed.
+   *
+   * @param options - Optional request options
+   * @returns Counts of the batches examined and settled
+   *
+   * @example
+   * ```typescript
+   * const result = await zoneless.payouts.reconcile();
+   * console.log(`${result.paid} paid, ${result.pending} still pending`);
+   * ```
+   *
+   * @see /payouts/reconcile
+   */
+  async reconcile(options?: RequestExtraOptions): Promise<ReconcileResponse> {
+    return this.client.Post<ReconcileResponse>(
+      '/payouts/reconcile',
+      {},
       options
     );
   }

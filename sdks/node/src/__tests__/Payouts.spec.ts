@@ -104,6 +104,22 @@ describe('Payouts Resource', () => {
     });
   });
 
+  describe('reconcile', () => {
+    it('posts to /payouts/reconcile and returns the counts', async () => {
+      const counts = {
+        object: 'payout_reconcile',
+        reconciled: 2,
+        paid: 1,
+        failed: 0,
+        pending: 1,
+      };
+      Post.mockResolvedValue(counts);
+
+      await expect(payouts.reconcile()).resolves.toEqual(counts);
+      expect(Post).toHaveBeenCalledWith('/payouts/reconcile', {}, undefined);
+    });
+  });
+
   describe('sign', () => {
     it('signs an unsigned EIP-1559 transaction with the private key', async () => {
       const unsigned = serializeTransaction({

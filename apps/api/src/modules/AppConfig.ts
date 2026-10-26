@@ -133,6 +133,10 @@ function BuildConfigFromEnv(): AppConfig {
   const paymentLinkUrl = NormalizeOrigin(
     process.env.PAYMENT_LINK_URL || checkoutUrl
   );
+  const railSettings = ReadRailSettings();
+  // Fail at boot on a bad chain env (ETH_CHAIN_ID in live mode, a bad
+  // ETH_CONFIRMATIONS) instead of on the first on-chain call.
+  if (railSettings.settlement_rail === 'onchain') GetChainConfig();
 
   return {
     mongodbUri:
@@ -142,7 +146,7 @@ function BuildConfigFromEnv(): AppConfig {
     checkoutUrl,
     paymentLinkUrl,
     appSecret: process.env.APP_SECRET || '',
-    ...ReadRailSettings(),
+    ...railSettings,
   };
 }
 
