@@ -6,15 +6,9 @@ The goal is to stay open source through the whole stack: the payment rail, the b
 
 We only take on external dependencies where something cannot reasonably be open sourced today. Card networks are the usual example: accepting a Visa or Mastercard payment is not something we can currently do with an open stack, so that kind of integration stays optional and at the edges.
 
-If you have a question, [join the Discord](https://discord.gg/mdMQJug9mG) or open a [GitHub issue](https://github.com/zonelessdev/zoneless/issues). Product docs, API reference, and self-hosting live at [docs.zoneless.com](https://docs.zoneless.com) and can be edited in this repo under [`apps/docs`](apps/docs).
+If you have a question, open a GitHub issue. Product docs, API reference, and self-hosting live in this repo under [`apps/docs`](apps/docs) (served at http://localhost:4205).
 
 This project is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold it.
-
-## Looking for something to work on?
-
-Browse [good first issue](https://github.com/zonelessdev/zoneless/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) for small, well-scoped tasks or [help wanted](https://github.com/zonelessdev/zoneless/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) for larger contributions.
-
-If you want to work on an issue, leave a comment before starting so we can avoid duplicate work.
 
 For larger changes, open an issue first and agree on the approach before writing code.
 
@@ -30,24 +24,22 @@ Please do not open one huge pull request of untested, AI-generated code. Small, 
 
 The API should match Stripe.
 
-If you are unsure how a resource, field, webhook, or object should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure: field names, object shapes, emitted events, and behaviour. Zoneless uses USDC on Solana instead of cards and bank accounts, but the programming model should feel like Stripe. See the [API reference](https://docs.zoneless.com) and [migrating from Stripe](https://docs.zoneless.com/migrate-from-stripe) for how that mapping works in this project.
+If you are unsure how a resource, field, webhook, or object should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure: field names, object shapes, emitted events, and behaviour. Zoneless uses USDC on Solana instead of cards and bank accounts, but the programming model should feel like Stripe. See the API reference and migration guide in [`apps/docs`](apps/docs) for how that mapping works in this project.
 
 ## Other ways to contribute
 
 You do not need to write code to help. Useful contributions include bug reports, docs fixes, and reproductions.
 
-- **Bugs.** Search [existing issues](https://github.com/zonelessdev/zoneless/issues) first. Include steps to reproduce, expected vs actual behaviour, and environment details (OS, Node version, browser).
-- **Features.** Feature requests live in the [issues tab](https://github.com/zonelessdev/zoneless/issues). Open one before building something large.
-- **Questions and design discussion.** Use [Discord](https://discord.gg/mdMQJug9mG). Issues are better for work that should be tracked and reviewed.
+- **Bugs.** Search existing issues first. Include steps to reproduce, expected vs actual behaviour, and environment details (OS, Node version, browser).
+- **Features.** Feature requests live in the issues tab. Open one before building something large.
 
 ## Development setup
 
 You need Node.js 20 (see `.nvmrc`), npm, and Docker (for MongoDB).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/zoneless.git
-cd zoneless
-git remote add upstream https://github.com/zonelessdev/zoneless.git
+git clone https://github.com/YOUR_USERNAME/REPO.git
+cd REPO
 npm install
 docker compose up -d        # MongoDB
 npx nx serve api            # API on :3333
@@ -61,9 +53,9 @@ Or run the API and dashboard together:
 npm run dev
 ```
 
-To run the full Docker stack instead (API, dashboard, and database behind one local URL), follow the [self-hosting](https://docs.zoneless.com/self-hosting) and [local development](https://docs.zoneless.com/local-development) guides.
+To run the full Docker stack instead (API, dashboard, and database behind one local URL), follow the self-hosting and local development guides in [`apps/docs`](apps/docs).
 
-Test mode uses simulated funds by default (`SETTLEMENT_RAIL=simulated`). To exercise Solana Devnet, set `LIVEMODE=false` and `SETTLEMENT_RAIL=onchain`.
+Test mode uses simulated funds by default (`SETTLEMENT_RAIL=simulated`). To exercise Ethereum Sepolia, set `LIVEMODE=false` and `SETTLEMENT_RAIL=onchain` (wired up later in this port).
 
 ### Tests, lint, and formatting
 

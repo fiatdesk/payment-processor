@@ -39,7 +39,7 @@ Please include the following information in your report:
 
 ## Security Best Practices for Self-Hosting
 
-See the [Deployment Guide](https://docs.zoneless.com/deployment) for full production setup instructions.
+See the deployment guide in [`apps/docs`](apps/docs) for full production setup instructions.
 
 Key points:
 
@@ -48,11 +48,6 @@ Key points:
 - Use HTTPS with a reverse proxy (Caddy, nginx, Cloudflare)
 - Never commit `.env` files to version control
 - Rotate API keys periodically
-
-### Anonymous usage telemetry
-
-Opt-in anonymous usage heartbeats may be sent to zoneless.com (off by default).
-Force disable with `ZONELESS_TELEMETRY=0`. See [TELEMETRY.md](./TELEMETRY.md).
 
 ## Acknowledgments
 

@@ -18,7 +18,7 @@
       "dependsOn": ["build"],
       "outputs": ["{workspaceRoot}/dist/sdks/node/*.tgz"],
       "options": {
-        "command": "mkdir -p ../../dist/sdks/node && npm pack --pack-destination ../../dist/sdks/node",
+        "command": "mkdir -p ../../dist/sdks/node && cp ../../NOTICE NOTICE && { npm pack --pack-destination ../../dist/sdks/node; status=$?; rm -f NOTICE; exit $status; }",
         "cwd": "sdks/node"
       }
     },

@@ -5,10 +5,10 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zonelessdev/zoneless.git",
+    "url": "git+https://github.com/OWNER/REPO.git",
     "directory": "apps/cli"
   },
-  "homepage": "https://docs.zoneless.com/agent-payments-quickstart",
+  "homepage": "https://github.com/OWNER/REPO",
   "publishConfig": {
     "access": "public"
   },
@@ -17,6 +17,7 @@
   },
   "files": [
     "README.md",
+    "NOTICE",
     "skills",
     "src"
   ],

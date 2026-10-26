@@ -5,11 +5,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zonelessdev/zoneless.git"
+    "url": "https://github.com/OWNER/REPO.git"
   },
-  "homepage": "https://zoneless.com",
+  "homepage": "https://github.com/OWNER/REPO",
   "bugs": {
-    "url": "https://github.com/zonelessdev/zoneless/issues"
+    "url": "https://github.com/OWNER/REPO/issues"
   },
   "scripts": {
     "kill": "./scripts/kill-all.sh",

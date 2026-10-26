@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zonelessdev/zoneless.git",
+    "url": "git+https://github.com/OWNER/REPO.git",
     "directory": "sdks/node"
   },
-  "homepage": "https://docs.zoneless.com",
+  "homepage": "https://github.com/OWNER/REPO",
   "bugs": {
-    "url": "https://github.com/zonelessdev/zoneless/issues"
+    "url": "https://github.com/OWNER/REPO/issues"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -24,7 +24,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "NOTICE"
   ],
   "keywords": [
     "zoneless",
