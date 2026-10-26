@@ -20,7 +20,7 @@ export const API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Create a <a href="https://zoneless.com/login?view=signup">Zoneless account</a>, then copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Store it in an environment variable and only use it in server-side code. See <a href="/authentication">Authentication</a> for test mode and self-hosted keys.',
+          text: 'Create a <a href="https://pay.yourdomain.com">Zoneless account</a>, then copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Store it in an environment variable and only use it in server-side code. See <a href="/authentication">Authentication</a> for test mode and self-hosted keys.',
           html: true,
         },
       ],
@@ -83,7 +83,7 @@ const zoneless = new Zoneless(apiKey, apiUrl);`,
               id: 'curl',
               label: 'cURL',
               code: `export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
-export ZONELESS_API_URL="https://api.zoneless.com"`,
+export ZONELESS_API_URL="https://api.yourdomain.com"`,
             },
           ],
         },

@@ -12,15 +12,15 @@ import type {
   UpdatePaymentLinkInput,
 } from '../generated/Inputs';
 /**
- * @see https://docs.zoneless.com/payment_links
+ * @see /payment_links
  */
 export class PaymentLinks extends BaseResource {
-  /** @see https://docs.zoneless.com/payment_links/create */
+  /** @see /payment_links/create */
   async create(params: CreatePaymentLinkInput): Promise<PaymentLink> {
     return this.client.Post<PaymentLink>('/payment_links', params);
   }
 
-  /** @see https://docs.zoneless.com/payment_links/update */
+  /** @see /payment_links/update */
   async update(
     id: string,
     params: UpdatePaymentLinkInput
@@ -28,7 +28,7 @@ export class PaymentLinks extends BaseResource {
     return this.client.Post<PaymentLink>(`/payment_links/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/payment_links/retrieve */
+  /** @see /payment_links/retrieve */
   async retrieve(
     id: string,
     params: RetrievePaymentLinkInput = {}
@@ -36,7 +36,7 @@ export class PaymentLinks extends BaseResource {
     return this.client.Get<PaymentLink>(`/payment_links/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/payment_links/list */
+  /** @see /payment_links/list */
   async list(
     params: ListPaymentLinksInput = {}
   ): Promise<ListResponse<PaymentLink>> {
@@ -50,7 +50,7 @@ export class PaymentLinks extends BaseResource {
    * When retrieving a payment link, you can optionally retrieve information
    * about the line items with `expand[]=line_items`. You can also retrieve
    * them separately with this method.
-   * @see https://docs.zoneless.com/payment_links/line_items
+   * @see /payment_links/line_items
    */
   async listLineItems(
     id: string,

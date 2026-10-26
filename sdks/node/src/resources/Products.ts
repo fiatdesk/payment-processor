@@ -9,20 +9,20 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/products
+ * @see /products
  */
 export class Products extends BaseResource {
-  /** @see https://docs.zoneless.com/products/create */
+  /** @see /products/create */
   async create(params: CreateProductInput): Promise<Product> {
     return this.client.Post<Product>('/products', params);
   }
 
-  /** @see https://docs.zoneless.com/products/update */
+  /** @see /products/update */
   async update(id: string, params: UpdateProductInput): Promise<Product> {
     return this.client.Post<Product>(`/products/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/products/retrieve */
+  /** @see /products/retrieve */
   async retrieve(
     id: string,
     params: RetrieveProductInput = {}
@@ -30,12 +30,12 @@ export class Products extends BaseResource {
     return this.client.Get<Product>(`/products/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/products/delete */
+  /** @see /products/delete */
   async del(id: string): Promise<ProductDeleted> {
     return this.client.Delete<ProductDeleted>(`/products/${id}`);
   }
 
-  /** @see https://docs.zoneless.com/products/list */
+  /** @see /products/list */
   async list(params: ListProductsInput = {}): Promise<ListResponse<Product>> {
     const query: ListQuery = {
       limit: params.limit,

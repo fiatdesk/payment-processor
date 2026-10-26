@@ -40,8 +40,8 @@ assume prior wallet or blockchain experience.
 
 ## Read documentation just in time
 
-Start with `https://docs.zoneless.com/api-quickstart.md`. Use
-`https://docs.zoneless.com/llms.txt` as an index and read a resource page only when
+Start with `https://docs.yourdomain.com/api-quickstart.md`. Use
+`https://docs.yourdomain.com/llms.txt` as an index and read a resource page only when
 implementing that resource or when blocked. Do not fetch the entire docs set
 upfront.
 
@@ -135,12 +135,12 @@ of using webhooks, do not create an unused endpoint or require
 ## Use test mode, then hand off live promotion
 
 Setup provisions both test and live profiles and makes test the current CLI
-profile. Implement and verify against `https://api-test.zoneless.com`; do not
+profile. Implement and verify against `https://api.yourdomain.com`; do not
 ask the human to choose live mode during the migration.
 
 Keep mode environment-driven rather than hardcoded. At handoff, explain that
 going live means configuring the separately provisioned live API key and
-`https://api.zoneless.com` in the deployment secret manager, configuring the
+`https://api.yourdomain.com` in the deployment secret manager, configuring the
 live webhook secret, funding the live platform wallet, and completing one
 human-supervised payout before enabling live traffic.
 
@@ -177,7 +177,7 @@ Install `@zoneless/node` with the project's package manager. Create one
 server-side Zoneless client in the existing payments/integrations layer using:
 
 - `ZONELESS_API_KEY`
-- `ZONELESS_API_URL`, using `https://api-test.zoneless.com` during integration
+- `ZONELESS_API_URL`, using `https://api.yourdomain.com` during integration
 - `SOLANA_SECRET_KEY` only in the server-side payout processor
 - `ZONELESS_WEBHOOK_SECRET` only when the app implements a webhook route
 
@@ -210,7 +210,7 @@ The adapter must:
 
 - require an explicit `ZONELESS_API_URL` and normalize it to exactly one `/v1`
   suffix;
-- use `https://api-test.zoneless.com` with the test profile during integration;
+- use `https://api.yourdomain.com` with the test profile during integration;
 - authenticate with `X-Api-Key`;
 - send `Idempotency-Key` for every mutating request;
 - send `Zoneless-Account: acct_z_...` for connected-account requests;
@@ -360,7 +360,7 @@ Report:
   balance first;
 - where the human must configure the API key and webhook secret;
 - the exact live-mode promotion sequence, including the bound live profile
-  name, `https://api.zoneless.com`, deployment secret changes, live webhook
+  name, `https://api.yourdomain.com`, deployment secret changes, live webhook
   setup, wallet funding, and one supervised payout;
 - that setup created a platform wallet and, before enabling live payouts, the
   human should run
@@ -370,7 +370,7 @@ Report:
   `secretKeyBase58` value as `SOLANA_SECRET_KEY` in the deployment secret
   manager;
 - that the human must follow
-  `https://docs.zoneless.com/fund-platform-wallet.md` to fund the platform
+  `https://docs.yourdomain.com/fund-platform-wallet.md` to fund the platform
   wallet with enough USDC for seller payouts and a small amount of SOL for
   Solana network fees;
 - that the human must explicitly approve any live rollout.

@@ -10,20 +10,20 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/charges
+ * @see /charges
  */
 export class Charges extends BaseResource {
-  /** @see https://docs.zoneless.com/charges/create */
+  /** @see /charges/create */
   async create(params: CreateChargeInput): Promise<Charge> {
     return this.client.Post<Charge>('/charges', params);
   }
 
-  /** @see https://docs.zoneless.com/charges/update */
+  /** @see /charges/update */
   async update(id: string, params: UpdateChargeInput): Promise<Charge> {
     return this.client.Post<Charge>(`/charges/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/charges/retrieve */
+  /** @see /charges/retrieve */
   async retrieve(
     id: string,
     params: RetrieveChargeInput = {}
@@ -31,7 +31,7 @@ export class Charges extends BaseResource {
     return this.client.Get<Charge>(`/charges/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/charges/list */
+  /** @see /charges/list */
   async list(params: ListChargesInput = {}): Promise<ListResponse<Charge>> {
     return this.client.Get<ListResponse<Charge>>(
       '/charges',
@@ -41,7 +41,7 @@ export class Charges extends BaseResource {
 
   /**
    * Capture the payment of an existing, uncaptured charge.
-   * @see https://docs.zoneless.com/charges/capture
+   * @see /charges/capture
    */
   async capture(id: string, params: CaptureChargeInput = {}): Promise<Charge> {
     return this.client.Post<Charge>(`/charges/${id}/capture`, params);

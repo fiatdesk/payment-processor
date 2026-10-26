@@ -9,14 +9,14 @@ import type { RunBillingForPlatformInput } from '../generated/Inputs';
  * exposed here — it requires a special operator key.
  *
  * @zoneless_extension
- * @see https://docs.zoneless.com/billing
+ * @see /billing
  */
 export class Billing extends BaseResource {
   /**
    * Run one billing pass for the authenticated platform: process due renewals
    * and invoice retries.
    *
-   * @see https://docs.zoneless.com/billing/run_for_platform
+   * @see /billing/run_for_platform
    */
   async runForPlatform(
     params: RunBillingForPlatformInput = {}
@@ -30,7 +30,7 @@ export class Billing extends BaseResource {
    * The monitor is disabled by default for multi-instance deployments; prefer
    * `runForPlatform` via cron / Cloud Scheduler instead.
    *
-   * @see https://docs.zoneless.com/billing/monitor/status
+   * @see /billing/monitor/status
    */
   async monitorStatus(): Promise<BillingMonitorStatus> {
     return this.client.Get<BillingMonitorStatus>('/billing/monitor/status');

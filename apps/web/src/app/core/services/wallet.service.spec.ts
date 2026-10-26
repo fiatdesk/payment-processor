@@ -69,7 +69,7 @@ describe('SolanaWalletService local key signing', () => {
     );
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
-      value: { location: { origin: 'https://buy.zoneless.com' } },
+      value: { location: { origin: 'https://buy.example.com' } },
     });
 
     const result = await service.TransactWithMobileWallet(
@@ -86,7 +86,7 @@ describe('SolanaWalletService local key signing', () => {
       chain: 'solana:mainnet',
       identity: {
         name: 'Zoneless',
-        uri: 'https://buy.zoneless.com',
+        uri: 'https://buy.example.com',
         icon: 'assets/favicon/favicon-32x32.png',
       },
     });
@@ -117,7 +117,7 @@ describe('SolanaWalletService local key signing', () => {
     );
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
-      value: { location: { origin: 'https://buy.zoneless.com' } },
+      value: { location: { origin: 'https://buy.example.com' } },
     });
 
     const result = await service.TransactWithMobileWallet(

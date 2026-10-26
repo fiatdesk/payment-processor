@@ -279,6 +279,31 @@ describe('Zoneless CLI', () => {
     }
   });
 
+  it('requires --auth-url and --activation-url for agent setup', async () => {
+    const configRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'zoneless-setup-config-')
+    );
+    const fetchRequest: FetchLike = jest.fn();
+    const { io, stdout } = CreateIo();
+
+    try {
+      const exitCode = await RunCli(
+        ['agent', 'setup', '--platform-name', 'Agent Store', '--json'],
+        { XDG_CONFIG_HOME: configRoot },
+        io,
+        fetchRequest
+      );
+
+      expect(exitCode).toBe(exitCodes.invalidInput);
+      expect(JSON.parse(stdout.join('')).error).toMatchObject({
+        code: 'auth_url_required',
+      });
+      expect(fetchRequest).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(configRoot, { force: true, recursive: true });
+    }
+  });
+
   it('uses the project-bound test profile instead of the global current profile', async () => {
     const projectDirectory = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), 'zoneless-bound-project-'))
@@ -702,7 +727,7 @@ describe('Zoneless CLI', () => {
       {
         expiresAt: Date.now() + 60_000,
         userCode: 'ABCD-EFGH',
-        verificationUrl: 'https://zoneless.com/activate?code=ABCD-EFGH',
+        verificationUrl: 'https://auth.example.com/activate?code=ABCD-EFGH',
         walletPublicKey: 'wallet-public-key',
       },
       io,
@@ -711,7 +736,7 @@ describe('Zoneless CLI', () => {
 
     expect(readLine).toHaveBeenCalledTimes(1);
     expect(openBrowser).toHaveBeenCalledWith(
-      'https://zoneless.com/activate?code=ABCD-EFGH'
+      'https://auth.example.com/activate?code=ABCD-EFGH'
     );
     expect(stderr.join('')).toContain(
       'Press Enter to open the authorization page'
@@ -733,7 +758,7 @@ describe('Zoneless CLI', () => {
       {
         expiresAt: 1234,
         userCode: 'ABCD-EFGH',
-        verificationUrl: 'https://zoneless.com/activate?code=ABCD-EFGH',
+        verificationUrl: 'https://auth.example.com/activate?code=ABCD-EFGH',
         walletPublicKey: 'wallet-public-key',
       },
       io,
@@ -743,7 +768,7 @@ describe('Zoneless CLI', () => {
     expect(JSON.parse(stdout.join(''))).toMatchObject({
       type: 'authorization_required',
       user_code: 'ABCD-EFGH',
-      verification_url: 'https://zoneless.com/activate?code=ABCD-EFGH',
+      verification_url: 'https://auth.example.com/activate?code=ABCD-EFGH',
     });
     expect(readLine).not.toHaveBeenCalled();
     expect(openBrowser).not.toHaveBeenCalled();

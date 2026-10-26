@@ -10,7 +10,7 @@ export const QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'Start by <a href="https://zoneless.com/login?view=signup">creating a Zoneless account</a> and opening your dashboard.',
+          text: 'Start by <a href="https://pay.yourdomain.com">creating a Zoneless account</a> and opening your dashboard.',
           html: true,
         },
         {
@@ -20,7 +20,7 @@ export const QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'In the dashboard sidebar, open <a href="https://dashboard.zoneless.com/account/connected-accounts" target="_blank" rel="noopener noreferrer"><strong>Connected accounts</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a>.',
+          text: 'In the dashboard sidebar, open <a href="https://pay.yourdomain.com/account/connected-accounts" target="_blank" rel="noopener noreferrer"><strong>Connected accounts</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a>.',
           html: true,
         },
       ],
@@ -144,7 +144,7 @@ export const QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Once the seller has finished onboarding, return to <a href="https://dashboard.zoneless.com/account/connected-accounts" target="_blank" rel="noopener noreferrer"><strong>Connected accounts</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a> and click their account.',
+          text: 'Once the seller has finished onboarding, return to <a href="https://pay.yourdomain.com/account/connected-accounts" target="_blank" rel="noopener noreferrer"><strong>Connected accounts</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a> and click their account.',
           html: true,
         },
       ],

@@ -13,15 +13,15 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/subscriptionitems
+ * @see /subscriptionitems
  */
 export class SubscriptionItems extends BaseResource {
-  /** @see https://docs.zoneless.com/subscriptionitems/create */
+  /** @see /subscriptionitems/create */
   async create(params: CreateSubscriptionItemInput): Promise<SubscriptionItem> {
     return this.client.Post<SubscriptionItem>('/subscription_items', params);
   }
 
-  /** @see https://docs.zoneless.com/subscriptionitems/update */
+  /** @see /subscriptionitems/update */
   async update(
     id: string,
     params: UpdateSubscriptionItemInput
@@ -32,7 +32,7 @@ export class SubscriptionItems extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/subscriptionitems/retrieve */
+  /** @see /subscriptionitems/retrieve */
   async retrieve(
     id: string,
     params: RetrieveSubscriptionItemInput = {}
@@ -43,7 +43,7 @@ export class SubscriptionItems extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/subscriptionitems/list */
+  /** @see /subscriptionitems/list */
   async list(
     params: ListSubscriptionItemsInput
   ): Promise<ListResponse<SubscriptionItem>> {
@@ -55,7 +55,7 @@ export class SubscriptionItems extends BaseResource {
 
   /**
    * Deletes a subscription item.
-   * @see https://docs.zoneless.com/subscriptionitems/delete
+   * @see /subscriptionitems/delete
    */
   async del(
     id: string,

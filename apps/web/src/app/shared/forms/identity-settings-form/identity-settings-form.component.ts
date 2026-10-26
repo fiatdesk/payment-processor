@@ -15,7 +15,8 @@ import { Account } from '@zoneless/shared-types';
 import { UpdateAccountInput } from '@zoneless/shared-schemas';
 import { CopyTextComponent } from '../../ui';
 import { ISO_CODES } from '../../../utils';
-import { GetDiditWebhookUrl } from './didit-webhook-url';
+import { environment } from '../../../../environments/environment';
+import { BuildDiditWebhookUrl } from './didit-webhook-url';
 
 export interface IdentitySettingsFormData {
   apiKey: string;
@@ -53,7 +54,7 @@ export class IdentitySettingsFormComponent implements OnInit, OnChanges {
     a.country.localeCompare(b.country)
   );
 
-  readonly diditWebhookUrl = GetDiditWebhookUrl();
+  readonly diditWebhookUrl = BuildDiditWebhookUrl(environment.apiUrl);
 
   apiKey: WritableSignal<string> = signal('');
   apiKeyError: WritableSignal<string> = signal('');

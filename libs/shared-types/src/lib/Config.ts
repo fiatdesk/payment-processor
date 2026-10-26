@@ -10,16 +10,16 @@ export type SettlementRail = 'simulated' | 'onchain';
 export interface AppConfig {
   /** MongoDB connection string */
   mongodbUri: string;
-  /** Dashboard URL (e.g., http://localhost:4200 or https://dashboard.zoneless.com) */
+  /** Dashboard URL (e.g., http://localhost:4200 or https://pay.yourdomain.com) */
   dashboardUrl: string;
   /**
-   * Hosted checkout URL origin (e.g., https://checkout.zoneless.com).
+   * Hosted checkout URL origin (e.g., https://checkout.yourdomain.com).
    * Defaults to dashboardUrl for single-domain / self-hosted deployments.
    * Session links are always `{checkoutUrl}/c/{url_slug}` (opaque slug, not the API id).
    */
   checkoutUrl: string;
   /**
-   * Payment Link URL origin (e.g., https://pay.zoneless.com).
+   * Payment Link URL origin (e.g., https://links.yourdomain.com).
    * Defaults to checkoutUrl for single-domain / self-hosted deployments.
    * Payment link URLs are always `{paymentLinkUrl}/b/{url_slug}` (opaque slug, not the API id).
    */

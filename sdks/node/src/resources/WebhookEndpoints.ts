@@ -10,20 +10,20 @@ import type {
   ListWebhookEndpointsInput,
 } from '../generated/Inputs';
 /**
- * @see https://docs.zoneless.com/webhook-endpoints
+ * @see /webhook-endpoints
  */
 export class WebhookEndpoints extends BaseResource {
-  /** @see https://docs.zoneless.com/webhook-endpoints/create */
+  /** @see /webhook-endpoints/create */
   async create(params: CreateWebhookEndpointInput): Promise<WebhookEndpoint> {
     return this.client.Post<WebhookEndpoint>('/webhook_endpoints', params);
   }
 
-  /** @see https://docs.zoneless.com/webhook-endpoints/retrieve */
+  /** @see /webhook-endpoints/retrieve */
   async retrieve(id: string): Promise<WebhookEndpoint> {
     return this.client.Get<WebhookEndpoint>(`/webhook_endpoints/${id}`);
   }
 
-  /** @see https://docs.zoneless.com/webhook-endpoints/update */
+  /** @see /webhook-endpoints/update */
   async update(
     id: string,
     params: UpdateWebhookEndpointInput
@@ -34,14 +34,14 @@ export class WebhookEndpoints extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/webhook-endpoints/delete */
+  /** @see /webhook-endpoints/delete */
   async del(id: string): Promise<WebhookEndpointDeletedResponse> {
     return this.client.Delete<WebhookEndpointDeletedResponse>(
       `/webhook_endpoints/${id}`
     );
   }
 
-  /** @see https://docs.zoneless.com/webhook-endpoints/list */
+  /** @see /webhook-endpoints/list */
   async list(
     params: ListWebhookEndpointsInput = {}
   ): Promise<ListResponse<WebhookEndpoint>> {

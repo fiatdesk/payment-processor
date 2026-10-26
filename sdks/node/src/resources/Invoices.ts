@@ -13,20 +13,20 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/invoices
+ * @see /invoices
  */
 export class Invoices extends BaseResource {
-  /** @see https://docs.zoneless.com/invoices/create */
+  /** @see /invoices/create */
   async create(params: CreateInvoiceInput): Promise<Invoice> {
     return this.client.Post<Invoice>('/invoices', params);
   }
 
-  /** @see https://docs.zoneless.com/invoices/update */
+  /** @see /invoices/update */
   async update(id: string, params: UpdateInvoiceInput): Promise<Invoice> {
     return this.client.Post<Invoice>(`/invoices/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/invoices/retrieve */
+  /** @see /invoices/retrieve */
   async retrieve(
     id: string,
     params: RetrieveInvoiceInput = {}
@@ -34,7 +34,7 @@ export class Invoices extends BaseResource {
     return this.client.Get<Invoice>(`/invoices/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/invoices/list */
+  /** @see /invoices/list */
   async list(params: ListInvoicesInput = {}): Promise<ListResponse<Invoice>> {
     return this.client.Get<ListResponse<Invoice>>(
       '/invoices',
@@ -44,7 +44,7 @@ export class Invoices extends BaseResource {
 
   /**
    * Permanently deletes a one-off invoice draft. This cannot be undone.
-   * @see https://docs.zoneless.com/invoices/delete
+   * @see /invoices/delete
    */
   async del(id: string): Promise<InvoiceDeleted> {
     return this.client.Delete<InvoiceDeleted>(`/invoices/${id}`);
@@ -52,7 +52,7 @@ export class Invoices extends BaseResource {
 
   /**
    * Finalize a draft invoice manually.
-   * @see https://docs.zoneless.com/invoices/finalize
+   * @see /invoices/finalize
    */
   async finalizeInvoice(
     id: string,
@@ -63,7 +63,7 @@ export class Invoices extends BaseResource {
 
   /**
    * Mark an invoice as uncollectible.
-   * @see https://docs.zoneless.com/invoices/mark_uncollectible
+   * @see /invoices/mark_uncollectible
    */
   async markUncollectible(
     id: string,
@@ -77,7 +77,7 @@ export class Invoices extends BaseResource {
 
   /**
    * Attempt payment on an invoice outside of the normal collection schedule.
-   * @see https://docs.zoneless.com/invoices/pay
+   * @see /invoices/pay
    */
   async pay(id: string, params: PayInvoiceInput = {}): Promise<Invoice> {
     return this.client.Post<Invoice>(`/invoices/${id}/pay`, params);
@@ -85,7 +85,7 @@ export class Invoices extends BaseResource {
 
   /**
    * Mark a finalized invoice as void. This cannot be undone.
-   * @see https://docs.zoneless.com/invoices/void
+   * @see /invoices/void
    */
   async voidInvoice(
     id: string,

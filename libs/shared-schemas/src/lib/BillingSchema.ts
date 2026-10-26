@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Processes due renewals and invoice retries for the authenticated platform.
  *
  * @zoneless_extension
- * @see https://zoneless.com/docs/billing/run_for_platform
+ * @see /billing/run_for_platform
  */
 export const RunBillingForPlatformSchema = z.object({
   /**

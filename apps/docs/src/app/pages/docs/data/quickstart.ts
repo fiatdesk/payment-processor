@@ -9,7 +9,7 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'If you don\'t have an account yet, <a href="https://zoneless.com/login?view=signup">sign up</a>, then open your Zoneless dashboard.',
+          text: 'If you don\'t have an account yet, <a href="https://pay.yourdomain.com">sign up</a>, then open your Zoneless dashboard.',
           html: true,
         },
         {
@@ -19,7 +19,7 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'In the sidebar, open <a href="https://dashboard.zoneless.com/account/payment-links" target="_blank" rel="noopener noreferrer"><strong>Payment Links</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a>.',
+          text: 'In the sidebar, open <a href="https://pay.yourdomain.com/account/payment-links" target="_blank" rel="noopener noreferrer"><strong>Payment Links</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a>.',
           html: true,
         },
       ],

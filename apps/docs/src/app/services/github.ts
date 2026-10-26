@@ -4,10 +4,11 @@ import { isPlatformBrowser } from '@angular/common';
 const CACHE_KEY = 'gh_stars';
 const CACHE_TS_KEY = 'gh_stars_ts';
 const CACHE_TTL = 300_000; // 5 minutes
+const PLACEHOLDER_REPO = 'OWNER/REPO';
 
 @Injectable({ providedIn: 'root' })
 export class GithubService {
-  readonly repo = 'zonelessdev/zoneless';
+  readonly repo = 'OWNER/REPO';
   readonly stars = signal<number | null>(null);
 
   private fetched = false;
@@ -18,7 +19,10 @@ export class GithubService {
   }
 
   async FetchStars(): Promise<void> {
-    if (this.fetched || !this.isBrowser) return;
+    // Skip the request until a real repository is configured.
+    if (this.fetched || !this.isBrowser || this.repo === PLACEHOLDER_REPO) {
+      return;
+    }
     this.fetched = true;
 
     try {

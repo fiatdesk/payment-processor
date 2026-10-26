@@ -42,10 +42,10 @@ the opposite.
 
 ## Read documentation just in time
 
-Start with `https://docs.zoneless.com/subscriptions.md` for the recurring
-billing API, `https://docs.zoneless.com/checkout-api-quickstart.md` for checkout
-request and response shapes, and `https://docs.zoneless.com/webhooks.md` when
-wiring lifecycle events. Use `https://docs.zoneless.com/llms.txt` as an index and
+Start with `https://docs.yourdomain.com/subscriptions.md` for the recurring
+billing API, `https://docs.yourdomain.com/checkout-api-quickstart.md` for checkout
+request and response shapes, and `https://docs.yourdomain.com/webhooks.md` when
+wiring lifecycle events. Use `https://docs.yourdomain.com/llms.txt` as an index and
 read a resource page only when implementing that resource or when blocked. Do
 not fetch the entire docs set upfront.
 
@@ -133,7 +133,7 @@ so it loads the new value.
 If CLI setup is unavailable, give the human these manual test-mode steps without
 asking them to reveal the secret:
 
-1. Open `https://dashboard-test.zoneless.com/account/developers`.
+1. Open `https://pay.yourdomain.com/account/developers`.
 2. Choose **Developers** in the side menu.
 3. In **Webhook Endpoints**, choose **Add endpoint**.
 4. Enter the public HTTPS endpoint URL.
@@ -142,15 +142,15 @@ asking them to reveal the secret:
    server's local environment as `ZONELESS_WEBHOOK_SECRET`, and restart the
    server.
 
-Reserve `https://dashboard.zoneless.com/account/developers` for the explicit
+Reserve `https://pay.yourdomain.com/account/developers` for the explicit
 live handoff. Never configure a live endpoint while implementing in test mode.
 
 ## Use test mode, then hand off live promotion
 
-Implement and verify against `https://api-test.zoneless.com`. Keep the mode
+Implement and verify against `https://api.yourdomain.com`. Keep the mode
 environment-driven rather than hardcoded. At handoff, explain that going live
 means configuring the separately provisioned live API key,
-`https://api.zoneless.com`, and the live webhook secret in the deployment
+`https://api.yourdomain.com`, and the live webhook secret in the deployment
 secret manager.
 
 ## Choose the integration client

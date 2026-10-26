@@ -156,7 +156,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'If you use Zoneless Cloud, the URL is <code>https://api.zoneless.com/v1/identity/webhooks/didit</code>. If you self-host, use the same path on your own API domain.',
+          text: 'If you use Zoneless Cloud, the URL is <code>https://api.yourdomain.com/v1/identity/webhooks/didit</code>. If you self-host, use the same path on your own API domain.',
           html: true,
         },
         {
@@ -268,10 +268,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
             },
             {
               text: '<a href="/payouts">Payouts</a> - pay connected accounts in USDC',
-              html: true,
-            },
-            {
-              text: '<a href="https://zoneless.com/blog/protect-your-marketplace-with-kyc-checks">How to run KYC checks on marketplace sellers</a> - learn how to choose a KYC policy',
               html: true,
             },
           ],

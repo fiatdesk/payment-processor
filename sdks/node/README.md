@@ -1,8 +1,8 @@
 # Zoneless Node.js SDK
 
-The official Node.js SDK for the [Zoneless](https://zoneless.com) API — an open-source Stripe-compatible payments platform that uses USDC on Solana.
+The official Node.js SDK for the Zoneless API — an open-source Stripe-compatible payments platform that uses USDC on Solana.
 
-Source lives in this monorepo at [`sdks/node`](https://github.com/zonelessdev/zoneless/tree/main/sdks/node). Types and request schemas come from [`libs/shared-types`](https://github.com/zonelessdev/zoneless/tree/main/libs/shared-types) and [`libs/shared-schemas`](https://github.com/zonelessdev/zoneless/tree/main/libs/shared-schemas).
+Source lives in this monorepo at [`sdks/node`](https://github.com/OWNER/REPO/tree/main/sdks/node). Types and request schemas come from [`libs/shared-types`](https://github.com/OWNER/REPO/tree/main/libs/shared-types) and [`libs/shared-schemas`](https://github.com/OWNER/REPO/tree/main/libs/shared-schemas).
 
 ## Installation
 
@@ -33,7 +33,7 @@ console.log(account.id); // acct_...
 
 ## Documentation
 
-Full API documentation is available at [docs.zoneless.com](https://docs.zoneless.com).
+Full API documentation is served by your own docs deployment (the `apps/docs` app in this repository).
 
 ## License
 

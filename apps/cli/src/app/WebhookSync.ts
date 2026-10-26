@@ -36,7 +36,7 @@ export interface WebhookSyncOptions {
 
 export interface WebhookSyncResult {
   created: boolean;
-  dashboard_url: string;
+  dashboard_url: string | null;
   enabled_events: string[];
   endpoint_id: string;
   mode: 'live' | 'test';
@@ -141,10 +141,9 @@ export async function SyncWebhook(
 
   return {
     created,
-    dashboard_url:
-      environment.mode === 'live'
-        ? 'https://dashboard.zoneless.com/account/developers'
-        : 'https://dashboard-test.zoneless.com/account/developers',
+    dashboard_url: DeriveDashboardUrl(
+      (await options.profileStore.GetCredentials(profileName)).profile.apiUrl
+    ),
     enabled_events: command.events,
     endpoint_id: endpoint.id,
     mode: environment.mode,
@@ -189,4 +188,26 @@ function CreateIdempotencyKey(
     .digest('hex')
     .slice(0, 32);
   return `webhook-sync:${digest}`;
+}
+
+/**
+ * Derives the developers dashboard URL from a profile's API URL by swapping
+ * the leading `api.` / `api-test.` host label for `dashboard.` /
+ * `dashboard-test.`. Returns null for any other host so callers can fall back
+ * to generic wording instead of guessing.
+ */
+export function DeriveDashboardUrl(apiUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(apiUrl);
+  } catch {
+    return null;
+  }
+  const match = /^api(-test)?\.(.+)$/.exec(url.hostname);
+  if (!match) {
+    return null;
+  }
+  return `${url.protocol}//dashboard${match[1] ?? ''}.${
+    match[2]
+  }/account/developers`;
 }

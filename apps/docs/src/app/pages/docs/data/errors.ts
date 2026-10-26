@@ -240,7 +240,7 @@ export const ERRORS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `# Errors return a JSON body with an "error" key
-curl https://api.zoneless.com/v1/accounts/acct_z_invalid \\
+curl https://api.yourdomain.com/v1/accounts/acct_z_invalid \\
   -H "x-api-key: sk_live_z_YOUR_API_KEY"
 
 # 404 response:
@@ -255,7 +255,7 @@ curl https://api.zoneless.com/v1/accounts/acct_z_invalid \\
               id: 'node',
               label: 'Node.js',
               code: `import { Zoneless } from '@zoneless/node';
-const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.zoneless.com');
+const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');
 
 try {
   const account = await zoneless.accounts.retrieve('acct_z_invalid');

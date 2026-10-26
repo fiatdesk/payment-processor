@@ -11,7 +11,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'Prefer no code? Use the <a href="/payment-link-quickstart">Payment Links quickstart</a>. Self-hosting? Complete the <a href="/self-hosting">Self-hosting</a> guide first, then continue from <strong>Install the SDK</strong> using your instance URL instead of <code>https://api.zoneless.com</code>.',
+          text: 'Prefer no code? Use the <a href="/payment-link-quickstart">Payment Links quickstart</a>. Self-hosting? Complete the <a href="/self-hosting">Self-hosting</a> guide first, then continue from <strong>Install the SDK</strong> using your instance URL instead of <code>https://api.yourdomain.com</code>.',
           html: true,
         },
         {
@@ -21,7 +21,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Sign up at <a href="https://zoneless.com">zoneless.com</a> (or use an existing account) and copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Keep it server-side only; never expose it in client-side code or commit it to version control.',
+          text: 'Sign up at your dashboard (or use an existing account) and copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Keep it server-side only; never expose it in client-side code or commit it to version control.',
           html: true,
         },
       ],
@@ -78,7 +78,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
 export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
 
 # Include in requests via the x-api-key header
-curl https://api.zoneless.com/v1/balance \\
+curl https://api.yourdomain.com/v1/balance \\
   -H "x-api-key: $ZONELESS_API_KEY"`,
             },
           ],
@@ -132,7 +132,7 @@ console.log(session.url);`,
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.zoneless.com/v1/checkout/sessions \\
+              code: `curl https://api.yourdomain.com/v1/checkout/sessions \\
   -H "x-api-key: $ZONELESS_API_KEY" \\
   -d success_url="https://yoursite.com/success" \\
   -d cancel_url="https://yoursite.com/cancel" \\

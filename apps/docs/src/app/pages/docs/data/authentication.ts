@@ -31,11 +31,11 @@ export const AUTHENTICATION_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: '<strong>Live:</strong> <code>https://api.zoneless.com</code> with an <code>sk_live_z_</code> key. Live mode uses Solana mainnet and real USDC.',
+              text: '<strong>Live:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_live_z_</code> key. Live mode uses Solana mainnet and real USDC.',
               html: true,
             },
             {
-              text: '<strong>Test:</strong> <code>https://api-test.zoneless.com</code> with an <code>sk_test_z_</code> key. Test mode uses simulated USDC, so you can try payments without a wallet or faucet.',
+              text: '<strong>Test:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_test_z_</code> key. Test mode uses simulated USDC, so you can try payments without a wallet or faucet.',
               html: true,
             },
           ],
@@ -56,13 +56,13 @@ export const AUTHENTICATION_PAGE: DocPage = {
               id: 'live',
               label: 'Live',
               code: `ZONELESS_API_KEY=sk_live_z_YOUR_API_KEY
-ZONELESS_API_URL=https://api.zoneless.com`,
+ZONELESS_API_URL=https://api.yourdomain.com`,
             },
             {
               id: 'test',
               label: 'Test',
               code: `ZONELESS_API_KEY=sk_test_z_YOUR_API_KEY
-ZONELESS_API_URL=https://api-test.zoneless.com`,
+ZONELESS_API_URL=https://api.yourdomain.com`,
             },
           ],
         },
@@ -116,7 +116,7 @@ ZONELESS_API_URL=https://api-test.zoneless.com`,
               label: 'cURL',
               code: `export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
 
-curl https://api.zoneless.com/v1/balance \\
+curl https://api.yourdomain.com/v1/balance \\
   -H "x-api-key: $ZONELESS_API_KEY"`,
             },
           ],

@@ -6,8 +6,15 @@ marketplace integrations.
 Run without installing globally:
 
 ```bash
-npx @zoneless/cli@latest agent setup --platform-name "My agent store"
+npx @zoneless/cli@latest agent setup --platform-name "My agent store" \
+  --auth-url https://auth.example.com/Actions \
+  --activation-url https://auth.example.com/activate
 ```
+
+`--auth-url` (or `ZONELESS_AUTH_URL`) and `--activation-url` (or
+`ZONELESS_ACTIVATION_URL`) are required: there is no default authorization
+service, so point them at the one you operate. Without them the command exits
+with `auth_url_required`.
 
 Or install once with `npm install --global @zoneless/cli` and replace
 `npx @zoneless/cli@latest` below with `zoneless`.
@@ -123,9 +130,9 @@ The URL must be publicly reachable over HTTPS. For local development, start an
 ngrok or Cloudflare Tunnel separately and pass its URL to the command.
 
 To configure an endpoint manually, use the Developers page in the
-[test dashboard](https://dashboard-test.zoneless.com/account/developers) or,
+test dashboard (for example `https://dashboard-test.example.com/account/developers`) or,
 for an explicit production rollout, the
-[live dashboard](https://dashboard.zoneless.com/account/developers). In
+live dashboard (for example `https://dashboard.example.com/account/developers`). In
 **Webhook Endpoints**, choose **Add endpoint**, enter the URL, select the events,
 and choose **Create**. The signing secret is displayed once.
 

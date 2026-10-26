@@ -13,15 +13,15 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/invoiceitems
+ * @see /invoiceitems
  */
 export class InvoiceItems extends BaseResource {
-  /** @see https://docs.zoneless.com/invoiceitems/create */
+  /** @see /invoiceitems/create */
   async create(params: CreateInvoiceItemInput): Promise<InvoiceItem> {
     return this.client.Post<InvoiceItem>('/invoiceitems', params);
   }
 
-  /** @see https://docs.zoneless.com/invoiceitems/update */
+  /** @see /invoiceitems/update */
   async update(
     id: string,
     params: UpdateInvoiceItemInput
@@ -29,7 +29,7 @@ export class InvoiceItems extends BaseResource {
     return this.client.Post<InvoiceItem>(`/invoiceitems/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/invoiceitems/retrieve */
+  /** @see /invoiceitems/retrieve */
   async retrieve(
     id: string,
     params: RetrieveInvoiceItemInput = {}
@@ -37,7 +37,7 @@ export class InvoiceItems extends BaseResource {
     return this.client.Get<InvoiceItem>(`/invoiceitems/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/invoiceitems/list */
+  /** @see /invoiceitems/list */
   async list(
     params: ListInvoiceItemsInput = {}
   ): Promise<ListResponse<InvoiceItem>> {
@@ -50,7 +50,7 @@ export class InvoiceItems extends BaseResource {
   /**
    * Deletes an invoice item. Only possible when not attached to an invoice,
    * or when attached to a draft invoice.
-   * @see https://docs.zoneless.com/invoiceitems/delete
+   * @see /invoiceitems/delete
    */
   async del(id: string): Promise<InvoiceItemDeleted> {
     return this.client.Delete<InvoiceItemDeleted>(`/invoiceitems/${id}`);

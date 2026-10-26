@@ -4,7 +4,11 @@ import path from 'node:path';
 import { ProfileStore, type AgentProfile } from './ProfileStore';
 import { GetWebhookSecretAccount, type SecretStore } from './SecretStore';
 import type { WebhookEndpointResponse, WebhookSyncCommand } from './Types';
-import { SyncWebhook, type WebhookClient } from './WebhookSync';
+import {
+  DeriveDashboardUrl,
+  SyncWebhook,
+  type WebhookClient,
+} from './WebhookSync';
 
 class MemorySecretStore implements SecretStore {
   private readonly values = new Map<string, string>();
@@ -85,7 +89,7 @@ async function CreateFixture(): Promise<Fixture> {
   );
   const profile: AgentProfile = {
     apiKeyPrefix: 'sk_test_z_',
-    apiUrl: 'https://api-test.zoneless.com/v1',
+    apiUrl: 'https://api.example.com/v1',
     mode: 'test',
     platformId: 'acct_test',
     platformName: 'Test Platform',
@@ -128,6 +132,7 @@ describe('Webhook sync', () => {
 
       expect(result).toMatchObject({
         created: true,
+        dashboard_url: 'https://dashboard.example.com/account/developers',
         endpoint_id: 'we_z_created',
         mode: 'test',
         restart_required: true,
@@ -143,9 +148,7 @@ describe('Webhook sync', () => {
         'utf8'
       );
       expect(environment).toContain('ZONELESS_WEBHOOK_SECRET=whsec_z_created');
-      expect(environment).toContain(
-        'ZONELESS_API_URL=https://api-test.zoneless.com'
-      );
+      expect(environment).toContain('ZONELESS_API_URL=https://api.example.com');
     } finally {
       await fs.rm(fixture.rootDirectory, { force: true, recursive: true });
     }
@@ -214,5 +217,25 @@ describe('Webhook sync', () => {
     } finally {
       await fs.rm(fixture.rootDirectory, { force: true, recursive: true });
     }
+  });
+});
+
+describe('DeriveDashboardUrl', () => {
+  it('swaps the api label for dashboard on api. hosts', () => {
+    expect(DeriveDashboardUrl('https://api.example.com/v1')).toBe(
+      'https://dashboard.example.com/account/developers'
+    );
+  });
+
+  it('keeps the -test label on api-test. hosts', () => {
+    expect(DeriveDashboardUrl('https://api-test.example.com/v1')).toBe(
+      'https://dashboard-test.example.com/account/developers'
+    );
+  });
+
+  it('returns null for other hosts and invalid URLs', () => {
+    expect(DeriveDashboardUrl('http://localhost:3333/v1')).toBeNull();
+    expect(DeriveDashboardUrl('https://payments.example.com/v1')).toBeNull();
+    expect(DeriveDashboardUrl('not a url')).toBeNull();
   });
 });

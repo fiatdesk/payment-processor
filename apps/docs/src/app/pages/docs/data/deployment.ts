@@ -127,8 +127,8 @@ export const DEPLOYMENT_PAGE: DocPage = {
             {
               id: 'bash',
               label: 'Terminal',
-              code: `git clone https://github.com/zonelessdev/zoneless.git
-cd zoneless`,
+              code: `git clone https://github.com/OWNER/REPO.git
+cd REPO`,
             },
           ],
         },

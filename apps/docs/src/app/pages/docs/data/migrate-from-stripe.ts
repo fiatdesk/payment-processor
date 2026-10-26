@@ -51,7 +51,7 @@ export const MIGRATE_FROM_STRIPE_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Use <code>https://api.zoneless.com</code> for Zoneless Cloud, or your own API URL if you self-host. Zoneless IDs use prefixes such as <code>acct_z_</code>, <code>tr_z_</code>, and <code>po_z_</code>.',
+          text: 'Use <code>https://api.yourdomain.com</code> for Zoneless Cloud, or your own API URL if you self-host. Zoneless IDs use prefixes such as <code>acct_z_</code>, <code>tr_z_</code>, and <code>po_z_</code>.',
           html: true,
         },
       ],
@@ -110,7 +110,7 @@ const account = await zoneless.accounts.create({
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.zoneless.com/v1/balance \\
+              code: `curl https://api.yourdomain.com/v1/balance \\
   -H "x-api-key: $ZONELESS_API_KEY" \\
   -H "Zoneless-Account: acct_z_1234..."`,
             },
@@ -198,7 +198,7 @@ const account = await zoneless.accounts.create({
         { type: 'heading', level: 3, text: 'Cloud or self-hosted' },
         {
           type: 'paragraph',
-          text: 'Zoneless Cloud uses <code>https://api.zoneless.com</code>. If you <a href="/self-hosting">self-host Zoneless</a>, use your instance URL when you create the SDK client and when you make direct API requests.',
+          text: 'Zoneless Cloud uses <code>https://api.yourdomain.com</code>. If you <a href="/self-hosting">self-host Zoneless</a>, use your instance URL when you create the SDK client and when you make direct API requests.',
           html: true,
         },
       ],

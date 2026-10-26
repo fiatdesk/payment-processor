@@ -71,7 +71,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api-test.zoneless.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
+          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
           html: true,
         },
         {
@@ -101,7 +101,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Follow that skill as the implementation and safety contract. Start with the <a href="/api-quickstart">API Quickstart</a>, use <a href="https://docs.zoneless.com/llms.txt">llms.txt</a> as an index, and read other resource pages only when implementing that resource or when blocked. Do not fetch the entire documentation set upfront.',
+          text: 'Follow that skill as the implementation and safety contract. Start with the <a href="/api-quickstart">API Quickstart</a>, use <a href="/llms.txt">llms.txt</a> as an index, and read other resource pages only when implementing that resource or when blocked. Do not fetch the entire documentation set upfront.',
           html: true,
         },
       ],
@@ -145,7 +145,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Keep API keys and transaction signing server-side and use <code>https://api-test.zoneless.com</code> during integration. The Node SDK already handles Solana transaction building and signing: do not add Solana packages or application configuration for mint, cluster, RPC, token accounts, or platform account IDs. Non-Node runtimes use the documented build and broadcast endpoints with a maintained signer for that language.',
+          text: 'Keep API keys and transaction signing server-side and use <code>https://api.yourdomain.com</code> during integration. The Node SDK already handles Solana transaction building and signing: do not add Solana packages or application configuration for mint, cluster, RPC, token accounts, or platform account IDs. Non-Node runtimes use the documented build and broadcast endpoints with a maintained signer for that language.',
           html: true,
         },
         {
@@ -232,7 +232,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Explain the live promotion explicitly: configure the separately provisioned live API key and <code>https://api.zoneless.com</code> in the deployment secret manager, configure the live webhook secret, fund the live platform wallet, and complete one supervised payout before enabling live traffic.',
+          text: 'Explain the live promotion explicitly: configure the separately provisioned live API key and <code>https://api.yourdomain.com</code> in the deployment secret manager, configure the live webhook secret, fund the live platform wallet, and complete one supervised payout before enabling live traffic.',
           html: true,
         },
         {

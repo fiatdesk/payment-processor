@@ -1,23 +1,17 @@
 const DIDIT_WEBHOOK_PATH = '/v1/identity/webhooks/didit';
 
-/** Zoneless cloud dashboard hosts → public Didit webhook URL */
-const ZONELESS_DASHBOARD_DIDIT_WEBHOOK_URLS: Record<string, string> = {
-  'dashboard.zoneless.com': `https://api.zoneless.com${DIDIT_WEBHOOK_PATH}`,
-  'dashboard-test.zoneless.com': `https://api-test.zoneless.com${DIDIT_WEBHOOK_PATH}`,
-};
-
 /**
- * Didit webhook destination for identity settings help copy.
- * Zoneless cloud dashboards get the matching managed API URL; other hosts
- * get an example absolute URL to adapt for their own API domain.
+ * Didit webhook destination for identity settings help copy, derived from
+ * the configured API base URL (e.g. `https://api.example.com/v1`). A relative
+ * or empty base (same-origin deployments) resolves against `origin`.
  */
-export function GetDiditWebhookUrl(
-  hostname: string = typeof window !== 'undefined'
-    ? window.location.hostname
-    : ''
+export function BuildDiditWebhookUrl(
+  apiBaseUrl: string,
+  origin: string = typeof window !== 'undefined' ? window.location.origin : ''
 ): string {
-  return (
-    ZONELESS_DASHBOARD_DIDIT_WEBHOOK_URLS[hostname] ??
-    `https://api.yourdomain.com${DIDIT_WEBHOOK_PATH}`
-  );
+  const trimmed = (apiBaseUrl ?? '').trim().replace(/\/+$/, '');
+  const base = /^https?:\/\//i.test(trimmed)
+    ? trimmed.replace(/\/v1$/i, '')
+    : origin.replace(/\/+$/, '');
+  return `${base || 'https://api.yourdomain.com'}${DIDIT_WEBHOOK_PATH}`;
 }

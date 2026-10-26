@@ -52,8 +52,8 @@ export const SELF_HOSTING_PAGE: DocPage = {
             {
               id: 'docker',
               label: 'Docker',
-              code: `git clone https://github.com/zonelessdev/zoneless.git
-cd zoneless
+              code: `git clone https://github.com/OWNER/REPO.git
+cd REPO
 docker compose up -d --build`,
             },
           ],

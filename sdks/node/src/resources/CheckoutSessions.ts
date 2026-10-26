@@ -16,15 +16,15 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/checkout/sessions
+ * @see /checkout/sessions
  */
 export class CheckoutSessions extends BaseResource {
-  /** @see https://docs.zoneless.com/checkout/sessions/create */
+  /** @see /checkout/sessions/create */
   async create(params: CreateCheckoutSessionInput): Promise<CheckoutSession> {
     return this.client.Post<CheckoutSession>('/checkout/sessions', params);
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/update */
+  /** @see /checkout/sessions/update */
   async update(
     id: string,
     params: UpdateCheckoutSessionInput
@@ -35,7 +35,7 @@ export class CheckoutSessions extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/retrieve */
+  /** @see /checkout/sessions/retrieve */
   async retrieve(
     id: string,
     params: RetrieveCheckoutSessionInput = {}
@@ -43,7 +43,7 @@ export class CheckoutSessions extends BaseResource {
     return this.client.Get<CheckoutSession>(`/checkout/sessions/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/expire */
+  /** @see /checkout/sessions/expire */
   async expire(
     id: string,
     params: ExpireCheckoutSessionInput = {}
@@ -54,7 +54,7 @@ export class CheckoutSessions extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/list-line-items */
+  /** @see /checkout/sessions/list-line-items */
   async listLineItems(
     id: string,
     params: ListCheckoutSessionLineItemsInput = {}
@@ -65,7 +65,7 @@ export class CheckoutSessions extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/list */
+  /** @see /checkout/sessions/list */
   async list(
     params: ListCheckoutSessionsInput = {}
   ): Promise<ListResponse<CheckoutSession>> {
@@ -90,7 +90,7 @@ export class CheckoutSessions extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/checkout/sessions/delete */
+  /** @see /checkout/sessions/delete */
   async del(customerId: string): Promise<CheckoutSessionDeleted> {
     return this.client.Delete<CheckoutSessionDeleted>(
       `/checkout/sessions/${customerId}`

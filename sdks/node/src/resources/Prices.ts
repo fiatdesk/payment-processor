@@ -9,25 +9,25 @@ import type {
 } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/prices
+ * @see /prices
  */
 export class Prices extends BaseResource {
-  /** @see https://docs.zoneless.com/prices/create */
+  /** @see /prices/create */
   async create(params: CreatePriceInput): Promise<Price> {
     return this.client.Post<Price>('/prices', params);
   }
 
-  /** @see https://docs.zoneless.com/prices/update */
+  /** @see /prices/update */
   async update(id: string, params: UpdatePriceInput): Promise<Price> {
     return this.client.Post<Price>(`/prices/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/prices/retrieve */
+  /** @see /prices/retrieve */
   async retrieve(id: string, params: RetrievePriceInput = {}): Promise<Price> {
     return this.client.Get<Price>(`/prices/${id}`, params);
   }
 
-  /** @see https://docs.zoneless.com/prices/list */
+  /** @see /prices/list */
   async list(params: ListPricesInput = {}): Promise<ListResponse<Price>> {
     const query: ListQuery = {
       limit: params.limit,

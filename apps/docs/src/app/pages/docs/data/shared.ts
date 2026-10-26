@@ -1,7 +1,7 @@
 import { AttributeTooltip, DocSubSection, EndpointSummary } from './types';
 
 export const NODE_INIT = `import { Zoneless } from '@zoneless/node';
-const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.zoneless.com');`;
+const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');`;
 
 /** Hover tooltip shown next to expandable attribute types. */
 export const EXPAND_TOOLTIP: AttributeTooltip = {

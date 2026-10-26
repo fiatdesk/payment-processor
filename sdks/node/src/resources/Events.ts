@@ -4,15 +4,15 @@ import { Event, ListResponse } from '@zoneless/shared-types';
 import type { ListEventsInput } from '../generated/Inputs';
 
 /**
- * @see https://docs.zoneless.com/events
+ * @see /events
  */
 export class Events extends BaseResource {
-  /** @see https://docs.zoneless.com/events/retrieve */
+  /** @see /events/retrieve */
   async retrieve(id: string): Promise<Event> {
     return this.client.Get<Event>(`/events/${id}`);
   }
 
-  /** @see https://docs.zoneless.com/events/list */
+  /** @see /events/list */
   async list(params: ListEventsInput = {}): Promise<ListResponse<Event>> {
     const query = this.BuildQuery(params);
     return this.client.Get<ListResponse<Event>>('/events', query);

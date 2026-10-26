@@ -18,7 +18,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'On Zoneless Cloud, sign in to your <a href="https://zoneless.com/dashboard">Zoneless account</a> and click <strong>Open Zoneless Dashboard</strong>. If you self-host, use the dashboard URL for your own instance.',
+          text: 'On Zoneless Cloud, sign in to your <a href="https://pay.yourdomain.com">Zoneless account</a> and click <strong>Open Zoneless Dashboard</strong>. If you self-host, use the dashboard URL for your own instance.',
           html: true,
         },
       ],

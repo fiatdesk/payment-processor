@@ -14,9 +14,6 @@ import {
 import { GetWalletAccount, type SecretStore } from './SecretStore';
 import { exitCodes } from './Types';
 
-const defaultAuthUrl =
-  'https://us-central1-zoneless-app.cloudfunctions.net/Actions';
-const defaultActivationUrl = 'https://zoneless.com/activate';
 const setupTimeoutMs = 10 * 60 * 1000;
 
 interface ModeCredentials {
@@ -118,8 +115,22 @@ export class AgentSetupService {
     options: AgentSetupOptions,
     onAuthorization: (prompt: AuthorizationPrompt) => void | Promise<void>
   ): Promise<AgentSetupResult> {
-    const authUrl = options.authUrl ?? defaultAuthUrl;
-    const activationUrl = options.activationUrl ?? defaultActivationUrl;
+    const authUrl = options.authUrl;
+    const activationUrl = options.activationUrl;
+    if (!authUrl) {
+      throw new CliError(
+        'No agent authorization endpoint is configured. Pass --auth-url <url> or set ZONELESS_AUTH_URL.',
+        'auth_url_required',
+        exitCodes.invalidInput
+      );
+    }
+    if (!activationUrl) {
+      throw new CliError(
+        'No approval page is configured. Pass --activation-url <url> or set ZONELESS_ACTIVATION_URL.',
+        'auth_url_required',
+        exitCodes.invalidInput
+      );
+    }
     const wallet = GenerateWallet();
     const walletPublicKey = wallet.publicKey;
     await this.secretStore.Set(

@@ -46,7 +46,6 @@ export class MetaService {
       name: 'twitter:card',
       content: 'summary_large_image',
     });
-    this.meta.updateTag({ name: 'twitter:site', content: '@zonelessdev' });
     this.meta.updateTag({ name: 'twitter:url', content: seo.url });
     this.meta.updateTag({ name: 'twitter:title', content: seo.title });
     this.meta.updateTag({

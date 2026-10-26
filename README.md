@@ -52,7 +52,7 @@ If you have worked with Stripe before, the SDK should feel familiar:
 
 ```typescript
 import { Zoneless } from '@zoneless/node';
-const client = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.zoneless.com');
+const client = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');
 
 const session = await client.checkout.sessions.create({
   success_url: 'https://yoursite.com/success',

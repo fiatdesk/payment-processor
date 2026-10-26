@@ -151,7 +151,7 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Using Zoneless Cloud? ',
-          text: 'You do not need these settings. Use the Zoneless dashboard and <code>https://api.zoneless.com</code>.',
+          text: 'You do not need these settings. Use the Zoneless dashboard and <code>https://api.yourdomain.com</code>.',
           html: true,
         },
       ],

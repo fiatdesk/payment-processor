@@ -1,7 +1,7 @@
 import { DocPage } from './types';
 
-const dashboardBalanceUrl = 'https://dashboard.zoneless.com/account/balance';
-const dashboardSettingsUrl = 'https://dashboard.zoneless.com/account/settings';
+const dashboardBalanceUrl = 'https://pay.yourdomain.com/account/balance';
+const dashboardSettingsUrl = 'https://pay.yourdomain.com/account/settings';
 const coinbaseUrl = 'https://www.coinbase.com/';
 const krakenUrl = 'https://www.kraken.com/';
 

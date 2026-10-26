@@ -8,7 +8,7 @@ import { z } from 'zod';
  * Schema for listing events.
  * Events support filtering by creation timestamp, event type(s), and pagination.
  *
- * @see https://docs.zoneless.com/events/list
+ * @see /events/list
  */
 export const ListEventsSchema = z
   .object({

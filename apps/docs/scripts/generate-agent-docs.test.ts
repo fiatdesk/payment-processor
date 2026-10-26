@@ -83,28 +83,28 @@ test('GeneratePageMarkdown serializes nested attributes, links, and code', () =>
 });
 
 test('BuildLlmsTxt uses canonical Markdown URLs and plain descriptions', () => {
-  const contents = BuildLlmsTxt([testRoute]);
+  const contents = BuildLlmsTxt([testRoute], 'https://docs.example.com');
 
   assert.match(contents, /## Products/);
   assert.match(contents, /when integrating with Zoneless\.\n\n## Products/);
   assert.match(
     contents,
-    /\[Create a product\]\(https:\/\/docs\.zoneless\.com\/products\/create\.md\)/
+    /\[Create a product\]\(https:\/\/docs\.example\.com\/products\/create\.md\)/
   );
   assert.doesNotMatch(contents, /<strong>|<a /);
   assert.equal(HtmlToText(testPage.description).includes('**product**'), true);
 });
 
 test('llms.txt includes both agent quickstarts', () => {
-  const contents = BuildLlmsTxt(GetDocRoutes());
+  const contents = BuildLlmsTxt(GetDocRoutes(), 'https://docs.example.com');
 
   assert.match(
     contents,
-    /\[Agent Payments Quickstart\]\(https:\/\/docs\.zoneless\.com\/agent-payments-quickstart\.md\)/
+    /\[Agent Payments Quickstart\]\(https:\/\/docs\.example\.com\/agent-payments-quickstart\.md\)/
   );
   assert.match(
     contents,
-    /\[Agent Marketplace Quickstart\]\(https:\/\/docs\.zoneless\.com\/agent-marketplace-quickstart\.md\)/
+    /\[Agent Marketplace Quickstart\]\(https:\/\/docs\.example\.com\/agent-marketplace-quickstart\.md\)/
   );
 });
 
@@ -156,8 +156,7 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   assert.match(markdown, /`--new-platform`/);
   assert.match(markdown, /`skill_path`/);
   assert.match(markdown, /\[API Quickstart\]\(\/api-quickstart\)/);
-  assert.match(markdown, /https:\/\/api-test\.zoneless\.com/);
-  assert.match(markdown, /https:\/\/api\.zoneless\.com/);
+  assert.match(markdown, /https:\/\/api\.yourdomain\.com/);
   assert.match(markdown, /Assume no crypto knowledge/);
   assert.match(markdown, /USDC is a digital dollar/);
   assert.match(markdown, /fake USDC/);
@@ -184,7 +183,7 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   );
   assert.match(
     llmsTxt,
-    /https:\/\/docs\.zoneless\.com\/agent-marketplace-quickstart\.md/
+    /https:\/\/docs\.example\.com\/agent-marketplace-quickstart\.md/
   );
 });
 

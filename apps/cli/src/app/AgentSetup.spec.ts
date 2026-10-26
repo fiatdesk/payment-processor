@@ -10,7 +10,9 @@ import {
   GenerateWallet,
   type ProfileWriter,
 } from './AgentSetup';
+import { CliError } from './Errors';
 import type { SecretStore } from './SecretStore';
+import { exitCodes } from './Types';
 
 function JsonResponse(result: unknown): Response {
   return new Response(JSON.stringify({ result }), {
@@ -97,7 +99,7 @@ describe('Agent setup', () => {
             intervalSeconds: 1,
             success: true,
             userCode: 'ABCD-EFGH',
-            verificationUrl: 'https://zoneless.com/activate?code=ABCD-EFGH',
+            verificationUrl: 'https://auth.example.com/activate?code=ABCD-EFGH',
           });
         }
         if (request.data['endpoint'] === 'PollAgentAuthorization') {
@@ -139,6 +141,7 @@ describe('Agent setup', () => {
 
     const result = await service.Setup(
       {
+        activationUrl: 'https://auth.example/activate',
         authUrl: 'https://auth.example/Actions',
         platformName: 'Agent Store',
         pollIntervalMs: 100,
@@ -202,7 +205,7 @@ describe('Agent setup', () => {
             intervalSeconds: 1,
             success: true,
             userCode: 'ABCD-EFGH',
-            verificationUrl: 'https://zoneless.com/activate?code=ABCD-EFGH',
+            verificationUrl: 'https://auth.example.com/activate?code=ABCD-EFGH',
           });
         }
         if (request.data['endpoint'] === 'PollAgentAuthorization') {
@@ -244,6 +247,7 @@ describe('Agent setup', () => {
 
     const result = await service.Setup(
       {
+        activationUrl: 'https://auth.example/activate',
         authUrl: 'https://auth.example/Actions',
         expectedWorkspaceId: 'workspace-existing',
         platformName: 'Existing Store',
@@ -257,5 +261,57 @@ describe('Agent setup', () => {
     expect(reconnectRequested).toBe(true);
     expect(savedProfiles['live'].walletPublicKey).toBe('existing-wallet');
     expect([...secrets.keys()]).not.toContain(`wallet:${generatedWallet}`);
+  });
+
+  describe('required endpoints', () => {
+    async function SetupWith(options: {
+      activationUrl?: string;
+      authUrl?: string;
+    }): Promise<unknown> {
+      const fetchRequest = jest.fn();
+      const secretStore: SecretStore = {
+        Delete: async () => undefined,
+        Get: async () => null,
+        Set: async () => undefined,
+      };
+      const profileWriter: ProfileWriter = { SaveProfiles: async () => {} };
+      const service = new AgentSetupService(
+        fetchRequest as unknown as typeof fetch,
+        secretStore,
+        profileWriter,
+        async () => undefined
+      );
+      const error = await service
+        .Setup({ platformName: 'Agent Store', ...options }, () => undefined)
+        .then(
+          () => null,
+          (caught: unknown) => caught
+        );
+      expect(fetchRequest).not.toHaveBeenCalled();
+      return error;
+    }
+
+    it('rejects setup without an authorization URL', async () => {
+      const error = await SetupWith({
+        activationUrl: 'https://auth.example.com/activate',
+      });
+
+      expect(error).toBeInstanceOf(CliError);
+      expect(error).toMatchObject({
+        code: 'auth_url_required',
+        exitCode: exitCodes.invalidInput,
+      });
+      expect((error as CliError).message).toContain('--auth-url');
+    });
+
+    it('rejects setup without an activation URL', async () => {
+      const error = await SetupWith({ authUrl: 'https://auth.example.com' });
+
+      expect(error).toMatchObject({
+        code: 'auth_url_required',
+        exitCode: exitCodes.invalidInput,
+      });
+      expect((error as CliError).message).toContain('--activation-url');
+    });
   });
 });

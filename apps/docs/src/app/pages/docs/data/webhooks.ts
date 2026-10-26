@@ -144,7 +144,7 @@ export const WEBHOOKS_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: 'Open <a href="https://dashboard-test.zoneless.com/account/developers">Developers in the test dashboard</a> or <a href="https://dashboard.zoneless.com/account/developers">Developers in the live dashboard</a>.',
+              text: 'Open <a href="https://pay.yourdomain.com/account/developers">Developers in the test dashboard</a> or <a href="https://pay.yourdomain.com/account/developers">Developers in the live dashboard</a>.',
               html: true,
             },
             {
@@ -169,7 +169,7 @@ export const WEBHOOKS_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.zoneless.com/v1/webhook_endpoints \\
+              code: `curl https://api.yourdomain.com/v1/webhook_endpoints \\
   -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{

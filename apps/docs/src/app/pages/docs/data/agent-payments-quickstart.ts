@@ -113,7 +113,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api-test.zoneless.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
+          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
           html: true,
         },
         {
@@ -143,7 +143,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Follow that skill as the implementation and safety contract. Use <a href="https://docs.zoneless.com/llms.txt">llms.txt</a> as an index and read resource pages such as <a href="/prices/object">Prices</a>, <a href="/checkout-sessions/object">Checkout Sessions</a>, and <a href="/subscriptions/object">Subscriptions</a> only when implementing that resource or when blocked. Do not fetch the entire documentation set upfront.',
+          text: 'Follow that skill as the implementation and safety contract. Use <a href="/llms.txt">llms.txt</a> as an index and read resource pages such as <a href="/prices/object">Prices</a>, <a href="/checkout-sessions/object">Checkout Sessions</a>, and <a href="/subscriptions/object">Subscriptions</a> only when implementing that resource or when blocked. Do not fetch the entire documentation set upfront.',
           html: true,
         },
       ],
@@ -309,7 +309,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Manual dashboard fallback',
-          text: 'Open the <a href="https://dashboard-test.zoneless.com/account/developers">test Developers dashboard</a>, choose <strong>Developers</strong> in the side menu, find <strong>Webhook Endpoints</strong>, and choose <strong>Add endpoint</strong>. Enter the public URL, select <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>customer.subscription.updated</code>, and <code>customer.subscription.deleted</code>, then choose <strong>Create</strong>. Copy the displayed one-time secret directly into the server environment as <code>ZONELESS_WEBHOOK_SECRET</code> and restart the server. Never paste the secret into chat or browser code.',
+          text: 'Open the <a href="https://pay.yourdomain.com/account/developers">test Developers dashboard</a>, choose <strong>Developers</strong> in the side menu, find <strong>Webhook Endpoints</strong>, and choose <strong>Add endpoint</strong>. Enter the public URL, select <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>customer.subscription.updated</code>, and <code>customer.subscription.deleted</code>, then choose <strong>Create</strong>. Copy the displayed one-time secret directly into the server environment as <code>ZONELESS_WEBHOOK_SECRET</code> and restart the server. Never paste the secret into chat or browser code.',
           html: true,
         },
       ],
@@ -371,7 +371,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Explain the live promotion explicitly: configure the separately provisioned live API key and <code>https://api.zoneless.com</code> in the deployment secret manager, create the live endpoint from the <a href="https://dashboard.zoneless.com/account/developers">live Developers dashboard</a> or with an explicitly selected live CLI profile, configure the live webhook secret, and complete one supervised subscription before enabling live traffic.',
+          text: 'Explain the live promotion explicitly: configure the separately provisioned live API key and <code>https://api.yourdomain.com</code> in the deployment secret manager, create the live endpoint from the <a href="https://pay.yourdomain.com/account/developers">live Developers dashboard</a> or with an explicitly selected live CLI profile, configure the live webhook secret, and complete one supervised subscription before enabling live traffic.',
           html: true,
         },
         {

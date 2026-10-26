@@ -38,8 +38,8 @@ Usage:
 
 Options:
   --platform-name <name>     Platform name used during agent setup
-  --auth-url <url>           Authorization endpoint override
-  --activation-url <url>     Human approval page override
+  --auth-url <url>           Agent authorization endpoint (required for setup)
+  --activation-url <url>     Human approval page URL (required for setup)
   --profile-prefix <name>    Prefix stored live/test profile names
   --new-platform             Create another isolated platform
   --skill <skill>            Agent skill: payments (default) or marketplace
@@ -669,7 +669,9 @@ function FormatHumanResult(result: object): string {
       `Events: ${(resultRecord['enabled_events'] as string[]).join(', ')}`,
       `Synced ZONELESS_WEBHOOK_SECRET to ${resultRecord['target']}.`,
       'Restart the application so it loads the updated environment.',
-      `Dashboard: ${resultRecord['dashboard_url']}`,
+      resultRecord['dashboard_url']
+        ? `Dashboard: ${resultRecord['dashboard_url']}`
+        : 'Open your dashboard to manage webhook endpoints.',
       '',
     ].join('\n');
   }

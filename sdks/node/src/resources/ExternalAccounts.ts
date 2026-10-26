@@ -15,10 +15,10 @@ export interface ExternalWalletDeletedResponse {
 /**
  * External Accounts (Wallets) API resource.
  * External wallets are Solana wallet addresses for receiving USDC payouts.
- * @see https://docs.zoneless.com/external-wallets
+ * @see /external-wallets
  */
 export class ExternalAccounts extends BaseResource {
-  /** @see https://docs.zoneless.com/external-wallets/create */
+  /** @see /external-wallets/create */
   async create(
     accountId: string,
     params: CreateExternalWalletInput
@@ -29,7 +29,7 @@ export class ExternalAccounts extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/external-wallets/retrieve */
+  /** @see /external-wallets/retrieve */
   async retrieve(
     accountId: string,
     externalAccountId: string
@@ -39,7 +39,7 @@ export class ExternalAccounts extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/external-wallets/update */
+  /** @see /external-wallets/update */
   async update(
     accountId: string,
     externalAccountId: string,
@@ -51,7 +51,7 @@ export class ExternalAccounts extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/external-wallets/delete */
+  /** @see /external-wallets/delete */
   async del(
     accountId: string,
     externalAccountId: string
@@ -61,7 +61,7 @@ export class ExternalAccounts extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/external-wallets/list */
+  /** @see /external-wallets/list */
   async list(
     accountId: string,
     params: ListExternalWalletsInput = {}

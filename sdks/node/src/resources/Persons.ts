@@ -8,10 +8,10 @@ import type {
 /**
  * Persons API resource.
  * Persons represent individuals associated with an account's legal entity.
- * @see https://docs.zoneless.com/persons
+ * @see /persons
  */
 export class Persons extends BaseResource {
-  /** @see https://docs.zoneless.com/persons/create */
+  /** @see /persons/create */
   async create(
     accountId: string,
     params: CreatePersonInput = {}
@@ -19,14 +19,14 @@ export class Persons extends BaseResource {
     return this.client.Post<Person>(`/accounts/${accountId}/persons`, params);
   }
 
-  /** @see https://docs.zoneless.com/persons/retrieve */
+  /** @see /persons/retrieve */
   async retrieve(accountId: string, personId: string): Promise<Person> {
     return this.client.Get<Person>(
       `/accounts/${accountId}/persons/${personId}`
     );
   }
 
-  /** @see https://docs.zoneless.com/persons/update */
+  /** @see /persons/update */
   async update(
     accountId: string,
     personId: string,
@@ -38,14 +38,14 @@ export class Persons extends BaseResource {
     );
   }
 
-  /** @see https://docs.zoneless.com/persons/delete */
+  /** @see /persons/delete */
   async del(accountId: string, personId: string): Promise<PersonDeleted> {
     return this.client.Delete<PersonDeleted>(
       `/accounts/${accountId}/persons/${personId}`
     );
   }
 
-  /** @see https://docs.zoneless.com/persons/list */
+  /** @see /persons/list */
   async list(
     accountId: string,
     params: ListPersonsInput = {}
