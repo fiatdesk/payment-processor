@@ -24,7 +24,7 @@ Please do not open one huge pull request of untested, AI-generated code. Small, 
 
 The API should match Stripe.
 
-If you are unsure how a resource, field, webhook, or object should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure: field names, object shapes, emitted events, and behaviour. Zoneless uses USDC on Solana instead of cards and bank accounts, but the programming model should feel like Stripe. See the API reference and migration guide in [`apps/docs`](apps/docs) for how that mapping works in this project.
+If you are unsure how a resource, field, webhook, or object should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure: field names, object shapes, emitted events, and behaviour. Zoneless uses USDC on Ethereum instead of cards and bank accounts, but the programming model should feel like Stripe. See the API reference and migration guide in [`apps/docs`](apps/docs) for how that mapping works in this project.
 
 ## Other ways to contribute
 

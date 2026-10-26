@@ -1,18 +1,12 @@
 import { z } from 'zod';
+import { EthereumAddressSchema } from './AddressSchema';
 
 /**
  * Schema for creating an external wallet.
  * Only wallet_address is required - other fields have sensible defaults.
  */
 export const CreateExternalWalletSchema = z.object({
-  wallet_address: z
-    .string()
-    .min(32, 'Wallet address must be at least 32 characters')
-    .max(44, 'Wallet address must be at most 44 characters')
-    .regex(
-      /^[1-9A-HJ-NP-Za-km-z]+$/,
-      'Wallet address must be a valid base58 Solana address'
-    ),
+  wallet_address: EthereumAddressSchema,
   network: z.string().min(1, 'Network is required').optional(),
   currency: z
     .string()

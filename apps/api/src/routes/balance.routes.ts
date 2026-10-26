@@ -82,7 +82,7 @@ router.get(
  * GET /v1/balance/details
  *
  * Returns an extended balance view for a platform account, combining
- * on-chain wallet balances (USDC + SOL) with internal ledger data
+ * on-chain wallet balances (USDC + native gas token) with internal ledger data
  * and the total owed to connected accounts.
  *
  * Platform-only endpoint.

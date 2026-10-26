@@ -33,7 +33,7 @@ export class ProductModule {
   private readonly db: Database;
   private readonly eventService: EventService | null;
   private readonly listHelper: ListHelper<ProductType>;
-  private readonly priceModule: PriceModule;
+  private readonly priceModule: PriceModule | null;
 
   constructor(
     db: Database,
@@ -68,6 +68,13 @@ export class ProductModule {
     const product = this.ProductObject(platformAccountId, validatedInput);
 
     if (validatedInput.default_price_data) {
+      if (!this.priceModule) {
+        throw new AppError(
+          'PriceModule not configured',
+          ERRORS.INTERNAL_ERROR.status,
+          ERRORS.INTERNAL_ERROR.type
+        );
+      }
       validatedInput.default_price_data.product = product.id; //Put the product id here so CreatePrice doesn't return an erro.
       const price = await this.priceModule.CreatePrice(
         platformAccountId,

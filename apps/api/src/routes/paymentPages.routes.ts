@@ -118,8 +118,8 @@ router.get(
 /**
  * POST /v1/payment_pages/:urlSlug/prepare
  * Build an unsigned transaction for the checkout session. Payment
- * mode returns a USDC transfer; subscription mode returns either
- * initSubscriptionAuthority (first-time wallet) or subscribe.
+ * mode returns a USDC transfer; subscription mode returns a subscribe
+ * transaction.
  */
 router.post(
   '/:urlSlug/prepare',
@@ -171,13 +171,11 @@ router.post(
       signed_transaction: signedTransaction,
       already_subscribed: alreadySubscribed,
       subscription_onchain_id: subscriptionOnchainId,
-      subscription_step: subscriptionStep,
     } = req.body as {
       transaction_hash?: string;
       signed_transaction?: string;
       already_subscribed?: boolean;
       subscription_onchain_id?: string;
-      subscription_step?: 'init_authority' | 'subscribe';
     };
 
     const session = await checkoutPaymentModule.ConfirmPayment(
@@ -187,7 +185,6 @@ router.post(
         signed_transaction: signedTransaction,
         already_subscribed: alreadySubscribed,
         subscription_onchain_id: subscriptionOnchainId,
-        subscription_step: subscriptionStep,
       }
     );
     res.json(session);

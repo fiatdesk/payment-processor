@@ -319,7 +319,7 @@ describe('AccountModule', () => {
           past_due: [],
           pending_verification: [],
         },
-      } as Account;
+      } as unknown as Account;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
       await accountModule.RejectAccount('acct_z_1', { reason: 'fraud' });
@@ -352,7 +352,7 @@ describe('AccountModule', () => {
           past_due: [],
           pending_verification: [],
         },
-      } as Account;
+      } as unknown as Account;
       mockDb.Get = jest
         .fn()
         .mockResolvedValueOnce(existing)
@@ -380,7 +380,7 @@ describe('AccountModule', () => {
       mockDb.Get = jest.fn().mockResolvedValue({
         id: 'acct_z_1',
         requirements: { disabled_reason: null, currently_due: [] },
-      } as Account);
+      } as unknown as Account);
 
       await expect(accountModule.UnrejectAccount('acct_z_1')).rejects.toThrow(
         /Only accounts rejected/
@@ -394,7 +394,7 @@ describe('AccountModule', () => {
         id: 'acct_z_1',
         charges_enabled: true,
         requirements: { disabled_reason: null, currently_due: [] },
-      } as Account;
+      } as unknown as Account;
       mockDb.Get = jest
         .fn()
         .mockResolvedValueOnce(existing)

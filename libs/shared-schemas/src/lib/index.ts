@@ -1,5 +1,6 @@
 export * from './AccountLinkSchema';
 export * from './AccountSchema';
+export * from './AddressSchema';
 export * from './ApiKeySchema';
 export * from './BalanceTransactionSchema';
 export * from './BillingSchema';

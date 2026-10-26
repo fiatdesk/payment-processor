@@ -10,7 +10,7 @@ export type Rail = 'simulated' | 'onchain';
 /** Identity of the active settlement rail. */
 export interface RailDescription {
   rail: Rail;
-  network: string;
+  network: 'ethereum' | 'simulated';
   chain_id: number | null;
   native_currency: string;
   token_address: string;
@@ -25,12 +25,6 @@ export interface UnsignedTransaction {
   chain_id: number | null;
   nonce: number | null;
   to: string | null;
-  /** Solana-only recent blockhash data; removed with the Solana rail. */
-  solana?: {
-    blockhash: string;
-    last_valid_block_height: number;
-    min_context_slot: number;
-  };
 }
 
 export interface UnsignedPayoutBatch extends UnsignedTransaction {

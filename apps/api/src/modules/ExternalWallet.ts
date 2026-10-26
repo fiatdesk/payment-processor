@@ -5,6 +5,7 @@
  * @module ExternalWallet
  */
 
+import { getAddress } from 'viem';
 import { Database } from './Database';
 import { EventService } from './EventService';
 import { ExtractChangedFields } from './Event';
@@ -19,6 +20,7 @@ import {
 } from '@zoneless/shared-types';
 import { ValidateUpdate } from './Util';
 import { SanctionsScreeningModule } from './SanctionsScreening';
+import { GetSettlement } from './chains/Settlement';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import {
@@ -56,6 +58,7 @@ export class ExternalWalletModule {
   /**
    * Creates a new external wallet with the provided fields.
    * Only wallet_address is required - other fields have sensible defaults.
+   * The address is stored EIP-55 checksummed.
    *
    * Performs OFAC sanctions screening before saving the wallet.
    * Emits an 'external_account.created' event if EventService is configured.
@@ -68,7 +71,11 @@ export class ExternalWalletModule {
     account: string,
     input: CreateExternalWalletInput
   ): Promise<ExternalWalletType> {
-    const validatedInput = ValidateUpdate(CreateExternalWalletSchema, input);
+    const parsedInput = ValidateUpdate(CreateExternalWalletSchema, input);
+    const validatedInput = {
+      ...parsedInput,
+      wallet_address: getAddress(parsedInput.wallet_address),
+    };
 
     // Screen wallet address against OFAC sanctions list
     const sanctionsModule = new SanctionsScreeningModule();
@@ -106,7 +113,7 @@ export class ExternalWalletModule {
     if (this.eventService) {
       await this.eventService.Emit(
         'external_account.created',
-        externalWallet.account,
+        account,
         externalWallet
       );
     }
@@ -137,7 +144,7 @@ export class ExternalWalletModule {
       future_requirements: null,
       last4: walletAddress.slice(-4),
       metadata: input.metadata ?? null,
-      network: input.network ?? 'solana',
+      network: input.network ?? GetSettlement().Describe().network,
       requirements: null,
       status: 'new',
       wallet_address: walletAddress,
@@ -193,7 +200,7 @@ export class ExternalWalletModule {
 
       await this.eventService.Emit(
         'external_account.updated',
-        wallet.account,
+        wallet.account ?? '',
         wallet,
         { previousAttributes }
       );
@@ -313,7 +320,7 @@ export class ExternalWalletModule {
     if (this.eventService) {
       await this.eventService.Emit(
         'external_account.deleted',
-        wallet.account,
+        wallet.account ?? '',
         wallet
       );
     }

@@ -26,7 +26,7 @@ import {
   QueryOperators,
 } from '@zoneless/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
-import { ExplorerUrl } from './chains/Settlement';
+import { GetSettlement } from './chains/Settlement';
 import type { IncomingDeposit } from './chains/types';
 import { CreateTopUpInput, UpdateTopUpInput } from '@zoneless/shared-schemas';
 
@@ -86,7 +86,7 @@ export class TopUpModule {
    * This is called by the TopUpMonitor when a deposit is detected.
    * Emits 'topup.created' and 'topup.succeeded' events.
    *
-   * @param deposit - The incoming deposit details from Solana
+   * @param deposit - The incoming deposit detected on-chain
    * @param platformAccountId - The platform account to credit
    * @returns The created TopUp object
    */
@@ -99,11 +99,12 @@ export class TopUpModule {
         const balanceTransactionModule = new BalanceTransactionModule(this.db);
         const balanceModule = new BalanceModule(this.db);
 
+        const settlement = GetSettlement();
         const metadata: Record<string, string> = {
           blockchain_tx: deposit.transactionHash,
-          network: 'solana',
+          network: settlement.Describe().network,
           sender_address: deposit.senderAddress,
-          explorer_url: ExplorerUrl('tx', deposit.transactionHash),
+          explorer_url: settlement.ExplorerUrl('tx', deposit.transactionHash),
         };
 
         const topUp = this.TopUpObject(

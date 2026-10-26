@@ -440,7 +440,7 @@ export interface CheckoutSession {
   /**
    * Wallet-specific configuration for this Checkout Session.
    * @remarks Stripe's only wallet option here is Link, which has no Zoneless equivalent since
-   * Zoneless connects Solana wallets directly rather than a Stripe-hosted wallet product.
+   * Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product.
    * Retained for API parity.
    */
   wallet_options: {

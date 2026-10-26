@@ -55,7 +55,7 @@ export function HasActiveCapabilities(account: Account): boolean {
 export function FormatWalletDisplay(wallet: ExternalWallet): string {
   const network = wallet.network
     ? wallet.network.charAt(0).toUpperCase() + wallet.network.slice(1)
-    : 'Solana';
+    : 'Ethereum';
   return `${network} •••• ${wallet.last4}`;
 }
 

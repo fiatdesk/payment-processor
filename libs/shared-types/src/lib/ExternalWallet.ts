@@ -29,7 +29,7 @@ export interface ExternalWallet {
   last4: string;
   /** Set of key-value pairs that you can attach to an object */
   metadata: Record<string, string> | null;
-  /** The blockchain network this wallet is on (e.g., 'solana') */
+  /** The blockchain network this wallet is on (e.g., 'ethereum') */
   network: string;
   /** Information about the requirements for the wallet */
   requirements: ExternalWalletRequirements | null;

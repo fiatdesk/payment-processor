@@ -1,13 +1,8 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 export type MobileWalletOption = {
   name: string;
   url: string;
 };
-
-const MOBILE_WALLET_BROWSE_URLS = [
-  { name: 'Phantom', baseUrl: 'https://phantom.app/ul/browse/' },
-  { name: 'Solflare', baseUrl: 'https://solflare.com/ul/v1/browse/' },
-  { name: 'Backpack', baseUrl: 'https://backpack.app/ul/v1/browse/' },
-] as const;
 
 export function IsMobileBrowser(
   userAgent: string,
@@ -19,15 +14,22 @@ export function IsMobileBrowser(
   );
 }
 
+/**
+ * Deep links that reopen this checkout inside a wallet's in-app browser:
+ * MetaMask takes the URL without its scheme, Coinbase Wallet the encoded URL.
+ */
 export function BuildMobileWalletOptions(
-  currentUrl: string,
-  origin: string
+  currentUrl: string
 ): MobileWalletOption[] {
-  const encodedUrl = encodeURIComponent(currentUrl);
-  const encodedOrigin = encodeURIComponent(origin);
-
-  return MOBILE_WALLET_BROWSE_URLS.map(({ name, baseUrl }) => ({
-    name,
-    url: `${baseUrl}${encodedUrl}?ref=${encodedOrigin}`,
-  }));
+  const withoutScheme = currentUrl.replace(/^https?:\/\//, '');
+  return [
+    {
+      name: 'MetaMask',
+      url: `https://metamask.app.link/dapp/${withoutScheme}`,
+    },
+    {
+      name: 'Coinbase Wallet',
+      url: `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(currentUrl)}`,
+    },
+  ];
 }

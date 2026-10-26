@@ -7,6 +7,7 @@
  * @module Setup
  */
 
+import { getAddress, isAddress } from 'viem';
 import { Database } from './Database';
 import { AccountModule } from './Account';
 import { ApiKeyModule } from './ApiKey';
@@ -22,8 +23,8 @@ import { Logger } from '../utils/Logger';
 
 /**
  * Validates a setup request body.
- * Throws an AppError if platform_name is missing or the wallet
- * public key is not a valid Solana address.
+ * Throws an AppError if platform_name is missing or wallet_address is not a
+ * valid Ethereum address (lowercase or EIP-55 checksummed).
  *
  * @param request - The setup request to validate
  */
@@ -36,17 +37,10 @@ export function ValidateSetupRequest(request: SetupRequest): void {
     );
   }
 
-  // Validate wallet public key format (base58 Solana address)
-  const walletKey = request.wallet_address?.trim();
-  const solanaBase58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
-  if (
-    !walletKey ||
-    walletKey.length < 32 ||
-    walletKey.length > 44 ||
-    !solanaBase58Regex.test(walletKey)
-  ) {
+  const walletAddress = request.wallet_address?.trim();
+  if (!walletAddress || !isAddress(walletAddress)) {
     throw new AppError(
-      'wallet_address must be a valid Solana address (32-44 base58 characters)',
+      'wallet_address must be a valid Ethereum address',
       ERRORS.VALIDATION_ERROR.status,
       ERRORS.VALIDATION_ERROR.type
     );
@@ -82,8 +76,8 @@ export class SetupModule {
    * - An ExternalWallet for receiving USDC deposits
    * - An initial API key
    *
-   * Note: Wallet generation happens in the browser. Only the public key is
-   * sent to the API. The secret key is never stored on the server.
+   * Note: Wallet generation happens in the browser. Only the address is
+   * sent to the API. The private key is never stored on the server.
    *
    * @param request - The setup request with platform details
    * @returns Setup response with credentials (shown once!)
@@ -129,12 +123,12 @@ export class SetupModule {
       this.balanceModule.CreateBalance(account.id),
     ]);
 
-    // Create ExternalWallet for the platform (only stores public key)
+    // Create ExternalWallet for the platform (only stores the address).
+    // The network comes from the active settlement rail.
     const wallet = await this.externalWalletModule.CreateExternalWallet(
       account.id,
       {
-        wallet_address: request.wallet_address.trim(),
-        network: 'solana',
+        wallet_address: getAddress(request.wallet_address.trim()),
         currency: 'usdc',
         default_for_currency: true,
         account_holder_type: 'company',

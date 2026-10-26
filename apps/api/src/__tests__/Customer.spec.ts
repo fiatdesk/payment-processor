@@ -202,8 +202,8 @@ describe('CustomerModule', () => {
         ],
       });
 
-      expect(customer.tax_ids.data).toHaveLength(2);
-      expect(customer.tax_ids.data[0]).toEqual(
+      expect(customer.tax_ids?.data).toHaveLength(2);
+      expect(customer.tax_ids?.data[0]).toEqual(
         expect.objectContaining({
           object: 'tax_id',
           type: 'eu_vat',
@@ -211,7 +211,7 @@ describe('CustomerModule', () => {
           customer: customer.id,
         })
       );
-      expect(customer.tax_ids.data[1]).toEqual(
+      expect(customer.tax_ids?.data[1]).toEqual(
         expect.objectContaining({
           type: 'gb_vat',
           value: 'GB123456789',

@@ -30,25 +30,20 @@ describe('mobile wallet checkout helpers', () => {
   });
 
   describe('BuildMobileWalletOptions', () => {
-    it('builds encoded browse links for supported wallet browsers', () => {
+    it('builds MetaMask and Coinbase Wallet dapp links', () => {
       const currentUrl =
         'https://checkout.example.com/c/test-session?prefilled=true#pay';
-      const origin = 'https://checkout.example.com';
-      const encodedUrl = encodeURIComponent(currentUrl);
-      const encodedOrigin = encodeURIComponent(origin);
 
-      expect(BuildMobileWalletOptions(currentUrl, origin)).toEqual([
+      expect(BuildMobileWalletOptions(currentUrl)).toEqual([
         {
-          name: 'Phantom',
-          url: `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedOrigin}`,
+          name: 'MetaMask',
+          url: 'https://metamask.app.link/dapp/checkout.example.com/c/test-session?prefilled=true#pay',
         },
         {
-          name: 'Solflare',
-          url: `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${encodedOrigin}`,
-        },
-        {
-          name: 'Backpack',
-          url: `https://backpack.app/ul/v1/browse/${encodedUrl}?ref=${encodedOrigin}`,
+          name: 'Coinbase Wallet',
+          url: `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(
+            currentUrl
+          )}`,
         },
       ]);
     });

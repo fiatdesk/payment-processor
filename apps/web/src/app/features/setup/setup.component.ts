@@ -19,6 +19,7 @@ import {
   LoaderComponent,
 } from '../../shared';
 import { SetupResponse } from '@zoneless/shared-types';
+import { GetEthereumAddressError, NormalizeEthereumAddress } from '../../utils';
 
 enum SetupStep {
   WELCOME = 1,
@@ -63,14 +64,14 @@ export class SetupComponent implements OnInit {
   // Wallet options
   walletOption: WritableSignal<'generate' | 'import'> = signal('generate');
 
-  // Generated wallet keys (generated in browser, never sent to server)
-  generatedPublicKey: WritableSignal<string> = signal('');
-  generatedSecretKey: WritableSignal<string> = signal('');
+  // Generated wallet (generated in browser, private key never sent to server)
+  generatedAddress: WritableSignal<string> = signal('');
+  generatedPrivateKey: WritableSignal<string> = signal('');
   walletGenerated: WritableSignal<boolean> = signal(false);
   generatingWallet: WritableSignal<boolean> = signal(false);
 
-  // Import wallet (only public key - user keeps their secret key)
-  importPublicKey: WritableSignal<string> = signal('');
+  // Import wallet (only the address - user keeps their private key)
+  importAddress: WritableSignal<string> = signal('');
 
   // Setup result
   setupResult: WritableSignal<SetupResponse | null> = signal(null);
@@ -151,9 +152,12 @@ export class SetupComponent implements OnInit {
             return false;
           }
         } else {
-          // Import mode - only need public key
-          if (!this.importPublicKey().trim()) {
-            this.error.set('Wallet address is required');
+          // Import mode - only need the address
+          const importError = GetEthereumAddressError(
+            this.importAddress().trim()
+          );
+          if (importError) {
+            this.error.set(importError);
             return false;
           }
         }
@@ -165,17 +169,17 @@ export class SetupComponent implements OnInit {
   }
 
   /**
-   * Generate a new Solana wallet in the browser.
-   * The secret key never leaves the browser.
+   * Generate a new Ethereum wallet in the browser.
+   * The private key never leaves the browser.
    */
   async GenerateWallet(): Promise<void> {
     this.generatingWallet.set(true);
     this.error.set('');
 
     try {
-      const keypair = await this.setupService.GenerateSolanaKeypair();
-      this.generatedPublicKey.set(keypair.publicKey);
-      this.generatedSecretKey.set(keypair.secretKey);
+      const wallet = await this.setupService.GenerateWallet();
+      this.generatedAddress.set(wallet.address);
+      this.generatedPrivateKey.set(wallet.privateKey);
       this.walletGenerated.set(true);
     } catch (err) {
       console.error('Failed to generate wallet:', err);
@@ -192,11 +196,11 @@ export class SetupComponent implements OnInit {
     this.walletOption.set(option);
     // Reset state when switching
     if (option === 'import') {
-      this.generatedPublicKey.set('');
-      this.generatedSecretKey.set('');
+      this.generatedAddress.set('');
+      this.generatedPrivateKey.set('');
       this.walletGenerated.set(false);
     } else {
-      this.importPublicKey.set('');
+      this.importAddress.set('');
     }
     this.error.set('');
   }
@@ -206,11 +210,11 @@ export class SetupComponent implements OnInit {
     this.error.set('');
 
     try {
-      // Determine which public key to use
-      const publicKey =
+      // Determine which address to use
+      const walletAddress =
         this.walletOption() === 'generate'
-          ? this.generatedPublicKey()
-          : this.importPublicKey().trim();
+          ? this.generatedAddress()
+          : NormalizeEthereumAddress(this.importAddress().trim());
 
       const platformDetails = this.platformDetails();
       if (!platformDetails) {
@@ -220,7 +224,7 @@ export class SetupComponent implements OnInit {
 
       const response = await this.setupService.CompleteSetup({
         ...platformDetails,
-        wallet_address: publicKey,
+        wallet_address: walletAddress,
       });
 
       this.setupResult.set(response);

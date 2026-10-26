@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
-import { ApiService } from '../../core';
+import { ApiService, GeneratedWallet, WalletService } from '../../core';
 import {
   SetupStatus,
   SetupRequest,
@@ -11,6 +11,7 @@ import {
 })
 export class SetupService {
   private readonly api = inject(ApiService);
+  private readonly walletService = inject(WalletService);
 
   status: WritableSignal<SetupStatus | null> = signal(null);
   loading: WritableSignal<boolean> = signal(false);
@@ -72,22 +73,11 @@ export class SetupService {
   }
 
   /**
-   * Generate a Solana keypair client-side.
+   * Generate an Ethereum wallet client-side.
    * This is more secure as the private key never goes over the network.
    */
-  async GenerateSolanaKeypair(): Promise<{
-    publicKey: string;
-    secretKey: string;
-  }> {
-    // Dynamically import Solana web3.js to avoid bundling it if not needed
-    const { Keypair } = await import('@solana/web3.js');
-    const bs58 = await import('bs58');
-
-    const keypair = Keypair.generate();
-    return {
-      publicKey: keypair.publicKey.toBase58(),
-      secretKey: bs58.default.encode(keypair.secretKey),
-    };
+  GenerateWallet(): Promise<GeneratedWallet> {
+    return this.walletService.GenerateWallet();
   }
 
   /**

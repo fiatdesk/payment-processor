@@ -12,6 +12,8 @@ import {
   GetFixedTimestamp,
 } from './Setup';
 
+const PAYER_WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
@@ -25,6 +27,11 @@ jest.mock('../modules/AppConfig', () => ({
     livemode: false,
     appSecret: 'test-secret',
   })),
+}));
+jest.mock('../modules/chains/Settlement', () => ({
+  GetSettlement: jest.fn(() =>
+    jest.requireActual('./mocks/Settlement').CreateMockSettlement()
+  ),
 }));
 
 describe('ChargeModule', () => {
@@ -98,7 +105,7 @@ describe('ChargeModule', () => {
         crypto: {
           buyer_address: null,
           fingerprint: null,
-          network: 'solana',
+          network: 'ethereum',
           token_currency: 'usdc',
           transaction_hash: null,
         },
@@ -819,10 +826,10 @@ describe('ChargeModule', () => {
         amount: 1000,
         currency: 'usdc',
         payment_intent: 'pi_z_1',
-        payment_method: 'PayerWallet111',
+        payment_method: PAYER_WALLET,
         customer: 'cus_z_1',
         crypto: {
-          buyer_address: 'PayerWallet111',
+          buyer_address: PAYER_WALLET,
           transaction_hash: 'sig_abc',
         },
         outcome: 'succeeded',
@@ -835,9 +842,9 @@ describe('ChargeModule', () => {
       expect(charge.payment_method_details).toEqual({
         type: 'crypto',
         crypto: {
-          buyer_address: 'PayerWallet111',
+          buyer_address: PAYER_WALLET,
           fingerprint: null,
-          network: 'solana',
+          network: 'ethereum',
           token_currency: 'usdc',
           transaction_hash: 'sig_abc',
         },
@@ -854,7 +861,7 @@ describe('ChargeModule', () => {
         amount: 1000,
         currency: 'usdc',
         payment_intent: 'pi_z_1',
-        payment_method: 'PayerWallet111',
+        payment_method: PAYER_WALLET,
         crypto: {
           buyer_address: null,
           transaction_hash: 'sig_bad',

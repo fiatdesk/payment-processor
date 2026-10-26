@@ -37,6 +37,7 @@ import { GetAppConfig } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { GetPlatformAccountId } from './PlatformAccess';
+import { GetSettlement } from './chains/Settlement';
 
 type AddressInput = NonNullable<
   NonNullable<CreateChargeInput['shipping']>['address']
@@ -281,7 +282,7 @@ export class ChargeModule {
         crypto: {
           buyer_address: input.crypto.buyer_address,
           fingerprint: null,
-          network: 'solana',
+          network: GetSettlement().Describe().network,
           token_currency: 'usdc',
           transaction_hash: input.crypto.transaction_hash,
         },
@@ -401,7 +402,7 @@ export class ChargeModule {
             crypto: {
               buyer_address: null,
               fingerprint: null,
-              network: 'solana',
+              network: GetSettlement().Describe().network,
               token_currency: 'usdc',
               transaction_hash: null,
             },

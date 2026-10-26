@@ -12,7 +12,7 @@
   @if (mode === 'onboard') {
   <h1>Add your payout wallet</h1>
   <p>
-    Enter your Solana wallet address to receive USDC payouts. USDC is a
+    Enter your Ethereum wallet address to receive USDC payouts. USDC is a
     stablecoin pegged 1:1 to the US dollar.
   </p>
   }
@@ -23,11 +23,11 @@
     <div class="wallet-info-row">
       <span class="info-label">Network:</span>
       <img
-        src="assets/images/logos/solana.svg"
-        alt="Solana"
+        src="assets/images/logos/ethereum.svg"
+        alt="Ethereum"
         class="info-logo"
       />
-      <span class="info-value">Solana</span>
+      <span class="info-value">Ethereum</span>
     </div>
     <div class="wallet-info-row">
       <span class="info-label">Currency:</span>
@@ -37,16 +37,16 @@
   </div>
 
   <div class="field">
-    <div class="field-title">Solana Wallet Address</div>
+    <div class="field-title">Ethereum Wallet Address</div>
     <p class="field-help">
-      Make sure this address supports USDC on the Solana network.
+      Make sure this address can receive USDC on the Ethereum network.
     </p>
     <div class="field-value field-with-status">
       <input
         [ngModel]="walletAddress()"
         (ngModelChange)="OnWalletAddressChange($event)"
         type="text"
-        placeholder="e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+        placeholder="e.g., 0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
         [class.field-error]="showErrors && walletAddressError()"
       />
       @if (validationStatus() === 'valid') {

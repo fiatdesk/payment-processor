@@ -34,7 +34,7 @@ describe('PriceModule', () => {
     ResetIdCounter();
     mockDb = CreateMockDatabase();
     productModule = new ProductModule(mockDb);
-    module = new PriceModule(mockDb, null, productModule);
+    module = new PriceModule(mockDb, undefined, productModule);
   });
 
   describe('PeriodToHours', () => {

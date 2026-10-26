@@ -7,6 +7,7 @@
  */
 
 import { ClientSession } from 'mongoose';
+import { getAddress, isAddress } from 'viem';
 import { Database } from './Database';
 import { AccountModule } from './Account';
 import { CheckoutSessionModule } from './CheckoutSession';
@@ -20,13 +21,12 @@ import type { PaymentIntentModule } from './PaymentIntent';
 import type { ChargeModule } from './Charge';
 import type { PaymentLinkModule } from './PaymentLink';
 import {
-  ExplorerUrl,
   GetSettlement,
   SimulatedSignature,
   type Settlement,
 } from './chains/Settlement';
 import type { UnsignedTransaction } from './chains/types';
-import { IsCheckoutFeeSponsored } from './AppConfig';
+import { IsCheckoutRelayed } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
@@ -53,22 +53,14 @@ export interface PreparedCheckoutPayment extends UnsignedTransaction {
   amount_total: number;
   currency: string | null;
   merchant_wallet_address: string;
-  /**
-   * True when TRANSACTION_FEE_PAYER_KEY pre-signs and pays transaction costs.
-   */
-  fee_sponsored?: boolean;
+  /** True when CHECKOUT_RELAYER_KEY relays the payment and pays its gas. */
+  relayed?: boolean;
   /**
    * True when the wallet is already subscribed on-chain (e.g. a prior attempt
    * landed but checkout confirm failed). Frontend should confirm without signing.
    */
   already_subscribed?: boolean;
   subscription_onchain_id?: string;
-  /**
-   * Subscription checkout is two on-chain steps for first-time wallets:
-   * `init_authority` (create SubscriptionAuthority) then `subscribe`.
-   * Omitted for one-time payments.
-   */
-  subscription_step?: 'init_authority' | 'subscribe';
 }
 
 /** Convert a stored nullable address into CreateCustomer address input. */
@@ -246,21 +238,28 @@ export class CheckoutPaymentModule {
 
   /**
    * Build an unsigned transaction for the checkout session. One-time sessions
-   * get a USDC transfer; subscription sessions get either an
-   * `initSubscriptionAuthority` tx (first-time wallet) or a `subscribe` tx.
+   * get a USDC transfer; subscription sessions get a `subscribe` tx.
    */
   async PreparePayment(
     urlSlug: string,
-    payerWallet: string | undefined,
+    payerWalletInput: string | undefined,
     customerDetails?: Omit<PrepareCheckoutPaymentInput, 'payer_wallet'>
   ): Promise<PreparedCheckoutPayment> {
-    if (!payerWallet || typeof payerWallet !== 'string') {
+    if (!payerWalletInput || typeof payerWalletInput !== 'string') {
       throw new AppError(
         'payer_wallet is required',
         ERRORS.VALIDATION_ERROR.status,
         ERRORS.VALIDATION_ERROR.type
       );
     }
+    if (!isAddress(payerWalletInput)) {
+      throw new AppError(
+        'payer_wallet must be a valid Ethereum address',
+        ERRORS.VALIDATION_ERROR.status,
+        ERRORS.VALIDATION_ERROR.type
+      );
+    }
+    const payerWallet = getAddress(payerWalletInput);
 
     const session = await this.GetSessionOrThrow(urlSlug);
     this.AssertSessionPayable(session);
@@ -294,20 +293,16 @@ export class CheckoutPaymentModule {
       amountTotal: session.amount_total,
     });
 
-    const feeSponsored = IsCheckoutFeeSponsored();
+    const relayed = IsCheckoutRelayed();
     const prepared =
       session.mode === 'subscription'
-        ? await this.PrepareSubscribeTransaction(
-            session,
-            payerWallet,
-            feeSponsored
-          )
+        ? await this.PrepareSubscribeTransaction(session, payerWallet, relayed)
         : await this.settlement.BuildCheckoutPaymentTransaction(
             payerWallet,
             merchantWallet.wallet_address,
             session.amount_total!,
             session.id,
-            { feeSponsored }
+            { relayed }
           );
 
     await this.MarkPaymentIntentRequiresConfirmation(session, payerWallet);
@@ -319,14 +314,14 @@ export class CheckoutPaymentModule {
       currency: session.currency,
       merchant_wallet_address: merchantWallet.wallet_address,
       ...prepared,
-      fee_sponsored: feeSponsored,
+      relayed,
     };
   }
 
   private async PrepareSubscribeTransaction(
     session: CheckoutSession,
     payerWallet: string,
-    feeSponsored: boolean
+    relayed: boolean
   ): Promise<
     Omit<
       PreparedCheckoutPayment,
@@ -335,7 +330,7 @@ export class CheckoutPaymentModule {
       | 'amount_total'
       | 'currency'
       | 'merchant_wallet_address'
-      | 'fee_sponsored'
+      | 'relayed'
     >
   > {
     const price = this.RequireRecurringCheckoutPrice(session);
@@ -367,24 +362,12 @@ export class CheckoutPaymentModule {
       };
     }
 
-    const initTx =
-      await this.settlement.BuildInitSubscriptionAuthorityTransaction?.(
-        payerWallet,
-        { feeSponsored }
-      );
-    if (initTx) {
-      return { ...initTx, subscription_step: 'init_authority' };
-    }
-
-    return {
-      ...(await this.settlement.BuildSubscribeTransaction(
-        payerWallet,
-        price.id,
-        price.subscription_plan_id,
-        { feeSponsored }
-      )),
-      subscription_step: 'subscribe',
-    };
+    return this.settlement.BuildSubscribeTransaction(
+      payerWallet,
+      price.id,
+      price.subscription_plan_id,
+      { relayed }
+    );
   }
 
   /**
@@ -393,12 +376,8 @@ export class CheckoutPaymentModule {
    * subscription mode it verifies the on-chain subscribe, creates the off-chain
    * Subscription, and collects the first period (unless trialing).
    *
-   * Fee-sponsored confirms may pass `signed_transaction` instead of
-   * `transaction_hash`: the API validates the existing fee payer and customer
-   * signatures before broadcasting.
-   *
-   * For subscription first-time wallets, pass `subscription_step: 'init_authority'`
-   * after the init tx; the session stays open so the client can prepare subscribe.
+   * Relayed confirms may pass `signed_transaction` instead of
+   * `transaction_hash` for the API to validate and broadcast.
    */
   async ConfirmPayment(
     urlSlug: string,
@@ -407,7 +386,6 @@ export class CheckoutPaymentModule {
       signed_transaction?: string;
       already_subscribed?: boolean;
       subscription_onchain_id?: string;
-      subscription_step?: 'init_authority' | 'subscribe';
     }
   ): Promise<CheckoutSession> {
     const session = await this.GetSessionOrThrow(urlSlug);
@@ -472,16 +450,6 @@ export class CheckoutPaymentModule {
       );
     }
 
-    if (
-      session.mode === 'subscription' &&
-      options?.subscription_step === 'init_authority'
-    ) {
-      return this.ConfirmSubscriptionAuthorityInit(
-        session,
-        resolvedTransactionHash
-      );
-    }
-
     const existingSession =
       await this.checkoutSessionModule.GetCheckoutSessionByTransactionHash(
         resolvedTransactionHash
@@ -517,41 +485,8 @@ export class CheckoutPaymentModule {
     );
     return this.ConfirmPayment(
       urlSlug,
-      SimulatedSignature(prepared.checkout_session, payerWallet)
+      SimulatedSignature(prepared.checkout_session, getAddress(payerWallet))
     );
-  }
-
-  /**
-   * Land the SubscriptionAuthority init tx without completing checkout.
-   * Client must prepare+confirm subscribe next.
-   */
-  private async ConfirmSubscriptionAuthorityInit(
-    session: CheckoutSession,
-    transactionHash: string
-  ): Promise<CheckoutSession> {
-    const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
-      session
-    );
-
-    Logger.info('Confirming subscription authority init', {
-      checkoutSessionId: session.id,
-      transactionHash,
-      subscriberWallet,
-    });
-
-    try {
-      await this.settlement.WaitForSubscriptionAuthority?.(subscriberWallet);
-    } catch (error) {
-      throw new AppError(
-        error instanceof Error
-          ? error.message
-          : 'Subscription authority init did not confirm on-chain',
-        ERRORS.INVALID_REQUEST.status,
-        ERRORS.INVALID_REQUEST.type
-      );
-    }
-
-    return this.SanitizeCheckoutSession(session);
   }
 
   private async ConfirmOneTimePayment(
@@ -615,7 +550,10 @@ export class CheckoutPaymentModule {
     });
 
     if (this.ShouldCreateCheckoutCustomer(session) && this.customerModule) {
-      await this.EnsureCheckoutCustomer(session, verification.payer_address);
+      await this.EnsureCheckoutCustomer(
+        session,
+        verification.payer_address ?? ''
+      );
     }
 
     const completedSession =
@@ -829,7 +767,9 @@ export class CheckoutPaymentModule {
         },
       },
       {
-        settlementSignature: !hasTrial ? collectionTransactionHash : undefined,
+        settlementTransactionHash: !hasTrial
+          ? collectionTransactionHash
+          : undefined,
       }
     );
 
@@ -1043,9 +983,9 @@ export class CheckoutPaymentModule {
         description: `Payment for Checkout Session ${session.id}`,
         metadata: {
           blockchain_tx: transactionHash,
-          network: 'solana',
+          network: this.settlement.Describe().network,
           sender_address: payerWallet ?? '',
-          explorer_url: ExplorerUrl('tx', transactionHash),
+          explorer_url: this.settlement.ExplorerUrl('tx', transactionHash),
         },
         status: 'available',
         available_on: timestamp,

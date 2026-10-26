@@ -64,7 +64,7 @@ export class PayoutDetailComponent {
     if (this.payout.metadata?.network) {
       return this.FormatNetwork(this.payout.metadata.network);
     }
-    return 'Solana';
+    return 'Ethereum';
   }
 
   private FormatNetwork(network: string): string {

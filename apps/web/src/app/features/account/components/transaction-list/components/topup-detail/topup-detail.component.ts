@@ -49,7 +49,7 @@ export class TopupDetailComponent {
     if (this.topup.metadata?.['network']) {
       return this.FormatNetwork(this.topup.metadata['network']);
     }
-    return 'Solana';
+    return 'Ethereum';
   }
 
   private FormatNetwork(network: string): string {

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Zoneless is an open-source, Stripe-compatible payments platform that uses USDC on Solana. Platforms like marketplaces can self-host their own instance.
+Zoneless is an open-source, Stripe-compatible payments platform that uses USDC on Ethereum. Platforms like marketplaces can self-host their own instance.
 
 This is an Nx monorepo with an Angular frontend (dashboard, checkout, connected-account onboarding, and docs), an Express API, and the Node SDK in [`sdks/node`](sdks/node).
 
@@ -8,7 +8,7 @@ Public product docs live in [`apps/docs`](apps/docs). Serve them with `npx nx se
 
 ## Design
 
-The API, object shapes, webhook events, and dashboard flows should match Stripe. If you are unsure how something should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure. Zoneless uses USDC, Solana wallets, and crypto instead of cards and bank accounts.
+The API, object shapes, webhook events, and dashboard flows should match Stripe. If you are unsure how something should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure. Zoneless uses USDC, Ethereum wallets, and crypto instead of cards and bank accounts.
 
 Prefer existing patterns in this repo over new ones. Do not add a dependency unless the work cannot be done with what is already here.
 

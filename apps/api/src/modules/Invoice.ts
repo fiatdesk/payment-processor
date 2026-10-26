@@ -4,7 +4,7 @@
  * Invoices are statements of amounts owed by a customer. They contain invoice
  * items (and later, subscription line items / prorations). Settled in USDC.
  * Finalizing a charge_automatically invoice creates a PaymentIntent; paying
- * collects via Solana subscription pull (or paid_out_of_band).
+ * collects via an on-chain subscription pull (or paid_out_of_band).
  *
  * @module Invoice
  * @see https://docs.stripe.com/api/invoices
@@ -20,11 +20,7 @@ import type { ChargeModule } from './Charge';
 import type { PriceModule } from './Price';
 import { BalanceModule } from './Balance';
 import { BalanceTransactionModule } from './BalanceTransaction';
-import {
-  ExplorerUrl,
-  GetSettlement,
-  type Settlement,
-} from './chains/Settlement';
+import { GetSettlement, type Settlement } from './chains/Settlement';
 import { GenerateId } from '../utils/IdGenerator';
 import {
   BalanceTransaction as BalanceTransactionType,
@@ -87,7 +83,7 @@ const RETRY_DELAYS_SECONDS = [
 ];
 
 /**
- * When Solana rejects because this period's allowance is already used, the
+ * When the chain rejects because this period's allowance is already used, the
  * next billing run should be allowed to retry immediately (period may have
  * rolled). A multi-minute backoff made manual catch-up look permanently stuck
  * on `skipped`.
@@ -545,8 +541,9 @@ export class InvoiceModule {
 
   /**
    * Pay an invoice.
-   * Supports `paid_out_of_band`, zero-amount invoices, and automatic Solana
-   * subscription collection (or `settlement_signature` when already collected).
+   * Supports `paid_out_of_band`, zero-amount invoices, and automatic on-chain
+   * subscription collection (or `settlement_transaction_hash` when already
+   * collected).
    * Emits `invoice.paid` / `invoice.payment_succeeded` on success, or
    * `invoice.payment_failed` on failure.
    */
@@ -580,7 +577,7 @@ export class InvoiceModule {
     try {
       const settlement = await this.SettleInvoicePayment(
         previous,
-        validatedInput.settlement_signature
+        validatedInput.settlement_transaction_hash
       );
 
       if (this.chargeModule && this.paymentIntentModule) {
@@ -599,7 +596,7 @@ export class InvoiceModule {
             metadata: previous.metadata ?? {},
             crypto: {
               buyer_address: settlement.subscriberWallet,
-              transaction_hash: settlement.signature,
+              transaction_hash: settlement.transaction_hash,
             },
             outcome: 'succeeded',
           }
@@ -620,7 +617,7 @@ export class InvoiceModule {
         const balanceTransaction = await this.RecordPaymentOnLedger(
           previous,
           settlement.subscriberWallet,
-          settlement.signature
+          settlement.transaction_hash
         );
         await this.chargeModule.AttachBalanceTransaction(
           charge.id,
@@ -729,8 +726,8 @@ export class InvoiceModule {
 
   /**
    * Create an invoice for a subscription, attach line items from subscription
-   * prices, optionally finalize, and optionally collect payment via Solana
-   * (or record an already-collected `settlementSignature`).
+   * prices, optionally finalize, and optionally collect payment on-chain
+   * (or record an already-collected `settlementTransactionHash`).
    */
   async CreateSubscriptionInvoice(
     platformAccountId: string,
@@ -751,8 +748,8 @@ export class InvoiceModule {
       }>;
       finalize?: boolean;
       collect?: boolean;
-      /** Skip on-chain collect; record this signature as settlement. */
-      settlementSignature?: string;
+      /** Skip on-chain collect; record this transaction hash as settlement. */
+      settlementTransactionHash?: string;
     }
   ): Promise<InvoiceType> {
     if (!this.invoiceItemModule) {
@@ -829,7 +826,7 @@ export class InvoiceModule {
 
     if (options.collect && invoice.status === 'open') {
       invoice = await this.PayInvoice(invoice.id, {
-        settlement_signature: options.settlementSignature,
+        settlement_transaction_hash: options.settlementTransactionHash,
       });
     }
 
@@ -1366,7 +1363,7 @@ export class InvoiceModule {
   private async RecordPaymentOnLedger(
     invoice: InvoiceType,
     payerWallet: string | null,
-    signature: string
+    transactionHash: string
   ): Promise<BalanceTransactionType> {
     const existing = await this.db.Find2Custom<BalanceTransactionType>(
       'BalanceTransactions',
@@ -1382,8 +1379,8 @@ export class InvoiceModule {
     const merchantAccountId = invoice.platform_account;
     const timestamp = Now();
     const explorerUrl =
-      signature && signature !== 'already_collected'
-        ? ExplorerUrl('tx', signature)
+      transactionHash && transactionHash !== 'already_collected'
+        ? this.settlement.ExplorerUrl('tx', transactionHash)
         : '';
 
     const balanceTransaction =
@@ -1396,8 +1393,8 @@ export class InvoiceModule {
         source: invoice.id,
         description: `Payment for Invoice ${invoice.id}`,
         metadata: {
-          blockchain_tx: signature,
-          network: 'solana',
+          blockchain_tx: transactionHash,
+          network: this.settlement.Describe().network,
           sender_address: payerWallet ?? '',
           explorer_url: explorerUrl,
         },
@@ -1635,11 +1632,11 @@ export class InvoiceModule {
 
   private async SettleInvoicePayment(
     invoice: InvoiceType,
-    settlementSignature?: string
-  ): Promise<{ signature: string; subscriberWallet: string | null }> {
-    if (settlementSignature) {
+    settlementTransactionHash?: string
+  ): Promise<{ transaction_hash: string; subscriberWallet: string | null }> {
+    if (settlementTransactionHash) {
       return {
-        signature: settlementSignature,
+        transaction_hash: settlementTransactionHash,
         subscriberWallet: invoice.default_payment_method,
       };
     }
@@ -1649,7 +1646,7 @@ export class InvoiceModule {
     );
     if (!subscriptionId) {
       throw new AppError(
-        'Automatic collection requires a subscription invoice, paid_out_of_band, or settlement_signature',
+        'Automatic collection requires a subscription invoice, paid_out_of_band, or settlement_transaction_hash',
         ERRORS.INVALID_REQUEST.status,
         ERRORS.INVALID_REQUEST.type
       );
@@ -1709,7 +1706,7 @@ export class InvoiceModule {
     });
 
     // On-chain plans allow one pull per periodHours. Skipped Stripe cycles do
-    // not stack — if we already pulled this Solana period, no USDC moves.
+    // not stack — if we already pulled this on-chain period, no USDC moves.
     // Treating that as success was marking invoices paid / advancing periods
     // with no wallet debit.
     if (collection.alreadyCollected) {
@@ -1719,12 +1716,12 @@ export class InvoiceModule {
         amountCents,
       });
       throw new Error(
-        'On-chain subscription period allowance already collected; wait for the next Solana billing period before collecting again'
+        'On-chain subscription period allowance already collected; wait for the next billing period before collecting again'
       );
     }
 
     return {
-      signature: collection.transaction_hash,
+      transaction_hash: collection.transaction_hash,
       subscriberWallet,
     };
   }

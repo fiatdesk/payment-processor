@@ -258,7 +258,7 @@ describe('InvoiceModule', () => {
         quantity: 1,
         quantity_decimal: '1',
         platform_account: PLATFORM,
-      } as InvoiceItem;
+      } as unknown as InvoiceItem;
 
       invoiceItemModule.ListAllPendingInvoiceItems = jest
         .fn()
@@ -600,7 +600,7 @@ describe('InvoiceModule', () => {
       );
     });
 
-    it('should settle with settlement_signature and create charge', async () => {
+    it('should settle with settlement_transaction_hash and create charge', async () => {
       const existing = DraftInvoice({
         status: 'open',
         amount_due: 1099,
@@ -655,7 +655,9 @@ describe('InvoiceModule', () => {
         customerModule,
         invoiceItemModule,
         paymentIntentModule as never,
-        chargeModule as never
+        chargeModule as never,
+        undefined,
+        CreateMockSettlement()
       );
 
       const paidInvoice = {
@@ -678,10 +680,15 @@ describe('InvoiceModule', () => {
         }) as typeof mockDb.Get;
 
       const result = await module.PayInvoice(existing.id, {
-        settlement_signature: 'sig_settled',
+        settlement_transaction_hash: 'tx_settled',
       });
 
-      expect(chargeModule.CreateFromPaymentAttempt).toHaveBeenCalled();
+      expect(chargeModule.CreateFromPaymentAttempt).toHaveBeenCalledWith(
+        PLATFORM,
+        expect.objectContaining({
+          crypto: expect.objectContaining({ transaction_hash: 'tx_settled' }),
+        })
+      );
       expect(chargeModule.AttachBalanceTransaction).toHaveBeenCalledWith(
         'ch_z_1',
         expect.any(String)
@@ -774,7 +781,8 @@ describe('InvoiceModule', () => {
             id: 'sub_z_1',
             platform_account: PLATFORM,
             subscription_onchain_id: 'SubPda_1',
-            default_payment_method: 'Wallet111',
+            default_payment_method:
+              '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
             metadata: {},
           };
         }
@@ -812,7 +820,7 @@ describe('InvoiceModule', () => {
       const result = await module.PayInvoice(existing.id, {});
 
       expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
-        subscriberWallet: 'Wallet111',
+        subscriberWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
         planId: 'PlanPda_1',
         subscriptionId: 'SubPda_1',
         amountCents: existing.amount_due,

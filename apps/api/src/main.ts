@@ -21,6 +21,7 @@ import { AuthenticatedUser } from '@zoneless/shared-types';
 import {
   InitializeAppConfig,
   GetAppConfig,
+  GetChainConfig,
   IsSingleTenantMode,
 } from './modules/AppConfig';
 import { db } from './modules/Database';
@@ -220,8 +221,10 @@ async function StartServer() {
         appConfig.settlement_rail === 'simulated'
           ? '🧪 Simulated settlement (test mode)'
           : livemode
-          ? '💰 Solana: mainnet-beta (live USDC)'
-          : '🧪 Solana: devnet (test mode)';
+          ? '💰 Ethereum: mainnet (live USDC)'
+          : GetChainConfig().chainId === 31337
+          ? '🧪 Ethereum: anvil (test mode)'
+          : '🧪 Ethereum: sepolia (test mode)';
       console.log(settlement);
       if (IsSingleTenantMode()) {
         console.log('🔒 Single-tenant mode: Only one platform allowed');

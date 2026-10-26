@@ -915,17 +915,20 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
               'The blockchain network that the transaction was sent on.',
             enumValues: [
               {
-                value: 'solana',
-                description: 'Solana (primary network for Zoneless).',
+                value: 'ethereum',
+                description: 'Ethereum (primary network for Zoneless).',
+              },
+              {
+                value: 'simulated',
+                description: 'Simulated test-mode settlement (no chain).',
               },
               { value: 'base' },
-              { value: 'ethereum' },
               { value: 'polygon' },
               { value: 'sui' },
               { value: 'tempo' },
             ],
             enumNote:
-              '<strong>Difference from Stripe:</strong> Zoneless settles on Solana. Other networks are accepted for schema compatibility.',
+              '<strong>Difference from Stripe:</strong> Zoneless settles on Ethereum. Other networks are accepted for schema compatibility.',
           },
           {
             name: 'token_currency',
@@ -942,7 +945,6 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
               { value: 'usdg' },
               { value: 'usdp' },
               { value: 'usdsui' },
-              { value: 'phantom_cash' },
             ],
           },
           {

@@ -1,28 +1,24 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { CheckoutSession } from '@zoneless/shared-types';
 
-import { MetaService, SolanaWalletService } from '../../core';
+import { MetaService, WalletService } from '../../core';
 import {
   CheckoutPaymentTransaction,
   CheckoutSessionService,
 } from '../../data/services/checkout-session.service';
 import { ConfigService } from '../../data/services/config.service';
+import { TEST_WALLET_DATA } from '../../utils/constants/test-data';
 import { CheckoutComponent } from './checkout.component';
 
-describe('CheckoutComponent mobile wallet handoff', () => {
-  const signMobileTransaction = jest.fn();
-  const signAndSendMobileTransaction = jest.fn();
+const PAYER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+
+describe('CheckoutComponent', () => {
   const walletService = {
     HasWallet: jest.fn(),
-    SupportsMobileWalletAdapter: jest.fn(),
-    TransactWithMobileWallet: jest.fn(),
-    IsMobileWalletNotFoundError: jest.fn(),
     GetAddress: jest.fn(),
     Connect: jest.fn(),
-    SignAndSendUnsignedTransaction: jest.fn(),
-    SignUnsignedTransaction: jest.fn(),
-    BytesToBase64: jest.fn(),
   };
   const configService = {
     IsSimulatedSettlement: jest.fn(() => false),
@@ -48,20 +44,18 @@ describe('CheckoutComponent mobile wallet handoff', () => {
     checkout_session: 'cs_test',
     amount_total: 100,
     currency: 'usdc',
-    merchant_wallet_address: 'merchant',
-    unsigned_transaction: 'dGVzdA==',
-    estimated_fee: '5000',
-    fee_currency: 'sol',
+    merchant_wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    unsigned_transaction: 'sim_tx',
+    estimated_fee: '0',
+    fee_currency: 'none',
     chain_id: null,
     nonce: null,
     to: null,
-    solana: { min_context_slot: 90 },
   } satisfies CheckoutPaymentTransaction;
   const completedSession = {
     ...checkoutSession,
     status: 'complete',
   } as CheckoutSession;
-  let canSignMobileTransaction = false;
   let component: CheckoutComponent;
 
   beforeEach(() => {
@@ -74,36 +68,15 @@ describe('CheckoutComponent mobile wallet handoff', () => {
         { provide: CheckoutSessionService, useValue: checkoutSessionService },
         { provide: ConfigService, useValue: configService },
         { provide: MetaService, useValue: {} },
-        { provide: SolanaWalletService, useValue: walletService },
+        { provide: WalletService, useValue: walletService },
       ],
     });
     component = TestBed.runInInjectionContext(() => new CheckoutComponent());
     component.checkoutSession.set(checkoutSession);
     component.email = 'payer@example.com';
     walletService.HasWallet.mockReturnValue(true);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(false);
-    walletService.IsMobileWalletNotFoundError.mockReturnValue(false);
     walletService.GetAddress.mockReturnValue('');
-    walletService.Connect.mockResolvedValue(undefined);
-    canSignMobileTransaction = false;
-    signMobileTransaction.mockResolvedValue(new Uint8Array([4, 5, 6]));
-    signAndSendMobileTransaction.mockResolvedValue(new Uint8Array([1, 2, 3]));
-    walletService.TransactWithMobileWallet.mockImplementation(
-      async (_chain, callback) =>
-        callback({
-          payerWallet: 'payer-wallet',
-          canSignTransaction: canSignMobileTransaction,
-          SignUnsignedTransaction: signMobileTransaction,
-          SignAndSendUnsignedTransaction: signAndSendMobileTransaction,
-        })
-    );
-    walletService.SignAndSendUnsignedTransaction.mockResolvedValue(
-      new Uint8Array([1, 2, 3])
-    );
-    walletService.SignUnsignedTransaction.mockResolvedValue(
-      new Uint8Array([4, 5, 6])
-    );
-    walletService.BytesToBase64.mockReturnValue('signed-transaction');
+    walletService.Connect.mockResolvedValue(PAYER);
     checkoutSessionService.PreparePayment.mockResolvedValue(preparedPayment);
     checkoutSessionService.ConfirmPayment.mockResolvedValue(completedSession);
     configService.IsSimulatedSettlement.mockReturnValue(false);
@@ -114,222 +87,138 @@ describe('CheckoutComponent mobile wallet handoff', () => {
     jest.clearAllMocks();
   });
 
-  it('requests a wallet-browser handoff when MWA is unavailable', () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue(
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X)'
+  describe('wallet availability', () => {
+    it('offers a wallet-app handoff on mobile without an injected wallet', () => {
+      jest
+        .spyOn(navigator, 'userAgent', 'get')
+        .mockReturnValue(
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X)'
+        );
+      walletService.HasWallet.mockReturnValue(false);
+
+      expect(component.NeedsMobileWalletHandoff()).toBe(true);
+      expect(component.NeedsWalletSetup()).toBe(false);
+    });
+
+    it('keeps the checkout form on mobile when a wallet is injected', () => {
+      jest
+        .spyOn(navigator, 'userAgent', 'get')
+        .mockReturnValue('Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile');
+
+      expect(component.NeedsMobileWalletHandoff()).toBe(false);
+    });
+
+    it('shows wallet setup guidance on desktop when there is no wallet', () => {
+      jest
+        .spyOn(navigator, 'userAgent', 'get')
+        .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140');
+      walletService.HasWallet.mockReturnValue(false);
+
+      expect(component.NeedsMobileWalletHandoff()).toBe(false);
+      expect(component.NeedsWalletSetup()).toBe(true);
+    });
+
+    it('does not show wallet setup guidance if a wallet exists', () => {
+      jest
+        .spyOn(navigator, 'userAgent', 'get')
+        .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140');
+
+      expect(component.NeedsWalletSetup()).toBe(false);
+    });
+  });
+
+  describe('on-chain payments', () => {
+    it('connects the wallet and prepares the payment with its address', async () => {
+      checkoutSessionService.PreparePayment.mockRejectedValue(
+        new Error(
+          'BuildCheckoutPaymentTransaction is not available on this settlement rail yet'
+        )
       );
-    walletService.HasWallet.mockReturnValue(false);
 
-    expect(component.NeedsMobileWalletHandoff()).toBe(true);
-  });
+      await component.Pay();
 
-  it('keeps the checkout form when Mobile Wallet Adapter is supported', () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile');
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-
-    expect(component.NeedsMobileWalletHandoff()).toBe(false);
-  });
-
-  it('keeps the existing no-wallet behavior on desktop', () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140');
-    walletService.HasWallet.mockReturnValue(false);
-
-    expect(component.NeedsMobileWalletHandoff()).toBe(false);
-  });
-
-  it('shows wallet setup guidance on desktop when there is no wallet', () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140');
-    walletService.HasWallet.mockReturnValue(false);
-    configService.IsSimulatedSettlement.mockReturnValue(false);
-
-    expect(component.NeedsWalletSetup()).toBe(true);
-  });
-
-  it('does not show wallet setup guidance if wallet exists', () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140');
-    walletService.HasWallet.mockReturnValue(true);
-    configService.IsSimulatedSettlement.mockReturnValue(false);
-
-    expect(component.NeedsWalletSetup()).toBe(false);
-  });
-
-  it('authorizes, prepares, and signs in one mobile wallet session', async () => {
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-
-    await component.Pay();
-
-    expect(walletService.TransactWithMobileWallet).toHaveBeenCalledTimes(1);
-    expect(walletService.TransactWithMobileWallet).toHaveBeenCalledWith(
-      'solana:devnet',
-      expect.any(Function)
-    );
-    expect(walletService.Connect).not.toHaveBeenCalled();
-    expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(1);
-    expect(signAndSendMobileTransaction).toHaveBeenCalledWith(
-      preparedPayment.unsigned_transaction,
-      90
-    );
-    expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(1);
-    expect(component.paymentPhase()).toBe('complete');
-  });
-
-  it('relays sponsored MWA transactions when sign-only is supported', async () => {
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-    canSignMobileTransaction = true;
-    checkoutSessionService.PreparePayment.mockResolvedValue({
-      ...preparedPayment,
-      fee_sponsored: true,
+      expect(walletService.Connect).toHaveBeenCalledTimes(1);
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledWith(
+        checkoutSession.url_slug,
+        PAYER,
+        { email: 'payer@example.com' }
+      );
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'BuildCheckoutPaymentTransaction is not available on this settlement rail yet'
+      );
+      expect(component.paymentPhase()).toBe('idle');
     });
 
-    await component.Pay();
+    it('reuses an already connected wallet', async () => {
+      walletService.GetAddress.mockReturnValue(PAYER);
+      checkoutSessionService.PreparePayment.mockRejectedValue(
+        new Error('not available')
+      );
 
-    expect(walletService.SignUnsignedTransaction).not.toHaveBeenCalled();
-    expect(signMobileTransaction).toHaveBeenCalledWith(
-      preparedPayment.unsigned_transaction
-    );
-    expect(signAndSendMobileTransaction).not.toHaveBeenCalled();
-    expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
-      checkoutSession.url_slug,
-      { signed_transaction: 'signed-transaction' }
-    );
-  });
+      await component.Pay();
 
-  it('keeps wallet broadcast as the sponsored MWA fallback', async () => {
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-    checkoutSessionService.PreparePayment.mockResolvedValue({
-      ...preparedPayment,
-      fee_sponsored: true,
+      expect(walletService.Connect).not.toHaveBeenCalled();
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledWith(
+        checkoutSession.url_slug,
+        PAYER,
+        expect.any(Object)
+      );
     });
 
-    await component.Pay();
+    it('does not sign a prepared payment until wallet signing exists', async () => {
+      await component.Pay();
 
-    expect(signMobileTransaction).not.toHaveBeenCalled();
-    expect(signAndSendMobileTransaction).toHaveBeenCalledWith(
-      preparedPayment.unsigned_transaction,
-      90
-    );
-    expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
-      checkoutSession.url_slug,
-      { transaction_hash: expect.any(String) }
-    );
-  });
-
-  it('keeps sponsored desktop transactions on the existing relay flow', async () => {
-    walletService.GetAddress.mockReturnValue('payer-wallet');
-    checkoutSessionService.PreparePayment.mockResolvedValue({
-      ...preparedPayment,
-      fee_sponsored: true,
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toMatch(/not available/);
+      expect(component.paymentPhase()).toBe('idle');
     });
 
-    await component.Pay();
+    it('confirms an existing on-chain subscription without signing', async () => {
+      checkoutSessionService.PreparePayment.mockResolvedValue({
+        ...preparedPayment,
+        already_subscribed: true,
+        subscription_onchain_id: 'sub_onchain_1',
+      });
 
-    expect(walletService.SignUnsignedTransaction).toHaveBeenCalledWith(
-      preparedPayment.unsigned_transaction,
-      'solana:devnet'
-    );
-    expect(walletService.SignAndSendUnsignedTransaction).not.toHaveBeenCalled();
-    expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
-      checkoutSession.url_slug,
-      { signed_transaction: 'signed-transaction' }
-    );
+      await component.Pay();
+
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
+        checkoutSession.url_slug,
+        { already_subscribed: true, subscription_onchain_id: 'sub_onchain_1' }
+      );
+      expect(component.paymentPhase()).toBe('complete');
+    });
   });
 
-  it('relays both sponsored subscription steps in one mobile session', async () => {
-    const subscriptionSession = {
-      ...checkoutSession,
-      mode: 'subscription',
-    } as CheckoutSession;
-    const initAuthority = {
-      ...preparedPayment,
-      unsigned_transaction: 'init-authority',
-      fee_sponsored: true,
-      subscription_step: 'init_authority' as const,
-    };
-    const subscribe = {
-      ...preparedPayment,
-      unsigned_transaction: 'subscribe',
-      fee_sponsored: true,
-      subscription_step: 'subscribe' as const,
-    };
-    component.checkoutSession.set(subscriptionSession);
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-    canSignMobileTransaction = true;
-    checkoutSessionService.PreparePayment.mockResolvedValueOnce(
-      initAuthority
-    ).mockResolvedValueOnce(subscribe);
-    checkoutSessionService.ConfirmPayment.mockResolvedValueOnce(
-      subscriptionSession
-    ).mockResolvedValueOnce({
-      ...subscriptionSession,
-      status: 'complete',
+  describe('simulated payments', () => {
+    it('opens a simulated wallet instead of connecting a chain wallet', async () => {
+      configService.IsSimulatedSettlement.mockReturnValue(true);
+
+      await component.Pay();
+
+      expect(component.simulatedWalletOpen()).toBe(true);
+      expect(walletService.Connect).not.toHaveBeenCalled();
+      expect(component.NeedsMobileWalletHandoff()).toBe(false);
     });
 
-    await component.Pay();
+    it('confirms with a simulated signature from the test wallet', async () => {
+      configService.IsSimulatedSettlement.mockReturnValue(true);
 
-    expect(walletService.TransactWithMobileWallet).toHaveBeenCalledTimes(1);
-    expect(signMobileTransaction.mock.calls).toEqual([
-      ['init-authority'],
-      ['subscribe'],
-    ]);
-    expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
-      [
-        subscriptionSession.url_slug,
+      await component.ApproveSimulatedWallet();
+
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledWith(
+        checkoutSession.url_slug,
+        TEST_WALLET_DATA.walletAddress,
+        expect.any(Object)
+      );
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
+        checkoutSession.url_slug,
         {
-          signed_transaction: 'signed-transaction',
-          subscription_step: 'init_authority',
-        },
-      ],
-      [
-        subscriptionSession.url_slug,
-        {
-          signed_transaction: 'signed-transaction',
-          subscription_step: 'subscribe',
-        },
-      ],
-    ]);
-    expect(component.paymentPhase()).toBe('complete');
-  });
-
-  it('shows wallet-browser choices when MWA cannot find a wallet', async () => {
-    jest
-      .spyOn(navigator, 'userAgent', 'get')
-      .mockReturnValue('Mozilla/5.0 (Linux; Android 16) Chrome/140 Mobile');
-    walletService.HasWallet.mockReturnValue(false);
-    walletService.SupportsMobileWalletAdapter.mockReturnValue(true);
-    walletService.IsMobileWalletNotFoundError.mockReturnValue(true);
-    walletService.TransactWithMobileWallet.mockRejectedValue({
-      code: 'ERROR_WALLET_NOT_FOUND',
+          transaction_hash: `sim_sig:cs_test:${TEST_WALLET_DATA.walletAddress}`,
+        }
+      );
+      expect(component.paymentPhase()).toBe('complete');
     });
-
-    await component.Pay();
-
-    expect(component.mobileWalletHandoffRequested()).toBe(true);
-    expect(component.NeedsMobileWalletHandoff()).toBe(true);
-    expect(component.paymentError()).toBeNull();
-  });
-
-  it('opens a simulated wallet instead of connecting a chain wallet', async () => {
-    configService.IsSimulatedSettlement.mockReturnValue(true);
-
-    await component.Pay();
-
-    expect(component.simulatedWalletOpen()).toBe(true);
-    expect(walletService.Connect).not.toHaveBeenCalled();
-    expect(component.NeedsMobileWalletHandoff()).toBe(false);
   });
 });

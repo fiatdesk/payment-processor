@@ -58,23 +58,39 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: '<code>LIVEMODE</code>: Set to <code>false</code> (default) for test mode or <code>true</code> for Solana mainnet and real USDC.',
+              text: '<code>LIVEMODE</code>: Set to <code>false</code> (default) for test mode or <code>true</code> for Ethereum mainnet and real USDC.',
               html: true,
             },
             {
-              text: '<code>SETTLEMENT_RAIL</code>: How test mode settles money. Defaults to <code>simulated</code> (fake USDC, no blockchain). Set to <code>onchain</code> to use Solana Devnet. Invalid when <code>LIVEMODE=true</code>.',
+              text: '<code>SETTLEMENT_RAIL</code>: How test mode settles money. Defaults to <code>simulated</code> (fake USDC, no blockchain). Set to <code>onchain</code> to use Sepolia. Invalid when <code>LIVEMODE=true</code>.',
               html: true,
             },
             {
-              text: '<code>SOLANA_RPC_URL</code>: Solana RPC endpoint. Required for live mode and for <code>SETTLEMENT_RAIL=onchain</code>. When omitted, Zoneless uses the public endpoint for the selected network. Use a dedicated RPC provider in production.',
+              text: '<code>ETH_RPC_URL</code>: Comma-separated Ethereum JSON-RPC URLs. The first is primary and the rest are fallbacks. Required for live mode and for <code>SETTLEMENT_RAIL=onchain</code>. Use dedicated RPC providers in production.',
               html: true,
             },
             {
-              text: '<code>SUBSCRIPTION_OPERATOR_KEY</code>: Base58 secret key that owns on-chain subscription plans. Required for recurring prices.',
+              text: '<code>ETH_CHAIN_ID</code>: Test-mode chain override, for example <code>31337</code> for a local Anvil node. Defaults to <code>1</code> in live mode and <code>11155111</code> (Sepolia) in test mode. Not allowed when <code>LIVEMODE=true</code>.',
               html: true,
             },
             {
-              text: '<code>TRANSACTION_FEE_PAYER_KEY</code>: Optional Base58 key used to pay Checkout network fees and rent. When omitted, the customer pays through their wallet.',
+              text: '<code>ETH_CONFIRMATIONS</code>: Blocks to wait before a transaction counts as settled. Defaults to <code>2</code>.',
+              html: true,
+            },
+            {
+              text: '<code>USDC_ADDRESS</code>, <code>PAYOUT_BATCH_ADDRESS</code>, <code>SUBSCRIPTIONS_ADDRESS</code>, <code>SANCTIONS_ORACLE_ADDRESS</code>: Optional contract address overrides. Defaults come from the per-chain address table.',
+              html: true,
+            },
+            {
+              text: '<code>CHECKOUT_RELAYER_KEY</code>: <code>0x</code> private key (64 hex characters) that relays Checkout payment authorizations and subscription sign-ups and pays their gas. Required for on-chain Checkout.',
+              html: true,
+            },
+            {
+              text: '<code>SUBSCRIPTION_OPERATOR_KEY</code>: <code>0x</code> private key (64 hex characters) that owns on-chain subscription plans and collects payments. Required for recurring prices.',
+              html: true,
+            },
+            {
+              text: '<code>CHECKOUT_CONFIRM_TIMEOUT_MS</code>: How long Checkout confirmation waits for confirmations before returning <code>payment_pending</code>. Defaults to <code>90000</code>.',
               html: true,
             },
           ],

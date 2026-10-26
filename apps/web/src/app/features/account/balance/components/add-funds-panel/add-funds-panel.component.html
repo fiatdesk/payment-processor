@@ -17,9 +17,9 @@
     <h3 class="add-funds-title">Add funds to your balance</h3>
     <p class="add-funds-subtitle">
       @if (IsSimulatedSettlement()) { Add test USDC to your balance. These funds
-      are simulated and have no value. } @else { Send USDC on Solana to the
-      wallet address below. Funds typically arrive within 30 seconds of network
-      confirmation. }
+      are simulated and have no value. } @else { Send USDC on Ethereum to the
+      wallet address below. Funds arrive once the transfer has enough network
+      confirmations. }
     </p>
   </div>
 
@@ -66,19 +66,6 @@
       <button
         type="button"
         class="action-button action-button-dainty outline testmode-button"
-        (click)="OnOpenSolFaucet()"
-      >
-        <span>Get test SOL</span>
-        <img
-          src="assets/icons/arrow_forward.svg"
-          alt=""
-          class="testmode-btn-icon"
-        />
-      </button>
-
-      <button
-        type="button"
-        class="action-button action-button-dainty outline testmode-button"
         (click)="OnOpenUsdcFaucet()"
       >
         <span>Get test USDC</span>
@@ -114,11 +101,11 @@
 
     <div class="wallet-network-badge">
       <img
-        src="assets/images/logos/solana.svg"
-        alt="Solana"
+        src="assets/images/logos/ethereum.svg"
+        alt="Ethereum"
         class="network-icon"
       />
-      <span>Solana</span>
+      <span>Ethereum</span>
       <span class="badge-separator">•</span>
       <img src="assets/images/logos/usdc.svg" alt="USDC" class="network-icon" />
       <span>USDC</span>
@@ -137,15 +124,15 @@
       <li>
         <span class="instruction-number">2</span>
         <span class="instruction-text"
-          >Open the <strong>Get test SOL</strong> faucet and airdrop SOL for gas
-          fees</span
+          >Fund the wallet with a little <strong>Sepolia ETH</strong> for gas
+          from any Sepolia faucet</span
         >
       </li>
       <li>
         <span class="instruction-number">3</span>
         <span class="instruction-text"
           >Open the <strong>Get test USDC</strong> faucet, select
-          <strong>Solana</strong> devnet, and paste your address</span
+          <strong>Ethereum Sepolia</strong>, and paste your address</span
         >
       </li>
       <li>
@@ -162,7 +149,7 @@
       <li>
         <span class="instruction-number">1</span>
         <span class="instruction-text"
-          >Open your Solana wallet (Phantom, Solflare, etc.)</span
+          >Open your Ethereum wallet (MetaMask, Coinbase Wallet, etc.)</span
         >
       </li>
       <li>
@@ -192,8 +179,9 @@
     <div class="note-item">
       <img src="assets/icons/info.svg" alt="Info" class="note-icon" />
       <span
-        >Only send <strong>USDC</strong> on the <strong>Solana</strong> network.
-        Other tokens or networks will result in lost funds.</span
+        >Only send <strong>USDC</strong> on the
+        <strong>Ethereum</strong> network. Other tokens or networks will result
+        in lost funds.</span
       >
     </div>
   </div>
@@ -244,11 +232,11 @@
   <div class="waiting-tips">
     <div class="tip-item">
       <img src="assets/icons/check_circle.svg" alt="Tip" class="tip-icon" />
-      <span>Make sure your transaction is confirmed on Solana</span>
+      <span>Make sure your transaction is confirmed on Ethereum</span>
     </div>
     <div class="tip-item">
       <img src="assets/icons/check_circle.svg" alt="Tip" class="tip-icon" />
-      <span>Ensure you sent USDC (not SOL or other tokens)</span>
+      <span>Ensure you sent USDC (not ETH or other tokens)</span>
     </div>
   </div>
 

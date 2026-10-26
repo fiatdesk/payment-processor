@@ -100,7 +100,7 @@ describe('BalanceModule', () => {
       mockDb.Find2Custom = jest.fn().mockResolvedValue([
         {
           id: 'wa_z_platform',
-          wallet_address: 'PlatformWallet111',
+          wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
           default_for_currency: true,
         },
       ]);
@@ -120,17 +120,17 @@ describe('BalanceModule', () => {
       const details = await module.GetBalanceDetails('acct_z_platform');
 
       expect(mockSettlement.GetNativeBalance).toHaveBeenCalledWith(
-        'PlatformWallet111'
+        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
       );
       expect(details).toEqual({
         object: 'balance_details',
         wallet_usdc: 32,
         wallet_native: 0.25,
-        native_currency: 'sol',
+        native_currency: 'eth',
         connected_accounts_owed: 700,
         platform_available: 2500,
         platform_pending: 100,
-        wallet_address: 'PlatformWallet111',
+        wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       });
     });
   });
@@ -179,10 +179,10 @@ describe('BalanceModule', () => {
         pending: [{ amount: 0, currency: 'usdc' }],
       };
 
-      const updated = module.UpdateBalance(balance, 200, 'sol', 'available');
+      const updated = module.UpdateBalance(balance, 200, 'eth', 'available');
 
       expect(updated.available).toHaveLength(2);
-      expect(updated.available[1]).toEqual({ amount: 200, currency: 'sol' });
+      expect(updated.available[1]).toEqual({ amount: 200, currency: 'eth' });
     });
 
     it('should update pending balance separately from available', () => {

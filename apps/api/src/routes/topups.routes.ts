@@ -37,7 +37,7 @@ const topUpModule = new TopUpModule(db, eventService);
  * Platform-only endpoint. This is the recommended way to detect deposits
  * after a user sends funds, as it works reliably in multi-instance deployments.
  *
- * The endpoint checks the Solana blockchain for new USDC transfers to the
+ * The endpoint checks the settlement chain for new USDC transfers to the
  * platform wallet and creates TopUp records for any new deposits found.
  */
 router.post(
@@ -51,7 +51,7 @@ router.post(
     const monitor = new TopUpMonitor(db);
     const response = await monitor.CheckDepositsForAccount(
       platformAccountId,
-      1 // Check only the most recent signature to minimize RPC calls
+      1 // Check only the most recent deposit to minimize RPC calls
     );
 
     Logger.info('Deposit check completed', {

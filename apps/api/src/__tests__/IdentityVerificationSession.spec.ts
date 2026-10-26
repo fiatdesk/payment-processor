@@ -836,7 +836,7 @@ describe('Identity volume threshold gating', () => {
         },
         status: 'unverified',
       },
-    } as Person);
+    } as unknown as Person);
 
     mockDb.Get.mockImplementation(async (collection, id) => {
       if (collection === 'Accounts') return storedAccounts.get(id) ?? null;

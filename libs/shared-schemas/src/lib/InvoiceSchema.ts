@@ -430,11 +430,11 @@ export const PayInvoiceSchema = z
     payment_method: z.string().optional(),
     source: z.string().optional(),
     /**
-     * When set, skip on-chain collect and record settlement with this signature
-     * (e.g. checkout already collected the first period).
+     * When set, skip on-chain collect and record settlement with this
+     * transaction hash (e.g. checkout already collected the first period).
      * @zoneless_extension
      */
-    settlement_signature: z.string().optional(),
+    settlement_transaction_hash: z.string().optional(),
   })
   .merge(ExpandableSchema);
 

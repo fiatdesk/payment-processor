@@ -260,3 +260,168 @@ libs/shared-types/src/lib/Subscription.ts
 sdks/node/src/generated/Inputs.ts
 sdks/node/src/resources/Payouts.ts
 ```
+
+## Task 6: Swap the rail to Ethereum (viem)
+
+The Solana rail is gone. `GetSettlement()` returns the new `Ethereum` class (`apps/api/src/modules/chains/Ethereum.ts`) when `SETTLEMENT_RAIL=onchain`, and the simulated rail is unchanged apart from address formats. Wallet addresses everywhere are Ethereum addresses: any value that passes viem `isAddress` (all-lowercase or correctly EIP-55 checksummed) is accepted and stored checksummed via `getAddress`. Private keys are `0x` + 64 hex.
+
+Dependencies: removed `@solana/kit`, `@solana/kit-plugin-rpc`, `@solana/kit-plugin-signer`, `@solana/spl-token`, `@solana/subscriptions`, `@solana/web3.js`, `@solana-mobile/mobile-wallet-adapter-protocol`, `bs58`, `@types/bs58` and `@wallet-standard/app`; added `viem` to the root, Node SDK and CLI manifests. Resolved version: **viem 2.57.11**.
+
+What the `Ethereum` rail does today:
+
+- `Describe()` (`network: 'ethereum'`, `native_currency: 'eth'`, chain id, USDC address), `ExplorerUrl()` (Etherscan / Sepolia Etherscan, empty on Anvil), `CheckWalletExists()` (`isAddress`), `GetNativeBalance()` and `GetUSDCBalance()` (`balanceOf / 1e6`, after checking `decimals() == 6` once).
+- Every money flow (payout build/broadcast, checkout, subscriptions, deposits) rejects with a 501 `not_supported` error: `<method> is not available on this settlement rail yet`. Later tasks implement them.
+- Chain selection lives in `chains/Chain.ts`: mainnet (`1`) in live mode, Sepolia (`11155111`) in test mode, Anvil (`31337`) via `ETH_CHAIN_ID` (refused when `LIVEMODE=true`). Contract addresses come from `chains/contracts.ts` with env overrides. The public client uses a viem `fallback` transport over `ETH_RPC_URL`. `GetSettlement()` now memoises the rail; `ResetChainClientsForTests()` clears the chain config, clients and that memo.
+
+Behaviour changes:
+
+- Environment: `SOLANA_RPC_URL` → `ETH_RPC_URL` (comma-separated, first is primary); `TRANSACTION_FEE_PAYER_KEY` → `CHECKOUT_RELAYER_KEY`; new `ETH_CHAIN_ID`, `ETH_CONFIRMATIONS` (default 2), `USDC_ADDRESS`, `PAYOUT_BATCH_ADDRESS`, `SUBSCRIPTIONS_ADDRESS`, `SANCTIONS_ORACLE_ADDRESS`, `CHECKOUT_CONFIRM_TIMEOUT_MS` (documented; read from Task 11). `CHECKOUT_RELAYER_KEY` and `SUBSCRIPTION_OPERATOR_KEY` must match `/^0x[0-9a-fA-F]{64}$/`, and the API refuses to start otherwise.
+- API: `external_account.wallet_address`, `POST /v1/setup` `wallet_address` and checkout `payer_wallet` must be Ethereum addresses and are stored checksummed. External wallets, charges, top-ups and ledger entries record the rail's `network` (`ethereum`, or `simulated` on the simulated rail) instead of `solana`. Checkout prepare returns `relayed` instead of `fee_sponsored`; the two-step `init_authority` subscription checkout and `subscription_step` are gone. The simulated test wallet is `0x1111111111111111111111111111111111111111`.
+- Renamed public field (plan-author decision A1): `PayInvoice` `settlement_signature` → `settlement_transaction_hash` (SDK `PayInvoiceInput` regenerated). The error text now names `settlement_transaction_hash`. No format check yet.
+- `ChargePaymentMethodDetailsCrypto.network` drops `solana` and gains `simulated`; `token_currency` drops `phantom_cash`.
+- Web: `SolanaWalletService` → `WalletService` (EIP-6963 discovery with a `window.ethereum` fallback, `Connect`, `EnsureChain`, `SignTypedData`, `SendTransaction`, local-key helpers). The setup wizard generates a secp256k1 key in the browser. On-chain checkout and dashboard payout signing show an error until Tasks 9 and 12. Mobile handoff links go to MetaMask and Coinbase Wallet. The add-funds panel points to the Circle faucet only.
+- SDK: `payouts.sign(unsignedTransaction, privateKey)` is now async and signs an EIP-1559 transaction with viem; `processBatch`/`processAll` take a `0x` private key.
+- CLI: `agent setup` generates a secp256k1 wallet and sends `walletAddress`. `wallet backup` writes `{ address, privateKey, version: 3 }`, and `env sync --include-wallet` writes `WALLET_PRIVATE_KEY`.
+- Build: `apps/api` now compiles with `strictNullChecks` (viem's types require it). The few existing nullability errors were fixed with type-level changes; the only runtime difference is that `ProductModule.CreateProduct` with `default_price_data` but no price module now throws a clear `PriceModule not configured` error instead of a `TypeError`.
+- Tests: the Jest `moduleNameMapper` / diagnostics exclusion for the Solana module is gone, and so are the `estimated_fee_lamports` absence assertions (ruling R10).
+
+Added:
+
+```
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/modules/chains/Chain.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/abi/Usdc.ts
+apps/api/src/modules/chains/contracts.ts
+apps/web/src/app/core/services/wallet-viem.ts
+apps/web/src/app/utils/validation/ethereum.ts
+apps/web/src/assets/images/logos/ethereum.svg
+libs/shared-schemas/src/lib/AddressSchema.ts
+```
+
+Deleted:
+
+```
+apps/api/src/__tests__/mocks/Solana.ts
+apps/api/src/modules/chains/Solana.spec.ts
+apps/api/src/modules/chains/Solana.ts
+apps/web/src/app/utils/validation/solana.ts
+apps/web/src/assets/icons/phantom-wallet.svg
+apps/web/src/assets/images/logos/solana.svg
+```
+
+Modified:
+
+```
+.env.example
+.env.production.example
+AGENTS.md
+CHANGES.md
+CONTRIBUTING.md
+apps/api/jest.config.ts
+apps/api/src/__tests__/Account.spec.ts
+apps/api/src/__tests__/Balance.spec.ts
+apps/api/src/__tests__/Charge.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/Customer.spec.ts
+apps/api/src/__tests__/ExternalWallet.spec.ts
+apps/api/src/__tests__/IdentityVerificationSession.spec.ts
+apps/api/src/__tests__/Invoice.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Price.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/SetupModule.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/main.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/BillingMonitor.ts
+apps/api/src/modules/Charge.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/Customer.ts
+apps/api/src/modules/ExternalWallet.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/PaymentIntent.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/Product.ts
+apps/api/src/modules/SanctionsScreening.ts
+apps/api/src/modules/Setup.ts
+apps/api/src/modules/Subscription.ts
+apps/api/src/modules/SubscriptionBilling.ts
+apps/api/src/modules/TopUp.ts
+apps/api/src/modules/TopUpMonitor.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/balance.routes.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/api/src/routes/setup.routes.ts
+apps/api/src/routes/topups.routes.ts
+apps/api/src/utils/RecurringInterval.ts
+apps/api/tsconfig.json
+apps/cli/README.md
+apps/cli/package.json
+apps/cli/src/app/AgentSetup.spec.ts
+apps/cli/src/app/AgentSetup.ts
+apps/cli/src/app/Cli.ts
+apps/cli/src/app/EnvSync.spec.ts
+apps/cli/src/app/EnvSync.ts
+apps/cli/src/app/Wallet.spec.ts
+apps/cli/src/app/Wallet.ts
+apps/docs/src/app/pages/docs/data/charges.ts
+apps/docs/src/app/pages/docs/data/environment-variables.ts
+apps/docs/src/app/pages/docs/data/invoices.ts
+apps/docs/src/app/pages/docs/data/local-development.ts
+apps/docs/src/app/pages/docs/data/self-hosting.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/data/services/checkout-session.service.ts
+apps/web/src/app/data/services/external-wallet.service.ts
+apps/web/src/app/data/services/setup.service.ts
+apps/web/src/app/features/account/balance/components/add-funds-panel/add-funds-panel.component.html
+apps/web/src/app/features/account/balance/components/add-funds-panel/add-funds-panel.component.ts
+apps/web/src/app/features/account/balance/components/balance-detail/balance-detail.component.html
+apps/web/src/app/features/account/balance/components/balance-detail/balance-detail.component.ts
+apps/web/src/app/features/account/components/transaction-list/components/payout-detail/payout-detail.component.ts
+apps/web/src/app/features/account/components/transaction-list/components/topup-detail/topup-detail.component.ts
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.html
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.ts
+apps/web/src/app/features/account/connected-accounts/util/connected-account-display.ts
+apps/web/src/app/features/account/payment-intents/views/payment-intent-detail/payment-intent-detail.component.html
+apps/web/src/app/features/account/payment-intents/views/payment-intent-detail/payment-intent-detail.component.ts
+apps/web/src/app/features/account/payment-links/components/payment-link-preview/payment-link-preview.component.html
+apps/web/src/app/features/checkout/checkout.component.html
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/checkout/util/mobile-wallet.spec.ts
+apps/web/src/app/features/checkout/util/mobile-wallet.ts
+apps/web/src/app/features/setup/setup.component.html
+apps/web/src/app/features/setup/setup.component.ts
+apps/web/src/app/shared/forms/external-wallet-form/external-wallet-form.component.html
+apps/web/src/app/shared/forms/external-wallet-form/external-wallet-form.component.ts
+apps/web/src/app/shared/ui/wallet-guide/wallet-guide.component.html
+apps/web/src/app/shared/ui/wallet-guide/wallet-guide.component.scss
+apps/web/src/app/utils/constants/test-data.ts
+apps/web/src/app/utils/validation/index.ts
+docker-compose.yml
+libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
+libs/shared-schemas/src/lib/ExternalWalletSchema.ts
+libs/shared-schemas/src/lib/InvoiceSchema.ts
+libs/shared-schemas/src/lib/index.ts
+libs/shared-types/src/lib/Charge.ts
+libs/shared-types/src/lib/CheckoutSession.ts
+libs/shared-types/src/lib/Config.ts
+libs/shared-types/src/lib/Customer.ts
+libs/shared-types/src/lib/ExternalWallet.ts
+libs/shared-types/src/lib/Price.ts
+libs/shared-types/src/lib/Subscription.ts
+package-lock.json
+package.json
+sdks/node/README.md
+sdks/node/package.json
+sdks/node/src/__tests__/Payouts.spec.ts
+sdks/node/src/generated/Inputs.ts
+sdks/node/src/resources/ExternalAccounts.ts
+sdks/node/src/resources/Payouts.ts
+sdks/node/tsup.config.ts
+```

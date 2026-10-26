@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EthereumAddressSchema } from './AddressSchema';
 import { ExpandableSchema } from './ExpandableSchema';
 import { RecurringIntervalSchema } from './PriceSchema';
 
@@ -758,7 +759,7 @@ export const PrepareCheckoutPaymentShippingAddressSchema =
   });
 
 export const PrepareCheckoutPaymentSchema = z.object({
-  payer_wallet: z.string().min(1),
+  payer_wallet: EthereumAddressSchema,
   email: z.string().email().max(512).optional(),
   name: z.string().max(150).optional(),
   business_name: z.string().max(150).optional(),

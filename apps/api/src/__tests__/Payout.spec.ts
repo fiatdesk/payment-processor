@@ -228,7 +228,7 @@ describe('PayoutModule', () => {
         .spyOn((module as any).externalWalletModule, 'GetExternalWallet')
         .mockResolvedValue({
           id: 'wa_z_seller',
-          wallet_address: 'seller_wallet',
+          wallet_address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
         });
       jest
         .spyOn(
@@ -238,7 +238,7 @@ describe('PayoutModule', () => {
         .mockResolvedValue([
           {
             id: 'wa_z_platform',
-            wallet_address: 'platform_wallet',
+            wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
             default_for_currency: true,
           },
         ]);
@@ -250,17 +250,16 @@ describe('PayoutModule', () => {
       expect(result.payouts).toEqual([payout]);
       expect(result).toMatchObject({
         object: 'payout_batch_build',
-        unsigned_transaction: 'base64tx',
+        unsigned_transaction: '0x02unsigned',
         estimated_fee: expect.any(String),
         fee_currency: expect.any(String),
-        chain_id: null,
+        chain_id: 11155111,
         nonce: null,
         to: null,
         transaction_type: 'payout',
         batch_id: null,
         recipients_count: 1,
       });
-      expect(result).not.toHaveProperty('estimated_fee_lamports');
       expect(mockDb.Update).not.toHaveBeenCalled();
     });
   });
@@ -307,7 +306,7 @@ describe('PayoutModule', () => {
         object: 'payout_batch_broadcast',
         transaction_hash: 'sig123',
         status: 'paid',
-        viewer_url: 'https://solscan.io/tx/sig123',
+        viewer_url: 'https://sepolia.etherscan.io/tx/sig123',
       });
       expect(result).not.toHaveProperty('signature');
       expect(mockDb.Update).toHaveBeenCalledWith(

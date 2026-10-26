@@ -1,191 +1,313 @@
 /** @jest-environment node */
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 
-import { Keypair, SystemProgram, Transaction } from '@solana/web3.js';
-import bs58 from 'bs58';
-import { SolanaWalletService } from './wallet.service';
+import {
+  parseTransaction,
+  recoverTransactionAddress,
+  serializeTransaction,
+  type Hex,
+  type TypedDataDefinition,
+} from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { Eip1193Provider, WalletService } from './wallet.service';
 
-const mockTransact = jest.fn();
+/** Anvil default account #1 (public test key). */
+const PRIVATE_KEY =
+  '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
+const ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+const PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 
-jest.mock('@solana-mobile/mobile-wallet-adapter-protocol', () => ({
-  transact: (...args: unknown[]) => mockTransact(...args),
-}));
+class FakeWindow extends EventTarget {
+  location = { origin: 'https://pay.example.com' };
+  ethereum?: Eip1193Provider;
+}
 
-describe('SolanaWalletService local key signing', () => {
-  let service: SolanaWalletService;
+function FakeProvider(
+  handlers: Record<string, (params: unknown) => unknown> = {}
+): Eip1193Provider & { request: jest.Mock } {
+  return {
+    request: jest.fn(async ({ method, params }) => {
+      const handler = handlers[method];
+      if (!handler) throw new Error(`Unexpected method ${method}`);
+      return handler(params);
+    }),
+  };
+}
+
+/** The request objects the provider received, in order. */
+function Requests(provider: { request: jest.Mock }): unknown[] {
+  return provider.request.mock.calls.map(([request]) => request);
+}
+
+function Announce(
+  fakeWindow: FakeWindow,
+  provider: Eip1193Provider,
+  name = 'Test Wallet'
+): void {
+  fakeWindow.dispatchEvent(
+    Object.assign(new Event('eip6963:announceProvider'), {
+      detail: {
+        info: { uuid: name, name, icon: '', rdns: 'com.example.wallet' },
+        provider,
+      },
+    })
+  );
+}
+
+function UnsignedPayout(overrides: { to?: Hex; chainId?: number } = {}): Hex {
+  return serializeTransaction({
+    type: 'eip1559',
+    chainId: overrides.chainId ?? 11155111,
+    nonce: 7,
+    to: overrides.to ?? PAYOUT_BATCH,
+    data: '0x1234',
+    value: BigInt(0),
+    gas: BigInt(100000),
+    maxFeePerGas: BigInt(30000000000),
+    maxPriorityFeePerGas: BigInt(1000000000),
+  });
+}
+
+describe('WalletService', () => {
+  let fakeWindow: FakeWindow;
 
   beforeEach(() => {
-    mockTransact.mockReset();
-    service = new SolanaWalletService();
+    jest.useFakeTimers();
+    fakeWindow = new FakeWindow();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: fakeWindow,
+    });
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     delete (globalThis as { window?: unknown }).window;
   });
 
-  it('derives the signer address from a base58 private key', async () => {
-    const keypair = Keypair.generate();
+  describe('EIP-6963 discovery', () => {
+    it('picks up a provider announced in response to requestProvider', () => {
+      const provider = FakeProvider();
+      fakeWindow.addEventListener('eip6963:requestProvider', () =>
+        Announce(fakeWindow, provider)
+      );
 
-    await expect(
-      service.GetSecretKeyAddress(bs58.encode(keypair.secretKey))
-    ).resolves.toBe(keypair.publicKey.toBase58());
-  });
+      const service = new WalletService();
 
-  it('rejects malformed private keys', async () => {
-    await expect(service.GetSecretKeyAddress('not a key')).rejects.toThrow(
-      'Invalid base58 Solana private key'
-    );
-  });
-
-  it('identifies Mobile Wallet Adapter errors through wrapped causes', () => {
-    const walletError = Object.assign(new Error('Wallet unavailable'), {
-      code: 'ERROR_WALLET_NOT_FOUND',
+      expect(service.HasWallet()).toBe(true);
+      expect(service.WalletName()).toBe('Test Wallet');
     });
 
-    expect(
-      service.IsMobileWalletNotFoundError(
-        Object.assign(new Error('Could not connect'), { cause: walletError })
-      )
-    ).toBe(true);
+    it('falls back to window.ethereum after 300 ms', () => {
+      fakeWindow.ethereum = FakeProvider();
+      const service = new WalletService();
+
+      expect(service.HasWallet()).toBe(false);
+      jest.advanceTimersByTime(300);
+      expect(service.HasWallet()).toBe(true);
+    });
+
+    it('keeps the first announced provider', () => {
+      const service = new WalletService();
+      const first = FakeProvider();
+      Announce(fakeWindow, first, 'First');
+      Announce(fakeWindow, FakeProvider(), 'Second');
+
+      expect(service.WalletName()).toBe('First');
+    });
   });
 
-  it('falls back to broadcast when mobile capabilities are unavailable', async () => {
-    const payer = Keypair.generate();
-    const signature = new Uint8Array([1, 2, 3]);
-    const authorize = jest.fn().mockResolvedValue({
-      accounts: [
-        {
-          address: Buffer.from(payer.publicKey.toBytes()).toString('base64'),
+  describe('with a connected provider', () => {
+    let provider: ReturnType<typeof FakeProvider>;
+    let service: WalletService;
+
+    beforeEach(() => {
+      provider = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+        eth_signTypedData_v4: () => '0xsigned',
+        eth_sendTransaction: () => `0x${'ab'.repeat(32)}`,
+        eth_chainId: () => '0xaa36a7',
+        wallet_switchEthereumChain: () => null,
+      });
+      service = new WalletService();
+      Announce(fakeWindow, provider);
+    });
+
+    it('connects and returns a checksummed address', async () => {
+      await expect(service.Connect()).resolves.toBe(ADDRESS);
+      expect(service.GetAddress()).toBe(ADDRESS);
+      expect(Requests(provider)).toContainEqual({
+        method: 'eth_requestAccounts',
+      });
+    });
+
+    it('forwards typed data to eth_signTypedData_v4', async () => {
+      await service.Connect();
+      const typedData = {
+        domain: { name: 'USD Coin', version: '2', chainId: 11155111 },
+        types: { Ping: [{ name: 'value', type: 'uint256' }] },
+        primaryType: 'Ping',
+        message: { value: BigInt(5) },
+      } as const satisfies TypedDataDefinition;
+
+      await expect(service.SignTypedData(typedData)).resolves.toBe('0xsigned');
+
+      const call = provider.request.mock.calls.find(
+        ([request]) => request.method === 'eth_signTypedData_v4'
+      )?.[0];
+      expect(call.params[0]).toBe(ADDRESS);
+      expect(JSON.parse(call.params[1])).toEqual({
+        domain: { name: 'USD Coin', version: '2', chainId: 11155111 },
+        types: {
+          EIP712Domain: [
+            { name: 'name', type: 'string' },
+            { name: 'version', type: 'string' },
+            { name: 'chainId', type: 'uint256' },
+          ],
+          Ping: [{ name: 'value', type: 'uint256' }],
         },
-      ],
-    });
-    const signAndSendTransactions = jest.fn().mockResolvedValue({
-      signatures: [Buffer.from(signature).toString('base64')],
-    });
-    const getCapabilities = jest
-      .fn()
-      .mockRejectedValue(new Error('Unsupported method'));
-    mockTransact.mockImplementation(async (callback) =>
-      callback({ authorize, getCapabilities, signAndSendTransactions })
-    );
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: { location: { origin: 'https://buy.example.com' } },
+        primaryType: 'Ping',
+        message: { value: '5' },
+      });
     });
 
-    const result = await service.TransactWithMobileWallet(
-      'solana:mainnet',
-      (session) => {
-        expect(session.payerWallet).toBe(payer.publicKey.toBase58());
-        expect(session.canSignTransaction).toBe(false);
-        return session.SignAndSendUnsignedTransaction('transaction', 90);
-      }
-    );
+    it('sends a transaction and returns its hash', async () => {
+      await service.Connect();
 
-    expect(result).toEqual(signature);
-    expect(authorize).toHaveBeenCalledWith({
-      chain: 'solana:mainnet',
-      identity: {
-        name: 'Zoneless',
-        uri: 'https://buy.example.com',
-        icon: 'assets/favicon/favicon-32x32.png',
-      },
+      await expect(
+        service.SendTransaction({ to: PAYOUT_BATCH, data: '0x1234' })
+      ).resolves.toBe(`0x${'ab'.repeat(32)}`);
+      expect(Requests(provider)).toContainEqual({
+        method: 'eth_sendTransaction',
+        params: [
+          { from: ADDRESS, to: PAYOUT_BATCH, data: '0x1234', value: '0x0' },
+        ],
+      });
     });
-    expect(signAndSendTransactions).toHaveBeenCalledWith({
-      payloads: ['transaction'],
-      options: { min_context_slot: 90 },
-    });
-  });
 
-  it('uses sign-only when the mobile wallet advertises support', async () => {
-    const payer = Keypair.generate();
-    const signedTransaction = new Uint8Array([4, 5, 6]);
-    const authorize = jest.fn().mockResolvedValue({
-      accounts: [
-        {
-          address: Buffer.from(payer.publicKey.toBytes()).toString('base64'),
+    it('skips the chain switch when the wallet is already on the chain', async () => {
+      await service.EnsureChain(11155111);
+
+      expect(Requests(provider)).not.toContainEqual(
+        expect.objectContaining({ method: 'wallet_switchEthereumChain' })
+      );
+    });
+
+    it('switches chains when the wallet is elsewhere', async () => {
+      await service.EnsureChain(1);
+
+      expect(Requests(provider)).toContainEqual({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x1' }],
+      });
+    });
+
+    it('adds Sepolia when the wallet does not know it', async () => {
+      provider = FakeProvider({
+        eth_chainId: () => '0x1',
+        wallet_switchEthereumChain: () => {
+          throw Object.assign(new Error('Unrecognized chain'), { code: 4902 });
         },
-      ],
-    });
-    const getCapabilities = jest.fn().mockResolvedValue({
-      features: ['solana:signTransactions'],
-    });
-    const signTransactions = jest.fn().mockResolvedValue({
-      signed_payloads: [Buffer.from(signedTransaction).toString('base64')],
-    });
-    mockTransact.mockImplementation(async (callback) =>
-      callback({ authorize, getCapabilities, signTransactions })
-    );
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: { location: { origin: 'https://buy.example.com' } },
-    });
+        wallet_addEthereumChain: () => null,
+      });
+      service = new WalletService();
+      Announce(fakeWindow, provider);
 
-    const result = await service.TransactWithMobileWallet(
-      'solana:mainnet',
-      (session) => {
-        expect(session.canSignTransaction).toBe(true);
-        return session.SignUnsignedTransaction('transaction');
-      }
-    );
+      await service.EnsureChain(11155111);
 
-    expect(result).toEqual(signedTransaction);
-    expect(signTransactions).toHaveBeenCalledWith({
-      payloads: ['transaction'],
+      const addCall = provider.request.mock.calls.find(
+        ([request]) => request.method === 'wallet_addEthereumChain'
+      )?.[0];
+      expect(addCall.params[0]).toMatchObject({
+        chainId: '0xaa36a7',
+        chainName: 'Sepolia',
+        nativeCurrency: { symbol: 'ETH', decimals: 18 },
+      });
     });
   });
 
-  it('signs a payout transaction with the matching private key', async () => {
-    const signer = Keypair.generate();
-    const recipient = Keypair.generate().publicKey;
-    const transaction = new Transaction({
-      feePayer: signer.publicKey,
-      recentBlockhash: Keypair.generate().publicKey.toBase58(),
-    }).add(
-      SystemProgram.transfer({
-        fromPubkey: signer.publicKey,
-        toPubkey: recipient,
-        lamports: 1,
-      })
-    );
-    const unsignedTransaction = transaction
-      .serialize({ requireAllSignatures: false })
-      .toString('base64');
+  describe('local keys', () => {
+    const service = new WalletService();
 
-    const signedBytes = await service.SignUnsignedTransactionWithSecretKey(
-      unsignedTransaction,
-      bs58.encode(signer.secretKey),
-      signer.publicKey.toBase58()
-    );
-    const signedTransaction = Transaction.from(signedBytes);
+    it('generates a wallet whose address matches its private key', async () => {
+      const wallet = await service.GenerateWallet();
 
-    expect(signedTransaction.verifySignatures()).toBe(true);
-  });
+      expect(wallet.privateKey).toMatch(/^0x[0-9a-f]{64}$/);
+      expect(wallet.address).toBe(
+        privateKeyToAccount(wallet.privateKey).address
+      );
+    });
 
-  it('rejects a private key for a different platform wallet', async () => {
-    const signer = Keypair.generate();
-    const expectedSigner = Keypair.generate();
-    const transaction = new Transaction({
-      feePayer: expectedSigner.publicKey,
-      recentBlockhash: Keypair.generate().publicKey.toBase58(),
-    }).add(
-      SystemProgram.transfer({
-        fromPubkey: expectedSigner.publicKey,
-        toPubkey: Keypair.generate().publicKey,
-        lamports: 1,
-      })
-    );
-    const unsignedTransaction = transaction
-      .serialize({ requireAllSignatures: false })
-      .toString('base64');
+    it('derives the checksummed address of a private key', async () => {
+      await expect(service.GetPrivateKeyAddress(PRIVATE_KEY)).resolves.toBe(
+        ADDRESS
+      );
+      await expect(
+        service.GetPrivateKeyAddress(` ${PRIVATE_KEY.slice(2)} `)
+      ).resolves.toBe(ADDRESS);
+    });
 
-    await expect(
-      service.SignUnsignedTransactionWithSecretKey(
-        unsignedTransaction,
-        bs58.encode(signer.secretKey),
-        expectedSigner.publicKey.toBase58()
-      )
-    ).rejects.toThrow(
-      'Private key does not match the configured platform wallet'
-    );
+    it('rejects malformed private keys', async () => {
+      await expect(service.GetPrivateKeyAddress('not a key')).rejects.toThrow(
+        'Invalid private key. Expected 0x followed by 64 hex characters.'
+      );
+    });
+
+    it('signs a payout transaction with the matching key', async () => {
+      const unsigned = UnsignedPayout();
+
+      const signed = await service.SignTransactionWithPrivateKey(
+        unsigned,
+        PRIVATE_KEY,
+        { from: ADDRESS, to: PAYOUT_BATCH, chainId: 11155111 }
+      );
+
+      await expect(
+        recoverTransactionAddress({
+          serializedTransaction: signed as Parameters<
+            typeof recoverTransactionAddress
+          >[0]['serializedTransaction'],
+        })
+      ).resolves.toBe(ADDRESS);
+      expect(parseTransaction(signed)).toMatchObject({
+        to: PAYOUT_BATCH.toLowerCase(),
+        chainId: 11155111,
+        nonce: 7,
+      });
+    });
+
+    it('rejects a key for a different platform wallet', async () => {
+      await expect(
+        service.SignTransactionWithPrivateKey(UnsignedPayout(), PRIVATE_KEY, {
+          from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          to: PAYOUT_BATCH,
+          chainId: 11155111,
+        })
+      ).rejects.toThrow(
+        'Private key does not match the configured platform wallet'
+      );
+    });
+
+    it('rejects a transaction aimed at another contract', async () => {
+      await expect(
+        service.SignTransactionWithPrivateKey(
+          UnsignedPayout({ to: ADDRESS }),
+          PRIVATE_KEY,
+          { from: ADDRESS, to: PAYOUT_BATCH, chainId: 11155111 }
+        )
+      ).rejects.toThrow(
+        'Payout transaction does not target the expected contract'
+      );
+    });
+
+    it('rejects a transaction for another chain', async () => {
+      await expect(
+        service.SignTransactionWithPrivateKey(
+          UnsignedPayout({ chainId: 1 }),
+          PRIVATE_KEY,
+          { from: ADDRESS, to: PAYOUT_BATCH, chainId: 11155111 }
+        )
+      ).rejects.toThrow('Payout transaction is for a different chain');
+    });
   });
 });

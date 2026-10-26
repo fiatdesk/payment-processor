@@ -1,3 +1,4 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
  * @fileOverview Application Infrastructure Configuration
  *
@@ -27,6 +28,7 @@ import type {
   AppSecrets,
   SettlementRail,
 } from '@zoneless/shared-types';
+import type { Hex } from 'viem';
 import { DeriveKey } from './Encryption';
 
 // Load environment variables first.
@@ -51,6 +53,30 @@ const SECRETS_ID = 'app_secrets';
 const HKDF_JWT_INFO = 'jwt-signing-key';
 const HKDF_ENCRYPTION_INFO = 'encryption-key';
 
+const MAINNET_CHAIN_ID = 1;
+const SEPOLIA_CHAIN_ID = 11155111;
+const ANVIL_CHAIN_ID = 31337;
+const DEFAULT_CONFIRMATIONS = 2;
+
+const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+const PRIVATE_KEY_SETTINGS = [
+  'CHECKOUT_RELAYER_KEY',
+  'SUBSCRIPTION_OPERATOR_KEY',
+] as const;
+type PrivateKeySetting = (typeof PRIVATE_KEY_SETTINGS)[number];
+
+export type SupportedChainId =
+  | typeof MAINNET_CHAIN_ID
+  | typeof SEPOLIA_CHAIN_ID
+  | typeof ANVIL_CHAIN_ID;
+
+/** Chain settings resolved from the environment (see GetChainConfig). */
+export interface ChainEnvironment {
+  chainId: SupportedChainId;
+  rpcUrls: string[];
+  confirmations: number;
+}
+
 /**
  * Generate a cryptographically secure random hex string.
  */
@@ -67,7 +93,8 @@ function NormalizeOrigin(url: string): string {
 
 /**
  * Test mode defaults to simulated settlement. Live mode is always on-chain.
- * SETTLEMENT_RAIL=onchain with LIVEMODE=false restores Solana Devnet.
+ * SETTLEMENT_RAIL=onchain with LIVEMODE=false settles on Sepolia (or Anvil
+ * when ETH_CHAIN_ID=31337).
  */
 function ResolveSettlementRail(livemode: boolean): SettlementRail {
   const rail = (process.env.SETTLEMENT_RAIL || '').trim().toLowerCase();
@@ -97,6 +124,9 @@ function BuildConfigFromEnv(): AppConfig {
     process.env.PAYMENT_LINK_URL || checkoutUrl
   );
   const livemode = process.env.LIVEMODE === 'true';
+
+  // Fail at startup rather than on the first on-chain call.
+  for (const name of PRIVATE_KEY_SETTINGS) ReadPrivateKey(name);
 
   return {
     mongodbUri:
@@ -142,31 +172,82 @@ export function GetOperatorApiKey(): string {
 }
 
 /**
- * Optional secret key that sponsors Solana checkout network fees / rent.
- * When unset, the buyer pays fees via signAndSend.
+ * Optional `0x` private key that relays EIP-3009 checkout authorizations and
+ * subscription subscribe calls, paying their gas.
  */
-export function GetCheckoutFeePayerSecretKey(): string | null {
-  const secretKey = process.env.TRANSACTION_FEE_PAYER_KEY;
-  return secretKey && secretKey.length > 0 ? secretKey : null;
+export function GetCheckoutRelayerKey(): Hex | null {
+  return ReadPrivateKey('CHECKOUT_RELAYER_KEY');
 }
 
-/** True when TRANSACTION_FEE_PAYER_KEY is configured. */
-export function IsCheckoutFeeSponsored(): boolean {
-  return !!GetCheckoutFeePayerSecretKey();
+/** True when CHECKOUT_RELAYER_KEY is configured. */
+export function IsCheckoutRelayed(): boolean {
+  return !!GetCheckoutRelayerKey();
 }
 
 /**
- * Secret key for on-chain subscription plan ownership and payment pulls.
+ * `0x` private key that owns on-chain subscription plans and calls `charge`.
  * Required for recurring prices.
  */
-export function RequireSubscriptionOperatorSecretKey(): string {
-  const secretKey = process.env.SUBSCRIPTION_OPERATOR_KEY;
-  if (!secretKey) {
+export function RequireSubscriptionOperatorKey(): Hex {
+  const privateKey = ReadPrivateKey('SUBSCRIPTION_OPERATOR_KEY');
+  if (!privateKey) {
     throw new Error(
       'SUBSCRIPTION_OPERATOR_KEY is required for recurring subscription plans'
     );
   }
-  return secretKey;
+  return privateKey;
+}
+
+/**
+ * Chain id, RPC URLs and confirmation depth for the on-chain rail.
+ * Live mode is Ethereum mainnet; test mode is Sepolia unless ETH_CHAIN_ID
+ * selects Anvil. RPC URLs may be empty here; clients require them.
+ */
+export function GetChainConfig(): ChainEnvironment {
+  const livemode = process.env.LIVEMODE === 'true';
+  return {
+    chainId: ResolveChainId(livemode),
+    rpcUrls: (process.env.ETH_RPC_URL || '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0),
+    confirmations: ResolveConfirmations(),
+  };
+}
+
+function ResolveChainId(livemode: boolean): SupportedChainId {
+  const override = (process.env.ETH_CHAIN_ID || '').trim();
+  if (livemode) {
+    if (override) {
+      throw new Error('ETH_CHAIN_ID is only allowed when LIVEMODE=false');
+    }
+    return MAINNET_CHAIN_ID;
+  }
+  if (!override || override === String(SEPOLIA_CHAIN_ID)) {
+    return SEPOLIA_CHAIN_ID;
+  }
+  if (override === String(ANVIL_CHAIN_ID)) return ANVIL_CHAIN_ID;
+  throw new Error('ETH_CHAIN_ID must be 11155111 (Sepolia) or 31337 (Anvil)');
+}
+
+function ResolveConfirmations(): number {
+  const value = (process.env.ETH_CONFIRMATIONS || '').trim();
+  if (!value) return DEFAULT_CONFIRMATIONS;
+  const confirmations = Number(value);
+  if (!Number.isInteger(confirmations) || confirmations < 1) {
+    throw new Error('ETH_CONFIRMATIONS must be a positive integer');
+  }
+  return confirmations;
+}
+
+/** Reads an optional private-key setting, rejecting anything not `0x` + 64 hex. */
+function ReadPrivateKey(name: PrivateKeySetting): Hex | null {
+  const value = (process.env[name] || '').trim();
+  if (!value) return null;
+  if (!PRIVATE_KEY_PATTERN.test(value)) {
+    throw new Error(`${name} must be 0x followed by 64 hex characters`);
+  }
+  return value as Hex;
 }
 
 /**

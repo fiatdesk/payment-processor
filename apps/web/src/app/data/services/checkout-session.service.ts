@@ -20,12 +20,10 @@ export interface CheckoutPaymentTransaction {
   chain_id: number | null;
   nonce: number | null;
   to: string | null;
-  /** Rail-specific signing hints; only the current rail sends them. */
-  solana?: { min_context_slot: number };
-  fee_sponsored?: boolean;
+  /** True when the API relays the payment and pays its gas. */
+  relayed?: boolean;
   already_subscribed?: boolean;
   subscription_onchain_id?: string;
-  subscription_step?: 'init_authority' | 'subscribe';
 }
 
 @Injectable({
@@ -174,9 +172,9 @@ export class CheckoutSessionService {
   }
 
   /**
-   * Confirm a checkout transaction. Fee-sponsored flows pass
-   * `signed_transaction` for the API to validate and broadcast; buyer-pays
-   * flows pass `transaction_hash` after the wallet has already sent the tx.
+   * Confirm a checkout transaction. Relayed flows pass `signed_transaction`
+   * for the API to validate and broadcast; wallet-sent flows pass
+   * `transaction_hash` after the wallet has already sent the tx.
    */
   async ConfirmPayment(
     urlSlug: string,
@@ -185,7 +183,6 @@ export class CheckoutSessionService {
       signed_transaction?: string;
       already_subscribed?: boolean;
       subscription_onchain_id?: string;
-      subscription_step?: 'init_authority' | 'subscribe';
     }
   ): Promise<CheckoutSession> {
     return this.api.Call<CheckoutSession>(

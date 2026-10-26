@@ -4,7 +4,8 @@ import {
   generateKeyPairSync,
   privateDecrypt,
 } from 'node:crypto';
-import bs58 from 'bs58';
+import type { Address, Hex } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { ApiError, CliError } from './Errors';
 import {
   BuildProfileNames,
@@ -132,10 +133,10 @@ export class AgentSetupService {
       );
     }
     const wallet = GenerateWallet();
-    const walletPublicKey = wallet.publicKey;
+    const walletPublicKey = wallet.address;
     await this.secretStore.Set(
       GetWalletAccount(walletPublicKey),
-      wallet.secretKey.toString('base64')
+      wallet.privateKey
     );
 
     const encryptionKeys = generateKeyPairSync('rsa', {
@@ -152,7 +153,7 @@ export class AgentSetupService {
         newPlatform: options.newPlatform === true,
         platformName: options.platformName,
         reconnect: options.reconnect === true,
-        solanaPublicKey: walletPublicKey,
+        walletAddress: walletPublicKey,
       });
     } catch (error) {
       try {
@@ -425,22 +426,10 @@ function Wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function GenerateWallet(): { publicKey: string; secretKey: Buffer } {
-  const keyPair = generateKeyPairSync('ed25519');
-  const privateKey = keyPair.privateKey.export({ format: 'jwk' });
-  if (!privateKey.d || !privateKey.x) {
-    throw new CliError(
-      'Node.js could not export the generated wallet key.',
-      'wallet_generation_failed',
-      exitCodes.apiError
-    );
-  }
-  const privateSeed = Buffer.from(privateKey.d, 'base64url');
-  const publicKey = Buffer.from(privateKey.x, 'base64url');
-  return {
-    publicKey: bs58.encode(publicKey),
-    secretKey: Buffer.concat([privateSeed, publicKey]),
-  };
+/** A new secp256k1 wallet; the private key stays in the credential store. */
+function GenerateWallet(): { address: Address; privateKey: Hex } {
+  const privateKey = generatePrivateKey();
+  return { address: privateKeyToAccount(privateKey).address, privateKey };
 }
 
 export { DecryptCredentials, GenerateWallet };

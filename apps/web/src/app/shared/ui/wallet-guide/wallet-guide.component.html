@@ -29,28 +29,23 @@
 @if (showWalletGuide()) {
 <div class="collapsible-content wallet-guide">
   <div class="guide-header">
-    <span>Get started with</span>
-    <img
-      src="assets/icons/phantom-wallet.svg"
-      alt="Phantom"
-      class="phantom-logo"
-    />
-    <span>in 3 steps</span>
+    <span>Get started with MetaMask in 3 steps</span>
   </div>
   <div class="guide-steps">
     <div class="guide-step">
       <div class="step-number">1</div>
       <div class="step-content">
-        <div class="step-title">Download Phantom</div>
+        <div class="step-title">Download MetaMask</div>
         <div class="step-description">
           Visit
           <a
-            href="https://phantom.app"
+            href="https://metamask.io/download"
             target="_blank"
             rel="noopener noreferrer"
-            >phantom.app</a
+            >metamask.io</a
           >
-          and install the browser extension or mobile app.
+          and install the browser extension or mobile app. Any Ethereum wallet
+          works too.
         </div>
       </div>
     </div>
@@ -70,8 +65,8 @@
         @if (mode === 'connect') {
         <div class="step-title">Copy your address</div>
         <div class="step-description">
-          Click your wallet name at the top to copy your Solana address, then
-          connect it or paste it into the form.
+          Click your account at the top to copy your Ethereum address (it starts
+          with 0x), then connect it or paste it into the form.
         </div>
         } @else {
         <div class="step-title">Return here and connect</div>

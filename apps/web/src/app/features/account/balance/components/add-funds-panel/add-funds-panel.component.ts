@@ -197,10 +197,6 @@ export class AddFundsPanelComponent implements OnChanges, OnDestroy {
     return `${address.slice(0, 8)}...${address.slice(-8)}`;
   }
 
-  OnOpenSolFaucet(): void {
-    window.open('https://faucet.solana.com/', '_blank', 'noopener,noreferrer');
-  }
-
   OnOpenUsdcFaucet(): void {
     window.open('https://faucet.circle.com/', '_blank', 'noopener,noreferrer');
   }

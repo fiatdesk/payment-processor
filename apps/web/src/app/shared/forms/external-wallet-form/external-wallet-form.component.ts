@@ -18,10 +18,11 @@ import { TestModeBannerComponent, WalletGuideComponent } from '../../ui';
 import { ConfigService } from '../../../data';
 
 import {
-  ValidateSolanaAddress,
-  GetSolanaAddressError,
-  SOLANA_NETWORK,
-  SOLANA_CURRENCY,
+  ValidateEthereumAddress,
+  GetEthereumAddressError,
+  NormalizeEthereumAddress,
+  ETHEREUM_NETWORK,
+  ETHEREUM_CURRENCY,
   TEST_WALLET_DATA,
 } from '../../../utils';
 
@@ -57,8 +58,8 @@ export class ExternalWalletFormComponent implements OnInit, OnChanges {
   validationStatus: WritableSignal<'none' | 'valid' | 'invalid'> =
     signal('none');
 
-  readonly network = SOLANA_NETWORK;
-  readonly currency = SOLANA_CURRENCY;
+  readonly network = ETHEREUM_NETWORK;
+  readonly currency = ETHEREUM_CURRENCY;
 
   ngOnInit(): void {
     this.InitializeForm();
@@ -103,12 +104,12 @@ export class ExternalWalletFormComponent implements OnInit, OnChanges {
       return;
     }
 
-    const error = GetSolanaAddressError(address);
+    const error = GetEthereumAddressError(address);
     this.walletAddressError.set(error);
 
     if (error) {
       this.validationStatus.set('invalid');
-    } else if (ValidateSolanaAddress(address)) {
+    } else if (ValidateEthereumAddress(address)) {
       this.validationStatus.set('valid');
     } else {
       this.validationStatus.set('none');
@@ -126,7 +127,7 @@ export class ExternalWalletFormComponent implements OnInit, OnChanges {
 
   GetFormData(): ExternalWalletFormData {
     return {
-      walletAddress: this.walletAddress(),
+      walletAddress: NormalizeEthereumAddress(this.walletAddress()),
       network: this.network,
       currency: this.currency,
     };

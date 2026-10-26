@@ -45,18 +45,18 @@ export async function SyncEnvironment(
   }
 
   if (options.includeWallet) {
-    const secretKeyBase64 = await secretStore.Get(
+    const privateKey = await secretStore.Get(
       GetWalletAccount(credentials.profile.walletPublicKey)
     );
-    if (!secretKeyBase64) {
+    if (!privateKey) {
       throw InvalidInput(
         `The wallet key for profile "${options.profileName}" is missing from the credential store.`
       );
     }
-    values['SOLANA_SECRET_KEY'] = CreateWalletBackup(
+    values['WALLET_PRIVATE_KEY'] = CreateWalletBackup(
       credentials.profile.walletPublicKey,
-      secretKeyBase64
-    ).secretKeyBase58;
+      privateKey
+    ).privateKey;
   }
 
   let contents = '';

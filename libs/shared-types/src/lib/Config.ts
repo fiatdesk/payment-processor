@@ -95,7 +95,7 @@ export interface SetupStatus {
 /**
  * Request body for POST /v1/setup
  * Creates a new platform account with wallet configuration.
- * Wallet is generated in the browser - only the public key is sent to the API.
+ * Wallet is generated in the browser - only the address is sent to the API.
  */
 export interface SetupRequest {
   /** Platform display name */

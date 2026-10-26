@@ -1,337 +1,231 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { Injectable, signal, WritableSignal } from '@angular/core';
-import {
-  transact,
-  type Account,
-  type MobileWallet,
-} from '@solana-mobile/mobile-wallet-adapter-protocol';
-import { getWallets } from '@wallet-standard/app';
-import type { Wallet, WalletAccount } from '@wallet-standard/base';
+import type {
+  Address,
+  Hex,
+  TypedData,
+  TypedDataDefinition,
+  WalletClient,
+} from 'viem';
+import { getAddress } from 'viem/utils';
 
-type ConnectFeature = {
-  connect: () => Promise<{ accounts: readonly WalletAccount[] }>;
-};
+/** The EIP-1193 surface the dashboard and checkout use. */
+export interface Eip1193Provider {
+  request(args: { method: string; params?: unknown }): Promise<unknown>;
+}
 
-type DisconnectFeature = {
-  disconnect: () => Promise<void>;
-};
+/** EIP-6963 announcement payload. */
+export interface Eip6963ProviderDetail {
+  info: { uuid: string; name: string; icon: string; rdns: string };
+  provider: Eip1193Provider;
+}
 
-export type MobileWalletSession = {
-  payerWallet: string;
-  canSignTransaction: boolean;
-  SignUnsignedTransaction: (unsignedTxBase64: string) => Promise<Uint8Array>;
-  SignAndSendUnsignedTransaction: (
-    unsignedTxBase64: string,
-    minContextSlot: number
-  ) => Promise<Uint8Array>;
-};
+export interface GeneratedWallet {
+  address: Address;
+  privateKey: Hex;
+}
 
+/** Fields the unsigned transaction must match before a local key signs it. */
+export interface ExpectedTransaction {
+  from: string;
+  to: string;
+  chainId: number;
+}
+
+/** Wallets that never answer EIP-6963 get picked up from window.ethereum. */
+const INJECTED_FALLBACK_DELAY_MS = 300;
+/** EIP-1193 / EIP-3085: the wallet does not know the requested chain. */
+const UNRECOGNIZED_CHAIN_CODE = 4902;
+const SEPOLIA_CHAIN_ID = 11155111;
+const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Browser wallet access: EIP-6963 discovery (with a `window.ethereum`
+ * fallback), connect, chain switching, typed-data signing and transaction
+ * sending, plus local key helpers for the setup wizard and payouts.
+ * viem's client and signing code loads on first use, keeping it out of the
+ * initial bundle.
+ */
 @Injectable({ providedIn: 'root' })
-export class SolanaWalletService {
-  private readonly walletStore = getWallets();
-
-  wallet: WritableSignal<Wallet | null> = signal(null);
-  account: WritableSignal<WalletAccount | null> = signal(null);
+export class WalletService {
+  readonly wallet: WritableSignal<Eip6963ProviderDetail | null> = signal(null);
+  readonly account: WritableSignal<Address | null> = signal(null);
 
   constructor() {
-    // Auto-pick first discovered wallet
-    const discoveredWallet = this.walletStore.get()[0] ?? null;
-    this.wallet.set(discoveredWallet);
+    if (typeof window === 'undefined') return;
 
-    this.walletStore.on('register', (nextWallet) => {
-      if (!this.wallet()) this.wallet.set(nextWallet);
+    window.addEventListener('eip6963:announceProvider', (event) => {
+      const detail = (event as CustomEvent<Eip6963ProviderDetail>).detail;
+      if (detail?.provider && !this.wallet()) this.wallet.set(detail);
     });
-  }
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
 
-  async Connect(): Promise<void> {
-    const selectedWallet = this.wallet();
-    if (!selectedWallet) throw new Error('No wallet found');
-
-    const connectFeature = selectedWallet.features['standard:connect'] as
-      | ConnectFeature
-      | undefined;
-    if (!connectFeature) throw new Error('Wallet does not support connect');
-
-    const connected = await connectFeature.connect();
-    const connectedAccount = connected.accounts?.[0] ?? null;
-    this.account.set(connectedAccount);
-  }
-
-  async Disconnect(): Promise<void> {
-    const selectedWallet = this.wallet();
-    const disconnectFeature = selectedWallet?.features[
-      'standard:disconnect'
-    ] as DisconnectFeature | undefined;
-    if (disconnectFeature) await disconnectFeature.disconnect();
-    this.account.set(null);
+    setTimeout(() => {
+      const injected = (window as { ethereum?: Eip1193Provider }).ethereum;
+      if (injected && !this.wallet()) {
+        this.wallet.set({
+          info: {
+            uuid: 'injected',
+            name: 'Browser wallet',
+            icon: '',
+            rdns: '',
+          },
+          provider: injected,
+        });
+      }
+    }, INJECTED_FALLBACK_DELAY_MS);
   }
 
   HasWallet(): boolean {
     return this.wallet() !== null;
   }
 
-  SupportsMobileWalletAdapter(): boolean {
-    return (
-      typeof navigator !== 'undefined' &&
-      /Android/i.test(navigator.userAgent) &&
-      !this.HasWallet()
-    );
+  WalletName(): string {
+    return this.wallet()?.info.name ?? '';
   }
 
-  async TransactWithMobileWallet<T>(
-    chain: 'solana:devnet' | 'solana:mainnet',
-    callback: (session: MobileWalletSession) => Promise<T>
-  ): Promise<T> {
-    if (typeof window === 'undefined') {
-      throw new Error('Mobile Wallet Adapter requires a browser');
-    }
-
-    return transact(async (wallet) => {
-      const authorization = await wallet.authorize({
-        chain,
-        identity: {
-          name: 'Zoneless',
-          uri: window.location.origin,
-          icon: 'assets/favicon/favicon-32x32.png',
-        },
-      });
-      const account = authorization.accounts[0];
-      if (!account) throw new Error('The wallet did not return an account');
-
-      return callback({
-        payerWallet: await this.GetMobileWalletAddress(account),
-        canSignTransaction: await this.SupportsMobileSignTransaction(wallet),
-        SignUnsignedTransaction: (unsignedTxBase64) =>
-          this.SignWithMobileWallet(wallet, unsignedTxBase64),
-        SignAndSendUnsignedTransaction: (unsignedTxBase64, minContextSlot) =>
-          this.SignAndSendWithMobileWallet(
-            wallet,
-            unsignedTxBase64,
-            minContextSlot
-          ),
-      });
-    });
+  /** Requests account access and returns the checksummed address. */
+  async Connect(): Promise<Address> {
+    const [address] = await (await this.Client()).requestAddresses();
+    if (!address) throw new Error('The wallet did not return an account');
+    const checksummed = getAddress(address);
+    this.account.set(checksummed);
+    return checksummed;
   }
 
-  IsMobileWalletNotFoundError(error: unknown): boolean {
-    let currentError: unknown = error;
-    for (let depth = 0; depth < 4; depth += 1) {
-      if (!currentError || typeof currentError !== 'object') return false;
-      const errorWithCause = currentError as {
-        code?: unknown;
-        message?: unknown;
-        cause?: unknown;
-      };
-      if (errorWithCause.code === 'ERROR_WALLET_NOT_FOUND') return true;
-      if (
-        typeof errorWithCause.message === 'string' &&
-        /can't find a wallet|no installed wallet|wallet not found|supports the mobile wallet protocol/i.test(
-          errorWithCause.message
-        )
-      ) {
-        return true;
-      }
-      currentError = errorWithCause.cause;
-    }
-    return false;
+  Disconnect(): void {
+    this.account.set(null);
   }
 
   GetAddress(): string {
-    const connectedAccount = this.account();
-    if (!connectedAccount) return '';
-    return connectedAccount.address;
+    return this.account() ?? '';
   }
 
-  async SignAndSendUnsignedTransaction(
-    unsignedTxBase64: string,
-    chain: 'solana:devnet' | 'solana:mainnet' = 'solana:devnet'
-  ): Promise<Uint8Array> {
-    const selectedWallet = this.wallet();
-    const connectedAccount = this.account();
-    if (!selectedWallet || !connectedAccount) {
-      throw new Error('Connect wallet first');
+  /** Switches the wallet to `chainId`, adding Sepolia if the wallet lacks it. */
+  async EnsureChain(chainId: number): Promise<void> {
+    const client = await this.Client();
+    if ((await client.getChainId()) === chainId) return;
+    try {
+      await client.switchChain({ id: chainId });
+    } catch (error) {
+      if (chainId !== SEPOLIA_CHAIN_ID || !IsUnrecognizedChainError(error)) {
+        throw error;
+      }
+      const { sepolia } = await import('./wallet-viem');
+      await client.addChain({ chain: sepolia });
     }
-    const feature = selectedWallet.features['solana:signAndSendTransaction'] as
-      | {
-          signAndSendTransaction: (input: {
-            account: WalletAccount;
-            transaction: Uint8Array;
-            chain?: string;
-          }) => Promise<readonly { signature: Uint8Array }[]>;
-        }
-      | undefined;
-    if (!feature) {
-      throw new Error('Wallet does not support solana:signAndSendTransaction');
-    }
-    const transactionBytes = this.Base64ToBytes(unsignedTxBase64);
-    const result = await feature.signAndSendTransaction({
-      account: connectedAccount,
-      transaction: transactionBytes,
-      chain,
+  }
+
+  /** Signs EIP-712 typed data with `eth_signTypedData_v4`. */
+  async SignTypedData<
+    const typedData extends TypedData | Record<string, unknown>,
+    primaryType extends keyof typedData | 'EIP712Domain'
+  >(typedData: TypedDataDefinition<typedData, primaryType>): Promise<Hex> {
+    const account = this.RequireAccount();
+    return (await this.Client()).signTypedData({
+      ...typedData,
+      account,
+    } as Parameters<WalletClient['signTypedData']>[0]);
+  }
+
+  /** Sends a transaction from the wallet and returns its hash. */
+  async SendTransaction(transaction: {
+    to: Address;
+    data: Hex;
+    value?: bigint;
+  }): Promise<Hex> {
+    const account = this.RequireAccount();
+    return (await this.Client()).sendTransaction({
+      account,
+      chain: null,
+      to: transaction.to,
+      data: transaction.data,
+      value: transaction.value ?? BigInt(0),
     });
-    return result[0].signature;
+  }
+
+  /** New secp256k1 key generated in the browser; never sent anywhere. */
+  async GenerateWallet(): Promise<GeneratedWallet> {
+    const { generatePrivateKey, privateKeyToAccount } = await import(
+      './wallet-viem'
+    );
+    const privateKey = generatePrivateKey();
+    return { address: privateKeyToAccount(privateKey).address, privateKey };
+  }
+
+  async GetPrivateKeyAddress(privateKey: string): Promise<Address> {
+    const { privateKeyToAccount } = await import('./wallet-viem');
+    return privateKeyToAccount(ParsePrivateKey(privateKey)).address;
   }
 
   /**
-   * Sign a (possibly partially signed) transaction without broadcasting.
-   * Used when the API is responsible for relaying the signed transaction.
+   * Signs an unsigned serialized transaction with a pasted private key after
+   * checking the signer, target contract and chain.
    */
-  async SignUnsignedTransaction(
-    unsignedTxBase64: string,
-    chain: 'solana:devnet' | 'solana:mainnet' = 'solana:devnet'
-  ): Promise<Uint8Array> {
-    const selectedWallet = this.wallet();
-    const connectedAccount = this.account();
-    if (!selectedWallet || !connectedAccount) {
-      throw new Error('Connect wallet first');
-    }
-    const feature = selectedWallet.features['solana:signTransaction'] as
-      | {
-          signTransaction: (input: {
-            account: WalletAccount;
-            transaction: Uint8Array;
-            chain?: string;
-          }) => Promise<readonly { signedTransaction: Uint8Array }[]>;
-        }
-      | undefined;
-    if (!feature) {
-      throw new Error('Wallet does not support solana:signTransaction');
-    }
-    const transactionBytes = this.Base64ToBytes(unsignedTxBase64);
-    const result = await feature.signTransaction({
-      account: connectedAccount,
-      transaction: transactionBytes,
-      chain,
-    });
-    return result[0].signedTransaction;
-  }
-
-  async GetSecretKeyAddress(secretKey: string): Promise<string> {
-    const decodedSecret = await this.DecodeSecretKey(secretKey);
-    try {
-      const { Keypair } = await import('@solana/web3.js');
-      return Keypair.fromSecretKey(decodedSecret).publicKey.toBase58();
-    } catch {
-      throw new Error('Invalid Solana private key');
-    } finally {
-      decodedSecret.fill(0);
-    }
-  }
-
-  async SignUnsignedTransactionWithSecretKey(
-    unsignedTxBase64: string,
-    secretKey: string,
-    expectedSigner: string
-  ): Promise<Uint8Array> {
-    const decodedSecret = await this.DecodeSecretKey(secretKey);
-    let keypair: import('@solana/web3.js').Keypair | null = null;
-
-    try {
-      const { Keypair, Transaction } = await import('@solana/web3.js');
-      keypair = Keypair.fromSecretKey(decodedSecret);
-      const signerAddress = keypair.publicKey.toBase58();
-      if (signerAddress !== expectedSigner) {
-        throw new Error(
-          'Private key does not match the configured platform wallet'
-        );
-      }
-
-      const transaction = Transaction.from(
-        this.Base64ToBytes(unsignedTxBase64)
+  async SignTransactionWithPrivateKey(
+    unsignedTransaction: string,
+    privateKey: string,
+    expected: ExpectedTransaction
+  ): Promise<Hex> {
+    const { parseTransaction, privateKeyToAccount } = await import(
+      './wallet-viem'
+    );
+    const signer = privateKeyToAccount(ParsePrivateKey(privateKey));
+    if (!IsSameAddress(signer.address, expected.from)) {
+      throw new Error(
+        'Private key does not match the configured platform wallet'
       );
-      if (transaction.feePayer?.toBase58() !== expectedSigner) {
-        throw new Error(
-          'Payout transaction does not match the configured platform wallet'
-        );
-      }
+    }
 
-      const requiresSigner = transaction.signatures.some(
-        ({ publicKey }) => publicKey.toBase58() === expectedSigner
+    const transaction = parseTransaction(unsignedTransaction as Hex);
+    if (!transaction.to || !IsSameAddress(transaction.to, expected.to)) {
+      throw new Error(
+        'Payout transaction does not target the expected contract'
       );
-      if (!requiresSigner) {
-        throw new Error('Platform wallet is not a required payout signer');
-      }
-
-      transaction.sign(keypair);
-      return new Uint8Array(transaction.serialize());
-    } catch (error) {
-      if (error instanceof Error) throw error;
-      throw new Error('Failed to sign payout transaction');
-    } finally {
-      decodedSecret.fill(0);
-      keypair?.secretKey.fill(0);
     }
+    if (transaction.chainId !== expected.chainId) {
+      throw new Error('Payout transaction is for a different chain');
+    }
+    return signer.signTransaction(transaction);
   }
 
-  BytesToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 1) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-
-  private async GetMobileWalletAddress(account: Account): Promise<string> {
-    const bs58 = await import('bs58');
-    if ('publicKey' in account) {
-      return bs58.default.encode(new Uint8Array(account.publicKey));
-    }
-    return bs58.default.encode(this.Base64ToBytes(account.address));
-  }
-
-  private async SupportsMobileSignTransaction(
-    wallet: MobileWallet
-  ): Promise<boolean> {
-    try {
-      const capabilities = await wallet.getCapabilities();
-      return capabilities.features.includes('solana:signTransactions');
-    } catch {
-      return false;
-    }
-  }
-
-  private async SignWithMobileWallet(
-    wallet: MobileWallet,
-    unsignedTxBase64: string
-  ): Promise<Uint8Array> {
-    const result = await wallet.signTransactions({
-      payloads: [unsignedTxBase64],
+  private async Client(): Promise<WalletClient> {
+    const detail = this.wallet();
+    if (!detail) throw new Error('No wallet found');
+    const { createWalletClient, custom } = await import('./wallet-viem');
+    return createWalletClient({
+      transport: custom(detail.provider, { retryCount: 0 }),
     });
-    const signedTransaction = result.signed_payloads[0];
-    if (!signedTransaction) {
-      throw new Error('The wallet did not return a signed transaction');
-    }
-    return this.Base64ToBytes(signedTransaction);
   }
 
-  private async SignAndSendWithMobileWallet(
-    wallet: MobileWallet,
-    unsignedTxBase64: string,
-    minContextSlot: number
-  ): Promise<Uint8Array> {
-    const result = await wallet.signAndSendTransactions({
-      payloads: [unsignedTxBase64],
-      options: { min_context_slot: minContextSlot },
-    });
-    const signature = result.signatures[0];
-    if (!signature) throw new Error('The wallet did not return a signature');
-    return this.Base64ToBytes(signature);
+  private RequireAccount(): Address {
+    const address = this.account();
+    if (!address) throw new Error('Connect wallet first');
+    return address;
   }
+}
 
-  private async DecodeSecretKey(secretKey: string): Promise<Uint8Array> {
-    try {
-      const bs58 = await import('bs58');
-      return bs58.default.decode(secretKey.trim());
-    } catch {
-      throw new Error('Invalid base58 Solana private key');
-    }
+function ParsePrivateKey(privateKey: string): Hex {
+  const trimmed = privateKey.trim();
+  const prefixed = trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
+  if (!PRIVATE_KEY_PATTERN.test(prefixed)) {
+    throw new Error(
+      'Invalid private key. Expected 0x followed by 64 hex characters.'
+    );
   }
+  return prefixed as Hex;
+}
 
-  private Base64ToBytes(base64: string): Uint8Array {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
+function IsSameAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function IsUnrecognizedChainError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    const { code, cause } = current as { code?: unknown; cause?: unknown };
+    if (code === UNRECOGNIZED_CHAIN_CODE) return true;
+    current = cause;
   }
+  return false;
 }

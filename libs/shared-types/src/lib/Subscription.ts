@@ -14,7 +14,7 @@ import type {
 
 /**
  * Stripe-compatible Subscription object for Zoneless.
- * Represents a customer's subscription to one or more recurring prices. Settled in USDC on Solana.
+ * Represents a customer's subscription to one or more recurring prices. Settled in USDC on Ethereum.
  *
  * @see https://docs.stripe.com/api/subscriptions/object
  */
@@ -365,7 +365,7 @@ export interface SubscriptionBillingScheduleBillUntil {
 export interface SubscriptionBillingScheduleDuration {
   /**
    * Specifies billing duration. Either hour, day, week, month or year.
-   * @zoneless_extension `hour` is supported for Solana subscription periods.
+   * @zoneless_extension `hour` is supported for on-chain subscription periods.
    */
   interval: RecurringInterval;
   /** The multiplier applied to the interval. */
@@ -522,7 +522,7 @@ export interface SubscriptionPaymentSettings {
 export interface SubscriptionPendingInvoiceItemInterval {
   /**
    * Specifies invoicing frequency. Either hour, day, week, month or year.
-   * @zoneless_extension `hour` is supported for Solana subscription periods.
+   * @zoneless_extension `hour` is supported for on-chain subscription periods.
    */
   interval: RecurringInterval;
   /**

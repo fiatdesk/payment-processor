@@ -81,7 +81,10 @@ describe('Environment sync', () => {
       { XDG_CONFIG_HOME: configRoot },
       secretStore
     );
-    const walletPublicKey = 'wallet-public-key';
+    // Anvil default account #0 (public test key).
+    const walletPublicKey = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+    const walletPrivateKey =
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
     await profileStore.SaveProfiles(
       {
         test: {
@@ -96,10 +99,7 @@ describe('Environment sync', () => {
       },
       { test: 'zk_test_secret' }
     );
-    await secretStore.Set(
-      GetWalletAccount(walletPublicKey),
-      Buffer.alloc(64, 7).toString('base64')
-    );
+    await secretStore.Set(GetWalletAccount(walletPublicKey), walletPrivateKey);
 
     const result = await SyncEnvironment(
       {
@@ -117,12 +117,13 @@ describe('Environment sync', () => {
     );
     expect(contents).toContain('ZONELESS_API_KEY=zk_test_secret');
     expect(contents).toContain('ZONELESS_API_URL=https://api.example.com');
-    expect(contents).toContain('SOLANA_SECRET_KEY=');
+    expect(contents).toContain(`WALLET_PRIVATE_KEY=${walletPrivateKey}`);
     expect(JSON.stringify(result)).not.toContain('zk_test_secret');
+    expect(JSON.stringify(result)).not.toContain(walletPrivateKey);
     expect(result.written).toEqual([
       'ZONELESS_API_KEY',
       'ZONELESS_API_URL',
-      'SOLANA_SECRET_KEY',
+      'WALLET_PRIVATE_KEY',
     ]);
     expect((await fs.stat(result.target)).mode & 0o777).toBe(0o600);
     expect(

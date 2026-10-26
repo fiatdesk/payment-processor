@@ -14,7 +14,7 @@ export interface ExternalWalletDeletedResponse {
 
 /**
  * External Accounts (Wallets) API resource.
- * External wallets are Solana wallet addresses for receiving USDC payouts.
+ * External wallets are Ethereum addresses for receiving USDC payouts.
  * @see /external-wallets
  */
 export class ExternalAccounts extends BaseResource {

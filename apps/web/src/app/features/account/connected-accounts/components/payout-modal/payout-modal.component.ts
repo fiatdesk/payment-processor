@@ -38,7 +38,7 @@ export class PayoutModalComponent {
   );
 
   readonly connectedSignerAddress = computed(() =>
-    this.actions.solanaWalletService.GetAddress()
+    this.actions.walletService.GetAddress()
   );
 
   readonly connectedSignerLabel = computed(() => {

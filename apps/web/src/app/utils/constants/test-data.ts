@@ -1,6 +1,6 @@
 import { PersonFormData } from '../../shared/forms/person-form/person-form.component';
 import { ExternalWalletFormData } from '../../shared/forms/external-wallet-form/external-wallet-form.component';
-import { SOLANA_NETWORK, SOLANA_CURRENCY } from '../validation/solana';
+import { ETHEREUM_NETWORK, ETHEREUM_CURRENCY } from '../validation/ethereum';
 
 export const TEST_PERSON_DATA: PersonFormData = {
   firstName: 'Tom',
@@ -19,7 +19,7 @@ export const TEST_PERSON_DATA: PersonFormData = {
 };
 
 export const TEST_WALLET_DATA: ExternalWalletFormData = {
-  walletAddress: 'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX',
-  network: SOLANA_NETWORK,
-  currency: SOLANA_CURRENCY,
+  walletAddress: '0x1111111111111111111111111111111111111111',
+  network: ETHEREUM_NETWORK,
+  currency: ETHEREUM_CURRENCY,
 };

@@ -2,17 +2,20 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stderr } from 'node:process';
-import bs58 from 'bs58';
+import { getAddress, isAddress, type Address, type Hex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { InvalidInput } from './Errors';
 import type { ProfileStore } from './ProfileStore';
 import { GetWalletAccount, type SecretStore } from './SecretStore';
 
 export interface WalletBackupFile {
-  publicKey: string;
-  secretKeyBase58: string;
-  secretKeyBase64: string;
-  version: 2;
+  address: Address;
+  /** `0x` + 64 hex, accepted by the SDK and WALLET_PRIVATE_KEY. */
+  privateKey: Hex;
+  version: 3;
 }
+
+const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
 export async function BackupWallet(
   outputPath: string,
@@ -40,10 +43,10 @@ export async function BackupWallet(
     throw InvalidInput('Wallet backup cancelled.');
   }
 
-  const secretKey = await secretStore.Get(
+  const privateKey = await secretStore.Get(
     GetWalletAccount(selected.profile.walletPublicKey)
   );
-  if (!secretKey) {
+  if (!privateKey) {
     throw InvalidInput('The wallet key is missing from the credential store.');
   }
 
@@ -52,7 +55,7 @@ export async function BackupWallet(
   await fs.writeFile(
     resolvedPath,
     `${JSON.stringify(
-      CreateWalletBackup(selected.profile.walletPublicKey, secretKey),
+      CreateWalletBackup(selected.profile.walletPublicKey, privateKey),
       null,
       2
     )}\n`,
@@ -62,17 +65,21 @@ export async function BackupWallet(
 }
 
 export function CreateWalletBackup(
-  publicKey: string,
-  secretKeyBase64: string
+  address: string,
+  privateKey: string
 ): WalletBackupFile {
-  const secretKey = Buffer.from(secretKeyBase64, 'base64');
-  if (secretKey.length !== 64) {
+  if (!PRIVATE_KEY_PATTERN.test(privateKey)) {
     throw InvalidInput('The stored wallet key is invalid.');
   }
+  const account = privateKeyToAccount(privateKey as Hex);
+  if (!isAddress(address) || getAddress(address) !== account.address) {
+    throw InvalidInput(
+      'The stored wallet key does not match the wallet address.'
+    );
+  }
   return {
-    publicKey,
-    secretKeyBase58: bs58.encode(secretKey),
-    secretKeyBase64,
-    version: 2,
+    address: account.address,
+    privateKey: privateKey as Hex,
+    version: 3,
   };
 }

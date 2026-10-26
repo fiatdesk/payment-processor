@@ -27,7 +27,7 @@ const SECONDS_PER_INTERVAL: Record<RecurringInterval, number> = {
 
 /**
  * Converts a recurring interval (+ count) to period length in hours.
- * Used when creating on-chain Solana subscription plans.
+ * Used when creating on-chain subscription plans.
  */
 export function RecurringIntervalToHours(
   interval: RecurringInterval,

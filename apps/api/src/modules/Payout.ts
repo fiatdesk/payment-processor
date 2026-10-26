@@ -205,13 +205,13 @@ export class PayoutModule {
         wallets.find((w) => w.default_for_currency === true) || wallets[0];
     }
 
-    // Verify the wallet address is valid on the Solana network
+    // Verify the destination is a valid Ethereum address
     const walletExists = await this.settlement.CheckWalletExists(
       wallet.wallet_address
     );
     if (!walletExists) {
       throw new AppError(
-        'Destination wallet address is not valid on the Solana network',
+        'Destination wallet address is not a valid Ethereum address',
         400,
         'invalid_request_error'
       );

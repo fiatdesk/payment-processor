@@ -149,11 +149,11 @@ router.get(
  * - Account with standard type (full dashboard access)
  * - Person record
  * - Balance
- * - ExternalWallet for Solana operations (public key only)
+ * - ExternalWallet for the platform's Ethereum address (no private key)
  * - API key
  *
  * No authentication required - this is the entry point for new platforms.
- * Wallet generation happens in the browser - only the public key is sent.
+ * Wallet generation happens in the browser - only the address is sent.
  *
  * In single-tenant mode (SINGLE_TENANT=true), only one platform can be created.
  */
@@ -210,7 +210,7 @@ router.post(
     console.log(`║  Platform Name: ${body.platform_name.padEnd(45)}║`);
     console.log(`║  Account ID: ${response.platform_account_id.padEnd(48)}║`);
     console.log(
-      `║  Wallet: ${response.wallet_address.substring(0, 51).padEnd(51)}║`
+      `║  Wallet: ${response.wallet_address.substring(0, 52).padEnd(52)}║`
     );
     console.log(
       '╠════════════════════════════════════════════════════════════════╣'

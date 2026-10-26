@@ -27,7 +27,7 @@ import {
   TopupService,
   TransferService,
 } from '../../../../data';
-import { SolanaWalletService } from '../../../../core';
+import { WalletService } from '../../../../core';
 import { FormatBusinessType, GetCountryName } from '../../../../utils';
 
 export type CreateConnectedAccountStep = 'summary' | 'edit-details' | 'success';
@@ -72,7 +72,7 @@ export class ConnectedAccountActionsService {
   private readonly topupService = inject(TopupService);
   private readonly configService = inject(ConfigService);
   private readonly identityService = inject(IdentityService);
-  readonly solanaWalletService = inject(SolanaWalletService);
+  readonly walletService = inject(WalletService);
 
   // ── Create flow ──────────────────────────────────────────────────────────
   flowOpen: WritableSignal<boolean> = signal(false);
@@ -374,7 +374,7 @@ export class ConnectedAccountActionsService {
     if (!wallet) return 'No external wallet';
     const network = wallet.network
       ? wallet.network.charAt(0).toUpperCase() + wallet.network.slice(1)
-      : 'Solana';
+      : 'Ethereum';
     return `${network} wallet •••• ${wallet.last4}`;
   }
 
@@ -579,15 +579,14 @@ export class ConnectedAccountActionsService {
 
   GetPayoutSignerAddress(): string {
     return this.payoutSignerMethod() === 'wallet'
-      ? this.solanaWalletService.GetAddress()
+      ? this.walletService.GetAddress()
       : this.payoutPrivateKeyAddress();
   }
 
   async ConnectPayoutWallet(): Promise<void> {
     this.payoutError.set('');
     try {
-      await this.solanaWalletService.Connect();
-      this.ValidatePayoutSignerAddress(this.solanaWalletService.GetAddress());
+      this.ValidatePayoutSignerAddress(await this.walletService.Connect());
     } catch (error) {
       this.payoutError.set(
         error instanceof Error ? error.message : 'Failed to connect wallet.'
@@ -597,19 +596,17 @@ export class ConnectedAccountActionsService {
 
   async ValidatePayoutPrivateKey(): Promise<void> {
     this.payoutPrivateKeyAddress.set('');
-    const secretKey = this.payoutPrivateKey().trim();
-    if (!secretKey) return;
+    const privateKey = this.payoutPrivateKey().trim();
+    if (!privateKey) return;
 
     try {
-      const address = await this.solanaWalletService.GetSecretKeyAddress(
-        secretKey
-      );
+      const address = await this.walletService.GetPrivateKeyAddress(privateKey);
       this.ValidatePayoutSignerAddress(address);
       this.payoutPrivateKeyAddress.set(address);
       this.payoutError.set('');
     } catch (error) {
       this.payoutError.set(
-        error instanceof Error ? error.message : 'Invalid Solana private key.'
+        error instanceof Error ? error.message : 'Invalid private key.'
       );
     }
   }
@@ -620,15 +617,16 @@ export class ConnectedAccountActionsService {
     this.payoutError.set('');
   }
 
-  SetPayoutPrivateKey(secretKey: string): void {
-    this.payoutPrivateKey.set(secretKey);
+  SetPayoutPrivateKey(privateKey: string): void {
+    this.payoutPrivateKey.set(privateKey);
     this.payoutPrivateKeyAddress.set('');
     this.payoutSignedTransaction.set('');
     this.payoutError.set('');
   }
 
   private ValidatePayoutSignerAddress(address: string): void {
-    if (!address || address !== this.payoutPlatformWalletAddress()) {
+    const expected = this.payoutPlatformWalletAddress();
+    if (!address || address.toLowerCase() !== expected.toLowerCase()) {
       throw new Error(
         'Signer does not match the configured platform payout wallet'
       );
@@ -639,10 +637,10 @@ export class ConnectedAccountActionsService {
     connectedAccountId: string,
     input: Parameters<PayoutService['CreatePayoutForConnectedAccount']>[1]
   ) {
-    const simulated = this.configService.IsSimulatedSettlement();
-    const expectedSigner = this.payoutPlatformWalletAddress();
-    if (!simulated && !this.payoutSignedTransaction()) {
-      this.ValidatePayoutSignerAddress(this.GetPayoutSignerAddress());
+    // Ethereum payout signing lands with the payout batch contract; fail
+    // before creating a payout that could not be broadcast.
+    if (!this.configService.IsSimulatedSettlement()) {
+      throw new Error('Payout signing is wired up in a later step');
     }
 
     let buildResult = this.payoutBuildResult();
@@ -664,30 +662,7 @@ export class ConnectedAccountActionsService {
 
     let signedTransaction = this.payoutSignedTransaction();
     if (!signedTransaction) {
-      if (simulated) {
-        signedTransaction = buildResult.unsigned_transaction;
-      } else {
-        const chain = this.configService.config()?.livemode
-          ? 'solana:mainnet'
-          : 'solana:devnet';
-        const signedBytes =
-          this.payoutSignerMethod() === 'wallet'
-            ? await this.solanaWalletService.SignUnsignedTransaction(
-                buildResult.unsigned_transaction,
-                chain
-              )
-            : await this.solanaWalletService.SignUnsignedTransactionWithSecretKey(
-                buildResult.unsigned_transaction,
-                this.payoutPrivateKey(),
-                expectedSigner
-              );
-        signedTransaction = this.solanaWalletService.BytesToBase64(signedBytes);
-
-        if (this.payoutSignerMethod() === 'private_key') {
-          this.payoutPrivateKey.set('');
-          this.payoutPrivateKeyAddress.set('');
-        }
-      }
+      signedTransaction = buildResult.unsigned_transaction;
       this.payoutSignedTransaction.set(signedTransaction);
     }
 

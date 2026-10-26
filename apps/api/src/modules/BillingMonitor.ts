@@ -1,7 +1,7 @@
 /**
  * @fileOverview Billing Monitor - Polls for due subscription invoices
  *
- * Runs at regular intervals to create cycle invoices and collect Solana
+ * Runs at regular intervals to create cycle invoices and collect on-chain
  * subscription payments. DISABLED by default for multi-instance deployments
  * (e.g. Cloud Run). Prefer POST /v1/billing/run via Cloud Scheduler.
  *

@@ -15,6 +15,7 @@ import { DecimalPipe } from '@angular/common';
 import { BalanceDetails } from '@zoneless/shared-types';
 import { BalanceService, ConfigService } from '../../../../../data';
 import { LoaderComponent } from '../../../../../shared';
+import { EtherscanUrl } from '../../../../../utils';
 
 @Component({
   selector: 'app-balance-detail',
@@ -92,9 +93,8 @@ export class BalanceDetailComponent implements OnChanges {
     if (this.configService.IsSimulatedSettlement()) return '';
     const address = this.GetWalletAddress();
     if (!address) return '';
-    const isTestMode = this.balanceService.balance()?.livemode === false;
-    const clusterParam = isTestMode ? '?cluster=devnet' : '';
-    return `https://explorer.solana.com/address/${address}${clusterParam}`;
+    const livemode = this.balanceService.balance()?.livemode !== false;
+    return EtherscanUrl('address', address, livemode);
   }
 
   IsSimulatedSettlement(): boolean {

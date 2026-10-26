@@ -21,7 +21,11 @@ import {
   GetFixedTimestamp,
   ResetIdCounter,
 } from './Setup';
-import { CreateMockSettlement } from './mocks/Settlement';
+import {
+  CreateMockSettlement,
+  MOCK_PAYER,
+  MOCK_USDC,
+} from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -39,8 +43,18 @@ jest.mock('../modules/AppConfig', () => ({
     livemode: false,
     appSecret: 'test-secret',
   })),
-  IsCheckoutFeeSponsored: jest.fn(() => false),
+  IsCheckoutRelayed: jest.fn(() => false),
 }));
+// Charges read the network from the module-level rail.
+jest.mock('../modules/chains/Settlement', () => ({
+  ...jest.requireActual('../modules/chains/Settlement'),
+  GetSettlement: jest.fn(() =>
+    jest.requireActual('./mocks/Settlement').CreateMockSettlement()
+  ),
+}));
+
+const PAYER_WALLET = MOCK_PAYER;
+const MERCHANT_WALLET = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
 function BuildPrice(overrides: Partial<Price> = {}): Price {
   return {
@@ -75,8 +89,8 @@ function UnsignedTx(unsignedTransaction: string): UnsignedTransaction {
   return {
     unsigned_transaction: unsignedTransaction,
     estimated_fee: '5000',
-    fee_currency: 'sol',
-    chain_id: null,
+    fee_currency: 'eth',
+    chain_id: 11155111,
     nonce: null,
     to: null,
   };
@@ -119,8 +133,8 @@ describe('CheckoutPaymentModule', () => {
     id: 'ew_z_1',
     object: 'wallet' as const,
     account: 'acct_z_platform',
-    wallet_address: 'MerchantWallet111',
-    network: 'solana',
+    wallet_address: MERCHANT_WALLET,
+    network: 'ethereum',
     currency: 'usdc',
     default_for_currency: true,
     status: 'verified' as const,
@@ -203,7 +217,7 @@ describe('CheckoutPaymentModule', () => {
       }),
       id: 'pi_z_1',
       status,
-      payment_method: 'PayerWallet111',
+      payment_method: PAYER_WALLET,
     };
   }
 
@@ -218,10 +232,10 @@ describe('CheckoutPaymentModule', () => {
 
       expect(mockSettlement.Describe).toHaveBeenCalled();
       expect(result.merchant_wallet).toEqual({
-        wallet_address: 'MerchantWallet111',
-        network: 'solana',
+        wallet_address: MERCHANT_WALLET,
+        network: 'ethereum',
         currency: 'usdc',
-        token_address: 'UsdcMint_test',
+        token_address: MOCK_USDC,
       });
     });
   });
@@ -233,7 +247,7 @@ describe('CheckoutPaymentModule', () => {
       const requiresConfirmation = {
         ...paymentIntent,
         status: 'requires_confirmation' as const,
-        payment_method: 'PayerWallet111',
+        payment_method: PAYER_WALLET,
       };
 
       jest
@@ -250,19 +264,15 @@ describe('CheckoutPaymentModule', () => {
 
       const result = await module.PreparePayment(
         session.url_slug,
-        'PayerWallet111',
+        PAYER_WALLET,
         { email: 'buyer@example.com' }
       );
 
       expect(
         mockSettlement.BuildCheckoutPaymentTransaction
-      ).toHaveBeenCalledWith(
-        'PayerWallet111',
-        'MerchantWallet111',
-        1000,
-        session.id,
-        { feeSponsored: false }
-      );
+      ).toHaveBeenCalledWith(PAYER_WALLET, MERCHANT_WALLET, 1000, session.id, {
+        relayed: false,
+      });
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.updated',
         'acct_z_platform',
@@ -280,22 +290,70 @@ describe('CheckoutPaymentModule', () => {
           amount_total: 1000,
           unsigned_transaction: 'unsigned_tx_base64',
           estimated_fee: '5000',
-          fee_currency: 'sol',
-          chain_id: null,
+          fee_currency: 'eth',
+          chain_id: 11155111,
           nonce: null,
           to: null,
+          relayed: false,
         })
       );
+      expect(result).not.toHaveProperty('fee_sponsored');
       expect(mockDb.Update).toHaveBeenCalledWith(
         'CheckoutSessions',
         session.id,
         {
           payment_details: {
             transaction_hash: null,
-            payer_wallet: 'PayerWallet111',
+            payer_wallet: PAYER_WALLET,
           },
         }
       );
+    });
+
+    it('should store a lowercase payer wallet checksummed', async () => {
+      const session = BuildOpenSession();
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
+        .mockResolvedValue(session);
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
+        .mockResolvedValue(session);
+      mockDb.Get = jest.fn().mockResolvedValue(BuildPaymentIntent());
+
+      await module.PreparePayment(
+        session.url_slug,
+        PAYER_WALLET.toLowerCase(),
+        { email: 'buyer@example.com' }
+      );
+
+      expect(
+        mockSettlement.BuildCheckoutPaymentTransaction
+      ).toHaveBeenCalledWith(PAYER_WALLET, MERCHANT_WALLET, 1000, session.id, {
+        relayed: false,
+      });
+      expect(mockDb.Update).toHaveBeenCalledWith(
+        'CheckoutSessions',
+        session.id,
+        {
+          payment_details: {
+            transaction_hash: null,
+            payer_wallet: PAYER_WALLET,
+          },
+        }
+      );
+    });
+
+    it('should reject a payer wallet that is not an Ethereum address', async () => {
+      await expect(
+        module.PreparePayment(
+          'any-slug',
+          'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX',
+          { email: 'buyer@example.com' }
+        )
+      ).rejects.toThrow('payer_wallet must be a valid Ethereum address');
+      expect(
+        mockSettlement.BuildCheckoutPaymentTransaction
+      ).not.toHaveBeenCalled();
     });
 
     it('should build a subscribe transaction for subscription mode', async () => {
@@ -331,70 +389,21 @@ describe('CheckoutPaymentModule', () => {
 
       const result = await module.PreparePayment(
         session.url_slug,
-        'PayerWallet111',
+        PAYER_WALLET,
         { email: 'buyer@example.com' }
       );
 
-      expect(
-        mockSettlement.BuildInitSubscriptionAuthorityTransaction
-      ).toHaveBeenCalledWith('PayerWallet111', { feeSponsored: false });
       expect(mockSettlement.BuildSubscribeTransaction).toHaveBeenCalledWith(
-        'PayerWallet111',
+        PAYER_WALLET,
         recurringPrice.id,
         'PlanId111',
-        { feeSponsored: false }
+        { relayed: false }
       );
       expect(
         mockSettlement.BuildCheckoutPaymentTransaction
       ).not.toHaveBeenCalled();
       expect(result.unsigned_transaction).toBe('unsigned_subscribe_base64');
-      expect(result.subscription_step).toBe('subscribe');
-    });
-
-    it('should return init_authority step when subscription authority is missing', async () => {
-      const recurringPrice = BuildPrice({
-        type: 'recurring',
-        recurring: {
-          interval: 'month',
-          interval_count: 1,
-          meter: null,
-          trial_period_days: null,
-          usage_type: 'licensed',
-        },
-        subscription_plan_id: 'PlanId111',
-      });
-      const session = BuildOpenSession({
-        mode: 'subscription',
-        payment_intent: null,
-        line_items: {
-          object: 'list',
-          data: [BuildLineItem({ price: recurringPrice })],
-          has_more: false,
-          url: '/v1/checkout/sessions/cs_z_1/line_items',
-        },
-      });
-
-      mockSettlement.BuildInitSubscriptionAuthorityTransaction.mockResolvedValue(
-        UnsignedTx('unsigned_init_base64')
-      );
-
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
-        .mockResolvedValue(session);
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
-        .mockResolvedValue(session);
-      mockDb.Update = jest.fn().mockResolvedValue(undefined);
-
-      const result = await module.PreparePayment(
-        session.url_slug,
-        'PayerWallet111',
-        { email: 'buyer@example.com' }
-      );
-
-      expect(mockSettlement.BuildSubscribeTransaction).not.toHaveBeenCalled();
-      expect(result.unsigned_transaction).toBe('unsigned_init_base64');
-      expect(result.subscription_step).toBe('init_authority');
+      expect(result).not.toHaveProperty('subscription_step');
     });
 
     it('should return the existing subscription_onchain_id when the wallet is already subscribed', async () => {
@@ -434,13 +443,13 @@ describe('CheckoutPaymentModule', () => {
 
       const result = await module.PreparePayment(
         session.url_slug,
-        'PayerWallet111',
+        PAYER_WALLET,
         { email: 'buyer@example.com' }
       );
 
       expect(mockSettlement.FindExistingSubscription).toHaveBeenCalledWith(
         'PlanId111',
-        'PayerWallet111'
+        PAYER_WALLET
       );
       expect(mockSettlement.BuildSubscribeTransaction).not.toHaveBeenCalled();
       expect(result).toMatchObject({
@@ -474,7 +483,7 @@ describe('CheckoutPaymentModule', () => {
         url: null,
         payment_details: {
           transaction_hash: 'sig_abc',
-          payer_wallet: 'PayerWallet111',
+          payer_wallet: PAYER_WALLET,
         },
       };
 
@@ -518,7 +527,7 @@ describe('CheckoutPaymentModule', () => {
 
       mockSettlement.VerifyCheckoutPayment.mockResolvedValue({
         verified: true,
-        payer_address: 'PayerWallet111',
+        payer_address: PAYER_WALLET,
         amount_cents: 1000,
       });
       mockSettlement.ValidateAndBroadcastCheckoutTransaction.mockResolvedValueOnce(
@@ -547,9 +556,9 @@ describe('CheckoutPaymentModule', () => {
           payment_method_details: expect.objectContaining({
             type: 'crypto',
             crypto: expect.objectContaining({
-              buyer_address: 'PayerWallet111',
+              buyer_address: PAYER_WALLET,
               transaction_hash: 'sig_abc',
-              network: 'solana',
+              network: 'ethereum',
               token_currency: 'usdc',
             }),
           }),
@@ -567,7 +576,7 @@ describe('CheckoutPaymentModule', () => {
         checkoutSessionModule.CompleteCheckoutSession
       ).toHaveBeenCalledWith(session.id, {
         transaction_hash: 'sig_abc',
-        payer_wallet: 'PayerWallet111',
+        payer_wallet: PAYER_WALLET,
       });
       expect(result.status).toBe('complete');
     });

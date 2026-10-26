@@ -3,13 +3,15 @@
  * Settlement rail selection and the simulated (no-chain) implementation.
  *
  * Test mode defaults to simulated funds. Set SETTLEMENT_RAIL=onchain with
- * LIVEMODE=false to use Solana Devnet (internal escape hatch).
+ * LIVEMODE=false to settle on Sepolia (or Anvil via ETH_CHAIN_ID=31337).
  *
  * @module Settlement
  */
 
+import { isAddress } from 'viem';
 import { GetAppConfig } from '../AppConfig';
-import { Solana } from './Solana';
+import { ChainClientsGeneration } from './Chain';
+import { Ethereum } from './Ethereum';
 import type {
   BroadcastResult,
   CheckoutPaymentVerification,
@@ -46,7 +48,7 @@ export interface Settlement {
     merchant: string,
     amountCents: number,
     sessionId: string,
-    options?: { feeSponsored?: boolean }
+    options?: { relayed?: boolean }
   ): Promise<UnsignedTransaction>;
   ValidateAndBroadcastCheckoutTransaction(
     signed: string
@@ -71,7 +73,7 @@ export interface Settlement {
     subscriber: string,
     priceId: string,
     planId: string,
-    options?: { feeSponsored?: boolean }
+    options?: { relayed?: boolean }
   ): Promise<UnsignedTransaction>;
   FindExistingSubscription(
     planId: string,
@@ -88,20 +90,13 @@ export interface Settlement {
     amountCents: number;
     destinationWallet?: string;
   }): Promise<{ transaction_hash: string; alreadyCollected: boolean }>;
-  /** Solana only: first-time subscribers need a separate authority tx. */
-  BuildInitSubscriptionAuthorityTransaction?(
-    subscriber: string,
-    options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedTransaction | null>;
-  /** Solana only: wait for the authority created by the init tx. */
-  WaitForSubscriptionAuthority?(subscriber: string): Promise<void>;
 }
 
 const SIM_SIG_PREFIX = 'sim_sig:';
 
 /** Default payer used by simulated checkout and test helpers. */
 export const SIMULATED_TEST_WALLET =
-  'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX';
+  '0x1111111111111111111111111111111111111111';
 
 export function IsSimulatedSettlement(): boolean {
   return GetAppConfig().settlement_rail === 'simulated';
@@ -150,7 +145,7 @@ export class SimulatedSettlement implements Settlement {
   }
 
   async CheckWalletExists(address: string): Promise<boolean> {
-    return typeof address === 'string' && address.length >= 32;
+    return isAddress(address);
   }
 
   async GetNativeBalance(_address: string): Promise<number> {
@@ -162,7 +157,7 @@ export class SimulatedSettlement implements Settlement {
   }
 
   GetPlanOwnerAddress(): string {
-    return 'SimulatedPlanOwner111111111111111111111';
+    return SIMULATED_TEST_WALLET;
   }
 
   async GetIncomingDeposits(): Promise<IncomingDeposit[]> {
@@ -174,29 +169,18 @@ export class SimulatedSettlement implements Settlement {
     _merchant: string,
     _amountCents: number,
     _sessionId: string,
-    _options?: { feeSponsored?: boolean }
+    _options?: { relayed?: boolean }
   ): Promise<UnsignedTransaction> {
     return DummyUnsignedTransaction();
-  }
-
-  async BuildInitSubscriptionAuthorityTransaction(
-    _subscriber: string,
-    _options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedTransaction | null> {
-    return null;
   }
 
   async BuildSubscribeTransaction(
     _subscriber: string,
     _priceId: string,
     _planId: string,
-    _options?: { feeSponsored?: boolean }
+    _options?: { relayed?: boolean }
   ): Promise<UnsignedTransaction> {
     return DummyUnsignedTransaction();
-  }
-
-  async WaitForSubscriptionAuthority(_subscriber: string): Promise<void> {
-    return;
   }
 
   async ValidateAndBroadcastCheckoutTransaction(
@@ -291,8 +275,22 @@ export class SimulatedSettlement implements Settlement {
   }
 }
 
+let activeRail: { key: string; settlement: Settlement } | null = null;
+
+/**
+ * The configured rail. One instance is reused per rail until the chain
+ * clients are reset, so callers such as ExplorerUrl never rebuild clients.
+ */
 export function GetSettlement(): Settlement {
-  return IsSimulatedSettlement() ? new SimulatedSettlement() : new Solana();
+  const simulated = IsSimulatedSettlement();
+  const key = simulated ? 'simulated' : `onchain:${ChainClientsGeneration()}`;
+  if (activeRail?.key !== key) {
+    activeRail = {
+      key,
+      settlement: simulated ? new SimulatedSettlement() : new Ethereum(),
+    };
+  }
+  return activeRail.settlement;
 }
 
 /** Explorer link for the active rail; empty on the simulated rail. */

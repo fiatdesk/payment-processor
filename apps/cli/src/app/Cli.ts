@@ -54,7 +54,7 @@ Options:
   --url <https-url>          Public webhook endpoint URL
   --preset subscriptions     Subscribe to the standard billing events
   --events <event,...>       Subscribe to a custom comma-separated event list
-  --include-wallet           Also sync SOLANA_SECRET_KEY
+  --include-wallet           Also sync WALLET_PRIVATE_KEY
   --json                     Emit machine-readable JSON
 
 Environment:

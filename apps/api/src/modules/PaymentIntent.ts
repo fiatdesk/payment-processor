@@ -2,7 +2,7 @@
  * @fileOverview Methods for PaymentIntents
  *
  * A PaymentIntent tracks the lifecycle of a payment, from creation through
- * confirmation and capture. In Zoneless this maps to a USDC transfer on Solana.
+ * confirmation and capture. In Zoneless this maps to a USDC transfer on Ethereum.
  *
  * @module PaymentIntent
  * @see https://docs.stripe.com/api/payment_intents
@@ -541,10 +541,11 @@ export class PaymentIntentModule {
       eventType: 'payment_intent.updated',
       allowedFromStatuses: REQUIRES_CONFIRMATION_FROM,
       updatePayload,
-      previousAttributes: ExtractChangedFields(
-        previous as unknown as Record<string, unknown>,
-        updatePayload as Record<string, unknown>
-      ),
+      previousAttributes:
+        ExtractChangedFields(
+          previous as unknown as Record<string, unknown>,
+          updatePayload as Record<string, unknown>
+        ) ?? undefined,
     });
   }
 

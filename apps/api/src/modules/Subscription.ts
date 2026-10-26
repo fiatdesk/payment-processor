@@ -3,7 +3,7 @@
  *
  * Stripe-compatible subscription CRUD and lifecycle actions. Nested subscription
  * items are persisted in `SubscriptionItems`. Billing runs through invoices:
- * create → line items → finalize → collect via PaymentIntent / Solana USDC.
+ * create → line items → finalize → collect via PaymentIntent / on-chain USDC.
  *
  * @module Subscription
  * @see https://docs.stripe.com/api/subscriptions
@@ -104,13 +104,13 @@ export class SubscriptionModule {
    * Create a subscription on an existing customer.
    * Creates the first invoice (unless trialing), finalizes it, and collects
    * payment when `collection_method=charge_automatically` (out-of-band until
-   * PaymentIntent / Solana settlement is wired).
+   * PaymentIntent / on-chain settlement is wired).
    * Emits `customer.subscription.created`.
    */
   async CreateSubscription(
     platformAccountId: string,
     input: CreateSubscriptionInput,
-    options?: { settlementSignature?: string }
+    options?: { settlementTransactionHash?: string }
   ): Promise<SubscriptionType> {
     const validatedInput = ValidateUpdate(CreateSubscriptionSchema, input);
 
@@ -181,7 +181,7 @@ export class SubscriptionModule {
             collect:
               collectionMethod === 'charge_automatically' &&
               paymentBehavior !== 'default_incomplete',
-            settlementSignature: options?.settlementSignature,
+            settlementTransactionHash: options?.settlementTransactionHash,
           }
         );
         latestInvoiceId = invoice.id;
@@ -336,7 +336,7 @@ export class SubscriptionModule {
       validatedInput.payment_behavior === 'pending_if_incomplete' &&
       Object.keys(updatePayload).length > 0
     ) {
-      // TODO: Solana USDC — hold updates until invoice payment succeeds
+      // TODO: on-chain USDC — hold updates until invoice payment succeeds
       updatePayload.pending_update = {
         billing_cycle_anchor: null,
         discount: null,
@@ -490,8 +490,8 @@ export class SubscriptionModule {
 
   /**
    * Cancel a subscription immediately.
-   * Off-chain stop-collect: billing will no longer pull; the Solana
-   * delegation PDA is left in place until a later customer-signed revoke.
+   * Off-chain stop-collect: billing will no longer pull; the on-chain
+   * subscription is left in place until a later customer-signed revoke.
    * Emits `customer.subscription.deleted`.
    */
   async CancelSubscription(
@@ -1589,7 +1589,7 @@ export class SubscriptionModule {
     options: {
       finalize: boolean;
       collect: boolean;
-      settlementSignature?: string;
+      settlementTransactionHash?: string;
     }
   ): Promise<InvoiceType> {
     if (!this.invoiceModule) {
@@ -1657,7 +1657,7 @@ export class SubscriptionModule {
       lineItems,
       finalize: options.finalize,
       collect: options.collect,
-      settlementSignature: options.settlementSignature,
+      settlementTransactionHash: options.settlementTransactionHash,
     });
   }
 

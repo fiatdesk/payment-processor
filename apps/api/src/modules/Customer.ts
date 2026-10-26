@@ -11,6 +11,7 @@ import { GenerateId, GenerateInvoicePrefix } from '../utils/IdGenerator';
 import {
   Customer as CustomerType,
   CustomerAddress,
+  CustomerCashBalance,
   CustomerDeleted,
   QueryOperators,
 } from '@zoneless/shared-types';
@@ -389,7 +390,7 @@ export class CustomerModule {
             : requestedReconciliationMode,
           using_merchant_default: usingMerchantDefault,
         },
-      };
+      } as CustomerCashBalance;
     }
 
     if (invoice_settings !== undefined) {

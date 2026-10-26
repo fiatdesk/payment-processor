@@ -7,6 +7,7 @@ import {
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
+import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -22,6 +23,10 @@ jest.mock('../modules/AppConfig', () => ({
     appSecret: 'test-secret',
   })),
 }));
+const mockSettlement = CreateMockSettlement();
+jest.mock('../modules/chains/Settlement', () => ({
+  GetSettlement: jest.fn(() => mockSettlement),
+}));
 jest.mock('../modules/SanctionsScreening', () => ({
   SanctionsScreeningModule: jest.fn().mockImplementation(() => ({
     CheckWalletAddress: jest
@@ -30,8 +35,8 @@ jest.mock('../modules/SanctionsScreening', () => ({
   })),
 }));
 
-const VALID_WALLET = 'B62qkR4YsHxFMi3hUgSbLZKEM9TDJFKvJPaRN3T7efgh';
-const VALID_WALLET_2 = 'B62qkR4YsHxFMi3hUgSbLZKEM9TDJFKvJPaRN3T71234';
+const VALID_WALLET = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+const VALID_WALLET_2 = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 describe('ExternalWalletModule', () => {
   let module: ExternalWalletModule;
@@ -58,10 +63,10 @@ describe('ExternalWalletModule', () => {
       expect(wallet.account).toBe('acct_z_1');
       expect(wallet.platform_account).toBe('acct_z_platform');
       expect(wallet.wallet_address).toBe(VALID_WALLET);
-      expect(wallet.network).toBe('solana');
+      expect(wallet.network).toBe('ethereum');
       expect(wallet.currency).toBe('usdc');
       expect(wallet.status).toBe('new');
-      expect(wallet.last4).toBe('efgh');
+      expect(wallet.last4).toBe('2266');
       expect(wallet.available_payout_methods).toEqual(['standard', 'instant']);
     });
 
@@ -72,7 +77,17 @@ describe('ExternalWalletModule', () => {
         { wallet_address: VALID_WALLET_2 }
       );
 
-      expect(wallet.last4).toBe('1234');
+      expect(wallet.last4).toBe('79C8');
+    });
+
+    it('should keep an explicit network', () => {
+      const wallet = module.ExternalWalletObject(
+        'acct_z_1',
+        'acct_z_platform',
+        { wallet_address: VALID_WALLET, network: 'simulated' }
+      );
+
+      expect(wallet.network).toBe('simulated');
     });
   });
 
@@ -96,6 +111,40 @@ describe('ExternalWalletModule', () => {
           wallet_address: VALID_WALLET,
         })
       );
+    });
+
+    it('should accept a lowercase address and store it checksummed', async () => {
+      mockDb.Get = jest.fn().mockResolvedValue({
+        id: 'acct_z_1',
+        platform_account: 'acct_z_platform',
+      });
+
+      const wallet = await module.CreateExternalWallet('acct_z_1', {
+        wallet_address: VALID_WALLET.toLowerCase(),
+      });
+
+      expect(wallet.wallet_address).toBe(VALID_WALLET);
+      expect(mockDb.Set).toHaveBeenCalledWith(
+        'ExternalWallets',
+        wallet.id,
+        expect.objectContaining({ wallet_address: VALID_WALLET })
+      );
+    });
+
+    it.each([
+      [
+        'a mixed-case address with a bad checksum',
+        `0xF${VALID_WALLET.slice(3)}`,
+      ],
+      ['a non-hex address', 'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX'],
+      ['a truncated address', VALID_WALLET.slice(0, -1)],
+    ])('should reject %s', async (_label, walletAddress) => {
+      await expect(
+        module.CreateExternalWallet('acct_z_1', {
+          wallet_address: walletAddress,
+        })
+      ).rejects.toThrow('wallet_address: Must be a valid Ethereum address');
+      expect(mockDb.Set).not.toHaveBeenCalled();
     });
 
     it('should throw when account is not found', async () => {

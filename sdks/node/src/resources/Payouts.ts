@@ -1,5 +1,5 @@
-import { Keypair, Transaction } from '@solana/web3.js';
-import bs58 from 'bs58';
+import { parseTransaction, type Hex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { BaseResource } from './Base';
 import { RequestExtraOptions } from '../HttpClient';
 import { ApplyDateFilter } from '../utils';
@@ -17,6 +17,8 @@ import type {
   BuildPayoutsBatchInput,
   BroadcastPayoutsBatchInput,
 } from '../generated/Inputs';
+
+const SIMULATED_TRANSACTION = 'sim_tx';
 
 /**
  * @see /payouts
@@ -122,12 +124,12 @@ export class Payouts extends BaseResource {
    * This is the lower-level method that orchestrates:
    * 1. Fetches pending payouts (up to 10)
    * 2. Builds an unsigned transaction
-   * 3. Signs it locally using the provided secret key
+   * 3. Signs it locally using the provided private key
    * 4. Broadcasts the signed transaction
    *
    * Use `processAll` to automatically process all pending payouts.
    *
-   * @param secretKey - Your platform's Solana secret key (base58 encoded)
+   * @param privateKey - Your platform wallet's private key (`0x` + 64 hex)
    * @param options - Optional configuration
    * @param options.limit - Maximum number of payouts to process (default: 10, max: 10)
    * @param options.requestOptions - Additional request options
@@ -136,7 +138,7 @@ export class Payouts extends BaseResource {
    * @example
    * ```typescript
    * const result = await zoneless.payouts.processBatch(
-   *   process.env.SOLANA_SECRET_KEY
+   *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * console.log(`Processed ${result.payouts.length} payouts`);
    * if (result.has_more) {
@@ -147,7 +149,7 @@ export class Payouts extends BaseResource {
    * @see /payouts/process-batch
    */
   async processBatch(
-    secretKey: string,
+    privateKey: Hex,
     options?: {
       limit?: number;
       requestOptions?: RequestExtraOptions;
@@ -182,9 +184,9 @@ export class Payouts extends BaseResource {
     );
 
     // Step 3: Sign the transaction locally
-    const signedTransaction = this.SignTransaction(
-      buildResult.unsigned_transaction,
-      secretKey
+    const signedTransaction = await this.sign(
+      buildResult.unsigned_transaction as Hex,
+      privateKey
     );
 
     // Step 4: Broadcast the signed transaction
@@ -211,14 +213,14 @@ export class Payouts extends BaseResource {
    * Process all pending payouts, automatically handling multiple batches.
    * Loops through all pending payouts in batches of up to 10 until none remain.
    *
-   * @param secretKey - Your platform's Solana secret key (base58 encoded)
+   * @param privateKey - Your platform wallet's private key (`0x` + 64 hex)
    * @param options - Optional request options
    * @returns Array of results, one per batch processed
    *
    * @example
    * ```typescript
    * const results = await zoneless.payouts.processAll(
-   *   process.env.SOLANA_SECRET_KEY
+   *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * const totalProcessed = results.reduce((sum, r) => sum + r.payouts.length, 0);
    * console.log(`Processed ${totalProcessed} payouts in ${results.length} batches`);
@@ -227,7 +229,7 @@ export class Payouts extends BaseResource {
    * @see /payouts/process-all
    */
   async processAll(
-    secretKey: string,
+    privateKey: Hex,
     options?: RequestExtraOptions & { delayBetweenBatchesMs?: number }
   ): Promise<ProcessPendingResult[]> {
     const results: ProcessPendingResult[] = [];
@@ -235,7 +237,7 @@ export class Payouts extends BaseResource {
     let hasMore = true;
 
     while (hasMore) {
-      const result = await this.processBatch(secretKey, {
+      const result = await this.processBatch(privateKey, {
         requestOptions: options,
       });
 
@@ -254,21 +256,21 @@ export class Payouts extends BaseResource {
   }
 
   /**
-   * Sign an unsigned transaction locally using a Solana secret key.
+   * Sign an unsigned transaction locally with an Ethereum private key.
    * Use this after calling `build()` to sign the transaction before broadcasting.
    *
-   * @param unsignedTransaction - Base64-encoded unsigned transaction from `build()`
-   * @param secretKey - Solana secret key (base58 encoded)
-   * @returns Base64-encoded signed transaction ready for `broadcast()`
+   * @param unsignedTransaction - Serialized unsigned transaction (`0x…`) from `build()`
+   * @param privateKey - Platform wallet private key (`0x` + 64 hex)
+   * @returns Serialized signed transaction ready for `broadcast()`
    *
    * @example
    * ```typescript
    * const buildResult = await zoneless.payouts.build({
    *   payouts: ['po_z123', 'po_z456']
    * });
-   * const signedTx = zoneless.payouts.sign(
-   *   buildResult.unsigned_transaction,
-   *   process.env.SOLANA_SECRET_KEY
+   * const signedTx = await zoneless.payouts.sign(
+   *   buildResult.unsigned_transaction as `0x${string}`,
+   *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * const result = await zoneless.payouts.broadcast({
    *   signed_transaction: signedTx,
@@ -278,30 +280,15 @@ export class Payouts extends BaseResource {
    *
    * @see /payouts/sign
    */
-  sign(unsignedTransaction: string, secretKey: string): string {
-    return this.SignTransaction(unsignedTransaction, secretKey);
-  }
-
-  /**
-   * Sign a transaction locally using a Solana secret key.
-   *
-   * @param unsignedTransaction - Base64-encoded unsigned transaction
-   * @param secretKey - Solana secret key (base58 encoded)
-   * @returns Base64-encoded signed transaction
-   */
-  private SignTransaction(
-    unsignedTransaction: string,
-    secretKey: string
-  ): string {
-    if (unsignedTransaction === 'sim_tx') {
+  async sign(unsignedTransaction: Hex, privateKey: Hex): Promise<Hex> {
+    // The simulated settlement rail has nothing to sign.
+    if ((unsignedTransaction as string) === SIMULATED_TRANSACTION) {
       return unsignedTransaction;
     }
 
-    const keypair = Keypair.fromSecretKey(bs58.decode(secretKey));
-    const txBuffer = Buffer.from(unsignedTransaction, 'base64');
-    const transaction = Transaction.from(txBuffer);
-    transaction.partialSign(keypair);
-    return transaction.serialize().toString('base64');
+    return privateKeyToAccount(privateKey).signTransaction(
+      parseTransaction(unsignedTransaction)
+    );
   }
 
   private BuildQuery(

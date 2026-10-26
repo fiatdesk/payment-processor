@@ -96,7 +96,7 @@ curl http://localhost/api/health`,
         },
         {
           type: 'paragraph',
-          text: 'Open <a href="http://localhost/setup">localhost/setup</a>. Create your account, generate an API key, and create or connect a Solana wallet.',
+          text: 'Open <a href="http://localhost/setup">localhost/setup</a>. Create your account, generate an API key, and create or connect an Ethereum wallet.',
           html: true,
         },
         {

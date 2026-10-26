@@ -23,6 +23,7 @@ import { CopyTextComponent, StatusChipComponent } from '../../../../../shared';
 import { EventsListComponent } from '../../../components';
 import { MetadataToArray } from '../../../util/metadata';
 import { MetaService } from '../../../../../core';
+import { EtherscanUrl } from '../../../../../utils';
 import { Subscription } from 'rxjs';
 
 interface TimelineEvent {
@@ -200,9 +201,7 @@ export class PaymentIntentDetailComponent implements OnInit, OnDestroy {
 
   GetExplorerUrl(txHash: string | null | undefined): string | null {
     if (!txHash || txHash.startsWith('sim_')) return null;
-    const livemode = this.paymentIntent()?.livemode;
-    const clusterParam = livemode === false ? '?cluster=devnet' : '';
-    return `https://explorer.solana.com/tx/${txHash}${clusterParam}`;
+    return EtherscanUrl('tx', txHash, this.paymentIntent()?.livemode !== false);
   }
 
   OnViewOnBlockchain(): void {

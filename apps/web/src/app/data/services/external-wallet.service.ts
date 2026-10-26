@@ -107,7 +107,7 @@ export class ExternalWalletService {
 
   private GetNetworkDisplay(): string {
     const wallet = this.wallet();
-    if (!wallet?.network) return 'Solana';
+    if (!wallet?.network) return 'Ethereum';
     return wallet.network.charAt(0).toUpperCase() + wallet.network.slice(1);
   }
 

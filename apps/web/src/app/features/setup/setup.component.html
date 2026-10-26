@@ -68,8 +68,8 @@
         <div class="feature-item">
           <img class="feature-icon" src="assets/icons/savings.svg" alt="" />
           <div class="feature-text">
-            <strong>Near-zero fees</strong>
-            <span>Fractions of a cent per payment, not a percentage cut</span>
+            <strong>No platform fees</strong>
+            <span>Pay network gas only, not a percentage cut</span>
           </div>
         </div>
         <div class="feature-item">
@@ -91,7 +91,7 @@
 
       <p class="setup-note">
         This setup will only take a minute. You'll configure your business
-        details and Solana wallet.
+        details and Ethereum wallet.
       </p>
     </div>
     }
@@ -129,9 +129,9 @@
     <div class="setup-content">
       <button type="button" class="back-button" (click)="Back()">← Back</button>
 
-      <h1>Solana Wallet</h1>
+      <h1>Ethereum Wallet</h1>
       <p class="step-description">
-        Configure the Solana wallet that holds your USDC balance. Your secret
+        Configure the Ethereum wallet that holds your USDC balance. Your private
         key is generated locally and never sent to Zoneless — self-custody by
         default.
       </p>
@@ -151,8 +151,8 @@
           <div class="option-content">
             <span class="option-title">Generate a new wallet</span>
             <span class="option-description">
-              Create a new Solana keypair in your browser. You must save the
-              secret key securely - it won't be shown again.
+              Create a new Ethereum wallet in your browser. You must save the
+              private key securely - it won't be shown again.
             </span>
           </div>
         </label>
@@ -171,8 +171,8 @@
           <div class="option-content">
             <span class="option-title">Use an existing wallet</span>
             <span class="option-description">
-              Enter your existing Solana wallet address. You keep your own
-              secret key.
+              Enter your existing Ethereum wallet address. You keep your own
+              private key.
             </span>
           </div>
         </label>
@@ -199,25 +199,25 @@
       <!-- Generated wallet display -->
       <div class="generated-wallet">
         <div class="wallet-warning">
-          <strong>Save your secret key now!</strong>
+          <strong>Save your private key now!</strong>
           <p>
-            This is the only time you will see your secret key. Store it
+            This is the only time you will see your private key. Store it
             securely - you'll need it to sign transactions from your server.
           </p>
         </div>
 
         <div class="credential-card">
           <div class="credential-header">
-            <span class="credential-label">Wallet Address (Public Key)</span>
+            <span class="credential-label">Wallet Address</span>
             <button
               type="button"
               class="copy-button"
-              (click)="CopyToClipboard(generatedPublicKey(), 'gen_public')"
+              (click)="CopyToClipboard(generatedAddress(), 'gen_address')"
             >
-              {{ copiedField() === 'gen_public' ? 'Copied' : 'Copy' }}
+              {{ copiedField() === 'gen_address' ? 'Copied' : 'Copy' }}
             </button>
           </div>
-          <div class="credential-value mono">{{ generatedPublicKey() }}</div>
+          <div class="credential-value mono">{{ generatedAddress() }}</div>
           <span class="credential-help">
             Send USDC to this address to fund your balance.
           </span>
@@ -225,17 +225,17 @@
 
         <div class="credential-card danger">
           <div class="credential-header">
-            <span class="credential-label">Secret Key</span>
+            <span class="credential-label">Private Key</span>
             <button
               type="button"
               class="copy-button"
-              (click)="CopyToClipboard(generatedSecretKey(), 'gen_secret')"
+              (click)="CopyToClipboard(generatedPrivateKey(), 'gen_private')"
             >
-              {{ copiedField() === 'gen_secret' ? 'Copied' : 'Copy' }}
+              {{ copiedField() === 'gen_private' ? 'Copied' : 'Copy' }}
             </button>
           </div>
           <div class="credential-value mono secret">
-            {{ generatedSecretKey() }}
+            {{ generatedPrivateKey() }}
           </div>
           <span class="credential-help warning">
             Store this securely on your server. You'll use it to sign
@@ -246,18 +246,18 @@
       } } @if(walletOption() === 'import') {
       <div class="import-fields">
         <div class="form-group">
-          <label for="importPublicKey">Wallet Address (Public Key) *</label>
+          <label for="importAddress">Wallet Address *</label>
           <input
             type="text"
-            id="importPublicKey"
-            [ngModel]="importPublicKey()"
-            (ngModelChange)="importPublicKey.set($event)"
-            placeholder="86UwRzGshf..."
+            id="importAddress"
+            [ngModel]="importAddress()"
+            (ngModelChange)="importAddress.set($event)"
+            placeholder="0x..."
             class="form-input mono"
           />
           <span class="field-help">
-            Enter your Solana wallet address. Keep your secret key safe on your
-            own server — you'll use it to sign transactions.
+            Enter your existing Ethereum wallet address. Keep your private key
+            safe on your own server — you'll use it to sign transactions.
           </span>
         </div>
       </div>
@@ -316,7 +316,7 @@
 
         <div class="credential-card">
           <div class="credential-header">
-            <span class="credential-label">Solana Wallet Address</span>
+            <span class="credential-label">Ethereum Wallet Address</span>
             <button
               type="button"
               class="copy-button"
@@ -342,11 +342,11 @@
           <li>Save your API key — you'll need it to make API requests</li>
           @if(walletOption() === 'generate') {
           <li>
-            Save your secret key securely on your server (shown in previous
+            Save your private key securely on your server (shown in previous
             step)
           </li>
           }
-          <li>Fund your Solana wallet with SOL (for fees) and USDC</li>
+          <li>Fund your Ethereum wallet with ETH (for gas) and USDC</li>
           <li>
             Point your Stripe integration at this instance, or explore the
             dashboard

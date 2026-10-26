@@ -1,5 +1,5 @@
 /**
- * @fileOverview TopUp Monitor - Polls Solana for incoming USDC deposits
+ * @fileOverview TopUp Monitor - Polls the chain for incoming USDC deposits
  *
  * This service runs at regular intervals to detect incoming USDC transfers
  * to platform wallets. When a transfer is detected, it creates a TopUp

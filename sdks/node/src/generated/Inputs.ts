@@ -2271,7 +2271,7 @@ export type PayInvoiceInput = {
   paid_out_of_band?: boolean | undefined;
   payment_method?: string | undefined;
   source?: string | undefined;
-  settlement_signature?: string | undefined;
+  settlement_transaction_hash?: string | undefined;
   expand?: string[] | undefined;
 };
 

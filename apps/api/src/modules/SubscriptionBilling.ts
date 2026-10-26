@@ -2,7 +2,7 @@
  * @fileOverview Subscription billing runner
  *
  * Finds due subscriptions, claims them atomically, creates cycle invoices (or
- * retries open invoices), collects via Invoice → PaymentIntent → Solana, then
+ * retries open invoices), collects via Invoice → PaymentIntent → chain, then
  * advances periods or marks past_due / unpaid.
  *
  * Safe for multi-instance deployments (Cloud Run) via billing_lock_until claims.

@@ -55,19 +55,21 @@ export interface ChargeOutcome {
 /**
  * Crypto payment method snapshot on a Charge.
  * Primary payment method details shape for Zoneless (on-chain USDC).
+ * `network` is the active rail's: `ethereum`, or `simulated` in simulated
+ * test mode.
  */
 export interface ChargePaymentMethodDetailsCrypto {
   buyer_address: string | null;
   fingerprint: string | null;
-  network: 'base' | 'ethereum' | 'polygon' | 'solana' | 'sui' | 'tempo' | null;
-  token_currency:
-    | 'phantom_cash'
-    | 'usdc'
-    | 'usdg'
-    | 'usdp'
-    | 'usdsui'
-    | 'usdt'
+  network:
+    | 'base'
+    | 'ethereum'
+    | 'polygon'
+    | 'simulated'
+    | 'sui'
+    | 'tempo'
     | null;
+  token_currency: 'usdc' | 'usdg' | 'usdp' | 'usdsui' | 'usdt' | null;
   transaction_hash: string | null;
 }
 

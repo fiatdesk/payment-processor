@@ -290,7 +290,7 @@ export interface CustomerSource {
   account_type: string | null;
   /** A set of available payout methods for this wallet. Only values from this set should be passed as the method when creating a payout. */
   available_payout_methods: ['standard' | 'instant'] | null;
-  /** @zoneless_extension Name of the wallet provider associated with the address (e.g., PHANTOM). Equivalent to Stripe's bank_name. */
+  /** @zoneless_extension Name of the wallet provider associated with the address (e.g., METAMASK). Equivalent to Stripe's bank_name. */
   bank_name: string | null;
   /** Two-letter ISO code representing the country the wallet's owner is located in. */
   country: string;

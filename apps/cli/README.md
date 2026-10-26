@@ -19,7 +19,7 @@ with `auth_url_required`.
 Or install once with `npm install --global @zoneless/cli` and replace
 `npx @zoneless/cli@latest` below with `zoneless`.
 
-The command generates a Solana wallet locally, opens a one-time authorization
+The command generates an Ethereum wallet locally, opens a one-time authorization
 flow, provisions live and test environments after human approval, saves API
 keys and the wallet secret in the operating-system credential store, and
 installs the `zoneless-payments` Agent Skill in the current project. Secrets are
@@ -96,7 +96,7 @@ npx @zoneless/cli@latest store init \
 `env sync` validates the selected profile, finds an unambiguous local env file
 or creates the framework-appropriate default, and updates
 `ZONELESS_API_URL`, `ZONELESS_API_KEY`, and, with `--include-wallet`,
-`SOLANA_SECRET_KEY`. It preserves unrelated values, adds the target to
+`WALLET_PRIVATE_KEY`. It preserves unrelated values, adds the target to
 `.gitignore`, sets owner-only permissions, and never prints secret values. Use
 `--target <path>` when the repository contains multiple env files. This command
 is for local development; continue to use the deployment secret manager for
@@ -173,12 +173,11 @@ npx @zoneless/cli@latest wallet backup \
   --output ~/secure-backups/zoneless-wallet.json
 ```
 
-The backup contains the private key in both its original base64 representation
-and an SDK-compatible `secretKeyBase58` field. For a server-side payout worker,
-place `secretKeyBase58` directly in the deployment secret manager as
-`SOLANA_SECRET_KEY`. The file is created with owner-only permissions; delete
-the temporary export securely after storing the secret, and never expose it to
-an agent.
+The backup contains the wallet `address` and its SDK-compatible `privateKey`
+(`0x` + 64 hex). For a server-side payout worker, place `privateKey` directly in
+the deployment secret manager as `WALLET_PRIVATE_KEY`. The file is created with
+owner-only permissions; delete the temporary export securely after storing the
+secret, and never expose it to an agent.
 
 Environment credentials remain supported for CI and self-hosted deployments:
 

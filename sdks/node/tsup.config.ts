@@ -12,5 +12,5 @@ export default defineConfig({
   minify: false,
   tsconfig: 'sdks/node/tsconfig.lib.json',
   noExternal: ['@zoneless/shared-types'],
-  external: ['@solana/web3.js', 'bs58'],
+  external: ['viem'],
 });

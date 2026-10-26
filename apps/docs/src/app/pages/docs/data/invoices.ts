@@ -3216,10 +3216,10 @@ const PAY_INVOICE_PARAMETERS: Attribute[] = [
       'A PaymentMethod to be charged. The PaymentMethod must belong to the customer associated with the invoice being paid.',
   },
   {
-    name: 'settlement_signature',
+    name: 'settlement_transaction_hash',
     type: 'string',
     description:
-      'When set, skip on-chain collect and record settlement with this Solana transaction signature (for example, when checkout already collected the first period).',
+      'When set, skip on-chain collect and record settlement with this transaction hash (for example, when checkout already collected the first period).',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },

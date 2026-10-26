@@ -4,7 +4,8 @@ import {
   publicEncrypt,
   randomBytes,
 } from 'node:crypto';
-import bs58 from 'bs58';
+import { isAddress } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import {
   AgentSetupService,
   GenerateWallet,
@@ -53,14 +54,12 @@ function EncryptCredentials(
 }
 
 describe('Agent setup', () => {
-  it('generates a valid Solana public and secret key pair', () => {
+  it('generates an Ethereum address and its private key', () => {
     const wallet = GenerateWallet();
 
-    expect(bs58.decode(wallet.publicKey)).toHaveLength(32);
-    expect(wallet.secretKey).toHaveLength(64);
-    expect(wallet.secretKey.subarray(32)).toEqual(
-      Buffer.from(bs58.decode(wallet.publicKey))
-    );
+    expect(wallet.privateKey).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(isAddress(wallet.address)).toBe(true);
+    expect(privateKeyToAccount(wallet.privateKey).address).toBe(wallet.address);
   });
 
   it('keeps generated secrets out of its result and saves both profiles', async () => {
@@ -92,7 +91,7 @@ describe('Agent setup', () => {
         };
         if (request.data['endpoint'] === 'CreateAgentAuthorization') {
           credentialPublicKey = String(request.data['credentialPublicKey']);
-          walletPublicKey = String(request.data['solanaPublicKey']);
+          walletPublicKey = String(request.data['walletAddress']);
           return JsonResponse({
             deviceCode: 'device-secret',
             expiresAt: Date.now() + 60_000,
@@ -165,9 +164,13 @@ describe('Agent setup', () => {
       'local-live': 'zk_live_secret',
       'local-test': 'zk_test_secret',
     });
+    const storedWallet = [...secrets.entries()].find(([account]) =>
+      account.startsWith('wallet:')
+    );
+    expect(storedWallet?.[0]).toBe(`wallet:${walletPublicKey}:secret-key`);
     expect(
-      [...secrets.keys()].some((account) => account.startsWith('wallet:'))
-    ).toBe(true);
+      privateKeyToAccount(storedWallet?.[1] as `0x${string}`).address
+    ).toBe(walletPublicKey);
   });
 
   it('reconnects without keeping or replacing the existing wallet secret', async () => {
@@ -197,7 +200,7 @@ describe('Agent setup', () => {
         };
         if (request.data['endpoint'] === 'CreateAgentAuthorization') {
           credentialPublicKey = String(request.data['credentialPublicKey']);
-          generatedWallet = String(request.data['solanaPublicKey']);
+          generatedWallet = String(request.data['walletAddress']);
           reconnectRequested = request.data['reconnect'] === true;
           return JsonResponse({
             deviceCode: 'device-secret',

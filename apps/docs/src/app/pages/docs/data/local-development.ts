@@ -69,11 +69,11 @@ export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
         {
           type: 'heading',
           level: 3,
-          text: 'Optional: test on-chain with Solana Devnet',
+          text: 'Optional: test on-chain with Sepolia',
         },
         {
           type: 'paragraph',
-          text: 'To exercise real Devnet transactions instead of simulated funds, set <code>LIVEMODE=false</code> and <code>SETTLEMENT_RAIL=onchain</code>. Then add test SOL from the <a href="https://faucet.solana.com/" target="_blank" rel="noopener noreferrer">Solana faucet</a> and test USDC from the <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Circle faucet</a> (select <strong>USDC</strong> and <strong>Solana Devnet</strong>). Do not send real SOL or USDC to a Devnet wallet.',
+          text: 'To exercise real Sepolia transactions instead of simulated funds, set <code>LIVEMODE=false</code>, <code>SETTLEMENT_RAIL=onchain</code> and <code>ETH_RPC_URL</code> (a Sepolia RPC URL). Then add test USDC from the <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Circle faucet</a> (select <strong>USDC</strong> and <strong>Ethereum Sepolia</strong>) and a little Sepolia ETH for gas. Do not send real ETH or USDC to a test wallet.',
           html: true,
         },
         {

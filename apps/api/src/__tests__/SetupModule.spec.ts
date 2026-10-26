@@ -19,7 +19,7 @@ jest.mock('../utils/Token', () => ({
   SignToken: jest.fn(() => 'login_token_test'),
 }));
 
-const WALLET_ADDRESS = 'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX';
+const WALLET_ADDRESS = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 function BuildRequest(overrides: Partial<SetupRequest> = {}): SetupRequest {
   return {
@@ -42,10 +42,22 @@ describe('SetupModule', () => {
       expect(() => ValidateSetupRequest(BuildRequest())).not.toThrow();
     });
 
-    it('should reject an invalid wallet_address', () => {
+    it('should accept an all-lowercase wallet_address', () => {
       expect(() =>
-        ValidateSetupRequest(BuildRequest({ wallet_address: 'short' }))
-      ).toThrow(/^wallet_address must be/);
+        ValidateSetupRequest(
+          BuildRequest({ wallet_address: WALLET_ADDRESS.toLowerCase() })
+        )
+      ).not.toThrow();
+    });
+
+    it.each([
+      ['a short value', 'short'],
+      ['a non-hex address', 'D8VMZCmmTUUfhejNhNQKAmqvZCKfUq1qU6RqQKxQwXyX'],
+      ['a bad checksum', '0x70997970c51812dc3A010C7d01b50e0d17dc79C8'],
+    ])('should reject %s', (_label, walletAddress) => {
+      expect(() =>
+        ValidateSetupRequest(BuildRequest({ wallet_address: walletAddress }))
+      ).toThrow('wallet_address must be a valid Ethereum address');
     });
   });
 
@@ -69,15 +81,20 @@ describe('SetupModule', () => {
         .mockResolvedValue({ plaintext_token: 'sk_test_z_1' } as never);
 
       const response = await module.CreatePlatformAccount(
-        BuildRequest({ wallet_address: `  ${WALLET_ADDRESS}  ` })
+        BuildRequest({ wallet_address: `  ${WALLET_ADDRESS.toLowerCase()}  ` })
       );
 
+      const walletInput = jest.mocked(
+        ExternalWalletModule.prototype.CreateExternalWallet
+      ).mock.calls[0][1];
       expect(
         ExternalWalletModule.prototype.CreateExternalWallet
       ).toHaveBeenCalledWith(
         'acct_z_platform',
         expect.objectContaining({ wallet_address: WALLET_ADDRESS })
       );
+      // The wallet module picks the network from the active rail.
+      expect(walletInput).not.toHaveProperty('network');
       expect(response).toEqual({
         object: 'setup_response',
         success: true,
