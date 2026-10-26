@@ -24,6 +24,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { foundry, mainnet, sepolia } from 'viem/chains';
 import {
   GetChainConfig as GetChainEnvironment,
+  ReloadRailSettingsForTests,
   type SupportedChainId,
 } from '../AppConfig';
 import { CHAIN_CONTRACTS, CHAIN_EXPLORERS } from './contracts';
@@ -81,7 +82,9 @@ export function ChainClientsGeneration(): number {
   return generation;
 }
 
+/** Re-reads the rail and chain env and drops every client built from it. */
 export function ResetChainClientsForTests(): void {
+  ReloadRailSettingsForTests();
   chainConfig = null;
   publicClient = null;
   generation += 1;

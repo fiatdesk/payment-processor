@@ -431,10 +431,12 @@ sdks/node/tsup.config.ts
 The repo now has a Foundry project in `contracts/` (Nx project `contracts`, targets `build` = `forge build` and `test` = `forge test -vv`; `solc 0.8.28`, EVM `cancun`, optimizer 200 runs). Dependencies are git submodules pinned to `forge-std` v1.9.4 and `openzeppelin-contracts` v5.1.0 (`contracts/foundry.lock` records the tags).
 
 - `PayoutBatch.disperse(token, recipients, amounts, batchId)` moves the caller's own tokens to up to 200 recipients in one all-or-nothing transaction (`SafeERC20.safeTransferFrom`) and emits `BatchPaid(payer, token, batchId, count, total)`. It rejects empty, mismatched or oversized batches, zero recipients and zero amounts. No owner, no state, no ETH handling. Nothing deploys it yet.
-- `MockUSDC` (test only, `contracts/test/mocks/`) mimics Circle's FiatTokenV2 on Anvil: name `USD Coin`, symbol `USDC`, 6 decimals, EIP-712 domain version `2`, EIP-2612 `permit`, EIP-3009 `transferWithAuthorization` / `receiveWithAuthorization` / `authorizationState` with `AuthorizationUsed`, and open `mint` / `blacklist` hooks with FiatTokenV2's revert strings (`Blacklistable: account is blacklisted`). It implements `permit` itself on `ERC20` + `EIP712` + `Nonces` because OpenZeppelin's `ERC20Permit` fixes the domain version to `1`.
-- `npx nx run api:test-anvil` (depends on `contracts:build`, never cached) runs `apps/api/src/__tests__/anvil/*.anvil.spec.ts` with `apps/api/jest.anvil.config.ts`. The harness starts `anvil` on a free port, deploys `MockUSDC` and `PayoutBatch` with Anvil account #0, mints 1,000,000 USDC to the platform (#1) and buyer (#2) wallets and points the chain env at it. The default `api:test` ignores `*.anvil.spec.ts`, so unit tests never need Foundry.
+- `MockUSDC` (test only, `contracts/test/mocks/`) mimics Circle's FiatTokenV2 on Anvil: name `USD Coin`, symbol `USDC`, 6 decimals, EIP-712 domain version `2`, EIP-2612 `permit`, EIP-3009 `transferWithAuthorization` / `receiveWithAuthorization` / `authorizationState` with `AuthorizationUsed`, and open `mint` / `blacklist` hooks with FiatTokenV2's revert strings (`Blacklistable: account is blacklisted`). It implements `permit` itself on `ERC20` + `EIP712` + `Nonces` because OpenZeppelin's `ERC20Permit` fixes the domain version to `1`. Its NatSpec lists the known gaps against FiatTokenV2_2, and `MockUSDC.anvil.spec.ts` pins the behaviour with viem-signed permits and authorizations.
+- `npx nx run api:test-anvil` (depends on `contracts:build`, never cached, fails when no spec runs) runs `apps/api/src/__tests__/anvil/*.anvil.spec.ts` with `apps/api/jest.anvil.config.ts`. The harness starts `anvil` on a free port, deploys `MockUSDC` and `PayoutBatch` with Anvil account #0, mints 1,000,000 USDC to the platform (#1) and buyer (#2) wallets and points the chain env at it. Importing the harness sets a 120 s Jest timeout. The default `api:test` ignores `*.anvil.spec.ts`, so unit tests never need Foundry.
+- `ResetChainClientsForTests()` now also calls the new `ReloadRailSettingsForTests()` (`AppConfig.ts`), which re-reads `LIVEMODE` and `SETTLEMENT_RAIL` into the memoised app config (keeping its app secret). A spec that read the config before switching the env to a chain therefore gets that chain's rail, and `StartAnvil()` throws if the API still resolves the simulated rail.
 - `PAYOUT_BATCH_ABI` (`apps/api/src/modules/chains/abi/PayoutBatch.ts`) is the contract ABI; a harness test fails if it drifts from the forge artifact.
-- CI installs Foundry (`foundry-rs/foundry-toolchain@v1`, `stable`) and checks out submodules in the `test` and `build` jobs, and the `test` job also runs `api:test-anvil`. `.nxignore` keeps the OpenZeppelin submodule's own `package.json` files out of the Nx project graph.
+- `apps/api/tsconfig.spec.json` targets `es2020`, so specs can use bigint literals.
+- CI installs Foundry (`foundry-rs/foundry-toolchain@v1`, pinned to `v1.5.1`) and checks out submodules in the `test` and `build` jobs, and the `test` job also runs `api:test-anvil`. `.nxignore` keeps the OpenZeppelin submodule's own `package.json` files out of the Nx project graph.
 
 Added:
 
@@ -445,6 +447,7 @@ apps/api/jest.anvil.config.ts
 apps/api/src/__tests__/anvil/Anvil.ts
 apps/api/src/__tests__/anvil/Artifacts.ts
 apps/api/src/__tests__/anvil/Harness.anvil.spec.ts
+apps/api/src/__tests__/anvil/MockUSDC.anvil.spec.ts
 apps/api/src/modules/chains/abi/PayoutBatch.ts
 contracts/README.md
 contracts/foundry.lock
@@ -468,5 +471,9 @@ Modified:
 CHANGES.md
 apps/api/jest.config.ts
 apps/api/project.json
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/chains/Chain.ts
+apps/api/tsconfig.spec.json
 eslint.config.mjs
 ```

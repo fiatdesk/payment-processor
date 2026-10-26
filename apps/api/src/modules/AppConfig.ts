@@ -110,6 +110,16 @@ function ResolveSettlementRail(livemode: boolean): SettlementRail {
   return 'simulated';
 }
 
+/** Live mode and settlement rail, after checking the private-key settings. */
+function ReadRailSettings(): Pick<AppConfig, 'livemode' | 'settlement_rail'> {
+  const livemode = process.env.LIVEMODE === 'true';
+
+  // Fail at startup rather than on the first on-chain call.
+  for (const name of PRIVATE_KEY_SETTINGS) ReadPrivateKey(name);
+
+  return { livemode, settlement_rail: ResolveSettlementRail(livemode) };
+}
+
 /**
  * Build the base config from environment variables.
  * appSecret will be empty until InitializeAppConfig is called (if not in env).
@@ -123,10 +133,6 @@ function BuildConfigFromEnv(): AppConfig {
   const paymentLinkUrl = NormalizeOrigin(
     process.env.PAYMENT_LINK_URL || checkoutUrl
   );
-  const livemode = process.env.LIVEMODE === 'true';
-
-  // Fail at startup rather than on the first on-chain call.
-  for (const name of PRIVATE_KEY_SETTINGS) ReadPrivateKey(name);
 
   return {
     mongodbUri:
@@ -136,8 +142,7 @@ function BuildConfigFromEnv(): AppConfig {
     checkoutUrl,
     paymentLinkUrl,
     appSecret: process.env.APP_SECRET || '',
-    livemode,
-    settlement_rail: ResolveSettlementRail(livemode),
+    ...ReadRailSettings(),
   };
 }
 
@@ -263,6 +268,16 @@ export function GetAppConfig(): AppConfig {
     config = BuildConfigFromEnv();
   }
   return config;
+}
+
+/**
+ * Test hook: re-reads LIVEMODE and SETTLEMENT_RAIL into the memoised config
+ * (the same object every caller holds), keeping its app secret. Called by
+ * ResetChainClientsForTests() so a spec that switches the env to a chain
+ * really gets that rail.
+ */
+export function ReloadRailSettingsForTests(): void {
+  if (config) Object.assign(config, ReadRailSettings());
 }
 
 /**

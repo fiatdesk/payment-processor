@@ -13,6 +13,8 @@ const OPERATOR_KEY =
 
 const ENV_KEYS = [
   'LIVEMODE',
+  'SETTLEMENT_RAIL',
+  'APP_SECRET',
   'ETH_CHAIN_ID',
   'ETH_RPC_URL',
   'ETH_CONFIRMATIONS',
@@ -79,6 +81,52 @@ describe('AppConfig', () => {
       jest.isolateModules(() => {
         const config = require('../modules/AppConfig');
         expect(() => config.GetAppConfig()).toThrow(/CHECKOUT_RELAYER_KEY/);
+      });
+    });
+  });
+
+  describe('ReloadRailSettingsForTests', () => {
+    it('lets ResetChainClientsForTests move a memoised simulated rail on-chain', () => {
+      jest.isolateModules(() => {
+        const appConfig: typeof import('../modules/AppConfig') = require('../modules/AppConfig');
+        const chain: typeof import('../modules/chains/Chain') = require('../modules/chains/Chain');
+        const settlement: typeof import('../modules/chains/Settlement') = require('../modules/chains/Settlement');
+        const {
+          Ethereum,
+        }: typeof import('../modules/chains/Ethereum') = require('../modules/chains/Ethereum');
+
+        const memoised = appConfig.GetAppConfig();
+        memoised.appSecret = 'secret-from-the-database';
+        expect(settlement.GetSettlement()).toBeInstanceOf(
+          settlement.SimulatedSettlement
+        );
+
+        process.env.SETTLEMENT_RAIL = 'onchain';
+        expect(settlement.IsSimulatedSettlement()).toBe(true);
+        chain.ResetChainClientsForTests();
+
+        expect(appConfig.GetAppConfig()).toBe(memoised);
+        expect(memoised).toMatchObject({
+          livemode: false,
+          settlement_rail: 'onchain',
+          appSecret: 'secret-from-the-database',
+        });
+        expect(settlement.GetSettlement()).toBeInstanceOf(Ethereum);
+      });
+    });
+
+    it('re-reads LIVEMODE into the memoised config', () => {
+      jest.isolateModules(() => {
+        const appConfig: typeof import('../modules/AppConfig') = require('../modules/AppConfig');
+        expect(appConfig.GetAppConfig().livemode).toBe(false);
+
+        process.env.LIVEMODE = 'true';
+        appConfig.ReloadRailSettingsForTests();
+
+        expect(appConfig.GetAppConfig()).toMatchObject({
+          livemode: true,
+          settlement_rail: 'onchain',
+        });
       });
     });
   });

@@ -4,7 +4,8 @@
  * chain, deploys MockUSDC and PayoutBatch with account #0, mints USDC to the
  * platform and buyer wallets and points the API's chain env at the chain.
  * Call it in `beforeAll` and `Stop()` in `afterAll`. Importing this module
- * also adds a file-level `afterAll` that stops any anvil still running.
+ * also sets a 120 s timeout for every test and hook in the spec file and adds
+ * a file-level `afterAll` that stops any anvil still running.
  */
 
 import { spawn, type ChildProcess } from 'child_process';
@@ -25,6 +26,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { ResetChainClientsForTests } from '../../modules/chains/Chain';
+import { IsSimulatedSettlement } from '../../modules/chains/Settlement';
 import { ReadArtifact, type ContractName } from './Artifacts';
 
 export interface AnvilContext {
@@ -69,6 +71,8 @@ const STOP_TIMEOUT_MS = 5_000;
 const POLLING_INTERVAL_MS = 50;
 
 const MINT_ABI = parseAbi(['function mint(address to, uint256 value)']);
+
+jest.setTimeout(120_000);
 
 /** Every anvil this test file started and has not seen exit. */
 const running = new Set<ChildProcess>();
@@ -140,6 +144,11 @@ export async function StartAnvil(): Promise<AnvilContext> {
     delete process.env.SUBSCRIPTIONS_ADDRESS;
     delete process.env.SANCTIONS_ORACLE_ADDRESS;
     ResetChainClientsForTests();
+    if (IsSimulatedSettlement()) {
+      throw new Error(
+        'StartAnvil: the API still resolves the simulated settlement rail after ResetChainClientsForTests()'
+      );
+    }
 
     const testClient = createTestClient({
       mode: 'anvil',

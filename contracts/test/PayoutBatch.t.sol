@@ -76,6 +76,27 @@ contract PayoutBatchTest is Test {
         batch.disperse(usdc, recipients, amounts, BATCH_ID);
     }
 
+    function testRevertsOnZeroRecipient() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(3, 1e6);
+        recipients[1] = address(0);
+
+        vm.expectRevert(PayoutBatch.ZeroRecipient.selector);
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+    }
+
+    function testRevertsOnZeroAmount() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(3, 1e6);
+        amounts[2] = 0;
+
+        vm.expectRevert(PayoutBatch.ZeroAmount.selector);
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+
+        assertEq(usdc.balanceOf(recipients[0]), 0);
+        assertEq(usdc.balanceOf(payer), 1_000_000e6);
+    }
+
     function testRevertsWhenAllowanceInsufficient() public {
         vm.prank(payer);
         usdc.approve(address(batch), 15e6);

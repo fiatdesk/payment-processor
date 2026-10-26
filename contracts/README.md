@@ -11,10 +11,10 @@ Solidity contracts for the Ethereum settlement rail, built with [Foundry](https:
 
 ## Setup
 
-Install Foundry, then fetch the submodules:
+Install Foundry 1.5.1 (the version CI pins), then fetch the submodules. OpenZeppelin's own nested submodules are not needed:
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init
 ```
 
 ## Build and test

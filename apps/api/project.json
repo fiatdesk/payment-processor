@@ -16,7 +16,8 @@
       "dependsOn": ["contracts:build"],
       "cache": false,
       "options": {
-        "jestConfig": "apps/api/jest.anvil.config.ts"
+        "jestConfig": "apps/api/jest.anvil.config.ts",
+        "passWithNoTests": false
       }
     },
     "prune-lockfile": {

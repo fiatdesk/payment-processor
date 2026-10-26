@@ -16,6 +16,15 @@ import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 /// anyone. Never deploy it outside a local test chain.
 /// @dev The permit logic mirrors OpenZeppelin's ERC20Permit, whose constructor
 /// fixes the EIP-712 version to "1"; FiatTokenV2 signs with version "2".
+/// Known gaps against FiatTokenV2_2:
+/// - An allowance of `type(uint256).max` is never decremented (OpenZeppelin's
+///   `_spendAllowance`); FiatToken decrements every allowance.
+/// - Balance and allowance failures revert with OpenZeppelin custom errors
+///   (`ERC20InsufficientBalance`, `ERC20InsufficientAllowance`, ...) instead of
+///   FiatToken's "ERC20: transfer amount exceeds ..." strings.
+/// - No `cancelAuthorization`, no `bytes signature` overloads and no EIP-1271
+///   (smart-contract wallet) signatures: only 65-byte EOA `v, r, s`.
+/// - No pause, no minter roles or allowances, no owner and no rescuer.
 contract MockUSDC is ERC20, IERC20Permit, EIP712, Nonces {
     bytes32 public constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
