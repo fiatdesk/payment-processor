@@ -73,7 +73,7 @@ describe('SubscriptionBillingModule', () => {
       platform_account: PLATFORM,
       status: 'active',
       collection_method: 'charge_automatically',
-      subscription_delegation_pda: 'SubPda111',
+      subscription_onchain_id: 'SubPda111',
       pause_collection: null,
       items: {
         object: 'list',
@@ -135,7 +135,7 @@ describe('SubscriptionBillingModule', () => {
       platform_account: PLATFORM,
       status: 'past_due',
       collection_method: 'charge_automatically',
-      subscription_delegation_pda: 'SubPda111',
+      subscription_onchain_id: 'SubPda111',
       items: { object: 'list', data: [] },
     };
 
@@ -179,7 +179,7 @@ describe('SubscriptionBillingModule', () => {
       platform_account: PLATFORM,
       status: 'past_due',
       collection_method: 'charge_automatically',
-      subscription_delegation_pda: 'SubPda111',
+      subscription_onchain_id: 'SubPda111',
       items: { object: 'list', data: [] },
     };
 
@@ -253,7 +253,7 @@ describe('SubscriptionBillingModule', () => {
       platform_account: PLATFORM,
       status: 'active',
       collection_method: 'charge_automatically',
-      subscription_delegation_pda: 'SubPda111',
+      subscription_onchain_id: 'SubPda111',
       pause_collection: null,
       cancel_at_period_end: true,
       cancel_at: now - 10,

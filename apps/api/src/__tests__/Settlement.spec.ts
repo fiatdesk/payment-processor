@@ -59,15 +59,20 @@ describe('SimulatedSettlement', () => {
   });
 
   it('builds and broadcasts a dummy payout without a chain', async () => {
-    await expect(
-      settlement.BuildBatchPayoutTransaction('Sender111', [
-        { destinationAddress: 'Dest111', amountInCents: 500 },
-      ])
-    ).resolves.toMatchObject({
+    const batch = await settlement.BuildBatchPayoutTransaction('Sender111', [
+      { destinationAddress: 'Dest111', amountInCents: 500 },
+    ]);
+    // Exact shape: no rail-specific extras now that broadcast needs none.
+    expect(batch).toEqual({
       unsigned_transaction: 'sim_tx',
-      // The payout broadcast schema still requires a positive block height.
-      solana: { last_valid_block_height: 1 },
+      estimated_fee: '0',
+      fee_currency: 'none',
+      chain_id: null,
+      nonce: null,
+      to: null,
       recipients_count: 1,
+      transaction_type: 'payout',
+      batch_id: null,
     });
     await expect(
       settlement.BroadcastSignedTransaction('sim_tx')

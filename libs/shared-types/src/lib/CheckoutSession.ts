@@ -469,8 +469,8 @@ export interface CheckoutSession {
    * @zoneless_extension
    */
   payment_details?: {
-    /** The Solana transaction signature of the payment. Null after prepare, before confirm. */
-    transaction_signature: string | null;
+    /** Hash of the payment transaction. Null after prepare, before confirm. */
+    transaction_hash: string | null;
     /** The customer wallet that paid / subscribed. */
     payer_wallet: string | null;
   } | null;
@@ -488,8 +488,8 @@ export interface CheckoutSession {
     network: string;
     /** The currency the wallet receives. */
     currency: string;
-    /** The USDC mint address for the active network. */
-    usdc_mint: string;
+    /** The USDC token address on the active settlement rail. */
+    token_address: string;
   } | null;
 
   /**

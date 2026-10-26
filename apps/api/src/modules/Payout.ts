@@ -676,10 +676,13 @@ export class PayoutModule {
     return {
       object: 'payout_batch_build',
       unsigned_transaction: transactionData.unsigned_transaction,
-      estimated_fee_lamports: Number(transactionData.estimated_fee),
-      blockhash: transactionData.solana?.blockhash ?? '',
-      last_valid_block_height:
-        transactionData.solana?.last_valid_block_height ?? 0,
+      estimated_fee: transactionData.estimated_fee,
+      fee_currency: transactionData.fee_currency,
+      chain_id: transactionData.chain_id,
+      nonce: transactionData.nonce,
+      to: transactionData.to,
+      transaction_type: transactionData.transaction_type,
+      batch_id: transactionData.batch_id,
       payouts,
       total_amount: totalAmount,
       recipients_count: transactionData.recipients_count,
@@ -799,7 +802,7 @@ export class PayoutModule {
 
     return {
       object: 'payout_batch_broadcast',
-      signature: result.transaction_hash,
+      transaction_hash: result.transaction_hash,
       // Anything short of paid was refunded above.
       status: result.status === 'paid' ? 'paid' : 'failed',
       viewer_url: result.viewer_url,

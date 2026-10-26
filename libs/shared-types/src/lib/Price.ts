@@ -93,11 +93,11 @@ export interface Price {
    */
   platform_account: string;
   /**
-   * @zoneless_extension Solana subscriptions program plan PDA for this recurring price.
+   * @zoneless_extension On-chain subscription plan id for this recurring price.
    * Set by the API when the on-chain plan is created; not customer-editable.
    * Null for one-time prices or before plan creation succeeds.
    */
-  subscription_plan_pda: string | null;
+  subscription_plan_id: string | null;
 }
 
 export interface PriceTier {

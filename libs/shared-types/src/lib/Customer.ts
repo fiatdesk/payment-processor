@@ -272,7 +272,7 @@ export interface CustomerSourceList {
 
 /**
  * A payment source attached to a customer.
- * @remarks Zoneless customers pay from linked Solana wallets rather than bank accounts, so
+ * @remarks Zoneless customers pay from linked crypto wallets rather than bank accounts, so
  * this shape mirrors Stripe's bank account source with wallet-specific field meanings noted below.
  */
 export interface CustomerSource {
@@ -286,7 +286,7 @@ export interface CustomerSource {
   account_holder_name: string | null;
   /** The type of entity that holds the account. This can be either individual or company. */
   account_holder_type: 'individual' | 'company' | null;
-  /** @zoneless_extension The Solana account type. Equivalent to Stripe's bank account_type. */
+  /** @zoneless_extension The wallet account type. Equivalent to Stripe's bank account_type. */
   account_type: string | null;
   /** A set of available payout methods for this wallet. Only values from this set should be passed as the method when creating a payout. */
   available_payout_methods: ['standard' | 'instant'] | null;
@@ -304,7 +304,7 @@ export interface CustomerSource {
   last4: string;
   /** Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. */
   metadata: Record<string, string> | null;
-  /** @zoneless_extension Not applicable to Solana wallets; retained for Stripe API parity. */
+  /** @zoneless_extension Not applicable to crypto wallets; retained for Stripe API parity. */
   routing_number: string | null;
   /**
    * For wallets, possible values are new, validated, verified, verification_failed,

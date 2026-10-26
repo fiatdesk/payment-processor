@@ -773,7 +773,7 @@ describe('InvoiceModule', () => {
           return {
             id: 'sub_z_1',
             platform_account: PLATFORM,
-            subscription_delegation_pda: 'SubPda_1',
+            subscription_onchain_id: 'SubPda_1',
             default_payment_method: 'Wallet111',
             metadata: {},
           };
@@ -782,7 +782,7 @@ describe('InvoiceModule', () => {
           return {
             id: 'price_z_1',
             platform_account: PLATFORM,
-            subscription_plan_pda: 'PlanPda_1',
+            subscription_plan_id: 'PlanPda_1',
           };
         }
         return null;

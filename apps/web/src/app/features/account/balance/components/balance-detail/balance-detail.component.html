@@ -17,9 +17,10 @@
 
     @if (!IsSimulatedSettlement()) {
     <div class="panel-row">
-      <span class="panel-label">SOL</span>
+      <span class="panel-label">{{ GetNativeCurrency() }}</span>
       <span class="panel-value balance-value"
-        >{{ GetWalletSol() }} <span class="currency-tag">SOL</span></span
+        >{{ GetWalletNative() }}
+        <span class="currency-tag">{{ GetNativeCurrency() }}</span></span
       >
     </div>
     }

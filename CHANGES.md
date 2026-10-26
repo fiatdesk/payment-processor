@@ -174,3 +174,89 @@ apps/api/src/modules/chains/Solana.ts
 apps/api/src/routes/config.routes.ts
 libs/shared-types/src/lib/Config.ts
 ```
+
+## Task 5: Chain-neutral public API field names
+
+Every externally visible Solana-shaped field is renamed once, while Solana still produces the values, across the API, shared types and schemas, web, Node SDK and docs. The legacy mappings added in Task 4 are gone: the API exposes the rail's chain-neutral fields directly.
+
+| Before                                                                                                                                        | After                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PayoutBatchBuildResponse.estimated_fee_lamports`, `.blockhash`, `.last_valid_block_height`                                                   | `.estimated_fee` (string, atomic units), `.fee_currency`, `.chain_id`, `.nonce`, `.to`, `.transaction_type`, `.batch_id`                        |
+| `PayoutBatchBroadcastResponse.signature`, `ProcessPendingResult.signature`                                                                    | `.transaction_hash`; the `status` type gains `'pending'` (no rail returns it yet; broadcast still reports anything short of `paid` as `failed`) |
+| `BroadcastPayoutsBatchSchema.blockhash`, `.last_valid_block_height`                                                                           | removed                                                                                                                                         |
+| Checkout prepare response `estimated_fee_lamports`, `blockhash`, `last_valid_block_height`, `min_context_slot`, `subscription_delegation_pda` | `estimated_fee`, `fee_currency`, `chain_id`, `nonce`, `to`, optional rail-specific sub-object, `subscription_onchain_id`                        |
+| Checkout confirm body `signature`, `subscription_delegation_pda`                                                                              | `transaction_hash`, `subscription_onchain_id`                                                                                                   |
+| `CheckoutSession.payment_details.transaction_signature`                                                                                       | `.transaction_hash` (Mongo field path too; `GetCheckoutSessionByTransactionHash`)                                                               |
+| `CheckoutSession.merchant_wallet.usdc_mint`                                                                                                   | `.token_address`                                                                                                                                |
+| `Price.subscription_plan_pda`                                                                                                                 | `.subscription_plan_id`                                                                                                                         |
+| `Subscription.subscription_delegation_pda`                                                                                                    | `.subscription_onchain_id` (`SetSubscriptionOnchainId`)                                                                                         |
+| `SetupRequest/SetupResponse.solana_public_key`                                                                                                | `.wallet_address`                                                                                                                               |
+| `BalanceDetails.wallet_sol`                                                                                                                   | `.wallet_native` + `.native_currency`                                                                                                           |
+
+There is no migration: databases created by upstream Zoneless, or by this fork before this change, are incompatible (stored `payment_details.transaction_signature`, `subscription_plan_pda` and `subscription_delegation_pda` values are no longer read).
+
+The simulated rail no longer attaches placeholder blockhash data to its unsigned transactions; the broadcast schema that needed it dropped those fields.
+
+Added:
+
+- `apps/api/src/__tests__/SetupModule.spec.ts`
+- `sdks/node/src/__tests__/Payouts.spec.ts`
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/Balance.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/CheckoutSession.spec.ts
+apps/api/src/__tests__/Invoice.spec.ts
+apps/api/src/__tests__/PaymentLink.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Price.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/Subscription.spec.ts
+apps/api/src/__tests__/SubscriptionBilling.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/Balance.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/CheckoutSession.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/Price.ts
+apps/api/src/modules/Setup.ts
+apps/api/src/modules/Subscription.ts
+apps/api/src/modules/SubscriptionBilling.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/api/src/routes/payouts.routes.ts
+apps/api/src/routes/setup.routes.ts
+apps/docs/src/app/pages/docs/data/billing.ts
+apps/docs/src/app/pages/docs/data/build-a-marketplace.ts
+apps/docs/src/app/pages/docs/data/checkout-sessions.ts
+apps/docs/src/app/pages/docs/data/payouts.ts
+apps/docs/src/app/pages/docs/data/prices.ts
+apps/docs/src/app/pages/docs/data/subscriptions.ts
+apps/web/src/app/data/services/checkout-session.service.ts
+apps/web/src/app/features/account/balance/components/balance-detail/balance-detail.component.html
+apps/web/src/app/features/account/balance/components/balance-detail/balance-detail.component.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.ts
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/setup/setup.component.html
+apps/web/src/app/features/setup/setup.component.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
+libs/shared-schemas/src/lib/PayoutSchema.ts
+libs/shared-schemas/src/lib/PriceSchema.ts
+libs/shared-types/src/lib/Balance.ts
+libs/shared-types/src/lib/Charge.ts
+libs/shared-types/src/lib/CheckoutSession.ts
+libs/shared-types/src/lib/Config.ts
+libs/shared-types/src/lib/Customer.ts
+libs/shared-types/src/lib/Invoice.ts
+libs/shared-types/src/lib/InvoicePayment.ts
+libs/shared-types/src/lib/Payout.ts
+libs/shared-types/src/lib/Price.ts
+libs/shared-types/src/lib/Subscription.ts
+sdks/node/src/generated/Inputs.ts
+sdks/node/src/resources/Payouts.ts
+```

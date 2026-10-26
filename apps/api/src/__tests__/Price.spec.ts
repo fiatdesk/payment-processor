@@ -74,7 +74,7 @@ describe('PriceModule', () => {
       expect(price.tax_behavior).toBe('exclusive');
       expect(price.billing_scheme).toBe('per_unit');
       expect(price.currency_options).toEqual({ usdc: { unit_amount: 1000 } });
-      expect(price.subscription_plan_pda).toBeNull();
+      expect(price.subscription_plan_id).toBeNull();
     });
 
     it('should accept provided input fields', () => {

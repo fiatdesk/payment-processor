@@ -19,8 +19,10 @@ export interface BalanceDetails {
   object: 'balance_details';
   /** USDC balance held in the on-chain wallet (human-readable, e.g. 100.50) */
   wallet_usdc: number;
-  /** SOL balance held in the on-chain wallet (human-readable, e.g. 0.05) */
-  wallet_sol: number;
+  /** Native-currency balance held in the on-chain wallet (human-readable, e.g. 0.05) */
+  wallet_native: number;
+  /** Currency of `wallet_native`, from the active settlement rail (`none` when simulated) */
+  native_currency: string;
   /** Total available balance across all connected accounts (in cents) */
   connected_accounts_owed: number;
   /** Platform's own available balance from the internal ledger (in cents) */

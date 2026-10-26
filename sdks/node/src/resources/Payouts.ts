@@ -71,7 +71,7 @@ export class Payouts extends BaseResource {
    * const buildResult = await zoneless.payouts.build({
    *   payouts: ['po_z123', 'po_z456', 'po_z789']
    * });
-   * console.log(buildResult.unsigned_transaction); // Base64 transaction
+   * console.log(buildResult.unsigned_transaction); // Serialized unsigned transaction
    * ```
    *
    * @see /payouts/build
@@ -88,12 +88,12 @@ export class Payouts extends BaseResource {
   }
 
   /**
-   * Broadcast a signed batch payout transaction to the Solana network.
+   * Broadcast a signed batch payout transaction to the settlement network.
    * Updates all included payouts to 'paid' or 'failed' status.
    *
    * @param params - Object containing the signed transaction and payout IDs
    * @param options - Optional request options
-   * @returns Broadcast result with transaction signature and updated payouts
+   * @returns Broadcast result with the transaction hash and updated payouts
    *
    * @example
    * ```typescript
@@ -101,7 +101,7 @@ export class Payouts extends BaseResource {
    *   signed_transaction: signedTxBase64,
    *   payouts: ['po_z123', 'po_z456', 'po_z789']
    * });
-   * console.log(result.signature); // Solana transaction signature
+   * console.log(result.transaction_hash);
    * ```
    *
    * @see /payouts/broadcast
@@ -131,7 +131,7 @@ export class Payouts extends BaseResource {
    * @param options - Optional configuration
    * @param options.limit - Maximum number of payouts to process (default: 10, max: 10)
    * @param options.requestOptions - Additional request options
-   * @returns Result containing transaction signature, processed payouts, and has_more flag
+   * @returns Result containing the transaction hash, processed payouts, and has_more flag
    *
    * @example
    * ```typescript
@@ -164,7 +164,7 @@ export class Payouts extends BaseResource {
 
     if (pendingPayouts.data.length === 0) {
       return {
-        signature: '',
+        transaction_hash: '',
         status: 'paid',
         viewer_url: '',
         payouts: [],
@@ -187,19 +187,17 @@ export class Payouts extends BaseResource {
       secretKey
     );
 
-    // Step 4: Broadcast the signed transaction (pass blockhash to avoid redundant RPC call)
+    // Step 4: Broadcast the signed transaction
     const broadcastResult = await this.broadcast(
       {
         signed_transaction: signedTransaction,
         payouts: payoutIds,
-        blockhash: buildResult.blockhash,
-        last_valid_block_height: buildResult.last_valid_block_height,
       },
       requestOptions
     );
 
     return {
-      signature: broadcastResult.signature,
+      transaction_hash: broadcastResult.transaction_hash,
       status: broadcastResult.status,
       viewer_url: broadcastResult.viewer_url,
       payouts: broadcastResult.payouts,

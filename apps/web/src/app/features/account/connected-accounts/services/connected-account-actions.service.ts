@@ -694,8 +694,6 @@ export class ConnectedAccountActionsService {
     return this.payoutService.BroadcastPayoutsBatch({
       signed_transaction: signedTransaction,
       payouts: buildResult.payouts.map((payout) => payout.id),
-      blockhash: buildResult.blockhash,
-      last_valid_block_height: buildResult.last_valid_block_height,
     });
   }
 

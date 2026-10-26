@@ -391,7 +391,7 @@ export class CheckoutComponent implements OnInit {
         payerWallet,
         (prepared) =>
           this.ConfirmPreparedPayment(session, prepared, {
-            signature: `sim_sig:${prepared.checkout_session}:${payerWallet}`,
+            transaction_hash: `sim_sig:${prepared.checkout_session}:${payerWallet}`,
           })
       );
       this.CompletePayment(completedSession);
@@ -602,7 +602,7 @@ export class CheckoutComponent implements OnInit {
     this.paymentPhase.set('processing');
     return this.checkoutSessionService.ConfirmPayment(session.url_slug, {
       already_subscribed: true,
-      subscription_delegation_pda: prepared.subscription_delegation_pda,
+      subscription_onchain_id: prepared.subscription_onchain_id,
     });
   }
 
@@ -730,7 +730,7 @@ export class CheckoutComponent implements OnInit {
         chain
       );
     return this.ConfirmPreparedPayment(session, prepared, {
-      signature: bs58.encode(signatureBytes),
+      transaction_hash: bs58.encode(signatureBytes),
     });
   }
 
@@ -751,17 +751,17 @@ export class CheckoutComponent implements OnInit {
 
     const signatureBytes = await mobileWallet.SignAndSendUnsignedTransaction(
       prepared.unsigned_transaction,
-      prepared.min_context_slot
+      prepared.solana?.min_context_slot ?? 0
     );
     return this.ConfirmPreparedPayment(session, prepared, {
-      signature: bs58.encode(signatureBytes),
+      transaction_hash: bs58.encode(signatureBytes),
     });
   }
 
   private ConfirmPreparedPayment(
     session: CheckoutSession,
     prepared: CheckoutPaymentTransaction,
-    confirmation: { signature: string } | { signed_transaction: string }
+    confirmation: { transaction_hash: string } | { signed_transaction: string }
   ): Promise<CheckoutSession> {
     this.paymentPhase.set('processing');
     return this.checkoutSessionService.ConfirmPayment(session.url_slug, {

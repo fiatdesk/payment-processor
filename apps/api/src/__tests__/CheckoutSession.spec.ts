@@ -62,7 +62,7 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     transform_quantity: null,
     unit_amount_decimal: '1000',
     platform_account: 'acct_z_platform',
-    subscription_plan_pda: null,
+    subscription_plan_id: null,
     ...overrides,
   };
 }
@@ -787,7 +787,7 @@ describe('CheckoutSessionModule', () => {
         payment_status: 'paid' as const,
         url: null,
         payment_details: {
-          transaction_signature: 'sig_abc',
+          transaction_hash: 'sig_abc',
           payer_wallet: 'payer_wallet_1',
         },
       };
@@ -797,7 +797,7 @@ describe('CheckoutSessionModule', () => {
         .mockResolvedValueOnce(completedSession);
 
       const result = await module.CompleteCheckoutSession(openSession.id, {
-        transaction_signature: 'sig_abc',
+        transaction_hash: 'sig_abc',
         payer_wallet: 'payer_wallet_1',
       });
 
@@ -809,7 +809,7 @@ describe('CheckoutSessionModule', () => {
           payment_status: 'paid',
           url: null,
           payment_details: {
-            transaction_signature: 'sig_abc',
+            transaction_hash: 'sig_abc',
             payer_wallet: 'payer_wallet_1',
           },
         }
@@ -820,6 +820,40 @@ describe('CheckoutSessionModule', () => {
         completedSession
       );
       expect(result).toEqual(completedSession);
+    });
+  });
+
+  describe('GetCheckoutSessionByTransactionHash', () => {
+    it('should look up sessions by payment_details.transaction_hash', async () => {
+      const completedSession = {
+        ...BuildOpenSession(),
+        status: 'complete' as const,
+        payment_details: {
+          transaction_hash: 'tx_hash_1',
+          payer_wallet: 'payer_wallet_1',
+        },
+      };
+      mockDb.FindCustom = jest.fn().mockResolvedValue([completedSession]);
+
+      const result = await module.GetCheckoutSessionByTransactionHash(
+        'tx_hash_1'
+      );
+
+      expect(mockDb.FindCustom).toHaveBeenCalledWith(
+        'CheckoutSessions',
+        'payment_details.transaction_hash',
+        '==',
+        'tx_hash_1'
+      );
+      expect(result).toEqual(completedSession);
+    });
+
+    it('should return null when no session recorded the hash', async () => {
+      mockDb.FindCustom = jest.fn().mockResolvedValue([]);
+
+      await expect(
+        module.GetCheckoutSessionByTransactionHash('tx_hash_unknown')
+      ).resolves.toBeNull();
     });
   });
 

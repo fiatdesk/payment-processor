@@ -153,7 +153,7 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Automatic collection only runs for subscriptions that have a <code>subscription_delegation_pda</code>, use <code>collection_method=charge_automatically</code>, are not paused, and are in <code>active</code>, <code>past_due</code>, or (after trial end) <code>trialing</code>.',
+          text: 'Automatic collection only runs for subscriptions that have a <code>subscription_onchain_id</code>, use <code>collection_method=charge_automatically</code>, are not paused, and are in <code>active</code>, <code>past_due</code>, or (after trial end) <code>trialing</code>.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

@@ -321,17 +321,14 @@
               type="button"
               class="copy-button"
               (click)="
-                CopyToClipboard(
-                  setupResult()!.solana_public_key,
-                  'solana_public'
-                )
+                CopyToClipboard(setupResult()!.wallet_address, 'wallet_address')
               "
             >
-              {{ copiedField() === 'solana_public' ? 'Copied' : 'Copy' }}
+              {{ copiedField() === 'wallet_address' ? 'Copied' : 'Copy' }}
             </button>
           </div>
           <div class="credential-value mono">
-            {{ setupResult()!.solana_public_key }}
+            {{ setupResult()!.wallet_address }}
           </div>
           <span class="credential-help">
             Send USDC to this address to fund your balance.

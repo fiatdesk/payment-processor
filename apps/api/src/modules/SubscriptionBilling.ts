@@ -222,7 +222,7 @@ export class SubscriptionBillingModule {
 
   private CanAutoCollect(subscription: SubscriptionType): boolean {
     if (
-      !subscription.subscription_delegation_pda ||
+      !subscription.subscription_onchain_id ||
       subscription.collection_method !== 'charge_automatically' ||
       subscription.pause_collection
     ) {

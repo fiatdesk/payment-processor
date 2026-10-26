@@ -34,7 +34,8 @@ export interface AppConfig {
   livemode: boolean;
   /**
    * How test mode settles money. Live mode is always `onchain`.
-   * `simulated` (test default) uses fake funds; `onchain` uses Solana.
+   * `simulated` (test default) uses fake funds; `onchain` settles on the
+   * configured chain.
    */
   settlement_rail: SettlementRail;
 }
@@ -83,7 +84,7 @@ export interface SetupStatus {
   object: 'setup_status';
   /** Whether setup is available (true = can create new platform) */
   needs_setup: boolean;
-  /** Whether a Solana wallet has been configured (for platforms) */
+  /** Whether a wallet has been configured (for platforms) */
   has_wallet: boolean;
   /** Whether the authenticated user is a connected account (should redirect away from setup) */
   is_connected_account?: boolean;
@@ -109,8 +110,8 @@ export interface SetupRequest {
   platform_url?: string;
   /** Country code for the platform (optional, defaults to 'US') */
   country?: string;
-  /** Solana wallet public key (required - generated in browser or existing wallet) */
-  solana_public_key: string;
+  /** Platform wallet address (required - generated in browser or existing wallet) */
+  wallet_address: string;
 }
 
 /**
@@ -124,8 +125,8 @@ export interface SetupResponse {
   api_key: string;
   /** The platform account ID */
   platform_account_id: string;
-  /** The Solana wallet public key */
-  solana_public_key: string;
+  /** The platform wallet address */
+  wallet_address: string;
   /** JWT token for immediate dashboard access */
   login_token: string;
 }
@@ -136,7 +137,7 @@ export interface SetupResponse {
  */
 export interface DepositInfo {
   object: 'deposit_info';
-  /** The Solana wallet address to send USDC to */
+  /** The wallet address to send USDC to */
   wallet_address: string;
   /** The network to use, from the active settlement rail */
   network: string;

@@ -14,13 +14,17 @@ export interface CheckoutPaymentTransaction {
   currency: string | null;
   merchant_wallet_address: string;
   unsigned_transaction: string;
-  estimated_fee_lamports: number;
-  blockhash: string;
-  last_valid_block_height: number;
-  min_context_slot: number;
+  /** Atomic units of `fee_currency`, as a decimal string */
+  estimated_fee: string;
+  fee_currency: string;
+  chain_id: number | null;
+  nonce: number | null;
+  to: string | null;
+  /** Rail-specific signing hints; only the current rail sends them. */
+  solana?: { min_context_slot: number };
   fee_sponsored?: boolean;
   already_subscribed?: boolean;
-  subscription_delegation_pda?: string;
+  subscription_onchain_id?: string;
   subscription_step?: 'init_authority' | 'subscribe';
 }
 
@@ -172,15 +176,15 @@ export class CheckoutSessionService {
   /**
    * Confirm a checkout transaction. Fee-sponsored flows pass
    * `signed_transaction` for the API to validate and broadcast; buyer-pays
-   * flows pass `signature` after the wallet has already sent the tx.
+   * flows pass `transaction_hash` after the wallet has already sent the tx.
    */
   async ConfirmPayment(
     urlSlug: string,
     payload: {
-      signature?: string;
+      transaction_hash?: string;
       signed_transaction?: string;
       already_subscribed?: boolean;
-      subscription_delegation_pda?: string;
+      subscription_onchain_id?: string;
       subscription_step?: 'init_authority' | 'subscribe';
     }
   ): Promise<CheckoutSession> {

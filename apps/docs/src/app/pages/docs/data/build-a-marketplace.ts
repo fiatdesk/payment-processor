@@ -420,9 +420,7 @@ curl "$ZONELESS_API_URL/v1/payouts/broadcast" \\
   -H "Content-Type: application/json" \\
   -d '{
     "signed_transaction": "<base64-signed-tx>",
-    "payouts": ["po_z_1234..."],
-    "blockhash": "<blockhash-from-build>",
-    "last_valid_block_height": 158436852
+    "payouts": ["po_z_1234..."]
   }'`,
             },
           ],

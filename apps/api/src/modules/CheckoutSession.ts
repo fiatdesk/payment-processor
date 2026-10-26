@@ -659,7 +659,7 @@ export class CheckoutSessionModule {
   async CompleteCheckoutSession(
     id: string,
     paymentDetails: {
-      transaction_signature: string;
+      transaction_hash: string;
       payer_wallet: string | null;
     },
     options?: {
@@ -874,20 +874,20 @@ export class CheckoutSessionModule {
 
   /**
    * Find the checkout session that recorded a given payment transaction
-   * signature. Used to prevent the same on-chain payment from completing
-   * more than one session.
+   * hash. Used to prevent the same on-chain payment from completing more
+   * than one session.
    *
-   * @param signature - The Solana transaction signature
-   * @returns The CheckoutSession if one recorded this signature, null otherwise
+   * @param transactionHash - The payment transaction hash
+   * @returns The CheckoutSession if one recorded this hash, null otherwise
    */
-  async GetCheckoutSessionByTransactionSignature(
-    signature: string
+  async GetCheckoutSessionByTransactionHash(
+    transactionHash: string
   ): Promise<CheckoutSessionType | null> {
     const sessions = await this.db.FindCustom<CheckoutSessionType>(
       'CheckoutSessions',
-      'payment_details.transaction_signature',
+      'payment_details.transaction_hash',
       '==',
-      signature
+      transactionHash
     );
     return sessions?.[0] ?? null;
   }

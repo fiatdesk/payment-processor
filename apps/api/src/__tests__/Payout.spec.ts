@@ -251,11 +251,16 @@ describe('PayoutModule', () => {
       expect(result).toMatchObject({
         object: 'payout_batch_build',
         unsigned_transaction: 'base64tx',
-        estimated_fee_lamports: 5000,
-        blockhash: 'blockhash123',
-        last_valid_block_height: 100000,
+        estimated_fee: expect.any(String),
+        fee_currency: expect.any(String),
+        chain_id: null,
+        nonce: null,
+        to: null,
+        transaction_type: 'payout',
+        batch_id: null,
         recipients_count: 1,
       });
+      expect(result).not.toHaveProperty('estimated_fee_lamports');
       expect(mockDb.Update).not.toHaveBeenCalled();
     });
   });
@@ -300,10 +305,11 @@ describe('PayoutModule', () => {
       );
       expect(result).toMatchObject({
         object: 'payout_batch_broadcast',
-        signature: 'sig123',
+        transaction_hash: 'sig123',
         status: 'paid',
         viewer_url: 'https://solscan.io/tx/sig123',
       });
+      expect(result).not.toHaveProperty('signature');
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Payouts',
         'po_z_1',

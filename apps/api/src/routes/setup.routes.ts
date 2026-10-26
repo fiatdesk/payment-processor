@@ -210,9 +210,7 @@ router.post(
     console.log(`║  Platform Name: ${body.platform_name.padEnd(45)}║`);
     console.log(`║  Account ID: ${response.platform_account_id.padEnd(48)}║`);
     console.log(
-      `║  Solana Wallet: ${response.solana_public_key
-        .substring(0, 44)
-        .padEnd(45)}║`
+      `║  Wallet: ${response.wallet_address.substring(0, 51).padEnd(51)}║`
     );
     console.log(
       '╠════════════════════════════════════════════════════════════════╣'

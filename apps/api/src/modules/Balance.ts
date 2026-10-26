@@ -189,8 +189,8 @@ export class BalanceModule {
 
   /**
    * Retrieves a detailed balance view for a platform account.
-   * Combines on-chain wallet balances (USDC + SOL) with internal ledger data
-   * and the total owed to connected accounts.
+   * Combines on-chain wallet balances (USDC + the rail's native currency)
+   * with internal ledger data and the total owed to connected accounts.
    *
    * @param platformAccountId - The platform account ID
    * @returns Detailed balance breakdown or null if no wallet/balance found
@@ -207,7 +207,7 @@ export class BalanceModule {
     if (!wallet) return null;
 
     const settlement = GetSettlement();
-    const [walletUsdc, walletSol, platformBalance, connectedOwed] =
+    const [walletUsdc, walletNative, platformBalance, connectedOwed] =
       await Promise.all([
         IsSimulatedSettlement()
           ? Promise.resolve(0)
@@ -228,7 +228,8 @@ export class BalanceModule {
     return {
       object: 'balance_details',
       wallet_usdc: IsSimulatedSettlement() ? available / 100 : walletUsdc,
-      wallet_sol: walletSol,
+      wallet_native: walletNative,
+      native_currency: settlement.Describe().native_currency,
       connected_accounts_owed: connectedOwed,
       platform_available: available,
       platform_pending: pending,

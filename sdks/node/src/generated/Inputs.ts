@@ -11,8 +11,6 @@ export interface MarketingFeature {
 export type BroadcastPayoutsBatchInput = {
   signed_transaction: string;
   payouts: string[];
-  blockhash?: string | undefined;
-  last_valid_block_height?: number | undefined;
 };
 
 export type BuildPayoutsBatchInput = { payouts: string[] };

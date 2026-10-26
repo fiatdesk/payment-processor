@@ -436,7 +436,7 @@ const CheckoutSessionPaymentMethodOptionsSchema = z.object({
 const CheckoutSessionWalletOptionsSchema = z.object({
   /**
    * @remarks Stripe's only wallet option here is Link, which has no Zoneless equivalent since
-   * Zoneless connects Solana wallets directly rather than a Stripe-hosted wallet product.
+   * Zoneless connects crypto wallets directly rather than a Stripe-hosted wallet product.
    * Retained for API parity.
    */
   link: z

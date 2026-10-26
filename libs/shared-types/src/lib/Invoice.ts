@@ -20,7 +20,7 @@ import type { Subscription } from './Subscription';
 /**
  * Stripe-compatible Invoice object for Zoneless.
  * Represents a statement of amounts owed by a customer, covering one-off charges and
- * subscription billing cycles. Settled in USDC on Solana.
+ * subscription billing cycles. Settled in on-chain USDC.
  *
  * @see https://docs.stripe.com/api/invoices/object
  */

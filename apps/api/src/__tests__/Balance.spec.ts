@@ -7,6 +7,7 @@ import {
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
+import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -21,6 +22,11 @@ jest.mock('../modules/AppConfig', () => ({
     livemode: false,
     appSecret: 'test-secret',
   })),
+}));
+const mockSettlement = CreateMockSettlement();
+jest.mock('../modules/chains/Settlement', () => ({
+  GetSettlement: () => mockSettlement,
+  IsSimulatedSettlement: jest.fn(() => false),
 }));
 
 describe('BalanceModule', () => {
@@ -86,6 +92,46 @@ describe('BalanceModule', () => {
       mockDb.Find = jest.fn().mockResolvedValue([]);
       const result = await module.GetBalance('acct_z_missing');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('GetBalanceDetails', () => {
+    it("should report the wallet's native balance and the rail's native currency", async () => {
+      mockDb.Find2Custom = jest.fn().mockResolvedValue([
+        {
+          id: 'wa_z_platform',
+          wallet_address: 'PlatformWallet111',
+          default_for_currency: true,
+        },
+      ]);
+      mockDb.Find = jest.fn().mockResolvedValue([
+        {
+          id: 'bal_z_1',
+          object: 'balance',
+          account: 'acct_z_platform',
+          available: [{ amount: 2500, currency: 'usdc' }],
+          pending: [{ amount: 100, currency: 'usdc' }],
+        },
+      ]);
+      mockDb.Aggregate = jest.fn().mockResolvedValue([{ total: 700 }]);
+      mockSettlement.GetUSDCBalance.mockResolvedValue(32);
+      mockSettlement.GetNativeBalance.mockResolvedValue(0.25);
+
+      const details = await module.GetBalanceDetails('acct_z_platform');
+
+      expect(mockSettlement.GetNativeBalance).toHaveBeenCalledWith(
+        'PlatformWallet111'
+      );
+      expect(details).toEqual({
+        object: 'balance_details',
+        wallet_usdc: 32,
+        wallet_native: 0.25,
+        native_currency: 'sol',
+        connected_accounts_owed: 700,
+        platform_available: 2500,
+        platform_pending: 100,
+        wallet_address: 'PlatformWallet111',
+      });
     });
   });
 

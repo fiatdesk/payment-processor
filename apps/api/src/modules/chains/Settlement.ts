@@ -122,13 +122,6 @@ function DummyUnsignedTransaction(): UnsignedTransaction {
     chain_id: null,
     nonce: null,
     to: null,
-    // Keeps the public blockhash fields valid (broadcast requires a positive
-    // height) until the public API drops them.
-    solana: {
-      blockhash: 'sim_blockhash',
-      last_valid_block_height: 1,
-      min_context_slot: 0,
-    },
   };
 }
 

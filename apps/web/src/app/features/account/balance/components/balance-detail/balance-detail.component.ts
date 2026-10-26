@@ -50,10 +50,14 @@ export class BalanceDetailComponent implements OnChanges {
     return details.wallet_usdc.toFixed(2);
   }
 
-  GetWalletSol(): string {
+  GetWalletNative(): string {
     const details = this.GetDetails();
     if (!details) return '0.000';
-    return details.wallet_sol.toFixed(4);
+    return details.wallet_native.toFixed(4);
+  }
+
+  GetNativeCurrency(): string {
+    return this.GetDetails()?.native_currency.toUpperCase() ?? '';
   }
 
   GetConnectedAccountsOwed(): number {

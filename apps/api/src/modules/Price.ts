@@ -128,7 +128,7 @@ export class PriceModule {
         price.platform_account
       );
       const pullerAddress = settlement.GetPlanOwnerAddress();
-      price.subscription_plan_pda = await settlement.CreateSubscriptionPlan(
+      price.subscription_plan_id = await settlement.CreateSubscriptionPlan(
         price.id,
         periodHours,
         amount,
@@ -327,7 +327,7 @@ export class PriceModule {
       unit_amount_decimal:
         input.unit_amount_decimal ?? input.unit_amount.toString(),
       platform_account: platformAccountId,
-      subscription_plan_pda: null,
+      subscription_plan_id: null,
       recurring: null,
       type: 'one_time',
     };

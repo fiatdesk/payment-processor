@@ -37,7 +37,7 @@ export function ValidateSetupRequest(request: SetupRequest): void {
   }
 
   // Validate wallet public key format (base58 Solana address)
-  const walletKey = request.solana_public_key?.trim();
+  const walletKey = request.wallet_address?.trim();
   const solanaBase58Regex = /^[1-9A-HJ-NP-Za-km-z]+$/;
   if (
     !walletKey ||
@@ -46,7 +46,7 @@ export function ValidateSetupRequest(request: SetupRequest): void {
     !solanaBase58Regex.test(walletKey)
   ) {
     throw new AppError(
-      'solana_public_key must be a valid Solana address (32-44 base58 characters)',
+      'wallet_address must be a valid Solana address (32-44 base58 characters)',
       ERRORS.VALIDATION_ERROR.status,
       ERRORS.VALIDATION_ERROR.type
     );
@@ -89,10 +89,10 @@ export class SetupModule {
    * @returns Setup response with credentials (shown once!)
    */
   async CreatePlatformAccount(request: SetupRequest): Promise<SetupResponse> {
-    // Validate wallet public key is provided
-    if (!request.solana_public_key || !request.solana_public_key.trim()) {
+    // Validate wallet address is provided
+    if (!request.wallet_address || !request.wallet_address.trim()) {
       throw new AppError(
-        'solana_public_key is required',
+        'wallet_address is required',
         ERRORS.VALIDATION_ERROR.status,
         ERRORS.VALIDATION_ERROR.type
       );
@@ -133,7 +133,7 @@ export class SetupModule {
     const wallet = await this.externalWalletModule.CreateExternalWallet(
       account.id,
       {
-        wallet_address: request.solana_public_key.trim(),
+        wallet_address: request.wallet_address.trim(),
         network: 'solana',
         currency: 'usdc',
         default_for_currency: true,
@@ -165,7 +165,7 @@ export class SetupModule {
       success: true,
       api_key: apiKeyResult.plaintext_token,
       platform_account_id: account.id,
-      solana_public_key: wallet.wallet_address,
+      wallet_address: wallet.wallet_address,
       login_token: loginToken,
     };
   }

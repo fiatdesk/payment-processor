@@ -220,7 +220,7 @@ export class SetupComponent implements OnInit {
 
       const response = await this.setupService.CompleteSetup({
         ...platformDetails,
-        solana_public_key: publicKey,
+        wallet_address: publicKey,
       });
 
       this.setupResult.set(response);

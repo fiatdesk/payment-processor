@@ -1066,7 +1066,7 @@ export class SubscriptionModule {
           },
       trial_start: timing.trialStart,
       platform_account: platformAccountId,
-      subscription_delegation_pda: null,
+      subscription_onchain_id: null,
       billing_lock_until: null,
     };
   }
@@ -1796,16 +1796,16 @@ export class SubscriptionModule {
   }
 
   /**
-   * Persist the on-chain subscription delegation PDA after a successful
-   * hosted checkout subscribe.
+   * Persist the on-chain subscription id after a successful hosted checkout
+   * subscribe.
    */
-  async SetSubscriptionDelegationPda(
+  async SetSubscriptionOnchainId(
     id: string,
-    subscriptionDelegationPda: string
+    subscriptionOnchainId: string
   ): Promise<SubscriptionType> {
     await this.RequireSubscription(id);
     await this.db.Update<SubscriptionType>('Subscriptions', id, {
-      subscription_delegation_pda: subscriptionDelegationPda,
+      subscription_onchain_id: subscriptionOnchainId,
     });
     return this.RequireSubscription(id);
   }

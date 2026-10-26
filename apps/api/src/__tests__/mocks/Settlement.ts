@@ -17,11 +17,6 @@ function MockUnsignedTransaction(
     chain_id: null,
     nonce: null,
     to: null,
-    solana: {
-      blockhash: 'blockhash123',
-      last_valid_block_height: 100000,
-      min_context_slot: 99990,
-    },
   };
 }
 

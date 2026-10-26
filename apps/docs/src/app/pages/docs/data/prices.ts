@@ -42,7 +42,8 @@ const PRICES_OBJECT_JSON = `{
   "transform_quantity": null,
   "type": "recurring",
   "unit_amount": 1000,
-  "unit_amount_decimal": "1000"
+  "unit_amount_decimal": "1000",
+  "subscription_plan_id": "5tGp2Kq9...plan456"
 }`;
 
 const PRICES_ATTRIBUTES: Attribute[] = [
@@ -467,6 +468,15 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
     description: 'The platform account that owns this resource.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+  },
+  {
+    name: 'subscription_plan_id',
+    type: 'string',
+    nullable: true,
+    description:
+      'On-chain subscription plan id for this recurring price. Set when the API creates the plan; <code>null</code> for one-time prices.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 

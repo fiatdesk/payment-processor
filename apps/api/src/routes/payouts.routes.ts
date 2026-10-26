@@ -121,10 +121,12 @@ router.post(
  * - payouts: Array of payout IDs to include in the batch (max 10)
  *
  * Returns:
- * - unsigned_transaction: Base64-encoded unsigned transaction ready for signing
- * - estimated_fee_lamports: Estimated transaction fee in lamports
- * - blockhash: The blockhash used for the transaction
- * - last_valid_block_height: Block height after which the transaction expires
+ * - unsigned_transaction: Serialized unsigned transaction for the active settlement rail
+ * - estimated_fee: Estimated network fee in atomic units of fee_currency
+ * - fee_currency: Currency the network fee is paid in
+ * - chain_id, nonce, to: Transaction target details (null when the rail has none)
+ * - transaction_type: 'payout', or 'approval' for a one-time allowance
+ * - batch_id: On-chain batch identifier (null when the rail has none)
  * - payouts: Array of payout objects included in the transaction
  * - total_amount: Total amount in cents being paid out
  * - recipients_count: Number of recipients in the transaction
@@ -152,7 +154,7 @@ router.post(
       platformAccountId,
       payoutCount: result.payouts.length,
       totalAmount: result.total_amount,
-      blockhash: result.blockhash,
+      transactionType: result.transaction_type,
     });
 
     res.json(result);
@@ -161,17 +163,17 @@ router.post(
 
 /**
  * POST /v1/payouts/broadcast
- * Broadcast a signed batch payout transaction to the Solana network.
+ * Broadcast a signed batch payout transaction to the settlement network.
  * Updates all included payouts to 'paid' or 'failed' status based on the result.
  *
  * Required parameters:
- * - signed_transaction: Base64-encoded signed transaction
+ * - signed_transaction: Signed transaction, serialized for the active settlement rail
  * - payouts: Array of payout IDs included in the transaction
  *
  * Returns:
- * - signature: The transaction signature
+ * - transaction_hash: Hash of the broadcast transaction
  * - status: 'paid' or 'failed'
- * - viewer_url: URL to view the transaction on Solana Explorer
+ * - viewer_url: URL to view the transaction on a blockchain explorer
  * - payouts: Array of updated payout objects
  * - failure_message: Error message if the transaction failed
  *
@@ -184,8 +186,7 @@ router.post(
   ValidateRequest(BroadcastPayoutsBatchSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const platformAccountId = req.user.account;
-    const { signed_transaction, payouts, blockhash, last_valid_block_height } =
-      req.body;
+    const { signed_transaction, payouts } = req.body;
 
     Logger.info('Broadcasting batch payout transaction', {
       platformAccountId,
@@ -195,14 +196,12 @@ router.post(
     const result = await payoutModule.BroadcastPayoutsBatch(platformAccountId, {
       signed_transaction,
       payouts,
-      blockhash,
-      last_valid_block_height,
     });
 
     Logger.info('Batch payout transaction broadcast completed', {
       platformAccountId,
       status: result.status,
-      signature: result.signature,
+      transactionHash: result.transaction_hash,
       payoutCount: result.payouts.length,
     });
 

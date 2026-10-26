@@ -117,7 +117,7 @@ router.get(
 
 /**
  * POST /v1/payment_pages/:urlSlug/prepare
- * Build an unsigned Solana transaction for the checkout session. Payment
+ * Build an unsigned transaction for the checkout session. Payment
  * mode returns a USDC transfer; subscription mode returns either
  * initSubscriptionAuthority (first-time wallet) or subscribe.
  */
@@ -161,32 +161,32 @@ router.post(
  * POST /v1/payment_pages/:urlSlug/confirm
  * Verify a broadcast transaction on-chain and complete the checkout
  * session. Subscription mode creates the off-chain Subscription and
- * collects the first period (unless trialing). Idempotent on signature.
+ * collects the first period (unless trialing). Idempotent on transaction_hash.
  */
 router.post(
   '/:urlSlug/confirm',
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const {
-      signature,
+      transaction_hash: transactionHash,
       signed_transaction: signedTransaction,
       already_subscribed: alreadySubscribed,
-      subscription_delegation_pda: subscriptionDelegationPda,
+      subscription_onchain_id: subscriptionOnchainId,
       subscription_step: subscriptionStep,
     } = req.body as {
-      signature?: string;
+      transaction_hash?: string;
       signed_transaction?: string;
       already_subscribed?: boolean;
-      subscription_delegation_pda?: string;
+      subscription_onchain_id?: string;
       subscription_step?: 'init_authority' | 'subscribe';
     };
 
     const session = await checkoutPaymentModule.ConfirmPayment(
       req.params.urlSlug,
-      signature,
+      transactionHash,
       {
         signed_transaction: signedTransaction,
         already_subscribed: alreadySubscribed,
-        subscription_delegation_pda: subscriptionDelegationPda,
+        subscription_onchain_id: subscriptionOnchainId,
         subscription_step: subscriptionStep,
       }
     );

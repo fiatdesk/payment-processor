@@ -54,7 +54,7 @@ export interface ChargeOutcome {
 
 /**
  * Crypto payment method snapshot on a Charge.
- * Primary payment method details shape for Zoneless (USDC on Solana).
+ * Primary payment method details shape for Zoneless (on-chain USDC).
  */
 export interface ChargePaymentMethodDetailsCrypto {
   buyer_address: string | null;

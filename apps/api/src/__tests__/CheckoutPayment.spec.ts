@@ -66,7 +66,7 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     transform_quantity: null,
     unit_amount_decimal: '1000',
     platform_account: 'acct_z_platform',
-    subscription_plan_pda: null,
+    subscription_plan_id: null,
     ...overrides,
   };
 }
@@ -79,11 +79,6 @@ function UnsignedTx(unsignedTransaction: string): UnsignedTransaction {
     chain_id: null,
     nonce: null,
     to: null,
-    solana: {
-      blockhash: 'blockhash_1',
-      last_valid_block_height: 100,
-      min_context_slot: 90,
-    },
   };
 }
 
@@ -212,6 +207,25 @@ describe('CheckoutPaymentModule', () => {
     };
   }
 
+  describe('GetPaymentPageSession', () => {
+    it("should expose the rail's token address on the merchant wallet", async () => {
+      const session = BuildOpenSession();
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
+        .mockResolvedValue(session);
+
+      const result = await module.GetPaymentPageSession(session.url_slug);
+
+      expect(mockSettlement.Describe).toHaveBeenCalled();
+      expect(result.merchant_wallet).toEqual({
+        wallet_address: 'MerchantWallet111',
+        network: 'solana',
+        currency: 'usdc',
+        token_address: 'UsdcMint_test',
+      });
+    });
+  });
+
   describe('PreparePayment', () => {
     it('should build an unsigned tx and mark the PaymentIntent requires_confirmation', async () => {
       const session = BuildOpenSession();
@@ -265,11 +279,22 @@ describe('CheckoutPaymentModule', () => {
           checkout_session: session.id,
           amount_total: 1000,
           unsigned_transaction: 'unsigned_tx_base64',
-          estimated_fee_lamports: 5000,
-          blockhash: 'blockhash_1',
-          last_valid_block_height: 100,
-          min_context_slot: 90,
+          estimated_fee: '5000',
+          fee_currency: 'sol',
+          chain_id: null,
+          nonce: null,
+          to: null,
         })
+      );
+      expect(mockDb.Update).toHaveBeenCalledWith(
+        'CheckoutSessions',
+        session.id,
+        {
+          payment_details: {
+            transaction_hash: null,
+            payer_wallet: 'PayerWallet111',
+          },
+        }
       );
     });
 
@@ -283,7 +308,7 @@ describe('CheckoutPaymentModule', () => {
           trial_period_days: null,
           usage_type: 'licensed',
         },
-        subscription_plan_pda: 'PlanPda111',
+        subscription_plan_id: 'PlanId111',
       });
       const session = BuildOpenSession({
         mode: 'subscription',
@@ -316,7 +341,7 @@ describe('CheckoutPaymentModule', () => {
       expect(mockSettlement.BuildSubscribeTransaction).toHaveBeenCalledWith(
         'PayerWallet111',
         recurringPrice.id,
-        'PlanPda111',
+        'PlanId111',
         { feeSponsored: false }
       );
       expect(
@@ -336,7 +361,7 @@ describe('CheckoutPaymentModule', () => {
           trial_period_days: null,
           usage_type: 'licensed',
         },
-        subscription_plan_pda: 'PlanPda111',
+        subscription_plan_id: 'PlanId111',
       });
       const session = BuildOpenSession({
         mode: 'subscription',
@@ -371,6 +396,60 @@ describe('CheckoutPaymentModule', () => {
       expect(result.unsigned_transaction).toBe('unsigned_init_base64');
       expect(result.subscription_step).toBe('init_authority');
     });
+
+    it('should return the existing subscription_onchain_id when the wallet is already subscribed', async () => {
+      const recurringPrice = BuildPrice({
+        type: 'recurring',
+        recurring: {
+          interval: 'month',
+          interval_count: 1,
+          meter: null,
+          trial_period_days: null,
+          usage_type: 'licensed',
+        },
+        subscription_plan_id: 'PlanId111',
+      });
+      const session = BuildOpenSession({
+        mode: 'subscription',
+        payment_intent: null,
+        line_items: {
+          object: 'list',
+          data: [BuildLineItem({ price: recurringPrice })],
+          has_more: false,
+          url: '/v1/checkout/sessions/cs_z_1/line_items',
+        },
+      });
+
+      mockSettlement.FindExistingSubscription.mockResolvedValue(
+        'SubOnchain111'
+      );
+
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
+        .mockResolvedValue(session);
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
+        .mockResolvedValue(session);
+      mockDb.Update = jest.fn().mockResolvedValue(undefined);
+
+      const result = await module.PreparePayment(
+        session.url_slug,
+        'PayerWallet111',
+        { email: 'buyer@example.com' }
+      );
+
+      expect(mockSettlement.FindExistingSubscription).toHaveBeenCalledWith(
+        'PlanId111',
+        'PayerWallet111'
+      );
+      expect(mockSettlement.BuildSubscribeTransaction).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        unsigned_transaction: '',
+        estimated_fee: '0',
+        already_subscribed: true,
+        subscription_onchain_id: 'SubOnchain111',
+      });
+    });
   });
 
   describe('ConfirmPayment', () => {
@@ -394,7 +473,7 @@ describe('CheckoutPaymentModule', () => {
         payment_status: 'paid' as const,
         url: null,
         payment_details: {
-          transaction_signature: 'sig_abc',
+          transaction_hash: 'sig_abc',
           payer_wallet: 'PayerWallet111',
         },
       };
@@ -405,10 +484,7 @@ describe('CheckoutPaymentModule', () => {
         .mockResolvedValueOnce(session)
         .mockResolvedValueOnce(completedSession);
       jest
-        .spyOn(
-          checkoutSessionModule,
-          'GetCheckoutSessionByTransactionSignature'
-        )
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByTransactionHash')
         .mockResolvedValue(null);
       jest
         .spyOn(checkoutSessionModule, 'CompleteCheckoutSession')
@@ -490,7 +566,7 @@ describe('CheckoutPaymentModule', () => {
       expect(
         checkoutSessionModule.CompleteCheckoutSession
       ).toHaveBeenCalledWith(session.id, {
-        transaction_signature: 'sig_abc',
+        transaction_hash: 'sig_abc',
         payer_wallet: 'PayerWallet111',
       });
       expect(result.status).toBe('complete');
@@ -517,10 +593,7 @@ describe('CheckoutPaymentModule', () => {
         .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
         .mockResolvedValue(session);
       jest
-        .spyOn(
-          checkoutSessionModule,
-          'GetCheckoutSessionByTransactionSignature'
-        )
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByTransactionHash')
         .mockResolvedValue(null);
 
       mockDb.Get = jest

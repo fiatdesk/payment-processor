@@ -1667,9 +1667,9 @@ export class InvoiceModule {
       );
     }
 
-    if (!subscription.subscription_delegation_pda) {
+    if (!subscription.subscription_onchain_id) {
       throw new Error(
-        'Subscription has no on-chain delegation PDA; cannot collect'
+        'Subscription has no on-chain subscription id; cannot collect'
       );
     }
 
@@ -1687,8 +1687,8 @@ export class InvoiceModule {
       subscription.platform_account,
       priceId
     );
-    if (!price.subscription_plan_pda) {
-      throw new Error('Subscription price has no on-chain plan PDA');
+    if (!price.subscription_plan_id) {
+      throw new Error('Subscription price has no on-chain plan id');
     }
 
     const subscriberWallet =
@@ -1703,8 +1703,8 @@ export class InvoiceModule {
     const amountCents = invoice.amount_due;
     const collection = await this.settlement.CollectSubscriptionPayment({
       subscriberWallet,
-      planId: price.subscription_plan_pda,
-      subscriptionId: subscription.subscription_delegation_pda,
+      planId: price.subscription_plan_id,
+      subscriptionId: subscription.subscription_onchain_id,
       amountCents,
     });
 

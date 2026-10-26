@@ -138,14 +138,22 @@ export interface PayoutResponse {
  */
 export interface PayoutBatchBuildResponse {
   object: 'payout_batch_build';
-  /** Base64-encoded unsigned Solana transaction */
+  /** Serialized unsigned transaction for the active settlement rail */
   unsigned_transaction: string;
-  /** Estimated transaction fee in lamports */
-  estimated_fee_lamports: number;
-  /** Blockhash used for the transaction */
-  blockhash: string;
-  /** Block height after which the transaction expires */
-  last_valid_block_height: number;
+  /** Estimated network fee in atomic units of `fee_currency`, as a decimal string */
+  estimated_fee: string;
+  /** Currency the network fee is paid in (`none` on the simulated rail) */
+  fee_currency: string;
+  /** Chain id the transaction is built for, or null when the rail has none */
+  chain_id: number | null;
+  /** Sender nonce the transaction uses, or null when the rail has none */
+  nonce: number | null;
+  /** Contract or address the transaction calls, or null when the rail has none */
+  to: string | null;
+  /** `payout` moves funds; `approval` is a one-time allowance to sign first */
+  transaction_type: 'payout' | 'approval';
+  /** Identifier of the on-chain batch, or null when the rail has none */
+  batch_id: string | null;
   /** Array of payout objects included in the transaction */
   payouts: Payout[];
   /** Total amount in cents being paid out */
@@ -160,11 +168,11 @@ export interface PayoutBatchBuildResponse {
  */
 export interface PayoutBatchBroadcastResponse {
   object: 'payout_batch_broadcast';
-  /** Transaction signature on Solana */
-  signature: string;
-  /** Status of the broadcast: 'paid' or 'failed' */
-  status: 'paid' | 'failed';
-  /** URL to view the transaction on Solana Explorer */
+  /** Hash of the broadcast transaction */
+  transaction_hash: string;
+  /** Status of the broadcast */
+  status: 'paid' | 'failed' | 'pending';
+  /** URL to view the transaction on a blockchain explorer */
   viewer_url: string;
   /** Array of updated payout objects */
   payouts: Payout[];
@@ -176,11 +184,11 @@ export interface PayoutBatchBroadcastResponse {
  * Result of the processPending operation.
  */
 export interface ProcessPendingResult {
-  /** Transaction signature on Solana */
-  signature: string;
-  /** Status of the operation: 'paid' or 'failed' */
-  status: 'paid' | 'failed';
-  /** URL to view the transaction on Solana Explorer */
+  /** Hash of the broadcast transaction */
+  transaction_hash: string;
+  /** Status of the operation */
+  status: 'paid' | 'failed' | 'pending';
+  /** URL to view the transaction on a blockchain explorer */
   viewer_url: string;
   /** Array of processed payout objects */
   payouts: Payout[];

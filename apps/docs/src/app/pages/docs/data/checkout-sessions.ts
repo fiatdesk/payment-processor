@@ -1253,11 +1253,11 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
     children: [
       {
-        name: 'transaction_signature',
+        name: 'transaction_hash',
         type: 'string',
         nullable: true,
         description:
-          'The Solana transaction signature of the payment. <code>null</code> until the customer confirms payment.',
+          'Hash of the payment transaction. <code>null</code> until the customer confirms payment.',
       },
       {
         name: 'payer_wallet',
@@ -2316,9 +2316,9 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
         description: 'The currency the wallet receives.',
       },
       {
-        name: 'usdc_mint',
+        name: 'token_address',
         type: 'string',
-        description: 'The USDC mint address for the active network.',
+        description: 'The USDC token address on the active settlement rail.',
       },
     ],
     enumNote:

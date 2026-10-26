@@ -4,7 +4,7 @@ import { PaymentIntent } from './PaymentIntent';
 
 /**
  * Stripe-compatible Invoice Payment object for Zoneless.
- * Represents a payment applied toward an invoice. Settled in USDC on Solana.
+ * Represents a payment applied toward an invoice. Settled in on-chain USDC.
  *
  * @see https://docs.stripe.com/api/invoice-payment/object
  */

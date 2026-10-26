@@ -42,18 +42,17 @@ import {
   Product,
 } from '@zoneless/shared-types';
 
-/** Unsigned payment / subscribe transaction bundle returned by PreparePayment. */
-export interface PreparedCheckoutPayment {
+/**
+ * Unsigned payment / subscribe transaction bundle returned by PreparePayment.
+ * The rail's unsigned transaction fields (`estimated_fee`, `fee_currency`,
+ * `chain_id`, `nonce`, `to` and any rail-specific extras) pass through.
+ */
+export interface PreparedCheckoutPayment extends UnsignedTransaction {
   object: 'checkout.payment_transaction';
   checkout_session: string;
   amount_total: number;
   currency: string | null;
   merchant_wallet_address: string;
-  unsigned_transaction: string;
-  estimated_fee_lamports: number;
-  blockhash: string;
-  last_valid_block_height: number;
-  min_context_slot: number;
   /**
    * True when TRANSACTION_FEE_PAYER_KEY pre-signs and pays transaction costs.
    */
@@ -63,33 +62,13 @@ export interface PreparedCheckoutPayment {
    * landed but checkout confirm failed). Frontend should confirm without signing.
    */
   already_subscribed?: boolean;
-  subscription_delegation_pda?: string;
+  subscription_onchain_id?: string;
   /**
    * Subscription checkout is two on-chain steps for first-time wallets:
    * `init_authority` (create SubscriptionAuthority) then `subscribe`.
    * Omitted for one-time payments.
    */
   subscription_step?: 'init_authority' | 'subscribe';
-}
-
-/** Map a rail's unsigned transaction onto the public prepare response fields. */
-function ToPreparedTransactionFields(
-  transaction: UnsignedTransaction
-): Pick<
-  PreparedCheckoutPayment,
-  | 'unsigned_transaction'
-  | 'estimated_fee_lamports'
-  | 'blockhash'
-  | 'last_valid_block_height'
-  | 'min_context_slot'
-> {
-  return {
-    unsigned_transaction: transaction.unsigned_transaction,
-    estimated_fee_lamports: Number(transaction.estimated_fee),
-    blockhash: transaction.solana?.blockhash ?? '',
-    last_valid_block_height: transaction.solana?.last_valid_block_height ?? 0,
-    min_context_slot: transaction.solana?.min_context_slot ?? 0,
-  };
 }
 
 /** Convert a stored nullable address into CreateCustomer address input. */
@@ -187,7 +166,7 @@ export class CheckoutPaymentModule {
         wallet_address: merchantWallet.wallet_address,
         network: merchantWallet.network,
         currency: merchantWallet.currency,
-        usdc_mint: this.settlement.Describe().token_address,
+        token_address: this.settlement.Describe().token_address,
       },
       merchant: this.ResolveMerchant(session, account),
     };
@@ -323,14 +302,12 @@ export class CheckoutPaymentModule {
             payerWallet,
             feeSponsored
           )
-        : ToPreparedTransactionFields(
-            await this.settlement.BuildCheckoutPaymentTransaction(
-              payerWallet,
-              merchantWallet.wallet_address,
-              session.amount_total!,
-              session.id,
-              { feeSponsored }
-            )
+        : await this.settlement.BuildCheckoutPaymentTransaction(
+            payerWallet,
+            merchantWallet.wallet_address,
+            session.amount_total!,
+            session.id,
+            { feeSponsored }
           );
 
     await this.MarkPaymentIntentRequiresConfirmation(session, payerWallet);
@@ -362,7 +339,7 @@ export class CheckoutPaymentModule {
     >
   > {
     const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_pda) {
+    if (!price.subscription_plan_id) {
       throw new AppError(
         'This subscription price has no on-chain plan. Recreate the price and try again.',
         ERRORS.INVALID_REQUEST.status,
@@ -370,20 +347,23 @@ export class CheckoutPaymentModule {
       );
     }
 
-    const existingPda = await this.settlement.FindExistingSubscription(
-      price.subscription_plan_pda,
-      payerWallet
-    );
-    if (existingPda) {
-      // Prior attempt likely landed on-chain while confirm failed (stale blockhash).
+    const existingSubscriptionId =
+      await this.settlement.FindExistingSubscription(
+        price.subscription_plan_id,
+        payerWallet
+      );
+    if (existingSubscriptionId) {
+      // A prior attempt likely landed on-chain while its confirm failed.
+      const { chain_id, native_currency } = this.settlement.Describe();
       return {
         unsigned_transaction: '',
-        estimated_fee_lamports: 0,
-        blockhash: '',
-        last_valid_block_height: 0,
-        min_context_slot: 0,
+        estimated_fee: '0',
+        fee_currency: native_currency,
+        chain_id,
+        nonce: null,
+        to: null,
         already_subscribed: true,
-        subscription_delegation_pda: existingPda,
+        subscription_onchain_id: existingSubscriptionId,
       };
     }
 
@@ -393,21 +373,16 @@ export class CheckoutPaymentModule {
         { feeSponsored }
       );
     if (initTx) {
-      return {
-        ...ToPreparedTransactionFields(initTx),
-        subscription_step: 'init_authority',
-      };
+      return { ...initTx, subscription_step: 'init_authority' };
     }
 
     return {
-      ...ToPreparedTransactionFields(
-        await this.settlement.BuildSubscribeTransaction(
-          payerWallet,
-          price.id,
-          price.subscription_plan_pda,
-          { feeSponsored }
-        )
-      ),
+      ...(await this.settlement.BuildSubscribeTransaction(
+        payerWallet,
+        price.id,
+        price.subscription_plan_id,
+        { feeSponsored }
+      )),
       subscription_step: 'subscribe',
     };
   }
@@ -415,11 +390,11 @@ export class CheckoutPaymentModule {
   /**
    * Verify a broadcast transaction on-chain and complete the checkout
    * session. For payment mode this verifies a USDC transfer; for
-   * subscription mode it verifies the subscribe PDA, creates the off-chain
+   * subscription mode it verifies the on-chain subscribe, creates the off-chain
    * Subscription, and collects the first period (unless trialing).
    *
    * Fee-sponsored confirms may pass `signed_transaction` instead of
-   * `signature`: the API validates the existing fee payer and customer
+   * `transaction_hash`: the API validates the existing fee payer and customer
    * signatures before broadcasting.
    *
    * For subscription first-time wallets, pass `subscription_step: 'init_authority'`
@@ -427,11 +402,11 @@ export class CheckoutPaymentModule {
    */
   async ConfirmPayment(
     urlSlug: string,
-    signature: string | undefined,
+    transactionHash: string | undefined,
     options?: {
       signed_transaction?: string;
       already_subscribed?: boolean;
-      subscription_delegation_pda?: string;
+      subscription_onchain_id?: string;
       subscription_step?: 'init_authority' | 'subscribe';
     }
   ): Promise<CheckoutSession> {
@@ -442,14 +417,14 @@ export class CheckoutPaymentModule {
       if (
         session.mode === 'payment' &&
         session.amount_total &&
-        signature &&
-        session.payment_details?.transaction_signature === signature
+        transactionHash &&
+        session.payment_details?.transaction_hash === transactionHash
       ) {
         await this.RecordPaymentOnLedger(
           session,
           session.amount_total,
           session.payment_details.payer_wallet,
-          signature
+          transactionHash
         );
       }
       return this.SanitizeCheckoutSession(session);
@@ -460,11 +435,11 @@ export class CheckoutPaymentModule {
     if (session.mode === 'subscription' && options?.already_subscribed) {
       return this.ConfirmSubscriptionFromExistingOnChain(
         session,
-        options.subscription_delegation_pda
+        options.subscription_onchain_id
       );
     }
 
-    let resolvedSignature = signature;
+    let resolvedTransactionHash = transactionHash;
     if (
       options?.signed_transaction &&
       typeof options.signed_transaction === 'string'
@@ -474,7 +449,7 @@ export class CheckoutPaymentModule {
           await this.settlement.ValidateAndBroadcastCheckoutTransaction(
             options.signed_transaction
           );
-        resolvedSignature = broadcast.transaction_hash;
+        resolvedTransactionHash = broadcast.transaction_hash;
       } catch (error) {
         throw new AppError(
           error instanceof Error
@@ -486,9 +461,12 @@ export class CheckoutPaymentModule {
       }
     }
 
-    if (!resolvedSignature || typeof resolvedSignature !== 'string') {
+    if (
+      !resolvedTransactionHash ||
+      typeof resolvedTransactionHash !== 'string'
+    ) {
       throw new AppError(
-        'signature is required',
+        'transaction_hash is required',
         ERRORS.VALIDATION_ERROR.status,
         ERRORS.VALIDATION_ERROR.type
       );
@@ -498,12 +476,15 @@ export class CheckoutPaymentModule {
       session.mode === 'subscription' &&
       options?.subscription_step === 'init_authority'
     ) {
-      return this.ConfirmSubscriptionAuthorityInit(session, resolvedSignature);
+      return this.ConfirmSubscriptionAuthorityInit(
+        session,
+        resolvedTransactionHash
+      );
     }
 
     const existingSession =
-      await this.checkoutSessionModule.GetCheckoutSessionByTransactionSignature(
-        resolvedSignature
+      await this.checkoutSessionModule.GetCheckoutSessionByTransactionHash(
+        resolvedTransactionHash
       );
     if (existingSession) {
       throw new AppError(
@@ -514,10 +495,10 @@ export class CheckoutPaymentModule {
     }
 
     if (session.mode === 'subscription') {
-      return this.ConfirmSubscription(session, resolvedSignature);
+      return this.ConfirmSubscription(session, resolvedTransactionHash);
     }
 
-    return this.ConfirmOneTimePayment(session, resolvedSignature);
+    return this.ConfirmOneTimePayment(session, resolvedTransactionHash);
   }
 
   /**
@@ -546,7 +527,7 @@ export class CheckoutPaymentModule {
    */
   private async ConfirmSubscriptionAuthorityInit(
     session: CheckoutSession,
-    signature: string
+    transactionHash: string
   ): Promise<CheckoutSession> {
     const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
       session
@@ -554,7 +535,7 @@ export class CheckoutPaymentModule {
 
     Logger.info('Confirming subscription authority init', {
       checkoutSessionId: session.id,
-      signature,
+      transactionHash,
       subscriberWallet,
     });
 
@@ -575,7 +556,7 @@ export class CheckoutPaymentModule {
 
   private async ConfirmOneTimePayment(
     session: CheckoutSession,
-    signature: string
+    transactionHash: string
   ): Promise<CheckoutSession> {
     const merchantWallet = await this.ResolveMerchantWallet(
       session.platform_account
@@ -583,13 +564,13 @@ export class CheckoutPaymentModule {
 
     Logger.info('Verifying checkout payment transaction', {
       checkoutSessionId: session.id,
-      signature,
+      transactionHash,
     });
 
     await this.MarkPaymentIntentProcessing(session);
 
     const verification = await this.settlement.VerifyCheckoutPayment(
-      signature,
+      transactionHash,
       {
         merchantWalletAddress: merchantWallet.wallet_address,
         amountInCents: session.amount_total!,
@@ -602,7 +583,7 @@ export class CheckoutPaymentModule {
         verification.failure_reason || 'Payment verification failed';
       const failedCharge = await this.CreateCheckoutCharge(session, {
         amount: session.amount_total!,
-        signature,
+        transactionHash,
         payerAddress: verification.payer_address,
         outcome: 'failed',
         failureMessage,
@@ -623,7 +604,7 @@ export class CheckoutPaymentModule {
     // checkout.session.completed.
     const charge = await this.CreateCheckoutCharge(session, {
       amount: verification.amount_cents,
-      signature,
+      transactionHash,
       payerAddress: verification.payer_address,
       outcome: 'succeeded',
     });
@@ -639,7 +620,7 @@ export class CheckoutPaymentModule {
 
     const completedSession =
       await this.checkoutSessionModule.CompleteCheckoutSession(session.id, {
-        transaction_signature: signature,
+        transaction_hash: transactionHash,
         payer_wallet: verification.payer_address,
       });
 
@@ -653,7 +634,7 @@ export class CheckoutPaymentModule {
       completedSession,
       verification.amount_cents,
       verification.payer_address,
-      signature
+      transactionHash
     );
 
     if (charge && this.chargeModule) {
@@ -665,7 +646,7 @@ export class CheckoutPaymentModule {
 
     Logger.info('Checkout session completed via payment', {
       checkoutSessionId: completedSession.id,
-      signature,
+      transactionHash,
       chargeId: charge?.id,
     });
 
@@ -674,10 +655,10 @@ export class CheckoutPaymentModule {
 
   private async ConfirmSubscription(
     session: CheckoutSession,
-    signature: string
+    transactionHash: string
   ): Promise<CheckoutSession> {
     const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_pda) {
+    if (!price.subscription_plan_id) {
       throw new AppError(
         'This subscription price has no on-chain plan',
         ERRORS.INVALID_REQUEST.status,
@@ -691,13 +672,13 @@ export class CheckoutPaymentModule {
 
     Logger.info('Verifying checkout subscribe transaction', {
       checkoutSessionId: session.id,
-      signature,
+      transactionHash,
     });
 
     const verification = await this.settlement.VerifySubscribeTransaction(
-      signature,
+      transactionHash,
       {
-        planId: price.subscription_plan_pda,
+        planId: price.subscription_plan_id,
         subscriberWallet,
       }
     );
@@ -712,21 +693,21 @@ export class CheckoutPaymentModule {
 
     return this.FinalizeSubscriptionCheckout(session, {
       subscriberWallet,
-      subscriptionDelegationPda: verification.subscription_onchain_id,
-      signature,
+      subscriptionOnchainId: verification.subscription_onchain_id,
+      transactionHash,
     });
   }
 
   /**
    * Complete checkout when the on-chain subscribe already exists (e.g. a prior
-   * broadcast succeeded but confirm failed on a stale blockhash).
+   * broadcast succeeded but its confirm failed).
    */
   private async ConfirmSubscriptionFromExistingOnChain(
     session: CheckoutSession,
-    subscriptionDelegationPda?: string
+    subscriptionOnchainId?: string
   ): Promise<CheckoutSession> {
     const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_pda) {
+    if (!price.subscription_plan_id) {
       throw new AppError(
         'This subscription price has no on-chain plan',
         ERRORS.INVALID_REQUEST.status,
@@ -737,14 +718,14 @@ export class CheckoutPaymentModule {
     const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
       session
     );
-    const delegationPda =
-      subscriptionDelegationPda ||
+    const resolvedOnchainId =
+      subscriptionOnchainId ||
       (await this.settlement.FindExistingSubscription(
-        price.subscription_plan_pda,
+        price.subscription_plan_id,
         subscriberWallet
       ));
 
-    if (!delegationPda) {
+    if (!resolvedOnchainId) {
       throw new AppError(
         'No on-chain subscription found for this wallet and plan',
         ERRORS.INVALID_REQUEST.status,
@@ -754,13 +735,13 @@ export class CheckoutPaymentModule {
 
     Logger.info('Completing checkout from existing on-chain subscription', {
       checkoutSessionId: session.id,
-      subscriptionDelegationPda: delegationPda,
+      subscriptionOnchainId: resolvedOnchainId,
     });
 
     return this.FinalizeSubscriptionCheckout(session, {
       subscriberWallet,
-      subscriptionDelegationPda: delegationPda,
-      signature: `onchain:${delegationPda}`,
+      subscriptionOnchainId: resolvedOnchainId,
+      transactionHash: `onchain:${resolvedOnchainId}`,
     });
   }
 
@@ -768,8 +749,8 @@ export class CheckoutPaymentModule {
     session: CheckoutSession,
     details: {
       subscriberWallet: string;
-      subscriptionDelegationPda: string;
-      signature: string;
+      subscriptionOnchainId: string;
+      transactionHash: string;
     }
   ): Promise<CheckoutSession> {
     if (!this.subscriptionModule || !this.customerModule) {
@@ -781,7 +762,7 @@ export class CheckoutPaymentModule {
     }
 
     const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_pda) {
+    if (!price.subscription_plan_id) {
       throw new AppError(
         'This subscription price has no on-chain plan',
         ERRORS.INVALID_REQUEST.status,
@@ -792,25 +773,26 @@ export class CheckoutPaymentModule {
     const merchantWallet = await this.ResolveMerchantWallet(
       session.platform_account
     );
-    const { subscriberWallet, subscriptionDelegationPda, signature } = details;
+    const { subscriberWallet, subscriptionOnchainId, transactionHash } =
+      details;
 
     const trialPeriodDays = price.recurring?.trial_period_days ?? null;
     const hasTrial = !!trialPeriodDays && trialPeriodDays > 0;
-    let collectionSignature = signature;
+    let collectionTransactionHash = transactionHash;
 
     if (!hasTrial) {
       try {
         const collection = await this.settlement.CollectSubscriptionPayment({
           subscriberWallet,
-          planId: price.subscription_plan_pda,
-          subscriptionId: subscriptionDelegationPda,
+          planId: price.subscription_plan_id,
+          subscriptionId: subscriptionOnchainId,
           destinationWallet: merchantWallet.wallet_address,
           amountCents: price.unit_amount ?? session.amount_total!,
         });
-        collectionSignature = collection.transaction_hash;
+        collectionTransactionHash = collection.transaction_hash;
       } catch (error) {
         // Subscribe already landed — surface the collect error instead of
-        // pretending checkout collected USDC (collectionSignature === signature).
+        // pretending checkout collected USDC (collection hash === subscribe hash).
         const message = error instanceof Error ? error.message : String(error);
         Logger.error('First-period subscription collect failed', {
           checkoutSessionId: session.id,
@@ -847,20 +829,20 @@ export class CheckoutPaymentModule {
         },
       },
       {
-        settlementSignature: !hasTrial ? collectionSignature : undefined,
+        settlementSignature: !hasTrial ? collectionTransactionHash : undefined,
       }
     );
 
-    await this.subscriptionModule.SetSubscriptionDelegationPda(
+    await this.subscriptionModule.SetSubscriptionOnchainId(
       subscription.id,
-      subscriptionDelegationPda
+      subscriptionOnchainId
     );
 
     const completedSession =
       await this.checkoutSessionModule.CompleteCheckoutSession(
         session.id,
         {
-          transaction_signature: signature,
+          transaction_hash: transactionHash,
           payer_wallet: subscriberWallet,
         },
         { subscription: subscription.id }
@@ -875,8 +857,8 @@ export class CheckoutPaymentModule {
     Logger.info('Checkout session completed via subscription', {
       checkoutSessionId: completedSession.id,
       subscriptionId: subscription.id,
-      signature,
-      collectionSignature,
+      transactionHash,
+      collectionTransactionHash,
     });
 
     return this.SanitizeCheckoutSession(completedSession);
@@ -1034,7 +1016,7 @@ export class CheckoutPaymentModule {
     session: CheckoutSession,
     amountCents: number,
     payerWallet: string | null,
-    signature: string
+    transactionHash: string
   ): Promise<BalanceTransaction> {
     const existing = await this.db.Find2Custom<BalanceTransaction>(
       'BalanceTransactions',
@@ -1060,10 +1042,10 @@ export class CheckoutPaymentModule {
         source: session.id,
         description: `Payment for Checkout Session ${session.id}`,
         metadata: {
-          blockchain_tx: signature,
+          blockchain_tx: transactionHash,
           network: 'solana',
           sender_address: payerWallet ?? '',
-          explorer_url: ExplorerUrl('tx', signature),
+          explorer_url: ExplorerUrl('tx', transactionHash),
         },
         status: 'available',
         available_on: timestamp,
@@ -1307,8 +1289,7 @@ export class CheckoutPaymentModule {
     // resolve the subscriber without relying on a PaymentIntent.
     await this.db.Update<CheckoutSession>('CheckoutSessions', session.id, {
       payment_details: {
-        transaction_signature:
-          session.payment_details?.transaction_signature ?? null,
+        transaction_hash: session.payment_details?.transaction_hash ?? null,
         payer_wallet: payerWallet,
       },
     });
@@ -1375,7 +1356,7 @@ export class CheckoutPaymentModule {
     session: CheckoutSession,
     details: {
       amount: number;
-      signature: string;
+      transactionHash: string;
       payerAddress: string | null;
       outcome: 'succeeded' | 'failed';
       failureMessage?: string;
@@ -1410,7 +1391,7 @@ export class CheckoutPaymentModule {
         transfer_group: paymentIntent?.transfer_group ?? null,
         crypto: {
           buyer_address: details.payerAddress,
-          transaction_hash: details.signature,
+          transaction_hash: details.transactionHash,
         },
         outcome: details.outcome,
         failure_code:

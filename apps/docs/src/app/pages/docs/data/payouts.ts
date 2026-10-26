@@ -919,9 +919,13 @@ const BUILD_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
 const BUILD_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "object": "payout_batch_build",
   "unsigned_transaction": "AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAQAHDw...",
-  "estimated_fee_lamports": 5000,
-  "blockhash": "GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi",
-  "last_valid_block_height": 158436852,
+  "estimated_fee": "5000",
+  "fee_currency": "sol",
+  "chain_id": null,
+  "nonce": null,
+  "to": null,
+  "transaction_type": "payout",
+  "batch_id": null,
   "payouts": [
     {
       "id": "po_z_1Nv0FGQ9RKHgCVdK",
@@ -973,7 +977,7 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>payout_batch_build</code> object containing the unsigned transaction (base64-encoded), the blockhash, estimated fees, and the payout objects included in the batch.',
+          text: 'Returns a <code>payout_batch_build</code> object containing the serialized unsigned transaction for the active settlement rail, the estimated network fee (<code>estimated_fee</code> in atomic units of <code>fee_currency</code>), the transaction details (<code>chain_id</code>, <code>nonce</code>, <code>to</code>, <code>transaction_type</code>, <code>batch_id</code>), and the payout objects included in the batch.',
           html: true,
         },
       ],
@@ -1032,7 +1036,7 @@ const BROADCAST_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      "The signed Solana transaction as a base64-encoded string. Sign the unsigned transaction from the build endpoint using your platform's Solana wallet.",
+      "The signed transaction, serialized for the active settlement rail. Sign the unsigned transaction from the build endpoint using your platform's wallet.",
   },
   {
     name: 'payouts',
@@ -1043,25 +1047,11 @@ const BROADCAST_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     enumNote:
       'This is used to verify the transaction contents and update payout statuses after broadcasting.',
   },
-  {
-    name: 'blockhash',
-    type: 'string',
-    required: true,
-    description:
-      'The blockhash used when building the transaction. Pass the <code>blockhash</code> value returned by the <a href="#payouts-build">build endpoint</a>.',
-  },
-  {
-    name: 'last_valid_block_height',
-    type: 'integer',
-    required: true,
-    description:
-      'The last valid block height for the transaction. Pass the <code>last_valid_block_height</code> value returned by the <a href="#payouts-build">build endpoint</a>.',
-  },
 ];
 
 const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "object": "payout_batch_broadcast",
-  "signature": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+  "transaction_hash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
   "status": "paid",
   "viewer_url": "https://solscan.io/tx/5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
   "payouts": [
@@ -1116,7 +1106,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>payout_batch_broadcast</code> object containing the transaction signature, status, viewer URL, and the updated payout objects. All payouts will have their status set to <code>paid</code> on success or <code>failed</code> if the transaction failed.',
+          text: 'Returns a <code>payout_batch_broadcast</code> object containing the <code>transaction_hash</code>, status, viewer URL, and the updated payout objects. All payouts will have their status set to <code>paid</code> on success or <code>failed</code> if the transaction failed.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Webhooks' },
@@ -1142,9 +1132,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
     "payouts": [
       "po_z_1Nv0FGQ9RKHgCVdK",
       "po_z_2Xw1GHR0SKIiDWeL"
-    ],
-    "blockhash": "GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi",
-    "last_valid_block_height": 158436852
+    ]
   }'`,
             },
             {
@@ -1159,11 +1147,9 @@ const result = await zoneless.payouts.broadcast({
     'po_z_1Nv0FGQ9RKHgCVdK',
     'po_z_2Xw1GHR0SKIiDWeL'
   ],
-  blockhash: buildResult.blockhash,
-  last_valid_block_height: buildResult.last_valid_block_height,
 });
 
-console.log(result.signature); // Solana tx signature
+console.log(result.transaction_hash);
 console.log(result.viewer_url); // Link to Solscan`,
             },
           ],
@@ -1212,7 +1198,7 @@ const result = await zoneless.payouts.processBatch(
 );
 
 console.log(\`Processed \${result.payouts.length} payouts\`);
-console.log(\`Transaction: \${result.signature}\`);
+console.log(\`Transaction: \${result.transaction_hash}\`);
 
 if (result.has_more) {
   console.log('More payouts pending...');

@@ -702,7 +702,7 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   },
   "trial_start": null,
   "platform_account": "acct_z_Platform123abc",
-  "subscription_delegation_pda": "7xK9Nv3F...abc123",
+  "subscription_onchain_id": "7xK9Nv3F...abc123",
   "billing_lock_until": null
 }`;
 
@@ -1598,11 +1598,11 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
-    name: 'subscription_delegation_pda',
+    name: 'subscription_onchain_id',
     type: 'string',
     nullable: true,
     description:
-      'Solana subscriptions program delegation PDA for this subscription. Set when the customer completes hosted checkout subscribe.',
+      'On-chain subscription id for this subscription. Set when the customer completes hosted checkout subscribe.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },

@@ -50,10 +50,12 @@ describe('CheckoutComponent mobile wallet handoff', () => {
     currency: 'usdc',
     merchant_wallet_address: 'merchant',
     unsigned_transaction: 'dGVzdA==',
-    estimated_fee_lamports: 5000,
-    blockhash: 'blockhash',
-    last_valid_block_height: 100,
-    min_context_slot: 90,
+    estimated_fee: '5000',
+    fee_currency: 'sol',
+    chain_id: null,
+    nonce: null,
+    to: null,
+    solana: { min_context_slot: 90 },
   } satisfies CheckoutPaymentTransaction;
   const completedSession = {
     ...checkoutSession,
@@ -177,7 +179,7 @@ describe('CheckoutComponent mobile wallet handoff', () => {
     expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(1);
     expect(signAndSendMobileTransaction).toHaveBeenCalledWith(
       preparedPayment.unsigned_transaction,
-      preparedPayment.min_context_slot
+      90
     );
     expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(1);
     expect(component.paymentPhase()).toBe('complete');
@@ -218,11 +220,11 @@ describe('CheckoutComponent mobile wallet handoff', () => {
     expect(signMobileTransaction).not.toHaveBeenCalled();
     expect(signAndSendMobileTransaction).toHaveBeenCalledWith(
       preparedPayment.unsigned_transaction,
-      preparedPayment.min_context_slot
+      90
     );
     expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
       checkoutSession.url_slug,
-      { signature: expect.any(String) }
+      { transaction_hash: expect.any(String) }
     );
   });
 

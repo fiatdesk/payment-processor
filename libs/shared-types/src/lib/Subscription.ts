@@ -226,11 +226,11 @@ export interface Subscription {
   platform_account: string;
 
   /**
-   * Solana subscriptions program delegation PDA for this subscription.
+   * On-chain subscription id for this subscription.
    * Set when the customer completes hosted checkout subscribe.
    * @zoneless_extension
    */
-  subscription_delegation_pda: string | null;
+  subscription_onchain_id: string | null;
 
   /**
    * Unix timestamp until which this subscription is claimed by a billing runner.

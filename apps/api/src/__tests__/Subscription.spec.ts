@@ -63,7 +63,7 @@ function MockRecurringPrice(overrides: Record<string, unknown> = {}) {
       usage_type: 'licensed',
       meter: null,
     },
-    subscription_plan_pda: null,
+    subscription_plan_id: null,
     ...overrides,
   };
 }
@@ -167,6 +167,7 @@ describe('SubscriptionModule', () => {
       expect(subscription.status).toBe('active');
       expect(subscription.latest_invoice).toBe('in_z_1');
       expect(subscription.platform_account).toBe(PLATFORM);
+      expect(subscription.subscription_onchain_id).toBeNull();
       expect(subscription.items.data).toHaveLength(1);
       expect(subscription.items.data[0].price).toBe(PRICE_ID);
       expect(subscription.items.data[0].quantity).toBe(1);
@@ -568,6 +569,27 @@ describe('SubscriptionModule', () => {
   describe('GetSubscription', () => {
     it('should return null when missing', async () => {
       await expect(module.GetSubscription('sub_missing')).resolves.toBeNull();
+    });
+  });
+
+  describe('SetSubscriptionOnchainId', () => {
+    it('should persist the on-chain subscription id', async () => {
+      const subscription = await module.CreateSubscription(PLATFORM, {
+        customer: CUSTOMER_ID,
+        items: [{ price: PRICE_ID }],
+      });
+
+      const updated = await module.SetSubscriptionOnchainId(
+        subscription.id,
+        'SubOnchain111'
+      );
+
+      expect(mockDb.Update).toHaveBeenCalledWith(
+        'Subscriptions',
+        subscription.id,
+        { subscription_onchain_id: 'SubOnchain111' }
+      );
+      expect(updated.subscription_onchain_id).toBe('SubOnchain111');
     });
   });
 });

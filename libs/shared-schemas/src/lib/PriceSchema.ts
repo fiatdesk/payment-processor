@@ -3,7 +3,7 @@ import { ExpandableSchema } from './ExpandableSchema';
 
 /**
  * Billing frequency for a recurring price.
- * @zoneless_extension Includes `hour` (not in Stripe) for Solana subscription periods.
+ * @zoneless_extension Includes `hour` (not in Stripe) for short on-chain subscription periods.
  */
 export const RecurringIntervalSchema = z.enum([
   'hour',
