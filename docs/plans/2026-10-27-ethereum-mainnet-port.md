@@ -18,7 +18,7 @@
 
 1. Ethereum only. Remove all Solana code, dependencies, docs, the Anchor program and mocks. No multi-chain abstraction beyond what is cheap to keep.
 2. Keep the Apache-2.0 license. This is an independent fork with no upstream ties (the `origin` remote is already removed).
-3. Self-custody: the platform never holds the operator's treasury key. The operator's platform wallet signs payouts. Two server-held *operational* keys already exist upstream and are kept with the same role: the subscription puller (`SUBSCRIPTION_OPERATOR_KEY`) and the optional checkout fee sponsor (becomes `CHECKOUT_RELAYER_KEY`). Neither can move treasury funds.
+3. Self-custody: the platform never holds the operator's treasury key. The operator's platform wallet signs payouts. Two server-held _operational_ keys already exist upstream and are kept with the same role: the subscription puller (`SUBSCRIPTION_OPERATOR_KEY`) and the optional checkout fee sponsor (becomes `CHECKOUT_RELAYER_KEY`). Neither can move treasury funds.
 4. Execution constraints (coordinator update): Sepolia (11155111) plus a local Anvil chain for automated tests; mainnet (1) is configured but **no task deploys to mainnet or needs mainnet funds**; every executed task is verifiable without real funds; everything that needs a funded Sepolia key, a deployment or a real RPC key is grouped into Task 18; mainnet deployment and the audit are Task 19, marked NOT EXECUTED — human-gated.
 5. Conventions from `AGENTS.md` / `CONTRIBUTING.md` apply: small focused commits with tests; docs and the Node SDK change in the same task as the API surface; Stripe-shaped API; PascalCase functions, camelCase variables; Zod for request validation; no new dependency unless the work cannot be done with what is here (viem is the one exception, replacing nine Solana packages).
 
@@ -30,47 +30,47 @@ Every task and every reviewer applies these. Values are exact.
 
 **Chains and addresses**
 
-| Item | Value | Status |
-| --- | --- | --- |
-| Live mode (`LIVEMODE=true`) chain | Ethereum mainnet, chainId `1` | configured only; never deployed/funded in this plan |
-| Test mode on-chain (`LIVEMODE=false`, `SETTLEMENT_RAIL=onchain`) chain | Sepolia, chainId `11155111` | Task 18 only touches a real RPC |
-| Automated integration tests | Anvil, chainId `31337` (set `ETH_CHAIN_ID=31337`, allowed only when `LIVEMODE=false`) | every executed task |
-| USDC mainnet | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | verified on Circle's "USDC contract addresses" page during planning |
-| USDC Sepolia | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` | verified on the same Circle page |
-| USDC Anvil | `MockUSDC` deployed by the test harness; address injected via `USDC_ADDRESS` | created in Task 7 |
-| USDC decimals | `6` on every chain. Cents to atomic units is `BigInt(amountCents) * 10_000n` (same arithmetic the Solana code used). | decimals not stated on the Circle page; the `Ethereum` client asserts `decimals() == 6` once at startup in on-chain mode and Task 18 confirms on Sepolia |
-| USDC EIP-712 domain | `name` read from the token's `name()`, `version` `"2"`, `chainId`, `verifyingContract` = token address | FiatTokenV2 convention; Task 18 verifies `DOMAIN_SEPARATOR()` matches on Sepolia |
-| Multicall3 | `0xcA11bde05977b3631167028862bE2a173976CA11` (reads only; never approved for token spending) | from memory, fetch of multicall3.com failed during planning — verify in Task 18 |
-| Chainalysis sanctions oracle (mainnet) | `0x40C57923924B5c5c5455c48D93317139ADDaC8fb`, `isSanctioned(address) view returns (bool)` | from memory — verify in Task 19; overridable via `SANCTIONS_ORACLE_ADDRESS` |
-| Anvil default accounts | #0 deployer `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`, #1 platform wallet, #2 buyer, #3 checkout relayer, #4 subscription operator (standard Anvil mnemonic keys; public test keys) | |
-| Explorer URLs | `https://etherscan.io/{tx|address}/…` (1), `https://sepolia.etherscan.io/…` (11155111), `''` (31337 and simulated) | |
+| Item                                                                   | Value                                                                                                                                                                                                          | Status                                                                                                                                                   |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| Live mode (`LIVEMODE=true`) chain                                      | Ethereum mainnet, chainId `1`                                                                                                                                                                                  | configured only; never deployed/funded in this plan                                                                                                      |
+| Test mode on-chain (`LIVEMODE=false`, `SETTLEMENT_RAIL=onchain`) chain | Sepolia, chainId `11155111`                                                                                                                                                                                    | Task 18 only touches a real RPC                                                                                                                          |
+| Automated integration tests                                            | Anvil, chainId `31337` (set `ETH_CHAIN_ID=31337`, allowed only when `LIVEMODE=false`)                                                                                                                          | every executed task                                                                                                                                      |
+| USDC mainnet                                                           | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`                                                                                                                                                                   | verified on Circle's "USDC contract addresses" page during planning                                                                                      |
+| USDC Sepolia                                                           | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`                                                                                                                                                                   | verified on the same Circle page                                                                                                                         |
+| USDC Anvil                                                             | `MockUSDC` deployed by the test harness; address injected via `USDC_ADDRESS`                                                                                                                                   | created in Task 7                                                                                                                                        |
+| USDC decimals                                                          | `6` on every chain. Cents to atomic units is `BigInt(amountCents) * 10_000n` (same arithmetic the Solana code used).                                                                                           | decimals not stated on the Circle page; the `Ethereum` client asserts `decimals() == 6` once at startup in on-chain mode and Task 18 confirms on Sepolia |
+| USDC EIP-712 domain                                                    | `name` read from the token's `name()`, `version` `"2"`, `chainId`, `verifyingContract` = token address                                                                                                         | FiatTokenV2 convention; Task 18 verifies `DOMAIN_SEPARATOR()` matches on Sepolia                                                                         |
+| Multicall3                                                             | `0xcA11bde05977b3631167028862bE2a173976CA11` (reads only; never approved for token spending)                                                                                                                   | from memory, fetch of multicall3.com failed during planning — verify in Task 18                                                                          |
+| Chainalysis sanctions oracle (mainnet)                                 | `0x40C57923924B5c5c5455c48D93317139ADDaC8fb`, `isSanctioned(address) view returns (bool)`                                                                                                                      | from memory — verify in Task 19; overridable via `SANCTIONS_ORACLE_ADDRESS`                                                                              |
+| Anvil default accounts                                                 | #0 deployer `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`, #1 platform wallet, #2 buyer, #3 checkout relayer, #4 subscription operator (standard Anvil mnemonic keys; public test keys) |                                                                                                                                                          |
+| Explorer URLs                                                          | `https://etherscan.io/{tx                                                                                                                                                                                      | address}/…`(1),`https://sepolia.etherscan.io/…` (11155111), `''` (31337 and simulated)                                                                   |     |
 
 **Toolchain and versions**
 
-| Item | Value |
-| --- | --- |
-| viem | `^2` — the only new npm dependency; add once to root `package.json`, `sdks/node/package.json`, `apps/cli/package.json`; record the resolved version in `CHANGES.md` |
-| Foundry | 1.5.1 (installed). `foundry.toml`: `solc = "0.8.28"`, `evm_version = "cancun"`, `optimizer = true`, `optimizer_runs = 200` |
-| forge-std | `foundry-rs/forge-std@v1.9.4` |
-| OpenZeppelin | `OpenZeppelin/openzeppelin-contracts@v5.1.0` (`SafeERC20`, `IERC20`, `IERC20Permit`, `EIP712`, `ECDSA`, `ERC20Permit` for the mock) |
-| Node | v22.23.2 at runtime; `.nvmrc` stays `20` |
+| Item             | Value                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| viem             | `^2` — the only new npm dependency; add once to root `package.json`, `sdks/node/package.json`, `apps/cli/package.json`; record the resolved version in `CHANGES.md`                                                                                                                                                                                        |
+| Foundry          | 1.5.1 (installed). `foundry.toml`: `solc = "0.8.28"`, `evm_version = "cancun"`, `optimizer = true`, `optimizer_runs = 200`                                                                                                                                                                                                                                 |
+| forge-std        | `foundry-rs/forge-std@v1.9.4`                                                                                                                                                                                                                                                                                                                              |
+| OpenZeppelin     | `OpenZeppelin/openzeppelin-contracts@v5.1.0` (`SafeERC20`, `IERC20`, `IERC20Permit`, `EIP712`, `ECDSA`, `ERC20Permit` for the mock)                                                                                                                                                                                                                        |
+| Node             | v22.23.2 at runtime; `.nvmrc` stays `20`                                                                                                                                                                                                                                                                                                                   |
 | Removed packages | `@solana/kit`, `@solana/kit-plugin-rpc`, `@solana/kit-plugin-signer`, `@solana/spl-token`, `@solana/subscriptions`, `@solana/web3.js`, `@solana-mobile/mobile-wallet-adapter-protocol`, `bs58`, `@types/bs58`, `@wallet-standard/app` (root, SDK and CLI `package.json`); `npm install` is run by the implementer of Task 6 to refresh `package-lock.json` |
 
 **Environment variables (final set)**
 
-| Variable | Meaning | Default |
-| --- | --- | --- |
-| `ETH_RPC_URL` | Comma-separated JSON-RPC URLs; first is primary, rest are fallbacks | required when `SETTLEMENT_RAIL=onchain` |
-| `ETH_CHAIN_ID` | Override, honoured only when `LIVEMODE=false` (Anvil) | `1` if `LIVEMODE=true`, else `11155111` |
-| `ETH_CONFIRMATIONS` | Blocks to wait before a tx counts as settled (checkout, payouts, top-ups) | `2` |
-| `USDC_ADDRESS` | Override of the per-chain USDC address (Anvil) | per-chain table |
-| `PAYOUT_BATCH_ADDRESS`, `SUBSCRIPTIONS_ADDRESS` | Override of deployed contract addresses | per-chain table in `apps/api/src/modules/chains/contracts.ts` (Sepolia filled in Task 18, mainnet `null`) |
-| `CHECKOUT_RELAYER_KEY` | Replaces `TRANSACTION_FEE_PAYER_KEY`. `0x` + 64 hex. Pays gas to relay EIP-3009 checkout authorizations and subscription subscribe calls | required for on-chain checkout |
-| `SUBSCRIPTION_OPERATOR_KEY` | Same name as upstream, new format `0x` + 64 hex. Owns on-chain plans and calls `charge` | required for recurring prices |
-| `SANCTIONS_ORACLE_ADDRESS` | Override for the sanctions oracle | per-chain table |
-| `CHECKOUT_CONFIRM_TIMEOUT_MS` | How long `/confirm` waits for confirmations before returning `payment_pending` | `90000` |
-| Removed | `SOLANA_RPC_URL`, `TRANSACTION_FEE_PAYER_KEY`, `ZONELESS_TELEMETRY` | |
-| Unchanged | `LIVEMODE`, `SETTLEMENT_RAIL` (`simulated` default in test mode, `onchain` otherwise), `TOPUP_MONITOR_ENABLED`, `TOPUP_POLL_INTERVAL_MS`, `BILLING_MONITOR_ENABLED`, `BILLING_POLL_INTERVAL_MS` | |
+| Variable                                        | Meaning                                                                                                                                                                                         | Default                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ETH_RPC_URL`                                   | Comma-separated JSON-RPC URLs; first is primary, rest are fallbacks                                                                                                                             | required when `SETTLEMENT_RAIL=onchain`                                                                   |
+| `ETH_CHAIN_ID`                                  | Override, honoured only when `LIVEMODE=false` (Anvil)                                                                                                                                           | `1` if `LIVEMODE=true`, else `11155111`                                                                   |
+| `ETH_CONFIRMATIONS`                             | Blocks to wait before a tx counts as settled (checkout, payouts, top-ups)                                                                                                                       | `2`                                                                                                       |
+| `USDC_ADDRESS`                                  | Override of the per-chain USDC address (Anvil)                                                                                                                                                  | per-chain table                                                                                           |
+| `PAYOUT_BATCH_ADDRESS`, `SUBSCRIPTIONS_ADDRESS` | Override of deployed contract addresses                                                                                                                                                         | per-chain table in `apps/api/src/modules/chains/contracts.ts` (Sepolia filled in Task 18, mainnet `null`) |
+| `CHECKOUT_RELAYER_KEY`                          | Replaces `TRANSACTION_FEE_PAYER_KEY`. `0x` + 64 hex. Pays gas to relay EIP-3009 checkout authorizations and subscription subscribe calls                                                        | required for on-chain checkout                                                                            |
+| `SUBSCRIPTION_OPERATOR_KEY`                     | Same name as upstream, new format `0x` + 64 hex. Owns on-chain plans and calls `charge`                                                                                                         | required for recurring prices                                                                             |
+| `SANCTIONS_ORACLE_ADDRESS`                      | Override for the sanctions oracle                                                                                                                                                               | per-chain table                                                                                           |
+| `CHECKOUT_CONFIRM_TIMEOUT_MS`                   | How long `/confirm` waits for confirmations before returning `payment_pending`                                                                                                                  | `90000`                                                                                                   |
+| Removed                                         | `SOLANA_RPC_URL`, `TRANSACTION_FEE_PAYER_KEY`, `ZONELESS_TELEMETRY`                                                                                                                             |                                                                                                           |
+| Unchanged                                       | `LIVEMODE`, `SETTLEMENT_RAIL` (`simulated` default in test mode, `onchain` otherwise), `TOPUP_MONITOR_ENABLED`, `TOPUP_POLL_INTERVAL_MS`, `BILLING_MONITOR_ENABLED`, `BILLING_POLL_INTERVAL_MS` |                                                                                                           |
 
 Private-key env values must match `/^0x[0-9a-fA-F]{64}$/`; `AppConfig` throws at startup otherwise.
 
@@ -139,18 +139,18 @@ Failure modes the brief implies but no existing test covers. Each line names the
 
 ### 4.1 Concept mapping, Solana → Ethereum
 
-| Solana (today) | Ethereum (this plan) | Consequence in code |
-| --- | --- | --- |
-| ed25519 keypair, base58 public key (32–44 chars), base58 secret key | secp256k1 EOA, 20-byte address written EIP-55 (`0x` + 40 hex), private key `0x` + 64 hex | `ExternalWalletSchema`, `Setup.ts`, web `utils/validation`, CLI `GenerateWallet`, setup wizard keygen, `SimulatedSettlement.CheckWalletExists` |
-| SPL USDC mint + per-owner Associated Token Account (rent, idempotent create) | ERC-20 USDC contract; balance keyed by address; no account creation, no rent | drop every `createAssociatedTokenAccountIdempotent` path; `GetUSDCBalance` = `balanceOf`; `GetSOLBalance` → `GetNativeBalance` (`eth_getBalance`) |
-| SOL fees (~5000 lamports), fee payer field, `recentBlockhash` + `lastValidBlockHeight` expiry, `minContextSlot` | EIP-1559: `maxFeePerGas`, `maxPriorityFeePerGas`, `gasLimit`, per-account `nonce`; txs do not expire; replacement = same nonce with ≥ 10 % higher fees; a pending tx can be dropped from mempools and later re-included | payout build stores `nonce` and returns fee params; broadcast timeout keeps `in_transit`; `replace: true` rebuild for stuck batches; §4.3 |
-| Multiple signers per tx (buyer + fee payer partial-sign) | One signer per tx. Gas sponsorship = relayer submits a tx that carries the buyer's **off-chain EIP-712 signature** (EIP-3009 for USDC, EIP-2612 permit, our own typed data for subscribe) | checkout and subscribe become "sign typed data, API relays" (§4.4, §4.6) |
-| `confirmed` (~400 ms) / `finalized` (~13 s) commitments | 12 s blocks; `latest`, `safe` (~6 min), `finalized` (~13 min). Single-block reorgs are rare post-merge but possible; deep reorgs practically do not happen under finality | `ETH_CONFIRMATIONS` (default 2 ≈ 24 s) for all flows; top-up scanning only reads up to `latest - ETH_CONFIRMATIONS` |
-| Memo instruction binds a payment to a session | EIP-3009 `nonce` (bytes32) = `keccak256(utf8(session.id))`; `AuthorizationUsed(authorizer, nonce)` event proves it on-chain and makes replay impossible at the token level | `VerifyCheckoutPayment` decodes receipt logs instead of parsed instructions (§4.4) |
-| `getSignaturesForAddress(ATA)` for deposits | `eth_getLogs` filtered on USDC `Transfer(address indexed from, address indexed to, uint256)` with `to = platform wallet`, scanned by block ranges with a persisted cursor | `TopUpMonitor`, new `ChainCursors` collection (§4.5) |
-| Devnet + `SETTLEMENT_RAIL=simulated` | Sepolia + the same `simulated` rail (unchanged, still the test-mode default) + Anvil for automated tests | `AppConfig.ResolveSettlementRail` unchanged; chain id derives from `LIVEMODE` |
-| `@solana/subscriptions` program (plans, delegations, period-limited pulls) | `Subscriptions.sol`: plan registry + allowance-based pull with one charge per period, cranked by the operator key | §4.6 |
-| Explorer `explorer.solana.com` | Etherscan / Sepolia Etherscan | `ExplorerUrl` moves to `Settlement.ts` and reads the rail |
+| Solana (today)                                                                                                  | Ethereum (this plan)                                                                                                                                                                                                    | Consequence in code                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ed25519 keypair, base58 public key (32–44 chars), base58 secret key                                             | secp256k1 EOA, 20-byte address written EIP-55 (`0x` + 40 hex), private key `0x` + 64 hex                                                                                                                                | `ExternalWalletSchema`, `Setup.ts`, web `utils/validation`, CLI `GenerateWallet`, setup wizard keygen, `SimulatedSettlement.CheckWalletExists`    |
+| SPL USDC mint + per-owner Associated Token Account (rent, idempotent create)                                    | ERC-20 USDC contract; balance keyed by address; no account creation, no rent                                                                                                                                            | drop every `createAssociatedTokenAccountIdempotent` path; `GetUSDCBalance` = `balanceOf`; `GetSOLBalance` → `GetNativeBalance` (`eth_getBalance`) |
+| SOL fees (~5000 lamports), fee payer field, `recentBlockhash` + `lastValidBlockHeight` expiry, `minContextSlot` | EIP-1559: `maxFeePerGas`, `maxPriorityFeePerGas`, `gasLimit`, per-account `nonce`; txs do not expire; replacement = same nonce with ≥ 10 % higher fees; a pending tx can be dropped from mempools and later re-included | payout build stores `nonce` and returns fee params; broadcast timeout keeps `in_transit`; `replace: true` rebuild for stuck batches; §4.3         |
+| Multiple signers per tx (buyer + fee payer partial-sign)                                                        | One signer per tx. Gas sponsorship = relayer submits a tx that carries the buyer's **off-chain EIP-712 signature** (EIP-3009 for USDC, EIP-2612 permit, our own typed data for subscribe)                               | checkout and subscribe become "sign typed data, API relays" (§4.4, §4.6)                                                                          |
+| `confirmed` (~400 ms) / `finalized` (~13 s) commitments                                                         | 12 s blocks; `latest`, `safe` (~6 min), `finalized` (~13 min). Single-block reorgs are rare post-merge but possible; deep reorgs practically do not happen under finality                                               | `ETH_CONFIRMATIONS` (default 2 ≈ 24 s) for all flows; top-up scanning only reads up to `latest - ETH_CONFIRMATIONS`                               |
+| Memo instruction binds a payment to a session                                                                   | EIP-3009 `nonce` (bytes32) = `keccak256(utf8(session.id))`; `AuthorizationUsed(authorizer, nonce)` event proves it on-chain and makes replay impossible at the token level                                              | `VerifyCheckoutPayment` decodes receipt logs instead of parsed instructions (§4.4)                                                                |
+| `getSignaturesForAddress(ATA)` for deposits                                                                     | `eth_getLogs` filtered on USDC `Transfer(address indexed from, address indexed to, uint256)` with `to = platform wallet`, scanned by block ranges with a persisted cursor                                               | `TopUpMonitor`, new `ChainCursors` collection (§4.5)                                                                                              |
+| Devnet + `SETTLEMENT_RAIL=simulated`                                                                            | Sepolia + the same `simulated` rail (unchanged, still the test-mode default) + Anvil for automated tests                                                                                                                | `AppConfig.ResolveSettlementRail` unchanged; chain id derives from `LIVEMODE`                                                                     |
+| `@solana/subscriptions` program (plans, delegations, period-limited pulls)                                      | `Subscriptions.sol`: plan registry + allowance-based pull with one charge per period, cranked by the operator key                                                                                                       | §4.6                                                                                                                                              |
+| Explorer `explorer.solana.com`                                                                                  | Etherscan / Sepolia Etherscan                                                                                                                                                                                           | `ExplorerUrl` moves to `Settlement.ts` and reads the rail                                                                                         |
 
 ### 4.2 Library and tooling
 
@@ -163,11 +163,11 @@ Failure modes the brief implies but no existing test covers. Each line names the
 
 The flow to preserve: `POST /v1/payouts/build` → unsigned payload → operator signs locally (SDK with a private key, or dashboard with a browser wallet) → `POST /v1/payouts/broadcast` → payouts `paid`/`failed`.
 
-| Option | How | Verdict |
-| --- | --- | --- |
-| **A. `PayoutBatch` contract** — `disperse(token, recipients[], amounts[], batchId)` loops `safeTransferFrom(msg.sender, recipient_i, amount_i)`; platform EOA approves the contract once | One tx per batch, atomic (all-or-nothing), works with every signer type (`eth_sendTransaction` from a browser/hardware wallet, raw signing in the SDK). Stateless, ownerless, non-upgradeable: it can only move `msg.sender`'s own tokens, so a standing allowance to it is exercisable only by the platform wallet itself. ~50 k gas marginal per recipient. One small contract to review (the Disperse.app pattern). | **Recommended.** |
-| B. Multicall3 + `transferFrom` | Approve Multicall3, then `aggregate3([USDC.transferFrom(platform, r_i, a_i)…])` | **Unsafe.** Multicall3 is permissionless: once the platform approves it, anyone can call `aggregate3` with `transferFrom(platform, attacker, …)` because `msg.sender` inside USDC is Multicall3, which holds the allowance. Multicall3 is used only for batched *reads* (balances, allowance, blacklist flags). |
-| C. EIP-7702 | Platform EOA delegates to a batch-executor contract once (type-4 tx), then calls `execute([USDC.transfer(r_i, a_i)…])` from itself — no allowance, direct `transfer` (~45 k marginal) | Cleanest trust model and cheapest per recipient, but: injected wallets only sign 7702 authorizations for their own delegator contracts, hardware-wallet support is uneven, and it changes the platform EOA's code permanently (revocable). Keep as a later optimisation (Open decision 1). |
+| Option                                                                                                                                                                                   | How                                                                                                                                                                                                                                                                                                                                                                                                                    | Verdict                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. `PayoutBatch` contract** — `disperse(token, recipients[], amounts[], batchId)` loops `safeTransferFrom(msg.sender, recipient_i, amount_i)`; platform EOA approves the contract once | One tx per batch, atomic (all-or-nothing), works with every signer type (`eth_sendTransaction` from a browser/hardware wallet, raw signing in the SDK). Stateless, ownerless, non-upgradeable: it can only move `msg.sender`'s own tokens, so a standing allowance to it is exercisable only by the platform wallet itself. ~50 k gas marginal per recipient. One small contract to review (the Disperse.app pattern). | **Recommended.**                                                                                                                                                                                                                                                                                                |
+| B. Multicall3 + `transferFrom`                                                                                                                                                           | Approve Multicall3, then `aggregate3([USDC.transferFrom(platform, r_i, a_i)…])`                                                                                                                                                                                                                                                                                                                                        | **Unsafe.** Multicall3 is permissionless: once the platform approves it, anyone can call `aggregate3` with `transferFrom(platform, attacker, …)` because `msg.sender` inside USDC is Multicall3, which holds the allowance. Multicall3 is used only for batched _reads_ (balances, allowance, blacklist flags). |
+| C. EIP-7702                                                                                                                                                                              | Platform EOA delegates to a batch-executor contract once (type-4 tx), then calls `execute([USDC.transfer(r_i, a_i)…])` from itself — no allowance, direct `transfer` (~45 k marginal)                                                                                                                                                                                                                                  | Cleanest trust model and cheapest per recipient, but: injected wallets only sign 7702 authorizations for their own delegator contracts, hardware-wallet support is uneven, and it changes the platform EOA's code permanently (revocable). Keep as a later optimisation (Open decision 1).                      |
 
 Design details for A (Task 7–8):
 
@@ -229,14 +229,14 @@ Today: empty static set. Ethereum: OFAC actually lists ETH addresses, and Chaina
 
 Assumptions: USDC `transfer` ≈ 45–65 k gas (proxy + first-time recipient costs more), `transferFrom` ≈ +5 k, tx base 21 k, ETH at $3 000 (placeholder), gas price scenarios 1 / 5 / 20 gwei. Solana reference from the brief: ≈ $0.002 per transfer.
 
-| Operation | Gas | 1 gwei | 5 gwei | 20 gwei |
-| --- | --- | --- | --- | --- |
-| Single payout from an EOA (`transfer`) | ~62 k | $0.19 | $0.93 | $3.72 |
-| `PayoutBatch.disperse`, 50 recipients | 21 k + 50 × ~50 k ≈ 2.55 M | $7.65 ($0.15 each) | $38 ($0.77 each) | $153 ($3.06 each) |
-| One-time `approve(PayoutBatch)` | ~46 k | $0.14 | $0.69 | $2.76 |
-| Checkout relay `transferWithAuthorization` (paid by operator) | ~85 k | $0.26 | $1.28 | $5.10 |
-| `Subscriptions.charge` | ~85 k | $0.26 | $1.28 | $5.10 |
-| `createPlan` (once per recurring price) | ~120 k | $0.36 | $1.80 | $7.20 |
+| Operation                                                     | Gas                        | 1 gwei             | 5 gwei           | 20 gwei           |
+| ------------------------------------------------------------- | -------------------------- | ------------------ | ---------------- | ----------------- |
+| Single payout from an EOA (`transfer`)                        | ~62 k                      | $0.19              | $0.93            | $3.72             |
+| `PayoutBatch.disperse`, 50 recipients                         | 21 k + 50 × ~50 k ≈ 2.55 M | $7.65 ($0.15 each) | $38 ($0.77 each) | $153 ($3.06 each) |
+| One-time `approve(PayoutBatch)`                               | ~46 k                      | $0.14              | $0.69            | $2.76             |
+| Checkout relay `transferWithAuthorization` (paid by operator) | ~85 k                      | $0.26              | $1.28            | $5.10             |
+| `Subscriptions.charge`                                        | ~85 k                      | $0.26              | $1.28            | $5.10             |
+| `createPlan` (once per recurring price)                       | ~120 k                     | $0.36              | $1.80            | $7.20             |
 
 Batching on L1 saves only the per-tx base cost and one signature: ~15–25 % per payout, not an order of magnitude, because the ERC-20 transfer dominates. The levers that matter are gas price timing (the build endpoint exposes `estimated_fee`; operators can schedule batches off-peak) and amount thresholds. Product copy must change: README "No middlemen and no fees", setup page "Near-zero fees / Fractions of a cent per payment", docs "SOL pays the small network fee" become "No platform fee or percentage cut. You pay Ethereum network gas per transaction, typically a few cents to a few dollars depending on network load; batch payouts to share it." The dashboard payout modal shows `estimated_fee` in ETH and warns when it exceeds 10 % of the payout amount (Open decision 16). Mention L2s nowhere as a feature (out of scope) — at most one line in `CHANGES.md` noting the design keeps the chain id configurable.
 
@@ -244,22 +244,22 @@ Batching on L1 saves only the per-tx base cost and one signature: ~15–25 % per
 
 No deployments exist, so this is a clean rename with no migration script; `CHANGES.md` states that databases created by upstream are incompatible. Renames (all done in Task 5 while Solana still runs, so the suite proves them):
 
-| Before | After |
-| --- | --- |
+| Before                                                                                      | After                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PayoutBatchBuildResponse.estimated_fee_lamports`, `.blockhash`, `.last_valid_block_height` | `.estimated_fee: string`, `.fee_currency`, `.chain_id`, `.nonce`, `.to`, `.transaction_type`, `.batch_id` (blockhash fields deleted; the Solana class keeps them under an optional `solana` sub-object until Task 6) |
-| `PayoutBatchBroadcastResponse.signature`, `ProcessPendingResult.signature` | `.transaction_hash`; `status` gains `'pending'` |
-| `BroadcastPayoutsBatchSchema.blockhash`, `.last_valid_block_height` (never read) | removed; `.transaction_hash` optional added in Task 8 |
-| `CheckoutSession.payment_details.transaction_signature` | `.transaction_hash` (Mongo field path too) |
-| `CheckoutSession.merchant_wallet.usdc_mint` | `.token_address` |
-| `Price.subscription_plan_pda` | `.subscription_plan_id` |
-| `Subscription.subscription_delegation_pda` | `.subscription_onchain_id` |
-| `SetupRequest/SetupResponse.solana_public_key` | `.wallet_address` |
-| `DepositInfo.network: 'solana'` | `network: string` from `Settlement.Describe()` |
-| `BalanceDetails.wallet_sol` | `.wallet_native` + `.native_currency` |
-| `Payout.metadata.network / gas_fee_currency` literals | from `Describe()` (`'ethereum'` / `'eth'`, `'simulated'` / `'none'`) |
-| `TopUp.metadata` | gains `log_index` |
-| `IncomingDeposit.signature / slot` | `.transactionHash / .logIndex / .blockNumber` |
-| New collections | `PayoutBatches`, `ChainCursors` (internal; no public endpoint) |
+| `PayoutBatchBroadcastResponse.signature`, `ProcessPendingResult.signature`                  | `.transaction_hash`; `status` gains `'pending'`                                                                                                                                                                      |
+| `BroadcastPayoutsBatchSchema.blockhash`, `.last_valid_block_height` (never read)            | removed; `.transaction_hash` optional added in Task 8                                                                                                                                                                |
+| `CheckoutSession.payment_details.transaction_signature`                                     | `.transaction_hash` (Mongo field path too)                                                                                                                                                                           |
+| `CheckoutSession.merchant_wallet.usdc_mint`                                                 | `.token_address`                                                                                                                                                                                                     |
+| `Price.subscription_plan_pda`                                                               | `.subscription_plan_id`                                                                                                                                                                                              |
+| `Subscription.subscription_delegation_pda`                                                  | `.subscription_onchain_id`                                                                                                                                                                                           |
+| `SetupRequest/SetupResponse.solana_public_key`                                              | `.wallet_address`                                                                                                                                                                                                    |
+| `DepositInfo.network: 'solana'`                                                             | `network: string` from `Settlement.Describe()`                                                                                                                                                                       |
+| `BalanceDetails.wallet_sol`                                                                 | `.wallet_native` + `.native_currency`                                                                                                                                                                                |
+| `Payout.metadata.network / gas_fee_currency` literals                                       | from `Describe()` (`'ethereum'` / `'eth'`, `'simulated'` / `'none'`)                                                                                                                                                 |
+| `TopUp.metadata`                                                                            | gains `log_index`                                                                                                                                                                                                    |
+| `IncomingDeposit.signature / slot`                                                          | `.transactionHash / .logIndex / .blockNumber`                                                                                                                                                                        |
+| New collections                                                                             | `PayoutBatches`, `ChainCursors` (internal; no public endpoint)                                                                                                                                                       |
 
 ### 4.11 Test strategy
 
@@ -284,16 +284,16 @@ No deployments exist, so this is a clean rename with no migration script; `CHANG
 
 Tasks are sequential. Each leaves `npx nx run-many --target=test --all` green, `npm run format:check` clean and `npx nx run-many --target=lint --all` clean.
 
-| Phase | Tasks | Outcome |
-| --- | --- | --- |
-| 0. Fork hygiene (no behaviour change) | 1–3 | Legal notices, dead Anchor code gone, telemetry phone-home gone, no upstream endpoints in code |
-| 1. Chain-neutral seam (still Solana) | 4–5 | `Settlement` interface; chain-neutral API/type/SDK/doc field names; suite proves the rename |
-| 2. Ethereum rail on Anvil: wallets, payouts, top-ups | 6–10 | Solana removed; viem; `Ethereum` class; contracts project + Anvil harness; payouts and top-ups work on Anvil and simulated |
-| 3. Checkout on Ethereum | 11–12 | EIP-3009 relayed checkout, API + web |
-| 4. Subscriptions on Ethereum | 13–15 | `Subscriptions.sol`, API billing, web subscribe |
-| 5. Copy, docs, brand centralisation | 16–17 | Zero Solana mentions; honest gas copy; `BRAND` + `scripts/rebrand.sh` |
-| 6. Testnet reality check — HUMAN INPUT NEEDED | 18 | Sepolia deployment and manual end-to-end with a funded key and a real RPC |
-| 7. NOT EXECUTED — human-gated | 19 | Audit, mainnet deployment, rebrand flip, publishing |
+| Phase                                                | Tasks | Outcome                                                                                                                    |
+| ---------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------- |
+| 0. Fork hygiene (no behaviour change)                | 1–3   | Legal notices, dead Anchor code gone, telemetry phone-home gone, no upstream endpoints in code                             |
+| 1. Chain-neutral seam (still Solana)                 | 4–5   | `Settlement` interface; chain-neutral API/type/SDK/doc field names; suite proves the rename                                |
+| 2. Ethereum rail on Anvil: wallets, payouts, top-ups | 6–10  | Solana removed; viem; `Ethereum` class; contracts project + Anvil harness; payouts and top-ups work on Anvil and simulated |
+| 3. Checkout on Ethereum                              | 11–12 | EIP-3009 relayed checkout, API + web                                                                                       |
+| 4. Subscriptions on Ethereum                         | 13–15 | `Subscriptions.sol`, API billing, web subscribe                                                                            |
+| 5. Copy, docs, brand centralisation                  | 16–17 | Zero Solana mentions; honest gas copy; `BRAND` + `scripts/rebrand.sh`                                                      |
+| 6. Testnet reality check — HUMAN INPUT NEEDED        | 18    | Sepolia deployment and manual end-to-end with a funded key and a real RPC                                                  |
+| 7. NOT EXECUTED — human-gated                        | 19    | Audit, mainnet deployment, rebrand flip, publishing                                                                        |
 
 ---
 
@@ -302,12 +302,14 @@ Tasks are sequential. Each leaves `npx nx run-many --target=test --all` green, `
 ### Task 1: Fork notices, dead Anchor program, repository metadata
 
 **Files:**
+
 - Create: `NOTICE`, `CHANGES.md`
 - Delete: `apps/programs/` (entire directory; verified unreferenced: no `project.json`, program id `9JAVCcRBhZz4…` appears nowhere else)
 - Modify: `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `package.json` (`repository`, `homepage`, `bugs`), `sdks/node/package.json` (`repository`, `homepage`, `bugs`, `files` += `NOTICE`), `apps/cli/package.json` (`repository`, `homepage`, `files` += `NOTICE`), `.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`, `AGENTS.md` (remove the sentence about `apps/programs` if present; keep the rest)
 - Copy NOTICE into SDK/CLI packs: add `NOTICE` to the `files` arrays above and to `sdks/node/project.json` / `apps/cli/project.json` pack steps if they copy files explicitly (check first).
 
 **Steps:**
+
 - [ ] Write `NOTICE` with the text in §4.12 (use `<NEWNAME>` and `<NEWOWNER>` placeholders; fork commit `5febc1a`, 156 commits, date 2026-10-27).
 - [ ] Write `CHANGES.md` with a header explaining §4(b), a "How this list is maintained" line (`git diff --name-status 5febc1a..HEAD`), and a first section "Task 1" listing the files this task touches. Every later task appends its own section.
 - [ ] `git rm -r apps/programs`.
@@ -317,6 +319,7 @@ Tasks are sequential. Each leaves `npx nx run-many --target=test --all` green, `
 - [ ] Append the Task 1 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 test -f NOTICE && test -f CHANGES.md && test ! -d apps/programs && echo OK
 git grep -n -I "PromptBase\|docs.zoneless.com/assets\|discord.gg\|zonelessdev" -- ':!CHANGES.md' ':!NOTICE' ':!docs/plans' ':!package-lock.json' ':!apps/docs' ':!apps/cli' ':!apps/web' ':!apps/api' ':!libs' ':!sdks' ':!.agents'   # expect no output
@@ -329,16 +332,19 @@ npm run format:check                  # expect: All matched files use Prettier c
 ### Task 2: Remove the telemetry phone-home
 
 **Files:**
+
 - Delete: `apps/api/src/modules/Telemetry.ts`, `apps/api/src/modules/TelemetryMonitor.ts`, `apps/api/src/routes/telemetry.routes.ts`, `libs/shared-types/src/lib/Telemetry.ts`, `apps/web/src/app/data/services/telemetry.service.ts`, `TELEMETRY.md`
 - Modify: `apps/api/src/routes/index.ts:38,102`, `apps/api/src/main.ts:30-32,219-220,259-261`, `apps/api/src/modules/Database.ts` (telemetry collection/index references), `apps/api/src/modules/Setup.ts` (`telemetry_enabled` handling), `libs/shared-types/src/lib/index.ts`, `libs/shared-types/src/lib/Config.ts` (`SetupRequest.telemetry_enabled`), `libs/shared-types/src/lib/Operator.ts` (telemetry fields, if any), `apps/web/src/app/data/services/index.ts`, `apps/web/src/app/features/account/settings/settings.component.{html,scss,ts}` (the "Anonymous usage" block and `TelemetryService` usage), `apps/web/src/app/features/setup/setup.component.{html,scss,ts}` (`telemetryEnabled` signal, checkbox, request field), `.env.example`, `.env.production.example` (`ZONELESS_TELEMETRY` block), `AGENTS.md` (drop `/telemetry` from the "Do not wrap internal routes" list), `apps/docs/src/app/pages/docs/data/environment-variables.ts` (`ZONELESS_TELEMETRY` entry), `CHANGES.md`
 
 **Steps:**
+
 - [ ] Remove the module, monitor, route registration and `main.ts` start/stop blocks; remove the telemetry opt-in from setup (API `Setup.ts` and shared `SetupRequest`) and from the settings page; delete the web service and its export.
 - [ ] Update any spec that asserted `telemetry_enabled` (grep `apps/api/src/__tests__` and `apps/web/src` for `telemetry`).
 - [ ] Remove env documentation and the file `TELEMETRY.md`.
 - [ ] Append the Task 2 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n -i "telemetry" -- ':!package-lock.json' ':!CHANGES.md' ':!docs/plans'   # expect no output
 npx nx run-many --target=test --all   # expect: Successfully ran target test for 6 projects
@@ -350,6 +356,7 @@ npx nx run-many --target=lint --all && npm run format:check
 ### Task 3: Cut remaining upstream endpoints from code and docs
 
 **Files:**
+
 - Modify (API): `apps/api/src/main.ts:129`
 - Modify (CLI): `apps/cli/src/app/AgentSetup.ts:17-19` (delete `defaultAuthUrl`/`defaultActivationUrl`; `authUrl` and `activationUrl` become required options; throw `CliError('auth_url_required', …)` with exit code `exitCodes.invalidInput` when missing), `apps/cli/src/app/Cli.ts` + `apps/cli/src/app/Arguments.ts` (add `--auth-url` / `--activation-url` flags following the existing flag pattern; help text), `apps/cli/src/app/WebhookSync.ts:146-147` (derive the dashboard URL from the profile's API URL — replace `api` with `dashboard` only when the host starts with `api.`/`api-test.`, otherwise print "open your dashboard"), `apps/cli/README.md`, specs `AgentSetup.spec.ts`, `Cli.spec.ts`, `EnvSync.spec.ts`, `WebhookSync.spec.ts` (fixtures → `https://api.example.com`, `https://auth.example.com`)
 - Modify (web): `apps/web/src/app/shared/forms/identity-settings-form/didit-webhook-url.ts` (replace the host map with `BuildDiditWebhookUrl(apiBaseUrl: string): string` using the configured API origin), its spec if present, `features/account/settings/settings.component.html:175`, `features/setup/setup.component.html:128`, `features/onboard/onboard.component.html:35`, `features/account/products/views/price-detail/price-detail.component.html:143,221`, `core/services/wallet.service.spec.ts:72,89,120` (fixture origin → `https://buy.example.com`)
@@ -358,11 +365,13 @@ npx nx run-many --target=lint --all && npm run format:check
 - Modify: `CHANGES.md`
 
 **Steps:**
+
 - [ ] Apply the replacements above. For docs `@see` comments use the path form `@see /payouts/create` (docs site is self-hosted).
 - [ ] CLI: add the two flags and the required-option error; update specs so no fixture references a `zoneless` host.
 - [ ] Append the Task 3 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n -I "zoneless\.com\|zonelessdev\|zoneless-app\.cloudfunctions\|github\.com/zoneless/" -- ':!package-lock.json' ':!CHANGES.md' ':!NOTICE' ':!docs/plans'   # expect no output
 npx nx run-many --target=test --all   # expect: Successfully ran target test for 6 projects
@@ -376,6 +385,7 @@ npx nx run-many --target=lint --all && npm run format:check
 Purpose: make `Settlement` an explicit interface with chain-neutral types, route every chain-specific import through `chains/Settlement.ts` or `chains/types.ts`, and rename module fields from `solana` to `settlement`. Behaviour is unchanged; Solana remains the on-chain implementation. This is what lets Task 6 swap rails without touching call sites.
 
 **Files:**
+
 - Create: `apps/api/src/modules/chains/types.ts`, `apps/api/src/__tests__/mocks/Settlement.ts`
 - Modify: `apps/api/src/modules/chains/Settlement.ts`, `apps/api/src/modules/chains/Solana.ts` (`export class Solana implements Settlement`, move the exported interfaces to `types.ts`, add `Describe()`, `ExplorerUrl` reads `Describe()`), `apps/api/src/modules/{Balance,CheckoutPayment,Invoice,Payout,Price,TopUp,TopUpMonitor}.ts`, `apps/api/src/routes/config.routes.ts`, `apps/api/src/__tests__/{CheckoutPayment,Payout,Invoice,Settlement}.spec.ts`, `apps/api/src/__tests__/mocks/Solana.ts` (keep; it is still what `jest.config.ts` maps `chains/Solana` to — add `Describe` and `ExplorerUrl` to it), `CHANGES.md`
 
@@ -386,14 +396,14 @@ Purpose: make `Settlement` an explicit interface with chain-neutral types, route
 export type Rail = 'simulated' | 'onchain';
 export interface RailDescription {
   rail: Rail;
-  network: string;            // 'solana' now, 'ethereum' after Task 6, 'simulated'
+  network: string; // 'solana' now, 'ethereum' after Task 6, 'simulated'
   chain_id: number | null;
-  native_currency: string;    // 'sol' now, 'eth' after Task 6, 'none'
-  token_address: string;      // USDC mint now, USDC contract after Task 6, 'simulated'
+  native_currency: string; // 'sol' now, 'eth' after Task 6, 'none'
+  token_address: string; // USDC mint now, USDC contract after Task 6, 'simulated'
 }
 export interface UnsignedTransaction {
   unsigned_transaction: string;
-  estimated_fee: string;      // atomic units of fee_currency, decimal string
+  estimated_fee: string; // atomic units of fee_currency, decimal string
   fee_currency: string;
   chain_id: number | null;
   nonce: number | null;
@@ -412,13 +422,31 @@ export interface BroadcastResult {
   failure_message?: string;
   failure_code?: 'account_frozen' | 'blockchain_error';
 }
-export interface TransferRecipient { destinationAddress: string; amountInCents: number }
-export interface IncomingDeposit {
-  transactionHash: string; logIndex: number; amount: number; amountCents: number;
-  senderAddress: string; timestamp: number; blockNumber: number;
+export interface TransferRecipient {
+  destinationAddress: string;
+  amountInCents: number;
 }
-export interface CheckoutPaymentVerification { verified: boolean; amount_cents: number; payer_address: string | null; failure_reason?: string }
-export interface CheckoutSubscribeVerification { verified: boolean; subscriber_address: string | null; subscription_onchain_id: string | null; failure_reason?: string }
+export interface IncomingDeposit {
+  transactionHash: string;
+  logIndex: number;
+  amount: number;
+  amountCents: number;
+  senderAddress: string;
+  timestamp: number;
+  blockNumber: number;
+}
+export interface CheckoutPaymentVerification {
+  verified: boolean;
+  amount_cents: number;
+  payer_address: string | null;
+  failure_reason?: string;
+}
+export interface CheckoutSubscribeVerification {
+  verified: boolean;
+  subscriber_address: string | null;
+  subscription_onchain_id: string | null;
+  failure_reason?: string;
+}
 ```
 
 ```ts
@@ -442,7 +470,7 @@ export interface Settlement {
   VerifySubscribeTransaction(transactionHash: string, expected: { planId: string; subscriberWallet: string }): Promise<CheckoutSubscribeVerification>;
   CollectSubscriptionPayment(params: { subscriberWallet: string; planId: string; subscriptionId: string; amountCents: number; destinationWallet?: string }): Promise<{ transaction_hash: string; alreadyCollected: boolean }>;
   BuildInitSubscriptionAuthorityTransaction?(subscriber: string, options?: { feeSponsored?: boolean }): Promise<UnsignedTransaction | null>; // Solana only
-  WaitForSubscriptionAuthority?(subscriber: string): Promise<void>;                                                                    // Solana only
+  WaitForSubscriptionAuthority?(subscriber: string): Promise<void>; // Solana only
 }
 export function GetSettlement(): Settlement;
 export function ExplorerUrl(type: 'tx' | 'address', value: string): string; // = GetSettlement().ExplorerUrl(type, value)
@@ -450,6 +478,7 @@ export const SIMULATED_TEST_WALLET: string; // unchanged value in this task
 ```
 
 **Steps:**
+
 - [ ] Write the failing test `apps/api/src/__tests__/Settlement.spec.ts` additions:
   ```ts
   it('describes the simulated rail', () => {
@@ -477,6 +506,7 @@ export const SIMULATED_TEST_WALLET: string; // unchanged value in this task
 - [ ] Append the Task 4 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n "SolanaExplorerUrl\|GetSOLBalance\|GetPlanOwnerPublicKey\|FindExistingSubscriptionDelegation\|this\.solana\b" -- apps/api/src   # expect no output
 git grep -n "from './chains/Solana'\|from '../chains/Solana'\|from '../modules/chains/Solana'" -- apps/api/src ':!apps/api/src/modules/chains/Settlement.ts' ':!apps/api/src/__tests__'   # expect no output
@@ -491,6 +521,7 @@ npx nx run-many --target=lint --all && npm run format:check
 Purpose: every externally visible Solana-shaped field is renamed once, while Solana still produces real values, so the SDK, web and docs are updated together (per `AGENTS.md`) and the suite proves the rename end to end.
 
 **Files:**
+
 - Modify (shared-types): `libs/shared-types/src/lib/Payout.ts` (`PayoutBatchBuildResponse`, `PayoutBatchBroadcastResponse`, `ProcessPendingResult`), `CheckoutSession.ts` (`payment_details.transaction_hash`, `merchant_wallet.token_address`), `Price.ts` (`subscription_plan_id`), `Subscription.ts` (`subscription_onchain_id`), `Config.ts` (`SetupRequest.wallet_address`, `SetupResponse.wallet_address`, `DepositInfo.network: string`, `SettlementRail` comments), `Balance.ts` or wherever `BalanceDetails` lives (`wallet_native`, `native_currency`), comments in `Charge.ts`, `Customer.ts`, `Invoice.ts`, `InvoicePayment.ts`
 - Modify (shared-schemas): `libs/shared-schemas/src/lib/PayoutSchema.ts` (`BroadcastPayoutsBatchSchema`: drop `blockhash`, `last_valid_block_height`), `PriceSchema.ts` comment, `CheckoutSessionSchema.ts` comment
 - Modify (API): `apps/api/src/modules/Payout.ts` (`BuildPayoutsBatch` response fields; `BroadcastPayoutsBatch` returns `transaction_hash`, `status`), `CheckoutPayment.ts` (`PreparedCheckoutPayment` fields: `estimated_fee`, `fee_currency`, `chain_id`, `nonce`, `to`, `solana?`, `subscription_onchain_id`; `ConfirmPayment(urlSlug, transactionHash, options)`; `payment_details.transaction_hash`; `merchant_wallet.token_address`), `CheckoutSession.ts:880-895` (`GetCheckoutSessionByTransactionHash`, field path `payment_details.transaction_hash`), `Price.ts` (`subscription_plan_id`), `Subscription.ts` (`subscription_onchain_id`, `SetSubscriptionOnchainId`), `SubscriptionBilling.ts:225`, `Invoice.ts:1667-1705`, `Setup.ts` (`wallet_address`), `Balance.ts` (`wallet_native`, `native_currency`), `routes/paymentPages.routes.ts` (confirm body `transaction_hash`, `subscription_onchain_id`), `routes/setup.routes.ts:213`, `routes/config.routes.ts`, `routes/payouts.routes.ts` comments, specs: `CheckoutPayment.spec.ts`, `CheckoutSession.spec.ts`, `Payout.spec.ts`, `Price.spec.ts`, `Subscription.spec.ts`, `SubscriptionBilling.spec.ts`, `Invoice.spec.ts`, `Balance.spec.ts`, `Setup.ts`-related specs
@@ -500,6 +531,7 @@ Purpose: every externally visible Solana-shaped field is renamed once, while Sol
 - Modify: `CHANGES.md`
 
 **Steps:**
+
 - [ ] Write failing tests first, one per surface:
   - `Payout.spec.ts`: `BuildPayoutsBatch` result `toMatchObject({ object: 'payout_batch_build', estimated_fee: expect.any(String), fee_currency: expect.any(String), transaction_type: 'payout' })` and `not.toHaveProperty('estimated_fee_lamports')`; `BroadcastPayoutsBatch` result has `transaction_hash` and no `signature`.
   - `CheckoutPayment.spec.ts`: `PreparePayment` returns `estimated_fee`/`fee_currency`; `ConfirmPayment` persists `payment_details.transaction_hash`; subscription prepare returns `subscription_onchain_id`.
@@ -515,6 +547,7 @@ Purpose: every externally visible Solana-shaped field is renamed once, while Sol
 - [ ] Append the Task 5 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n -I "estimated_fee_lamports\|last_valid_block_height\|min_context_slot\|_pda\b\|usdc_mint\|solana_public_key\|transaction_signature\|wallet_sol\b\|blockhash" -- ':!package-lock.json' ':!CHANGES.md' ':!docs/plans' ':!apps/api/src/modules/chains/Solana.ts' ':!apps/api/src/__tests__/mocks/Solana.ts' ':!apps/api/src/modules/chains/Solana.spec.ts' ':!apps/web/src/app/features/checkout/checkout.component.ts' ':!apps/api/src/modules/chains/types.ts'   # expect no output (the excluded files keep Solana internals until Task 6)
 npx nx run-many --target=test --all   # expect: Successfully ran target test for 6 projects
@@ -529,6 +562,7 @@ npx nx run-many --target=lint --all && npm run format:check
 Purpose: the pivot. After this task no Solana package, file or address format remains; `GetSettlement()` returns `Ethereum` in on-chain mode; the simulated rail is fully functional; on-chain money flows throw a clear `not_supported` error until Tasks 8–15 implement them. The web `WalletService` and key generation move to secp256k1.
 
 **Files:**
+
 - Delete: `apps/api/src/modules/chains/Solana.ts`, `apps/api/src/modules/chains/Solana.spec.ts`, `apps/api/src/__tests__/mocks/Solana.ts`, `apps/web/src/app/utils/validation/solana.ts`, `apps/web/src/assets/icons/phantom-wallet.svg` (if only the wallet guide uses it)
 - Create: `apps/api/src/modules/chains/Ethereum.ts`, `apps/api/src/modules/chains/Chain.ts` (chain selection + viem clients), `apps/api/src/modules/chains/contracts.ts` (per-chain address table from §1), `apps/api/src/modules/chains/Ethereum.spec.ts` (pure helpers only), `apps/web/src/app/utils/validation/ethereum.ts`, `libs/shared-schemas/src/lib/AddressSchema.ts`
 - Modify (deps): root `package.json` (remove the ten packages in §1, add `viem`), `sdks/node/package.json` (deps → `viem`; keywords `solana` → `ethereum`), `sdks/node/tsup.config.ts` (`external: ['viem']`), `apps/cli/package.json` (`bs58` → `viem`), `package-lock.json` (via `npm install`)
@@ -560,6 +594,7 @@ export const EthereumAddressSchema = z.string().refine((v) => isAddress(v), 'Mus
 ```
 
 **Steps:**
+
 - [ ] Update the three `package.json` files, run `npm install`, confirm `node -e "require('viem')"` works and `git grep -l "@solana\|bs58\|wallet-standard\|solana-mobile" -- package.json sdks/node/package.json apps/cli/package.json` is empty.
 - [ ] Write failing tests: `Ethereum.spec.ts` (`new Ethereum().Describe()` for `LIVEMODE=false`/`SETTLEMENT_RAIL=onchain`/`ETH_CHAIN_ID=31337`/`USDC_ADDRESS=0x…` gives `{ rail: 'onchain', network: 'ethereum', chain_id: 31337, native_currency: 'eth', token_address: <checksummed> }`; `ExplorerUrl('tx','0xab')` is `''` on 31337 and `https://sepolia.etherscan.io/tx/0xab` on 11155111; `CheckWalletExists` true/false cases; `BuildBatchPayoutTransaction` rejects with `not_supported`), an `AppConfig` spec for key format validation (`CHECKOUT_RELAYER_KEY=abc` throws), `Settlement.spec.ts` updates, `wallet.service.spec.ts` (discovery, connect returns checksummed address, `SignTypedData` forwards `eth_signTypedData_v4`), SDK `Payouts.spec.ts` (sign/recover), CLI `Wallet.spec.ts` (address matches private key), `AddressSchema` spec in `libs/shared-schemas` if the lib has tests (otherwise cover through `ExternalWallet.spec.ts`: lowercase accepted, bad checksum rejected, stored value checksummed).
 - [ ] Run the targeted suites — expect FAIL.
@@ -568,6 +603,7 @@ export const EthereumAddressSchema = z.string().refine((v) => isAddress(v), 'Mus
 - [ ] Run the full suite, lint, format. Append the Task 6 file list to `CHANGES.md` (this task's section also records the resolved viem version).
 
 **Verification:**
+
 ```bash
 git grep -n -i -I "solana\|lamport\|base58\|bs58\|phantom\|wallet-standard\|solana-mobile" -- apps/api apps/web apps/cli libs sdks package.json docker-compose.yml .env.example .env.production.example ':!**/CHANGES.md'   # expect no output
 npx nx run-many --target=test --all   # expect: Successfully ran target test for 6 projects
@@ -582,6 +618,7 @@ npx nx run-many --target=lint --all && npm run format:check
 Purpose: give the repo a contracts toolchain and an integration lane that needs no funds.
 
 **Files:**
+
 - Create: `contracts/foundry.toml`, `contracts/remappings.txt`, `contracts/src/PayoutBatch.sol`, `contracts/test/mocks/MockUSDC.sol`, `contracts/test/PayoutBatch.t.sol`, `contracts/script/DeployPayoutBatch.s.sol`, `contracts/README.md` (how to build/test/deploy; no addresses yet), `contracts/project.json`, `contracts/lib/forge-std` + `contracts/lib/openzeppelin-contracts` (git submodules via `forge install foundry-rs/forge-std@v1.9.4 OpenZeppelin/openzeppelin-contracts@v5.1.0`; commit `.gitmodules`), `apps/api/jest.anvil.config.ts`, `apps/api/src/__tests__/anvil/Anvil.ts`, `apps/api/src/__tests__/anvil/Artifacts.ts`, `apps/api/src/__tests__/anvil/Harness.anvil.spec.ts`, `apps/api/src/modules/chains/abi/PayoutBatch.ts`
 - Modify: `apps/api/jest.config.ts` (`testPathIgnorePatterns: ['\\.anvil\\.spec\\.ts$']`), `apps/api/project.json` (target `test-anvil`: executor `@nx/jest:jest`, `jestConfig: apps/api/jest.anvil.config.ts`, `dependsOn: ['contracts:build']`), `.prettierignore` (`contracts/lib`, `contracts/out`, `contracts/cache`), `.gitignore` (`contracts/out`, `contracts/cache`, `contracts/broadcast/**/dry-run`), `eslint.config.mjs` (ignore `contracts/**`), `.github/workflows/ci.yml` (add `foundry-rs/foundry-toolchain@v1` with `version: stable` to the `test` and `build` jobs before `npm ci`; add a step `npx nx run api:test-anvil` to the `test` job), `CHANGES.md`
 
@@ -607,12 +644,21 @@ contract PayoutBatch {
 
 ```ts
 // apps/api/src/__tests__/anvil/Anvil.ts
-export interface AnvilContext { rpcUrl: string; chainId: 31337; accounts: { deployer: Hex; platform: Hex; buyer: Hex; relayer: Hex; operator: Hex }; addresses: { usdc: Address; payoutBatch: Address; subscriptions: Address | null }; publicClient: PublicClient; Stop(): Promise<void>; Mine(blocks: number): Promise<void> }
+export interface AnvilContext {
+  rpcUrl: string;
+  chainId: 31337;
+  accounts: { deployer: Hex; platform: Hex; buyer: Hex; relayer: Hex; operator: Hex };
+  addresses: { usdc: Address; payoutBatch: Address; subscriptions: Address | null };
+  publicClient: PublicClient;
+  Stop(): Promise<void>;
+  Mine(blocks: number): Promise<void>;
+}
 export async function StartAnvil(): Promise<AnvilContext>; // spawns `anvil --port <free> --chain-id 31337 --silent`, waits for RPC, deploys MockUSDC + PayoutBatch from contracts/out via viem deployContract (account #0), mints 1_000_000 USDC to platform and buyer, sets process.env (LIVEMODE=false, SETTLEMENT_RAIL=onchain, ETH_CHAIN_ID=31337, ETH_RPC_URL, USDC_ADDRESS, PAYOUT_BATCH_ADDRESS, ETH_CONFIRMATIONS=1, CHECKOUT_RELAYER_KEY=#3, SUBSCRIPTION_OPERATOR_KEY=#4) and calls ResetChainClientsForTests()
 export function ReadArtifact(name: 'MockUSDC' | 'PayoutBatch' | 'Subscriptions'): { abi: Abi; bytecode: Hex }; // from contracts/out/<name>.sol/<name>.json
 ```
 
 **Steps:**
+
 - [ ] `forge init --no-git --force contracts` is not needed; create the files by hand so no sample contracts are added. Run the `forge install` commands from the repo root with `--root contracts` (or `cd contracts && forge install …`).
 - [ ] Write `PayoutBatch.t.sol` first: `testDisperseTransfersEachAmount` (3 recipients, balances and `BatchPaid` event), `testRevertsOnLengthMismatch`, `testRevertsOnEmpty`, `testRevertsOnTooMany` (201), `testRevertsWhenAllowanceInsufficient`, `testRevertsWhenRecipientBlacklisted` (expects the mock's revert string), `testFuzzDisperse(uint8 count, uint96 seed)` (sum of balances equals total). Run `forge test` — expect compile failure (contract missing).
 - [ ] Implement `MockUSDC.sol` and `PayoutBatch.sol`; `forge test -vv` — expect all pass. `forge fmt --check` clean.
@@ -622,6 +668,7 @@ export function ReadArtifact(name: 'MockUSDC' | 'PayoutBatch' | 'Subscriptions')
 - [ ] CI edits as listed. Append the Task 7 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 cd contracts && forge build && forge test -vv && forge fmt --check && cd ..   # expect: Suite result: ok. 7 passed
 npx nx run api:test-anvil             # expect: all Harness tests passed
@@ -635,6 +682,7 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 8: Payouts on Ethereum (build, broadcast, reconcile)
 
 **Files:**
+
 - Create: `apps/api/src/modules/PayoutBatchStore.ts` (CRUD for the `PayoutBatches` collection), `apps/api/src/modules/chains/PayoutEncoding.ts` (pure: `EncodeDisperseCall`, `ComputeBatchId`, `ParsePayoutReceipt`, `MapRevertToFailureCode`), `apps/api/src/__tests__/PayoutEncoding.spec.ts`, `apps/api/src/__tests__/PayoutBatchStore.spec.ts`, `apps/api/src/__tests__/anvil/Payouts.anvil.spec.ts`
 - Modify: `apps/api/src/modules/chains/Ethereum.ts` (implement `BuildBatchPayoutTransaction`, `BuildApprovalTransaction`, `BroadcastSignedTransaction`, `WaitForReceipt`, `GetTransactionStatus(hash)`, `GetAccountNonce(address)`, `IsBlacklisted(addresses[])` via multicall), `apps/api/src/modules/chains/types.ts` (`UnsignedPayoutBatch.gas_limit`, `max_fee_per_gas`, `max_priority_fee_per_gas` as strings), `apps/api/src/modules/chains/Settlement.ts` (interface + simulated: `BuildBatchPayoutTransaction` returns `transaction_type: 'payout'`; `BroadcastSignedTransaction` accepts a hash or raw tx), `apps/api/src/modules/Payout.ts` (`BuildPayoutsBatch` with allowance check / approval variant / nonce lock / reconcile-first / blacklist precheck / `MAX_BATCH_RECIPIENTS = 100`; `BroadcastPayoutsBatch` with `signed_transaction | transaction_hash`, pending outcome, failure code mapping; new `ReconcilePayoutBatches(platformAccountId)`), `apps/api/src/modules/SanctionsScreening.ts` (oracle call per §4.8; `CheckWalletAddresses(addresses[])`), `apps/api/src/routes/payouts.routes.ts` (`POST /v1/payouts/reconcile`, docs comments), `libs/shared-schemas/src/lib/PayoutSchema.ts` (`BuildPayoutsBatchSchema.replace?: boolean`, `.max(100)`; `BroadcastPayoutsBatchSchema`: `signed_transaction` optional, `transaction_hash` optional, refine one-of), `libs/shared-types/src/lib/Payout.ts` (`PayoutBatchBuildResponse` gains `transaction_type`, `batch_id`, `gas_limit`, `max_fee_per_gas`, `max_priority_fee_per_gas`, `chain_id`, `nonce`, `to`; `PayoutBatchBroadcastResponse.status` adds `'pending'`; new `PayoutBatch` type; `ReconcileResponse`), `apps/api/src/__tests__/Payout.spec.ts`, `Settlement.spec.ts`, `apps/docs/src/app/pages/docs/data/payouts.ts` (build/broadcast/reconcile pages and samples), `sdks/node/src/resources/Payouts.ts` (`reconcile()` method only; signing lands in Task 9), `CHANGES.md`
 
@@ -651,6 +699,7 @@ async ReconcilePayoutBatches(platformAccountId: string): Promise<{ object: 'payo
 ```
 
 **Steps:**
+
 - [ ] Unit tests first (`Payout.spec.ts`, mocked settlement): approval variant when allowance < total; `payout_batch_in_progress` on a second build; timeout → payouts stay `in_transit`, no refund, batch `broadcast` (Review Focus 1, 5); receipt `status: 0` with blacklist message → `failed`, `failure_code: 'account_frozen'`, balance refunded (Review Focus 4); reconcile paths (paid / replaced / still pending); build refuses > 100 and blacklisted recipients. `PayoutEncoding.spec.ts`: deterministic `ComputeBatchId` regardless of order; `EncodeDisperseCall` selector matches `disperse(address,address[],uint256[],bytes32)`; `ParsePayoutReceipt` matches on the `BatchPaid` log.
 - [ ] Run `npx nx test api --testPathPattern="Payout"` — expect FAIL.
 - [ ] Implement `Ethereum.ts` methods with viem (`estimateGas`, `estimateFeesPerGas`, `getTransactionCount`, `sendRawTransaction`, `waitForTransactionReceipt({ confirmations, timeout: 60_000 })`, `multicall` for `isBlacklisted`), `PayoutBatchStore`, `Payout.ts` logic per §4.3, route, schemas, types, SDK `reconcile()`, docs.
@@ -658,6 +707,7 @@ async ReconcilePayoutBatches(platformAccountId: string): Promise<{ object: 'payo
 - [ ] Full suite, anvil lane, lint, format. Append the Task 8 file list to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test api --testPathPattern="Payout|Settlement"   # expect: PASS incl. the five new behaviours
 npx nx run api:test-anvil                                 # expect: Payouts suite passed
@@ -670,15 +720,18 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 9: SDK and dashboard payout signing
 
 **Files:**
+
 - Modify (SDK): `sdks/node/src/resources/Payouts.ts` (`sign()` verifies the parsed tx before signing: `to` equals `build.to`, `chainId` equals `build.chain_id`, `from`-derived address equals the platform wallet when `expectedSigner` is passed; new `ensureAllowance(privateKey)` that loops build/approval; `processBatch(privateKey, { limit ≤ 100 })` handles `transaction_type: 'approval'` then retries once; `ProcessPendingResult.status` includes `'pending'`), `sdks/node/src/__tests__/Payouts.spec.ts`, `sdks/node/README.md` (payout section: Ethereum private key, allowance step, gas), `sdks/node/src/index.ts` JSDoc
 - Modify (web): `apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.ts` (wallet path: `EnsureChain(config.chain_id)` → `WalletService.SendTransaction({ to: build.to, data: <from unsigned tx>, value: 0 })` → broadcast `{ transaction_hash }`; private-key path: `SignTransactionWithPrivateKey` → broadcast `{ signed_transaction }`; approval variant handled with a second confirmation step; `pending` result shows "Submitted, waiting for confirmations" and offers Reconcile), `features/account/connected-accounts/components/payout-modal/payout-modal.component.{ts,html}` (show `estimated_fee` in ETH with 6 decimals, warn when fee > 10 % of amount, show approval step), `data/services/payout.service.ts` (`Reconcile()`), `data/services/config.service.ts` + `libs/shared-types/src/lib/Config.ts` (`PublicConfig.chain_id: number | null`, `PublicConfig.network`), `apps/api/src/routes/config.routes.ts` (populate from `Describe()`), specs for the service and modal
 - Modify: `apps/docs/src/app/pages/docs/data/payouts.ts` (SDK snippets: `processAll(process.env.WALLET_PRIVATE_KEY)`), `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing tests: SDK `sign()` rejects a tx whose `to` differs from `build.to` (`Unsigned transaction does not target the expected contract`); `processBatch` performs approval then payout when the first build returns `transaction_type: 'approval'`; web service spec: wallet path posts `transaction_hash`, private-key path posts `signed_transaction`.
 - [ ] Implement, run `npx nx test node-sdk web`, then the full suite. Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test node-sdk && npx nx test web    # expect: PASS
 npx nx build node-sdk                      # expect: success; dist has no @solana imports (grep dist/sdks/node for "solana" → none)
@@ -691,15 +744,18 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 10: Top-ups by USDC `Transfer` log scanning
 
 **Files:**
+
 - Create: `apps/api/src/modules/ChainCursorStore.ts`, `apps/api/src/__tests__/ChainCursorStore.spec.ts`, `apps/api/src/__tests__/anvil/TopUps.anvil.spec.ts`, `apps/api/src/__tests__/TopUpMonitor.spec.ts` (if missing)
 - Modify: `apps/api/src/modules/chains/Ethereum.ts` (`GetIncomingDeposits(address, fromBlock, toBlock)` via `getLogs`; `GetLatestBlockNumber()`; `GetBlockTimestamp(blockNumber)` cached), `apps/api/src/modules/chains/Settlement.ts` (interface signature `GetIncomingDeposits(address: string, range: { fromBlock: bigint; toBlock: bigint }): Promise<IncomingDeposit[]>`; simulated returns `[]`), `apps/api/src/modules/TopUpMonitor.ts` (cursor logic per §4.5: chunks ≤ 2000, ≤ 10 chunks per call, `toBlock = latest - confirmations`, first run `latest - 1000`; `PollWallet` ignores the old `limit`), `apps/api/src/modules/TopUp.ts` (`CreateFromDeposit` writes `metadata.log_index`; `IsDepositProcessed(transactionHash, logIndex)`; `GetProcessedDepositKeys`), `apps/api/src/modules/Balance.ts` (`wallet_native` from `GetNativeBalance`), `apps/api/src/routes/topups.routes.ts` (comments; `check-deposits` body ignores `limit`), `libs/shared-types/src/lib/TopUp.ts` (metadata `log_index`), `apps/api/src/__tests__/TopUp.spec.ts`, `apps/web/src/app/features/account/balance/**` (copy: "Ethereum", confirmations note; Circle faucet link already added), `apps/docs/src/app/pages/docs/data/top-ups.ts`, `fund-platform-wallet.ts` (full rewrite: buy USDC, withdraw on the **Ethereum** network — never Solana/Base/Polygon; keep ETH for gas; confirmations take minutes; Sepolia faucet note for test mode), `balance.ts`, `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing tests: `TopUp.spec.ts` — two deposits with the same `transactionHash` and different `logIndex` both create top-ups (Review Focus 2); `TopUpMonitor.spec.ts` — cursor advances to `toBlock`, chunking at 2000, respects `latest - confirmations`; `ChainCursorStore.spec.ts` — get/set.
 - [ ] Implement; Anvil test: transfer USDC from buyer to platform twice in one tx (use `PayoutBatch.disperse` from the buyer with two entries both pointing at the platform wallet) → `GetIncomingDeposits` returns two entries with distinct `logIndex`; cursor persisted; a second scan returns none.
 - [ ] Full suite, anvil lane, docs. Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test api --testPathPattern="TopUp|ChainCursor|Balance"   # expect: PASS
 npx nx run api:test-anvil                                        # expect: TopUps suite passed
@@ -712,15 +768,18 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 11: Checkout payments via relayed EIP-3009 authorizations (API)
 
 **Files:**
+
 - Create: `apps/api/src/modules/chains/CheckoutAuthorization.ts` (pure: `SessionNonce(sessionId): Hex`, `BuildTransferAuthorizationTypedData(params): TypedData`, `SplitSignature(sig): { v, r, s }`, `VerifyCheckoutReceipt(receipt, expected): CheckoutPaymentVerification`), `apps/api/src/__tests__/CheckoutAuthorization.spec.ts`, `apps/api/src/__tests__/anvil/Checkout.anvil.spec.ts`
 - Modify: `apps/api/src/modules/chains/Ethereum.ts` (`BuildCheckoutPaymentAuthorization`, `RelayCheckoutAuthorization(authorization, signature)` → tx hash, `VerifyCheckoutPayment(hash, expected)` using the receipt + `AuthorizationUsed`, `GetUsdcDomain()` cached), `apps/api/src/modules/chains/Settlement.ts` (interface: `BuildCheckoutPaymentAuthorization(payer, merchant, amountCents, sessionId, expiresAt): Promise<PreparedAuthorization>`, `RelayCheckoutAuthorization(...)`; drop `BuildCheckoutPaymentTransaction`/`ValidateAndBroadcastCheckoutTransaction`; simulated returns `method: 'simulated'` and accepts the existing `sim_sig:` scheme), `apps/api/src/modules/chains/types.ts` (`PreparedAuthorization { method: 'eip3009_transfer' | 'simulated'; typed_data: TypedData | null; authorization: { from; to; value: string; valid_after: number; valid_before: number; nonce: Hex } | null; estimated_fee; fee_currency; chain_id }`), `apps/api/src/modules/CheckoutPayment.ts` (`PreparedCheckoutPayment` per §4.4; `PreparePayment` → authorization; `ConfirmPayment(urlSlug, body: { signature?: Hex; transaction_hash?: Hex; … })`: relay → persist `payment_details.transaction_hash` → wait ≤ `CHECKOUT_CONFIRM_TIMEOUT_MS` → verify → complete; `payment_pending` AppError 409 with `transaction_hash`), `apps/api/src/modules/CheckoutSession.ts` (helper `SetPaymentTransactionHash`), `apps/api/src/modules/AppConfig.ts` (`GetCheckoutConfirmTimeoutMs()`), `apps/api/src/routes/paymentPages.routes.ts` (confirm body shape), `libs/shared-schemas/src/lib/CheckoutSessionSchema.ts` (`ConfirmCheckoutPaymentSchema`: `signature` hex 132 chars | `transaction_hash` hex 66 chars | subscription fields from Task 14 later), `libs/shared-types/src/lib/CheckoutSession.ts` (`CheckoutPaymentTransaction` moves here from the web service; `payment_details.relayed`), `apps/api/src/modules/Charge.ts:284,404` (`network` from `Describe()`), `apps/api/src/__tests__/CheckoutPayment.spec.ts`, `Settlement.spec.ts`, `apps/docs/src/app/pages/docs/data/checkout-sessions.ts`, `payment-intents.ts`, `charges.ts`, `payment-links.ts` (payment flow prose: "sign an authorization; no ETH needed"), `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing tests in `CheckoutAuthorization.spec.ts`: `SessionNonce('cs_z_1')` equals `keccak256(toBytes('cs_z_1'))`; typed data has `primaryType: 'TransferWithAuthorization'`, domain `{ name, version: '2', chainId, verifyingContract }`, `message.value` is `amount × 10_000` as string; `VerifyCheckoutReceipt` rejects when the `AuthorizationUsed.nonce` differs or `Transfer.to` is not the merchant (Review Focus 3), accepts `value ≥ expected`, extracts `payer_address` from `Transfer.from`. `CheckoutPayment.spec.ts`: confirm persists the hash before waiting; `payment_pending` on timeout; retry with `transaction_hash` completes without re-relaying.
 - [ ] Implement; Anvil test: buyer signs the typed data with `privateKeyToAccount(buyer).signTypedData`, `RelayCheckoutAuthorization` from the relayer, `VerifyCheckoutPayment` returns verified with the buyer as payer; a second relay of the same authorization reverts (used nonce); a tampered `to` fails verification.
 - [ ] Full suite, anvil lane, docs. Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test api --testPathPattern="CheckoutAuthorization|CheckoutPayment|Settlement|Charge"   # expect: PASS
 npx nx run api:test-anvil                                                                     # expect: Checkout suite passed
@@ -733,14 +792,17 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 12: Hosted checkout on Ethereum (web)
 
 **Files:**
+
 - Modify: `apps/web/src/app/data/services/checkout-session.service.ts` (import `CheckoutPaymentTransaction` from shared-types; `ConfirmPayment(urlSlug, { signature } | { transaction_hash })`), `apps/web/src/app/features/checkout/checkout.component.{ts,html}` (pay flow: `Connect` → `EnsureChain(session chain)` → `PreparePayment` → `SignTypedData(prepared.typed_data)` → `ConfirmPayment({ signature })`; on `payment_pending` poll confirm with the hash every 4 s up to 5 min; copy "Paying with USDC on Ethereum"; remove the two-step subscription copy until Task 15), `features/checkout/util/mobile-wallet.ts` (verify MetaMask / Coinbase Wallet deep-link formats against their current docs and record the sources in the file header), `shared/ui/wallet-guide/wallet-guide.component.{html,ts}` (MetaMask guide), `features/checkout/checkout.component.spec.ts`, `core/services/wallet.service.ts` (any gaps found), `apps/docs/src/app/pages/docs/data/quickstart.ts`, `payment-link-quickstart` page if present, `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing component spec: with a fake provider the pay button triggers `eth_signTypedData_v4` with the prepared typed data and posts `{ signature }`; a `payment_pending` response leads to a retry with `transaction_hash`; simulated mode still uses the test wallet dialog.
 - [ ] Implement; run `npx nx test web`; serve `npm run dev` with `SETTLEMENT_RAIL=simulated` and complete a payment link checkout manually (Mongo via `docker compose up mongodb -d`).
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test web                        # expect: PASS
 npx nx build web --configuration=production   # expect: success, no Solana chunks (grep dist/apps/web for "solana" → none)
@@ -753,16 +815,19 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 13: `Subscriptions.sol` with Foundry tests
 
 **Files:**
+
 - Create: `contracts/src/Subscriptions.sol` (surface exactly as §4.6), `contracts/src/interfaces/IERC20Permit.sol` only if OZ's is not used directly, `contracts/test/Subscriptions.t.sol`, `contracts/script/DeploySubscriptions.s.sol`, `apps/api/src/modules/chains/abi/Subscriptions.ts`
 - Modify: `apps/api/src/__tests__/anvil/Anvil.ts` (deploy `Subscriptions`, set `SUBSCRIPTIONS_ADDRESS`), `apps/api/src/__tests__/anvil/Harness.anvil.spec.ts` (ABI sync guard for Subscriptions), `contracts/README.md`, `CHANGES.md`
 
 **Steps:**
+
 - [ ] Tests first in `Subscriptions.t.sol`: plan creation and key derivation; `subscribe` by subscriber; `subscribeWithPermit` relayed by a third party with a permit signature from the subscriber (use `vm.sign`); `charge` succeeds immediately after subscribe (first charge due now), reverts `NotDueYet` before the period elapses, succeeds after `vm.warp`, `nextChargeAt` advances by exactly `periodSeconds`; `charge` with `amount > plan.amount` reverts; only the puller can charge; cancel by subscriber and by owner, not by a stranger; pause blocks charge, resume sets `nextChargeAt = now + period`; `deactivatePlan` blocks new subscribes; `setPlanDestination` affects where `charge` sends; fuzz `testFuzzChargeSchedule(uint64 period, uint8 cycles)`; an invariant that total charged over N cycles ≤ N × amount.
 - [ ] Implement with OZ `EIP712`, `ECDSA`, `SafeERC20`, `IERC20Permit`; no `Ownable`, no proxy.
 - [ ] `forge test -vv`, `forge fmt --check`; export the ABI to `abi/Subscriptions.ts`; extend the harness; run the anvil lane.
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 cd contracts && forge test -vv --match-contract Subscriptions && forge fmt --check && cd ..   # expect: all pass incl. fuzz/invariant
 npx nx run api:test-anvil             # expect: Harness suite passes with Subscriptions deployed
@@ -774,15 +839,18 @@ npx nx run-many --target=test --all   # expect: Successfully ran target test for
 ### Task 14: Subscriptions on Ethereum (API: plans, subscribe, collect, billing)
 
 **Files:**
+
 - Create: `apps/api/src/modules/chains/SubscriptionAuthorization.ts` (pure: `BuildPermitTypedData`, `BuildSubscribeTypedData`, `PlanIdFromPriceId(priceId): Hex` (bytes32 keccak of the price id), `SubscriptionIdFor(planKey, subscriber): Hex`), `apps/api/src/__tests__/SubscriptionAuthorization.spec.ts`, `apps/api/src/__tests__/anvil/Subscriptions.anvil.spec.ts`
 - Modify: `apps/api/src/modules/chains/Ethereum.ts` (`CreateSubscriptionPlan` → `createPlan` tx from the operator key, returns `planKey`; `BuildSubscribeAuthorization(subscriber, planKey)` → `{ needs_permit, permit_typed_data?, subscribe_typed_data, deadline }` (checks `allowance`); `RelaySubscribe(planKey, subscriber, permitSig?, subscribeSig, deadline)` → tx hash; `VerifySubscribeTransaction` via `Subscribed` event; `FindExistingSubscription` via `subscriptions(subId)` view; `CollectSubscriptionPayment` → `charge(subId, amount)` from the operator key, `NotDueYet` → `alreadyCollected: true`), `apps/api/src/modules/chains/Settlement.ts` (interface + simulated equivalents; remove `BuildSubscribeTransaction`), `apps/api/src/modules/chains/types.ts` (`PreparedSubscribe`), `apps/api/src/modules/Price.ts` (`subscription_plan_id = planKey`; period in seconds = hours × 3600), `apps/api/src/modules/CheckoutPayment.ts` (subscription prepare returns `subscription: { plan_id, needs_permit, permit_typed_data, subscribe_typed_data, deadline, already_subscribed, subscription_onchain_id }`; confirm accepts `{ permit_signature?, subscribe_signature, deadline }` or `{ transaction_hash }`; first-period collect unchanged), `apps/api/src/modules/Invoice.ts:1655-1725` (field names; error text "wait for the next billing period"), `apps/api/src/modules/SubscriptionBilling.ts`, `BillingMonitor.ts` (comments), `apps/api/src/modules/Subscription.ts` (on cancel with `subscription_onchain_id`, call `cancel(subId)` from the operator key when on-chain — best effort, logged), `apps/api/src/routes/paymentPages.routes.ts`, `libs/shared-schemas/src/lib/CheckoutSessionSchema.ts` (`ConfirmCheckoutPaymentSchema` subscription fields), `libs/shared-types/src/lib/CheckoutSession.ts`, `apps/api/src/__tests__/{CheckoutPayment,Price,Invoice,SubscriptionBilling,Settlement}.spec.ts`, `apps/docs/src/app/pages/docs/data/subscriptions.ts`, `prices.ts`, `invoices.ts`, `billing.ts`, `environment-variables.ts` (`SUBSCRIPTION_OPERATOR_KEY` format and gas note), `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing tests: typed data shapes; `PlanIdFromPriceId` deterministic 32-byte; `CheckoutPayment` subscription prepare includes permit typed data only when `needs_permit`; confirm relays and finalises; `Invoice` collect maps `alreadyCollected` to the existing warning path; `Price` passes `period_seconds` and stores `planKey`.
 - [ ] Implement; Anvil test: create a recurring price plan from the operator → subscriber signs permit + subscribe → relay → `VerifySubscribeTransaction` ok → `CollectSubscriptionPayment` moves `amount` to the destination → immediate second collect returns `alreadyCollected` → `anvil` `evm_increaseTime` past the period → collect succeeds again.
 - [ ] Full suite, anvil lane, docs. Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test api --testPathPattern="Subscription|Price|Invoice|CheckoutPayment|Settlement"   # expect: PASS
 npx nx run api:test-anvil                                                                  # expect: Subscriptions suite passed
@@ -795,14 +863,17 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 15: Subscription checkout and dashboard (web)
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/checkout/checkout.component.{ts,html}` (subscription mode: sign permit (if `needs_permit`) then subscribe typed data; one confirm call; copy "First-time wallets approve twice"; `already_subscribed` path), `data/services/checkout-session.service.ts`, `features/checkout/checkout.component.spec.ts`, `features/account/subscriptions/**` (show `subscription_onchain_id` with an explorer link; cancel copy mentions the on-chain cancel and that revoking the USDC allowance also stops pulls), `features/account/products/**` (recurring price shows `subscription_plan_id`), `apps/docs/src/app/pages/docs/data/subscriptions.ts` (customer-facing flow), `CHANGES.md`
 
 **Steps:**
+
 - [ ] Failing spec: two `eth_signTypedData_v4` calls when `needs_permit`, one otherwise; confirm payload carries both signatures and `deadline`.
 - [ ] Implement; `npx nx test web`; manual simulated-rail run of a subscription payment link.
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 npx nx test web && npx nx build web --configuration=production   # expect: PASS / success
 npx nx run-many --target=test --all                               # expect: Successfully ran target test for 7 projects
@@ -814,16 +885,19 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 16: Docs, copy and agent-skill sweep (zero Solana mentions, honest gas copy)
 
 **Files:**
+
 - Modify (docs data, all 30 files listed by `git grep -lIi solana -- apps/docs`): `payouts.ts`, `external-wallets.ts` (wallet address samples → EIP-55 addresses such as `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, `last4` → last four hex chars, "Ethereum address (42 characters)"), `accounts.ts`, `top-ups.ts`, `fund-platform-wallet.ts` (verify Task 10's rewrite), `checkout-sessions.ts`, `charges.ts`, `migrate-from-stripe.ts`, `build-a-marketplace.ts`, `customers.ts`, `payment-intents.ts`, `payment-links.ts`, `invoices.ts`, `subscriptions.ts`, `local-development.ts`, `event-types.ts`, `environment-variables.ts`, `agent-marketplace-quickstart.ts`, `agent-payments-quickstart.ts`, `webhook-endpoints.ts`, `platform-dashboard.ts`, `billing.ts`, `transfers.ts`, `self-hosting.ts`, `quickstart.ts`, `marketplace-quickstart.ts`, `balance.ts`, `authentication.ts`, `api-quickstart.ts`, `account-links.ts`, `apps/docs/scripts/generate-agent-docs.ts:35` + its test
 - Modify (copy): `README.md` (tagline: "No platform fees. You pay Ethereum network gas."; feature blurbs "pay with USDC on Ethereum"), `apps/web/src/app/features/setup/setup.component.html` (§4.9 wording; funding bullet "Fund your wallet with ETH (for gas) and USDC"), `apps/web/src/app/shared/ui/wallet-guide/**`, `.agents/skills/zoneless-marketplace/SKILL.md`, `.agents/skills/zoneless-payments/SKILL.md` (Ethereum vocabulary; `WALLET_PRIVATE_KEY`; gas note; batch guidance), `AGENTS.md`, `CONTRIBUTING.md` (final wording), `sdks/node/README.md`, `apps/cli/README.md`
 - Create: `apps/docs/src/app/pages/docs/data/gas-and-fees.ts` (new guide page: the §4.9 table as estimates, how to read `estimated_fee`, batching, minimum payout guidance) and register it in `data/index.ts`, `data/guides.ts` (or wherever guides are listed) and `docs-catalog.ts`
 - Modify: `CHANGES.md`
 
 **Steps:**
+
 - [ ] Run the grep gates below, fix every hit; add the gas page; run `npx nx test docs` and `npx nx build docs --configuration=production`.
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n -i -I "solana\|lamport\|devnet\|phantom\|solflare\|backpack\|\bSOL\b\|faucet.solana" -- ':!package-lock.json' ':!CHANGES.md' ':!NOTICE' ':!docs/plans'   # expect no output
 git grep -n -i -I "near-zero fees\|fractions of a cent\|no fees" -- README.md apps/web/src apps/docs/src .agents   # expect no output
@@ -837,26 +911,31 @@ npm run format:check && npx nx run-many --target=lint --all
 ### Task 17: Centralise the brand and prepare the rename script
 
 **Files:**
+
 - Create: `libs/shared-types/src/lib/Brand.ts`, `scripts/rebrand.sh`, `scripts/rebrand.spec.sh` (bats-free: a bash self-test that runs the script in `--dry-run` mode on a temp copy and checks counts), `apps/api/src/__tests__/IdGenerator.spec.ts` (if missing)
 - Modify: `libs/shared-types/src/index.ts` (export `BRAND`), `apps/api/src/utils/IdGenerator.ts` (`GenerateId(prefix)` inserts `BRAND.idInfix`: `GenerateId('po')` → `po_z_…`; `GenerateApiKey(mode)` → `sk_${mode}_${infix}_…` if such a helper exists, otherwise the two call sites in `ApiKey.ts`), every `GenerateId('xxx_z')` call site in `apps/api/src/modules/**` (≈45, listed by `git grep -n "GenerateId('[a-z_]*_z'" apps/api/src`) → drop the `_z`, `apps/api/src/middleware/Authorization.ts:266-269` + `routes/balance.routes.ts:49` + `routes/balanceTransactions.routes.ts:38` (header name from `BRAND.connectedAccountHeader`), `sdks/node/src/HttpClient.ts` (header name from `BRAND`), `apps/web/src/app/core/services/api.service.ts` (same), tests asserting `_z_` literals (keep passing: they still see `z`), `apps/api/src/__tests__/Setup.ts` `DeterministicId` (insert infix), `CHANGES.md`
 
 **`BRAND` (exact):**
+
 ```ts
 export const BRAND = { productName: 'Zoneless', packageScope: '@zoneless', idInfix: 'z', connectedAccountHeader: 'zoneless-account', envPrefix: 'ZONELESS', cliBin: 'zoneless' } as const;
 ```
 
 **`scripts/rebrand.sh <name> <Name> <infix>`** (idempotent; `--dry-run` prints per-pattern hit counts and exits 0 without writing):
+
 1. `BRAND` values → arguments.
 2. `@zoneless/` → `@<name>/` in all `package.json`, `tsconfig*.json`, `*.ts` imports, `project.json`, docs snippets.
 3. `Zoneless` → `<Name>`, `zoneless` → `<name>`, `ZONELESS_` → `<NAME>_` in `apps/`, `libs/`, `sdks/`, `docker/`, `docker-compose.yml`, `.env*.example`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `AGENTS.md`, `.github/`, `.agents/` (rename the two skill directories too); never touches `LICENSE`, `NOTICE`, `CHANGES.md`, `docs/plans/`, `package-lock.json`, `contracts/lib/`.
 4. Prints the follow-ups the human must run: `npm install` (lockfile), `npx nx run-many --target=test --all`, `npm run format`, review `git diff --stat`.
 
 **Steps:**
+
 - [ ] Failing test `IdGenerator.spec.ts`: `GenerateId('po')` matches `/^po_z_[0-9A-Za-z]{16}$/`; `GenerateId('acct')` matches `/^acct_z_/`.
 - [ ] Implement `BRAND`, the generator, the call-site sweep, the header constant, the script and its self-test.
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 git grep -n "GenerateId('[a-z_]*_z'" -- apps/api/src   # expect no output
 git grep -n "'zoneless-account'" -- apps/api/src sdks/node/src apps/web/src   # expect no output (only BRAND defines it)
@@ -873,10 +952,12 @@ npm run format:check && npx nx run-many --target=lint --all
 This is the only task that touches a public network. Before starting, the implementer asks the user for: (1) a Sepolia RPC URL (Alchemy/Infura/public), (2) a funded Sepolia deployer key (≈ 0.2 Sepolia ETH), (3) a funded platform wallet key (≈ 0.1 Sepolia ETH + Sepolia USDC from `https://faucet.circle.com`), (4) relayer and operator keys (≈ 0.05 Sepolia ETH each), (5) a buyer key with Sepolia USDC in a browser wallet. Keys go in a local `.env` that is never committed.
 
 **Files:**
+
 - Modify: `apps/api/src/modules/chains/contracts.ts` (Sepolia `payoutBatch` and `subscriptions` addresses), `contracts/README.md` (deployment record: addresses, tx hashes, Etherscan verification links, forge version), `contracts/broadcast/**/11155111/run-latest.json` (commit forge's broadcast log), `.env.production.example` (comment with the Sepolia addresses), `CHANGES.md`
 - Create: `docs/plans/2026-10-27-sepolia-verification.md` (checklist results with tx hashes)
 
 **Steps:**
+
 - [ ] Pre-flight with `cast`: `cast call <USDC_SEPOLIA> "decimals()(uint8)" --rpc-url $ETH_RPC_URL` → `6`; `cast call <USDC_SEPOLIA> "name()(string)"` and `"version()(string)"` → record; `cast call <USDC_SEPOLIA> "authorizationState(address,bytes32)(bool)" <buyer> 0x00…01` → `false` (proves EIP-3009 surface); `cast code 0xcA11bde05977b3631167028862bE2a173976CA11` non-empty (Multicall3). Record each in the verification doc; if any fails, stop and report.
 - [ ] `forge script script/DeployPayoutBatch.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify` (Etherscan API key optional; if absent, verify later) and the same for `DeploySubscriptions.s.sol`; write the addresses into `contracts.ts`.
 - [ ] Run the API with `LIVEMODE=false SETTLEMENT_RAIL=onchain ETH_RPC_URL=… ETH_CONFIRMATIONS=2` and the web; complete: setup with the platform address → `check-deposits` detects a faucet USDC transfer (top-up) → create a payment link, pay with the buyer wallet (EIP-3009) → create a recurring price (plan tx), subscribe (permit + subscribe), run `POST /v1/billing/run_for_platform` after the period (use an `hour` interval) → create a transfer + payout, approve once, build/sign/broadcast a batch from the dashboard and another from the SDK (`processAll`) → `reconcile` reports nothing pending.
@@ -884,6 +965,7 @@ This is the only task that touches a public network. Before starting, the implem
 - [ ] Append to `CHANGES.md`.
 
 **Verification:**
+
 ```bash
 cast call <PAYOUT_BATCH_SEPOLIA address from contracts.ts> "MAX_RECIPIENTS()(uint256)" --rpc-url $ETH_RPC_URL   # expect: 200
 test -f docs/plans/2026-10-27-sepolia-verification.md && grep -c "0x" docs/plans/2026-10-27-sepolia-verification.md   # expect: ≥ 8 recorded hashes/addresses
