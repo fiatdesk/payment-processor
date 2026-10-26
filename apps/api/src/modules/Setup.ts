@@ -16,7 +16,6 @@ import { ExternalWalletModule } from './ExternalWallet';
 import { SignToken } from '../utils/Token';
 import { SetupRequest, SetupResponse } from '@zoneless/shared-types';
 import { GetJwtSecret } from './AppConfig';
-import { GetTelemetryModule } from './Telemetry';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
@@ -160,17 +159,6 @@ export class SetupModule {
       GetJwtSecret(),
       '7d'
     );
-
-    // Persist telemetry consent from setup (default off)
-    if (request.telemetry_enabled === true) {
-      try {
-        await GetTelemetryModule(this.db).SetEnabled(true);
-      } catch (err) {
-        Logger.warn('Failed to enable telemetry during setup', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
 
     return {
       object: 'setup_response',

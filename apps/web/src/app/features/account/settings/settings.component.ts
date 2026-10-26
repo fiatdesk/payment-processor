@@ -23,7 +23,6 @@ import {
   WebhookEndpointService,
   TopupService,
   ConfigService,
-  TelemetryService,
 } from '../../../data';
 import {
   AccountTypeFormComponent,
@@ -81,7 +80,6 @@ export class SettingsComponent implements OnInit {
   readonly apiKeyService = inject(ApiKeyService);
   readonly topupService = inject(TopupService);
   readonly configService = inject(ConfigService);
-  readonly telemetryService = inject(TelemetryService);
   private readonly identityService = inject(IdentityService);
   readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -112,8 +110,6 @@ export class SettingsComponent implements OnInit {
   editAccountTypePanelOpen: WritableSignal<boolean> = signal(false);
   editAccountTypeLoading: WritableSignal<boolean> = signal(false);
   editAccountTypeShowErrors: WritableSignal<boolean> = signal(false);
-
-  telemetrySaving: WritableSignal<boolean> = signal(false);
 
   identityTaskDetailOpen: WritableSignal<boolean> = signal(false);
   identityVerificationStarting: WritableSignal<boolean> = signal(false);
@@ -173,9 +169,6 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.metaService.SetMetaTitle('Settings');
-    if (this.authService.isPlatform()) {
-      this.telemetryService.GetStatus();
-    }
     if (
       this.showIdentityTask() &&
       this.route.snapshot.queryParamMap.get('task') === 'identity'
@@ -229,18 +222,6 @@ export class SettingsComponent implements OnInit {
       );
     } finally {
       this.identityVerificationStarting.set(false);
-    }
-  }
-
-  async OnTelemetryToggle(checked: boolean): Promise<void> {
-    this.telemetrySaving.set(true);
-    try {
-      await this.telemetryService.SetEnabled(checked);
-    } catch (error) {
-      console.error('Failed to update telemetry preference:', error);
-      await this.telemetryService.GetStatus();
-    } finally {
-      this.telemetrySaving.set(false);
     }
   }
 
@@ -457,7 +438,6 @@ export class SettingsComponent implements OnInit {
     this.webhookEndpointService.Reset();
     this.apiKeyService.Reset();
     this.topupService.Reset();
-    this.telemetryService.Reset();
     this.router.navigateByUrl('/');
   }
 }

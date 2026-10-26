@@ -33,7 +33,6 @@ export * from './QueryParameters';
 export * from './Reporting';
 export * from './Subscription';
 export * from './SubscriptionItem';
-export * from './Telemetry';
 export * from './TopUp';
 export * from './Transfer';
 export * from './WebhookDelivery';

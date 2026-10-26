@@ -47,10 +47,6 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               text: '<code>APP_SECRET</code>: Signs sessions and encrypts stored values. Set it in production and keep the same value across restarts and replicas.',
               html: true,
             },
-            {
-              text: '<code>ZONELESS_TELEMETRY</code>: Set to <code>0</code> to disable anonymous usage reporting. Reporting is off by default unless enabled during setup.',
-              html: true,
-            },
           ],
         },
         {

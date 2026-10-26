@@ -455,7 +455,6 @@ export class Database {
       'TopUps',
       'Transfers',
       'UsageCounters',
-      'TelemetryConfigs',
       'VerificationSessions',
       'WebhookDeliveries',
       'WebhookEndpoints',

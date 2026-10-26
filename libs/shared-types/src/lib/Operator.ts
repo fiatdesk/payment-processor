@@ -100,7 +100,7 @@ export interface OperatorDailyPoint {
 
 /**
  * Instance-wide summary from GET /v1/operator/summary.
- * Amounts are exact cents (not telemetry buckets).
+ * Amounts are exact cents.
  */
 export interface OperatorSummary {
   object: 'operator_summary';

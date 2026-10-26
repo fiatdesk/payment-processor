@@ -37,3 +37,34 @@ Modified:
 - `apps/cli/package.json`
 - `apps/cli/project.json`
 - `.github/ISSUE_TEMPLATE/config.yml`
+
+## Task 2: Remove the telemetry phone-home
+
+Removed opt-in anonymous usage telemetry and its upstream ingest endpoint.
+
+Deleted:
+
+- `apps/api/src/modules/Telemetry.ts`
+- `apps/api/src/modules/TelemetryMonitor.ts`
+- `apps/api/src/routes/telemetry.routes.ts`
+- `libs/shared-types/src/lib/Telemetry.ts`
+- `apps/web/src/app/data/services/telemetry.service.ts`
+- `TELEMETRY.md`
+
+Modified:
+
+- `apps/api/src/routes/index.ts`
+- `apps/api/src/main.ts`
+- `apps/api/src/modules/Database.ts`
+- `apps/api/src/modules/Setup.ts`
+- `libs/shared-types/src/lib/index.ts`
+- `libs/shared-types/src/lib/Config.ts`
+- `libs/shared-types/src/lib/Operator.ts`
+- `apps/web/src/app/data/services/index.ts`
+- `apps/web/src/app/features/account/settings/settings.component.{html,scss,ts}`
+- `apps/web/src/app/features/setup/setup.component.{html,scss,ts}`
+- `.env.example`
+- `.env.production.example`
+- `AGENTS.md`
+- `apps/docs/src/app/pages/docs/data/environment-variables.ts`
+- `CHANGES.md`

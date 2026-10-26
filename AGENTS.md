@@ -49,7 +49,7 @@ Copy [`Customers.ts`](sdks/node/src/resources/Customers.ts) for a flat resource 
 
 Wire the class in [`sdks/node/src/index.ts`](sdks/node/src/index.ts) and [`sdks/node/src/resources/index.ts`](sdks/node/src/resources/index.ts). Run `npx nx build node-sdk` so `generate-inputs.ts` picks up new Input imports. Add a focused test.
 
-Do not wrap internal routes (`/operator`, `/setup`, `/auth`, `/telemetry`, `/payment_pages`, inbound webhooks). Docs Node snippets must match the methods you add.
+Do not wrap internal routes (`/operator`, `/setup`, `/auth`, `/payment_pages`, inbound webhooks). Docs Node snippets must match the methods you add.
 
 ## Changes
 

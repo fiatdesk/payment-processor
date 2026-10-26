@@ -35,7 +35,6 @@ import invoicesRouter from './invoices.routes';
 import reportingRouter from './reporting.routes';
 import billingRouter from './billing.routes';
 import webhookDeliveriesRouter from './webhookDeliveries.routes';
-import telemetryRouter from './telemetry.routes';
 import identityVerificationSessionsRouter from './identityVerificationSessions.routes';
 import identityWebhooksRouter from './identityWebhooks.routes';
 import testHelpersRouter from './testHelpers.routes';
@@ -99,7 +98,6 @@ router.use('/charges', chargesRouter);
 router.use('/invoiceitems', invoiceItemsRouter);
 router.use('/invoices', invoicesRouter);
 router.use('/reporting', reportingRouter);
-router.use('/telemetry', telemetryRouter);
 router.use('/test_helpers', testHelpersRouter);
 router.use(
   '/identity/verification_sessions',
