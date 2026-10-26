@@ -22,6 +22,8 @@ export const MOCK_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
 export const MOCK_PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
+/** What GetConfirmedBlockNumber returns: `latest - ETH_CONFIRMATIONS`. */
+export const MOCK_CONFIRMED_BLOCK = 150;
 
 /** A hash passes through (lowercased); anything else stands for a raw tx. */
 export function MockTransactionHash(signedOrHash: string): string {
@@ -126,9 +128,12 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     WaitForReceipt: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
       async (hash) => MockReceipt('paid', hash)
     ),
-    GetTransactionStatus: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
-      async (hash) => MockReceipt('pending', hash)
-    ),
+    GetConfirmedBlockNumber: jest.fn().mockResolvedValue(MOCK_CONFIRMED_BLOCK),
+    GetTransactionStatus: jest.fn<
+      Promise<BroadcastResult>,
+      [string, PayoutTransactionExpectation, number]
+    >(async (hash) => MockReceipt('pending', hash)),
+    IsBatchPaid: jest.fn().mockResolvedValue(false),
     FindBatchPayment: jest.fn().mockResolvedValue(null),
     GetAccountNonce: jest.fn().mockResolvedValue(MOCK_PAYOUT_NONCE),
     IsBlacklisted: jest.fn().mockResolvedValue([]),

@@ -1,8 +1,23 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
-import { keccak256, serializeTransaction, type Hex } from 'viem';
+import {
+  BaseError,
+  encodeAbiParameters,
+  encodeErrorResult,
+  encodeEventTopics,
+  keccak256,
+  RawContractError,
+  serializeTransaction,
+  TransactionReceiptNotFoundError,
+  type Hex,
+  type Log,
+  type PublicClient,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Ethereum, NotSupported, ReplacementFees } from './Ethereum';
+import * as Chain from './Chain';
 import { GetChainConfig, ResetChainClientsForTests } from './Chain';
+import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
+import { CHAIN_CONTRACTS } from './contracts';
 import { ComputeBatchId, EncodeDisperseCall } from './PayoutEncoding';
 import type { Settlement } from './Settlement';
 import type { PayoutTransactionExpectation } from './types';
@@ -29,6 +44,34 @@ const OTHER_KEY: Hex =
   '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
 const PLATFORM = privateKeyToAccount(PLATFORM_KEY).address;
 const RECIPIENT = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+
+const batchId = ComputeBatchId(['po_z_1']);
+const built = {
+  type: 'eip1559' as const,
+  chainId: 31337,
+  nonce: 4,
+  to: PAYOUT_BATCH,
+  data: EncodeDisperseCall(
+    ANVIL_USDC,
+    [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
+    batchId
+  ),
+  value: 0n,
+  gas: 90_000n,
+  maxFeePerGas: 3_000_000_000n,
+  maxPriorityFeePerGas: 1_000_000_000n,
+};
+const expected: PayoutTransactionExpectation = {
+  wallet: PLATFORM,
+  chainId: 31337,
+  nonce: 4,
+  unsignedTransaction: serializeTransaction(built),
+  transactionType: 'payout',
+  batchId,
+  recipientsCount: 1,
+  totalCents: 500,
+  fromBlock: 10,
+};
 
 function SetChainEnv(
   env: Partial<Record<(typeof CHAIN_ENV_KEYS)[number], string>>
@@ -186,33 +229,6 @@ describe('Ethereum rail', () => {
 
   describe('payout transactions (no RPC)', () => {
     const ethereum = new Ethereum();
-    const batchId = ComputeBatchId(['po_z_1']);
-    const built = {
-      type: 'eip1559' as const,
-      chainId: 31337,
-      nonce: 4,
-      to: PAYOUT_BATCH,
-      data: EncodeDisperseCall(
-        ANVIL_USDC,
-        [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
-        batchId
-      ),
-      value: 0n,
-      gas: 90_000n,
-      maxFeePerGas: 3_000_000_000n,
-      maxPriorityFeePerGas: 1_000_000_000n,
-    };
-    const expected: PayoutTransactionExpectation = {
-      wallet: PLATFORM,
-      chainId: 31337,
-      nonce: 4,
-      unsignedTransaction: serializeTransaction(built),
-      transactionType: 'payout',
-      batchId,
-      recipientsCount: 1,
-      totalCents: 500,
-      fromBlock: 10,
-    };
     const Sign = (key: Hex, overrides: Partial<typeof built> = {}) =>
       privateKeyToAccount(key).signTransaction({ ...built, ...overrides });
 
@@ -279,6 +295,329 @@ describe('Ethereum rail', () => {
 
       expect(ethereum.GetTransactionHash(hash)).toBe(hash.toLowerCase());
       expect(ethereum.GetTransactionHash('sim_tx')).toBeNull();
+    });
+  });
+
+  describe('payout settlement gates (mocked RPC)', () => {
+    const HASH: Hex = `0x${'aa'.repeat(32)}`;
+    const OTHER_HASH: Hex = `0x${'bb'.repeat(32)}`;
+    const CONFIRMED = 60;
+    const client = {
+      getBlockNumber: jest.fn(),
+      getTransactionReceipt: jest.fn(),
+      getTransaction: jest.fn(),
+      getTransactionCount: jest.fn(),
+      getLogs: jest.fn(),
+      readContract: jest.fn(),
+      call: jest.fn(),
+      sendRawTransaction: jest.fn(),
+      waitForTransactionReceipt: jest.fn(),
+    };
+    let ethereum: Ethereum;
+
+    beforeEach(() => {
+      SetChainEnv({
+        LIVEMODE: 'false',
+        SETTLEMENT_RAIL: 'onchain',
+        ETH_CHAIN_ID: '31337',
+        ETH_CONFIRMATIONS: '1',
+        USDC_ADDRESS: ANVIL_USDC,
+        PAYOUT_BATCH_ADDRESS: PAYOUT_BATCH,
+      });
+      for (const method of Object.values(client)) method.mockReset();
+      jest
+        .spyOn(Chain, 'GetPublicClient')
+        .mockReturnValue(client as unknown as PublicClient);
+      ethereum = new Ethereum();
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    function BatchPaidLog(
+      overrides: { count?: bigint; total?: bigint; address?: Hex } = {}
+    ): Log {
+      return {
+        address: overrides.address ?? PAYOUT_BATCH,
+        topics: encodeEventTopics({
+          abi: PAYOUT_BATCH_ABI,
+          eventName: 'BatchPaid',
+          args: { payer: PLATFORM, token: ANVIL_USDC, batchId },
+        }) as Log['topics'],
+        data: encodeAbiParameters(
+          [{ type: 'uint256' }, { type: 'uint256' }],
+          [overrides.count ?? 1n, overrides.total ?? 5_000_000n]
+        ),
+        blockHash: null,
+        blockNumber: 55n,
+        logIndex: 0,
+        transactionHash: OTHER_HASH,
+        transactionIndex: 0,
+        removed: false,
+        // getLogs with an `event` also returns the decoded arguments.
+        args: {
+          payer: PLATFORM,
+          token: ANVIL_USDC,
+          batchId,
+          count: overrides.count ?? 1n,
+          total: overrides.total ?? 5_000_000n,
+        },
+      } as Log;
+    }
+
+    function Receipt(overrides: Record<string, unknown> = {}) {
+      return {
+        transactionHash: HASH,
+        from: PLATFORM.toLowerCase(),
+        to: PAYOUT_BATCH.toLowerCase(),
+        status: 'success',
+        blockNumber: 50n,
+        logs: [BatchPaidLog()],
+        ...overrides,
+      };
+    }
+
+    /** A node error carrying revert data, as viem surfaces it from eth_call. */
+    function Revert(data: Hex): BaseError {
+      return new BaseError('Execution reverted', {
+        cause: new RawContractError({ data }),
+      });
+    }
+
+    const BLACKLISTED = Revert(
+      encodeErrorResult({
+        abi: [{ type: 'error', name: 'Error', inputs: [{ type: 'string' }] }],
+        errorName: 'Error',
+        args: ['Blacklistable: account is blacklisted'],
+      })
+    );
+    const ALREADY_PAID = Revert(
+      encodeErrorResult({
+        abi: PAYOUT_BATCH_ABI,
+        errorName: 'BatchAlreadyPaid',
+      })
+    );
+
+    const Status = (receipt: Record<string, unknown>) => {
+      client.getTransactionReceipt.mockResolvedValue(receipt);
+      return ethereum.GetTransactionStatus(HASH, expected, CONFIRMED);
+    };
+
+    it('settles paid from a confirmed receipt with the matching BatchPaid log', async () => {
+      await expect(Status(Receipt())).resolves.toMatchObject({
+        status: 'paid',
+        transaction_hash: HASH,
+      });
+    });
+
+    it.each([
+      ['another sender', { from: RECIPIENT }],
+      ['another contract', { to: ANVIL_USDC }],
+      ['no BatchPaid log', { logs: [] }],
+      [
+        'a BatchPaid log with another count',
+        { logs: [BatchPaidLog({ count: 2n })] },
+      ],
+      [
+        'a BatchPaid log with another total',
+        { logs: [BatchPaidLog({ total: 1n })] },
+      ],
+    ])('stays pending for a success with %s', async (_label, overrides) => {
+      await expect(Status(Receipt(overrides))).resolves.toMatchObject({
+        status: 'pending',
+      });
+    });
+
+    it('stays pending for a revert of other calldata, without replaying it', async () => {
+      client.getTransaction.mockResolvedValue({ input: '0xdeadbeef' });
+
+      await expect(
+        Status(Receipt({ status: 'reverted' }))
+      ).resolves.toMatchObject({ status: 'pending' });
+      expect(client.call).not.toHaveBeenCalled();
+    });
+
+    it('fails a revert of the batch call with its decoded reason', async () => {
+      client.getTransaction.mockResolvedValue({
+        from: PLATFORM,
+        to: PAYOUT_BATCH,
+        input: built.data,
+        gas: 90_000n,
+        value: 0n,
+      });
+      client.call.mockRejectedValue(BLACKLISTED);
+
+      await expect(Status(Receipt({ status: 'reverted' }))).resolves.toEqual({
+        transaction_hash: HASH,
+        status: 'failed',
+        viewer_url: '',
+        failure_code: 'account_frozen',
+        failure_message: 'Blacklistable: account is blacklisted',
+      });
+      expect(client.call).toHaveBeenCalledWith(
+        expect.objectContaining({ blockNumber: 50n })
+      );
+    });
+
+    it('settles a BatchAlreadyPaid revert as paid by the transaction that paid it', async () => {
+      client.getTransaction.mockResolvedValue({ input: built.data });
+      client.call.mockRejectedValue(ALREADY_PAID);
+      client.readContract.mockResolvedValue(true);
+      client.getLogs.mockResolvedValue([BatchPaidLog()]);
+
+      await expect(
+        Status(Receipt({ status: 'reverted' }))
+      ).resolves.toMatchObject({
+        status: 'paid',
+        transaction_hash: OTHER_HASH,
+      });
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: 'paid', blockNumber: 50n })
+      );
+    });
+
+    it('never fails a BatchAlreadyPaid revert, even when paid() disagrees', async () => {
+      client.getTransaction.mockResolvedValue({ input: built.data });
+      client.call.mockRejectedValue(ALREADY_PAID);
+      client.readContract.mockResolvedValue(false);
+
+      await expect(
+        Status(Receipt({ status: 'reverted' }))
+      ).resolves.toMatchObject({ status: 'pending' });
+    });
+
+    it('gates receipts on the confirmed block it is given', async () => {
+      await expect(
+        Status(Receipt({ blockNumber: BigInt(CONFIRMED + 1) }))
+      ).resolves.toMatchObject({ status: 'pending' });
+      await expect(
+        Status(Receipt({ blockNumber: BigInt(CONFIRMED) }))
+      ).resolves.toMatchObject({ status: 'paid' });
+      expect(client.getBlockNumber).not.toHaveBeenCalled();
+    });
+
+    it('is pending while there is no receipt', async () => {
+      client.getTransactionReceipt.mockRejectedValue(
+        new TransactionReceiptNotFoundError({ hash: HASH })
+      );
+
+      await expect(
+        ethereum.GetTransactionStatus(HASH, expected, CONFIRMED)
+      ).resolves.toMatchObject({ status: 'pending' });
+    });
+
+    it('finds a payment only from a BatchPaid log with the batch count, total and contract', async () => {
+      client.getLogs.mockResolvedValue([
+        BatchPaidLog({ count: 2n }),
+        BatchPaidLog({ total: 1n }),
+        BatchPaidLog({ address: ANVIL_USDC }),
+      ]);
+      await expect(
+        ethereum.FindBatchPayment(expected, CONFIRMED)
+      ).resolves.toBeNull();
+
+      client.getLogs.mockResolvedValue([
+        { ...BatchPaidLog(), address: PAYOUT_BATCH.toLowerCase() },
+      ]);
+      await expect(
+        ethereum.FindBatchPayment(expected, CONFIRMED)
+      ).resolves.toMatchObject({
+        status: 'paid',
+        transaction_hash: OTHER_HASH,
+      });
+      expect(client.getLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ fromBlock: 10n, toBlock: BigInt(CONFIRMED) })
+      );
+    });
+
+    it('refuses a log search that ends before the build block', async () => {
+      await expect(ethereum.FindBatchPayment(expected, 9)).rejects.toThrow(
+        /before the batch was built/
+      );
+      expect(client.getLogs).not.toHaveBeenCalled();
+    });
+
+    it('reads the head once; later reads use that block even if the node falls behind', async () => {
+      client.getBlockNumber
+        .mockResolvedValueOnce(100n)
+        .mockResolvedValueOnce(90n);
+      client.getTransactionCount.mockResolvedValue(5);
+      client.readContract.mockResolvedValue(false);
+      client.getLogs.mockResolvedValue([]);
+
+      const confirmed = await ethereum.GetConfirmedBlockNumber();
+      await ethereum.GetAccountNonce(PLATFORM, confirmed);
+      await ethereum.IsBatchPaid(expected, confirmed);
+      await ethereum.FindBatchPayment(expected, confirmed);
+
+      expect(confirmed).toBe(99);
+      expect(client.getBlockNumber).toHaveBeenCalledTimes(1);
+      expect(client.getTransactionCount).toHaveBeenCalledWith({
+        address: PLATFORM,
+        blockNumber: 99n,
+      });
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ blockNumber: 99n })
+      );
+      expect(client.getLogs).toHaveBeenCalledWith(
+        expect.objectContaining({ toBlock: 99n })
+      );
+    });
+
+    it('reads paid() only for payout batches', async () => {
+      await expect(
+        ethereum.IsBatchPaid(
+          { ...expected, transactionType: 'approval', batchId: null },
+          CONFIRMED
+        )
+      ).resolves.toBe(false);
+      expect(client.readContract).not.toHaveBeenCalled();
+    });
+
+    describe('WasAccepted', () => {
+      async function Broadcast(sendError: Error) {
+        const signed = await privateKeyToAccount(PLATFORM_KEY).signTransaction(
+          built
+        );
+        client.sendRawTransaction.mockRejectedValue(sendError);
+        client.waitForTransactionReceipt.mockResolvedValue(
+          Receipt({ transactionHash: keccak256(signed) })
+        );
+        return ethereum.BroadcastSignedTransaction(signed, expected);
+      }
+
+      it('treats "already known" as accepted and waits for the receipt', async () => {
+        await expect(
+          Broadcast(new Error('already known'))
+        ).resolves.toMatchObject({ status: 'paid' });
+        expect(client.waitForTransactionReceipt).toHaveBeenCalled();
+      });
+
+      it('treats "nonce too low" as accepted when this very hash was mined', async () => {
+        client.getTransactionReceipt.mockResolvedValue(Receipt());
+
+        await expect(
+          Broadcast(new Error('nonce too low'))
+        ).resolves.toMatchObject({ status: 'paid' });
+      });
+
+      it('rejects "nonce too low" when this hash was not mined', async () => {
+        client.getTransactionReceipt.mockRejectedValue(
+          new TransactionReceiptNotFoundError({ hash: HASH })
+        );
+
+        await expect(
+          Broadcast(new Error('nonce too low'))
+        ).rejects.toMatchObject({ statusCode: 400, type: 'blockchain_error' });
+        expect(client.waitForTransactionReceipt).not.toHaveBeenCalled();
+      });
+
+      it('rejects any other send error', async () => {
+        await expect(
+          Broadcast(new Error('insufficient funds for gas * price + value'))
+        ).rejects.toMatchObject({ statusCode: 400, type: 'blockchain_error' });
+      });
     });
   });
 
@@ -353,6 +692,19 @@ describe('Ethereum rail', () => {
       SetChainEnv({ LIVEMODE: 'true', ETH_CHAIN_ID: '31337' });
 
       expect(() => GetChainConfig()).toThrow(/ETH_CHAIN_ID/);
+    });
+
+    it('checksums per-chain table addresses', () => {
+      const anvil = CHAIN_CONTRACTS[31337];
+      const original = anvil.payoutBatch;
+      anvil.payoutBatch = PAYOUT_BATCH.toLowerCase() as Hex;
+      try {
+        SetChainEnv({ ETH_CHAIN_ID: '31337', USDC_ADDRESS: ANVIL_USDC });
+
+        expect(GetChainConfig().payoutBatch).toBe(PAYOUT_BATCH);
+      } finally {
+        anvil.payoutBatch = original;
+      }
     });
 
     it('requires USDC_ADDRESS on Anvil', () => {

@@ -565,3 +565,55 @@ sdks/node/src/__tests__/Payouts.spec.ts
 sdks/node/src/generated/Inputs.ts
 sdks/node/src/resources/Payouts.ts
 ```
+
+### Task 8 fix round 1: replay protection and settlement hardening
+
+- **`PayoutBatch` replay protection (addendum A5).** This supersedes "no state" above.
+  - `disperse` records `paid[msg.sender][batchId]` before the transfer loop. A revert in the loop rolls the flag back.
+  - It rejects a repeated batch id with `BatchAlreadyPaid()` and the zero id with `ZeroBatchId()`.
+  - The public `paid(address,bytes32)` getter is the on-chain record. A batch id (the hash of its payout ids) can therefore be paid once per platform wallet.
+  - There are six new forge tests, including the retry fuzz test `testFuzzNoDoubleSpendAcrossRetries`. `testFuzzDisperse` now uses non-zero batch ids.
+  - `PAYOUT_BATCH_ABI` is regenerated from the artifact.
+- **Build** reads `paid(wallet, batchId)` in the same multicall as the balance and allowance, and refuses with `400 payout_batch_already_paid`.
+- **Receipts.** A revert that decodes to `BatchAlreadyPaid` is never a failure and never refunds. The batch settles `paid` once `paid()` is true, attributed to the transaction its `BatchPaid` log names; otherwise it stays pending.
+- **Reconcile.**
+  - It reads the confirmed block (`latest - ETH_CONFIRMATIONS`) once and passes that block explicitly to the nonce read, the receipt depth check, `paid()` and the log search.
+  - `paid()` is the verdict. Logs only locate the paying hash, and a paid batch whose log cannot be found stays untouched.
+  - A log search that ends before the build block throws, which leaves the batch untouched.
+  - New rail methods: `GetConfirmedBlockNumber` and `IsBatchPaid`. `GetTransactionStatus` and `FindBatchPayment` take the block, and `GetAccountNonce(address, blockNumber)` replaces the earlier pending/confirmed tag.
+- **Supersede.**
+  - `replace: true` refuses to replace a built batch that has a tracked transaction hash with other payouts: `409 payout_batch_in_flight`, reconcile first.
+  - Reconcile walks a batch's `replaces` chain and settles any superseded batch the chain shows paid, so its payouts are neither refunded nor rebuilt.
+  - The docs warn to replace only batches that were never sent.
+- **Payout claims.** Payouts gain `payout_batch`, documented on the payout object.
+  - Build claims each payout with a conditional update (`pending` and unclaimed → claimed) inside the transaction that creates or supersedes the batch. It fails if any claim misses.
+  - Cancel is a conditional update on `pending` and unclaimed, and refunds only when that update matched. A racing build or a second cancel can therefore never cause a double refund.
+  - Moving payouts in and out of transit, refunds and releases all require the batch's own claim.
+- **Hash-mode nonce binding.** Once a batch tracks any transaction hash, another hash must use the same nonce.
+- **Address comparisons.** `FindBatchPayment` compares addresses case-insensitively, and the per-chain table addresses in `contracts.ts` are checksummed when the chain config loads.
+- **Resend.** Re-posting the same `signed_transaction` for a broadcast batch sends it again (a node answers "already known"). This rescues payouts left in transit by a crash between persist and send.
+- **Tests:** unit tests for every settlement gate on the Ethereum rail (mocked RPC), the build/cancel and cancel/cancel races, the superseded-then-mined scenario, single-block reconcile, and Anvil replay of a paid batch (`BatchAlreadyPaid`, nothing paid twice) plus the `payout_batch_already_paid` build refusal.
+
+Modified in fix round 1:
+
+```
+CHANGES.md
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/PayoutBatchStore.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/anvil/Payouts.anvil.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/PayoutBatchStore.ts
+apps/api/src/modules/chains/Chain.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/abi/PayoutBatch.ts
+apps/api/src/routes/payouts.routes.ts
+apps/docs/src/app/pages/docs/data/payouts.ts
+contracts/README.md
+contracts/src/PayoutBatch.sol
+contracts/test/PayoutBatch.t.sol
+libs/shared-types/src/lib/Payout.ts
+```

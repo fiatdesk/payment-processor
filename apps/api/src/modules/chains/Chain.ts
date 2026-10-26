@@ -123,13 +123,13 @@ function ResolveChainConfig(): ChainConfig {
   };
 }
 
-/** The env override (validated, stored EIP-55) or the per-chain default. */
+/** The env override or the per-chain default, validated and EIP-55. */
 function AddressSetting(
   name: string,
   defaultAddress: Address | null
 ): Address | null {
   const value = (process.env[name] || '').trim();
-  if (!value) return defaultAddress;
+  if (!value) return defaultAddress ? getAddress(defaultAddress) : null;
   if (!isAddress(value)) {
     throw new Error(`${name} must be a valid Ethereum address`);
   }

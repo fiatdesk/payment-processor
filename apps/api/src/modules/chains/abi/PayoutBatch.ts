@@ -51,6 +51,30 @@ export const PAYOUT_BATCH_ABI = [
     stateMutability: 'nonpayable',
   },
   {
+    type: 'function',
+    name: 'paid',
+    inputs: [
+      {
+        name: 'payer',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'batchId',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
     name: 'BatchPaid',
     inputs: [
@@ -89,6 +113,11 @@ export const PAYOUT_BATCH_ABI = [
   },
   {
     type: 'error',
+    name: 'BatchAlreadyPaid',
+    inputs: [],
+  },
+  {
+    type: 'error',
     name: 'EmptyBatch',
     inputs: [],
   },
@@ -116,6 +145,11 @@ export const PAYOUT_BATCH_ABI = [
   {
     type: 'error',
     name: 'ZeroAmount',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'ZeroBatchId',
     inputs: [],
   },
   {

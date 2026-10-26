@@ -141,12 +141,14 @@ describe('SimulatedSettlement', () => {
       nonce: null,
     });
     expect(settlement.GetTransactionHash('sim_tx')).toBeNull();
-    await expect(
-      settlement.GetAccountNonce(MERCHANT, 'confirmed')
-    ).resolves.toBeNull();
+    await expect(settlement.GetConfirmedBlockNumber()).resolves.toBe(0);
+    await expect(settlement.GetAccountNonce(MERCHANT, 0)).resolves.toBeNull();
     await expect(settlement.IsBlacklisted([PAYER])).resolves.toEqual([]);
     await expect(
-      settlement.FindBatchPayment(SIMULATED_EXPECTATION)
+      settlement.IsBatchPaid(SIMULATED_EXPECTATION, 0)
+    ).resolves.toBe(false);
+    await expect(
+      settlement.FindBatchPayment(SIMULATED_EXPECTATION, 0)
     ).resolves.toBeNull();
   });
 

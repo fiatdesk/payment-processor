@@ -165,6 +165,23 @@ describe('PayoutBatchStore', () => {
       ).resolves.toBeNull();
     });
 
+    it('gets a batch only for the platform that owns it', async () => {
+      await store.GetForPlatform('acct_z_platform', 'pob_z_1');
+
+      expect(db.Query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: [
+            {
+              key: 'platform_account',
+              operator: '==',
+              value: 'acct_z_platform',
+            },
+            { key: 'id', operator: '==', value: 'pob_z_1' },
+          ],
+        })
+      );
+    });
+
     it('lists a platform’s outstanding batches oldest first', async () => {
       await store.ListOutstanding('acct_z_platform');
 

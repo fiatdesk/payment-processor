@@ -553,38 +553,46 @@ export class PayoutModule {
       );
     }
 
+    // Only a pending payout no batch has claimed can be canceled; the
+    // conditional update makes a racing build or second cancel lose.
     const canceledPayout = await this.db.RunTransaction(
       async (session: ClientSession) => {
-        // Mark payout as canceled
-        await this.db.Update(
+        const canceled = await this.db.FindOneAndUpdateByFilter<PayoutType>(
           'Payouts',
-          payoutId,
+          { id: payoutId, status: 'pending', payout_batch: null },
           { status: 'canceled' },
           session
         );
+        if (!canceled) return null;
 
         // Update balance transaction status
-        if (payout.balance_transaction) {
+        if (canceled.balance_transaction) {
           await this.db.Update(
             'BalanceTransactions',
-            payout.balance_transaction,
+            canceled.balance_transaction,
             { status: 'canceled' },
             session
           );
         }
 
         // Refund the balance
-        await this.RefundPayoutBalance(payout, session);
-
-        const updatedPayout = await this.db.Get<PayoutType>(
-          'Payouts',
-          payoutId,
-          session
-        );
-
-        return updatedPayout!;
+        await this.RefundPayoutBalance(canceled, session);
+        return canceled;
       }
     );
+    if (!canceledPayout) {
+      const current = await this.GetPayout(payoutId);
+      if (current?.status === 'pending' && current.payout_batch) {
+        throw PayoutBatchInProgress(
+          `Payout ${payoutId} is in payout batch ${current.payout_batch}, which may still be broadcast; replace or settle that batch first`
+        );
+      }
+      throw new AppError(
+        `Payout cannot be canceled because it has status: ${current?.status}`,
+        400,
+        'invalid_request_error'
+      );
+    }
 
     // Emit payout.canceled event
     if (this.eventService) {
@@ -732,9 +740,12 @@ export class PayoutModule {
     } else if (plan === 'supersede' && outstanding) {
       batch = await this.SupersedeBatch(outstanding, fields);
     } else {
-      batch = await this.payoutBatchStore.Create(
-        this.payoutBatchStore.NewPayoutBatch(fields)
-      );
+      const created = this.payoutBatchStore.NewPayoutBatch(fields);
+      batch = await this.db.RunTransaction(async (session: ClientSession) => {
+        await this.payoutBatchStore.Create(created, session);
+        await this.ClaimPayouts(created, session);
+        return created;
+      });
     }
 
     return {
@@ -797,6 +808,16 @@ export class PayoutModule {
       : null;
     if (tracked && tracked.status !== 'built') {
       AssertPayoutSet(tracked, payoutIds);
+      if (tracked.status === 'broadcast' && mode === 'signed_transaction') {
+        // Re-sending identical signed bytes is harmless ("already known")
+        // and rescues payouts left in transit by a crash before the send.
+        const result = await this.settlement.BroadcastSignedTransaction(
+          submitted,
+          this.Expectation(tracked)
+        );
+        const settled = await this.SettleBatch(tracked, result);
+        return this.BroadcastResponse(settled, result.transaction_hash, result);
+      }
       return this.BroadcastResponse(
         tracked,
         tracked.transaction_hash ?? submitted
@@ -842,7 +863,9 @@ export class PayoutModule {
         `The transaction does not match payout batch ${batch.id}: ${match.reason}`
       );
     }
-    if (batch.status === 'broadcast' && match.nonce !== batch.nonce) {
+    // Once a transaction is tracked, any other must reuse its nonce, so at
+    // most one of them can be mined.
+    if (batch.transaction_hashes.length > 0 && match.nonce !== batch.nonce) {
       throw BatchMismatch(
         `The transaction uses nonce ${match.nonce}; payout batch ${batch.id} is bound to nonce ${batch.nonce}`
       );
@@ -906,19 +929,32 @@ export class PayoutModule {
     batch: PayoutBatch
   ): Promise<'paid' | 'failed' | 'pending'> {
     const expected = this.Expectation(batch);
-    // Read the nonce first: once it is consumed at confirmed depth, none of
-    // the hashes checked below can still be mined later.
+    // One confirmed block for every read below: a node that lags behind on
+    // a later call cannot make the nonce, receipts and paid() disagree.
+    const confirmedBlock = await this.settlement.GetConfirmedBlockNumber();
     const confirmedNonce = await this.settlement.GetAccountNonce(
       batch.wallet_address,
-      'confirmed'
+      confirmedBlock
     );
+    await this.SettlePredecessors(batch, confirmedBlock);
+    // PayoutBatch records each batch id the wallet paid: that is the verdict.
+    // Receipts and logs only locate the paying transaction.
+    const paidOnChain = await this.settlement.IsBatchPaid(
+      expected,
+      confirmedBlock
+    );
+
     for (const hash of batch.transaction_hashes) {
-      const status = await this.settlement.GetTransactionStatus(hash, expected);
+      const status = await this.settlement.GetTransactionStatus(
+        hash,
+        expected,
+        confirmedBlock
+      );
       if (status.status === 'paid') {
         await this.SettleBatchPaid(batch, status);
         return 'paid';
       }
-      if (status.status === 'failed') {
+      if (status.status === 'failed' && !paidOnChain) {
         await this.SettleBatchFailed(
           batch,
           batch.status === 'broadcast' ? 'failed' : 'replaced',
@@ -929,20 +965,27 @@ export class PayoutModule {
       }
     }
 
+    if (paidOnChain) {
+      const payment = await this.settlement.FindBatchPayment(
+        expected,
+        confirmedBlock
+      );
+      if (!payment) {
+        Logger.warn('Payout batch is paid on-chain but its log was not found', {
+          payoutBatch: batch.id,
+        });
+        return 'pending';
+      }
+      await this.SettleBatchPaid(batch, payment);
+      return 'paid';
+    }
+
     if (
       typeof confirmedNonce !== 'number' ||
       typeof batch.nonce !== 'number' ||
       confirmedNonce <= batch.nonce
     ) {
       return 'pending';
-    }
-
-    // The nonce went to a transaction we do not track. It still paid the
-    // batch if it emitted this batch's BatchPaid log (a wallet speed-up).
-    const payment = await this.settlement.FindBatchPayment(expected);
-    if (payment) {
-      await this.SettleBatchPaid(batch, payment);
-      return 'paid';
     }
     await this.SettleBatchFailed(
       batch,
@@ -951,6 +994,44 @@ export class PayoutModule {
       'Another transaction from the platform wallet used this batch’s nonce; the payout was not sent'
     );
     return 'failed';
+  }
+
+  /**
+   * A superseded batch can still be mined if a wallet sent it. Walk the
+   * batches this one replaced and settle any the chain shows as paid, so
+   * their payouts are never refunded or paid again.
+   */
+  private async SettlePredecessors(
+    batch: PayoutBatch,
+    confirmedBlock: number
+  ): Promise<void> {
+    const seen = new Set([batch.id]);
+    let predecessorId = batch.replaces;
+    while (predecessorId && !seen.has(predecessorId)) {
+      seen.add(predecessorId);
+      const predecessor = await this.payoutBatchStore.GetForPlatform(
+        batch.platform_account,
+        predecessorId
+      );
+      if (!predecessor) return;
+      const expected = this.Expectation(predecessor);
+      if (
+        predecessor.status === 'replaced' &&
+        (await this.settlement.IsBatchPaid(expected, confirmedBlock))
+      ) {
+        const payment = await this.settlement.FindBatchPayment(
+          expected,
+          confirmedBlock
+        );
+        if (!payment) {
+          throw new Error(
+            `Payout batch ${predecessor.id} is paid on-chain but its log was not found`
+          );
+        }
+        await this.SettleBatchPaid(predecessor, payment, ['replaced']);
+      }
+      predecessorId = predecessor.replaces;
+    }
   }
 
   /** Validates payout ownership and status for a batch. */
@@ -1124,7 +1205,10 @@ export class PayoutModule {
         { status: 'replaced', replaced_by: successor.id },
         { session }
       );
-      return this.payoutBatchStore.Create(successor, session);
+      await this.ReleasePayouts(batch, session);
+      await this.payoutBatchStore.Create(successor, session);
+      await this.ClaimPayouts(successor, session);
+      return successor;
     });
   }
 
@@ -1148,7 +1232,13 @@ export class PayoutModule {
       );
       if (batch.status === 'built') {
         for (const payoutId of batch.payouts) {
-          await this.MovePayout(payoutId, 'pending', 'in_transit', session);
+          await this.MovePayout(
+            batch,
+            payoutId,
+            'pending',
+            'in_transit',
+            session
+          );
         }
       }
       return updated;
@@ -1174,13 +1264,20 @@ export class PayoutModule {
       );
       if (batch.status === 'built') {
         for (const payoutId of batch.payouts) {
-          await this.MovePayout(payoutId, 'in_transit', 'pending', session);
+          await this.MovePayout(
+            batch,
+            payoutId,
+            'in_transit',
+            'pending',
+            session
+          );
         }
       }
     });
   }
 
   private async MovePayout(
+    batch: PayoutBatch,
     payoutId: string,
     from: PayoutStatus,
     to: PayoutStatus,
@@ -1188,13 +1285,48 @@ export class PayoutModule {
   ): Promise<void> {
     const moved = await this.db.FindOneAndUpdateByFilter<PayoutType>(
       'Payouts',
-      { id: payoutId, status: from },
+      { id: payoutId, status: from, payout_batch: batch.id },
       { status: to },
       session
     );
     if (!moved) {
       throw PayoutBatchInProgress(
         `Payout ${payoutId} is no longer ${from}; build the batch again`
+      );
+    }
+  }
+
+  /** Marks each pending, unclaimed payout as held by `batch`, or aborts. */
+  private async ClaimPayouts(
+    batch: PayoutBatch,
+    session: ClientSession
+  ): Promise<void> {
+    for (const payoutId of batch.payouts) {
+      const claimed = await this.db.FindOneAndUpdateByFilter<PayoutType>(
+        'Payouts',
+        { id: payoutId, status: 'pending', payout_batch: null },
+        { payout_batch: batch.id },
+        session
+      );
+      if (!claimed) {
+        throw PayoutBatchInProgress(
+          `Payout ${payoutId} changed while the batch was being built; build again`
+        );
+      }
+    }
+  }
+
+  /** Frees the pending payouts `batch` holds, so they can be built again. */
+  private async ReleasePayouts(
+    batch: PayoutBatch,
+    session: ClientSession
+  ): Promise<void> {
+    for (const payoutId of batch.payouts) {
+      await this.db.FindOneAndUpdateByFilter<PayoutType>(
+        'Payouts',
+        { id: payoutId, status: 'pending', payout_batch: batch.id },
+        { payout_batch: null },
+        session
       );
     }
   }
@@ -1217,11 +1349,12 @@ export class PayoutModule {
 
   private async SettleBatchPaid(
     batch: PayoutBatch,
-    result: BroadcastResult
+    result: BroadcastResult,
+    from: readonly PayoutBatch['status'][] = OUTSTANDING_BATCH_STATUSES
   ): Promise<PayoutBatch> {
     const { network, native_currency } = this.settlement.Describe();
     for (const payoutId of batch.payouts) {
-      await this.MarkPayoutPaid(payoutId, {
+      await this.MarkPayoutPaid(batch, payoutId, {
         network,
         blockchain_tx: result.transaction_hash,
         gas_fee: 0, // Fee was paid by platform, not deducted from payout
@@ -1231,7 +1364,7 @@ export class PayoutModule {
     }
     return this.payoutBatchStore.Transition(
       batch,
-      OUTSTANDING_BATCH_STATUSES,
+      from,
       { status: 'paid', transaction_hash: result.transaction_hash },
       { addTransactionHash: result.transaction_hash }
     );
@@ -1246,11 +1379,28 @@ export class PayoutModule {
   ): Promise<PayoutBatch> {
     if (batch.status === 'broadcast') {
       for (const payoutId of batch.payouts) {
-        await this.MarkPayoutFailed(payoutId, failureCode, failureMessage);
+        await this.MarkPayoutFailed(
+          batch,
+          payoutId,
+          failureCode,
+          failureMessage
+        );
       }
+      return this.payoutBatchStore.Transition(
+        batch,
+        OUTSTANDING_BATCH_STATUSES,
+        { status }
+      );
     }
-    return this.payoutBatchStore.Transition(batch, OUTSTANDING_BATCH_STATUSES, {
-      status,
+    return this.db.RunTransaction(async (session: ClientSession) => {
+      const settled = await this.payoutBatchStore.Transition(
+        batch,
+        OUTSTANDING_BATCH_STATUSES,
+        { status },
+        { session }
+      );
+      await this.ReleasePayouts(batch, session);
+      return settled;
     });
   }
 
@@ -1308,6 +1458,7 @@ export class PayoutModule {
    * no longer pending or in transit was settled already and is skipped.
    */
   private async MarkPayoutPaid(
+    batch: PayoutBatch,
     payoutId: string,
     response: {
       network: string;
@@ -1324,6 +1475,7 @@ export class PayoutModule {
           { id: payoutId, status: { $in: ['pending', 'in_transit'] } },
           {
             status: 'paid',
+            payout_batch: batch.id,
             arrival_date: Now(),
             'metadata.network': response.network,
             'metadata.blockchain_tx': response.blockchain_tx,
@@ -1372,6 +1524,7 @@ export class PayoutModule {
    * repeated settlement never refunds twice.
    */
   private async MarkPayoutFailed(
+    batch: PayoutBatch,
     payoutId: string,
     failureCode: PayoutFailureCode,
     failureMessage: string
@@ -1380,7 +1533,7 @@ export class PayoutModule {
       async (session: ClientSession) => {
         const updated = await this.db.FindOneAndUpdateByFilter<PayoutType>(
           'Payouts',
-          { id: payoutId, status: 'in_transit' },
+          { id: payoutId, status: 'in_transit', payout_batch: batch.id },
           {
             status: 'failed',
             failure_code: failureCode,
@@ -1492,6 +1645,7 @@ export class PayoutModule {
       statement_descriptor: statementDescriptor || null,
       status: 'pending',
       type: 'wallet',
+      payout_batch: null,
     };
 
     return payout;
@@ -1565,5 +1719,15 @@ function PlanBatchBuild(
     }
     return 'reprice';
   }
-  return sameBatch ? 'reprice' : 'supersede';
+  if (sameBatch) return 'reprice';
+  // A tracked transaction may still be mined: a successor with other
+  // payouts could pay them twice.
+  if (outstanding.transaction_hashes.length > 0) {
+    throw new AppError(
+      `Payout batch ${outstanding.id} has a transaction that may still be mined; reconcile first (POST /v1/payouts/reconcile) or broadcast it again`,
+      409,
+      'payout_batch_in_flight'
+    );
+  }
+  return 'supersede';
 }

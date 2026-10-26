@@ -119,6 +119,13 @@ export interface Payout {
    * @zoneless_extension
    */
   platform_account: string;
+
+  /**
+   * Payout batch that holds this payout while it is built or broadcast, or
+   * paid it. A held payout cannot be canceled or built into another batch.
+   * @zoneless_extension
+   */
+  payout_batch?: string | null;
 }
 
 export interface PayoutResponse {

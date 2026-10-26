@@ -141,6 +141,21 @@ export class PayoutBatchStore {
     return batch ?? null;
   }
 
+  async GetForPlatform(
+    platformAccountId: string,
+    id: string
+  ): Promise<PayoutBatch | null> {
+    const [batch] = await this.Query([
+      {
+        key: 'platform_account',
+        operator: QueryOperators['=='],
+        value: platformAccountId,
+      },
+      { key: 'id', operator: QueryOperators['=='], value: id },
+    ]);
+    return batch ?? null;
+  }
+
   /** Every outstanding batch of a platform, oldest first. */
   async ListOutstanding(platformAccountId: string): Promise<PayoutBatch[]> {
     return this.Query(

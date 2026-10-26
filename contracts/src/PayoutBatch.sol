@@ -7,27 +7,36 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 /// @title PayoutBatch
 /// @notice Pays many recipients from the caller's own token balance in one
-/// all-or-nothing transaction. The caller approves this contract once.
-/// @dev Stateless, ownerless and non-upgradeable, and it never holds tokens or
-/// ETH. It only moves `msg.sender`'s tokens, so a standing allowance to it can
-/// be exercised by the approving wallet alone.
+/// all-or-nothing transaction. The caller approves this contract once. Each
+/// payer can pay a given batch id only once, so a retried or re-signed batch
+/// can never pay twice.
+/// @dev No admin and non-upgradeable; it never holds tokens or ETH. Its only
+/// state is the per-payer record of paid batch ids. It only moves
+/// `msg.sender`'s tokens, so a standing allowance to it can be exercised by the
+/// approving wallet alone.
 contract PayoutBatch {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_RECIPIENTS = 200;
+
+    /// @notice Whether `payer` has paid the batch with id `batchId`.
+    mapping(address payer => mapping(bytes32 batchId => bool)) public paid;
 
     error EmptyBatch();
     error LengthMismatch();
     error TooMany();
     error ZeroRecipient();
     error ZeroAmount();
+    error BatchAlreadyPaid();
+    error ZeroBatchId();
 
     /// @param batchId Off-chain id that ties this transaction to its payouts.
     event BatchPaid(
         address indexed payer, address indexed token, bytes32 indexed batchId, uint256 count, uint256 total
     );
 
-    /// @notice Transfers `amounts[i]` of `token` from the caller to `recipients[i]`.
+    /// @notice Transfers `amounts[i]` of `token` from the caller to `recipients[i]`
+    /// and records `batchId` as paid by the caller.
     function disperse(IERC20 token, address[] calldata recipients, uint256[] calldata amounts, bytes32 batchId)
         external
     {
@@ -35,6 +44,10 @@ contract PayoutBatch {
         if (count != amounts.length) revert LengthMismatch();
         if (count == 0) revert EmptyBatch();
         if (count > MAX_RECIPIENTS) revert TooMany();
+        if (batchId == bytes32(0)) revert ZeroBatchId();
+        if (paid[msg.sender][batchId]) revert BatchAlreadyPaid();
+        // A revert in the loop below rolls this back with the transfers.
+        paid[msg.sender][batchId] = true;
 
         uint256 total;
         for (uint256 i; i < count; ++i) {

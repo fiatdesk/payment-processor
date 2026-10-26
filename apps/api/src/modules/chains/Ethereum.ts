@@ -161,24 +161,41 @@ export class Ethereum implements Settlement {
       (sum, r) => sum + CentsToTokenUnits(r.amountInCents),
       0n
     );
-    const [balance, allowance] = await GetPublicClient().multicall({
-      contracts: [
-        {
-          address: usdc,
-          abi: USDC_ABI,
-          functionName: 'balanceOf',
-          args: [from],
-        },
-        {
-          address: usdc,
-          abi: USDC_ABI,
-          functionName: 'allowance',
-          args: [from, payoutBatch],
-        },
-      ],
-      allowFailure: false,
-      deployless: IsDeploylessMulticall(),
-    });
+    const [balance, allowance, alreadyPaid] = await GetPublicClient().multicall(
+      {
+        contracts: [
+          {
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'balanceOf',
+            args: [from],
+          },
+          {
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'allowance',
+            args: [from, payoutBatch],
+          },
+          {
+            address: payoutBatch,
+            abi: PAYOUT_BATCH_ABI,
+            functionName: 'paid',
+            args: [from, batchId as Hex],
+          },
+        ],
+        allowFailure: false,
+        deployless: IsDeploylessMulticall(),
+      }
+    );
+    // PayoutBatch pays a batch id once per wallet; the same payouts were
+    // already paid on-chain even though they are not settled here yet.
+    if (alreadyPaid) {
+      throw new AppError(
+        `Wallet ${from} already paid batch ${batchId} on-chain; reconcile before building these payouts again`,
+        400,
+        'payout_batch_already_paid'
+      );
+    }
     if (balance < total) {
       throw new AppError(
         `Platform wallet ${from} holds ${formatUnits(
@@ -354,9 +371,17 @@ export class Ethereum implements Settlement {
     }
   }
 
+  /** `latest - ETH_CONFIRMATIONS`, read once per reconcile. */
+  async GetConfirmedBlockNumber(): Promise<number> {
+    const latest = await GetPublicClient().getBlockNumber({ cacheTime: 0 });
+    const depth = BigInt(GetChainConfig().confirmations);
+    return Number(latest > depth ? latest - depth : 0n);
+  }
+
   async GetTransactionStatus(
     transactionHash: string,
-    expected: PayoutTransactionExpectation
+    expected: PayoutTransactionExpectation,
+    confirmedBlock: number
   ): Promise<BroadcastResult> {
     let receipt: TransactionReceipt;
     try {
@@ -369,27 +394,53 @@ export class Ethereum implements Settlement {
       }
       throw error;
     }
-    if (receipt.blockNumber > (await this.ConfirmedBlockNumber())) {
+    if (receipt.blockNumber > BigInt(confirmedBlock)) {
       return this.Pending(transactionHash);
     }
     return this.SettleReceipt(receipt, expected);
   }
 
   /**
-   * A confirmed `BatchPaid(payer = wallet, token = USDC, batchId)` from the
-   * PayoutBatch contract with the batch's count and total, searched from the
-   * build block to `latest - ETH_CONFIRMATIONS`. Errors propagate.
+   * `PayoutBatch.paid(wallet, batchId)` at `blockNumber`: the on-chain verdict
+   * on whether the batch was paid. Errors propagate.
+   */
+  async IsBatchPaid(
+    expected: PayoutTransactionExpectation,
+    blockNumber: number
+  ): Promise<boolean> {
+    if (expected.transactionType !== 'payout' || !expected.batchId) {
+      return false;
+    }
+    const { payoutBatch } = PayoutContracts();
+    return GetPublicClient().readContract({
+      address: payoutBatch,
+      abi: PAYOUT_BATCH_ABI,
+      functionName: 'paid',
+      args: [ToAddress(expected.wallet), expected.batchId as Hex],
+      blockNumber: BigInt(blockNumber),
+    });
+  }
+
+  /**
+   * The transaction that paid the batch: a `BatchPaid(payer = wallet,
+   * token = USDC, batchId)` log from PayoutBatch with the batch's count and
+   * total, between the build block and `toBlock`. Throws when that range is
+   * empty or the node cannot serve it, so callers leave the batch alone.
    */
   async FindBatchPayment(
-    expected: PayoutTransactionExpectation
+    expected: PayoutTransactionExpectation,
+    toBlock: number
   ): Promise<BroadcastResult | null> {
     if (expected.transactionType !== 'payout' || !expected.batchId) {
       return null;
     }
     const { usdc, payoutBatch } = PayoutContracts();
-    const toBlock = await this.ConfirmedBlockNumber();
     const fromBlock = BigInt(expected.fromBlock ?? 0);
-    if (toBlock < fromBlock) return null;
+    if (BigInt(toBlock) < fromBlock) {
+      throw new Error(
+        `Block ${toBlock} is before the batch was built (block ${fromBlock})`
+      );
+    }
 
     const logs = await GetPublicClient().getLogs({
       address: payoutBatch,
@@ -400,12 +451,12 @@ export class Ethereum implements Settlement {
         batchId: expected.batchId as Hex,
       },
       fromBlock,
-      toBlock,
+      toBlock: BigInt(toBlock),
     });
     const total = CentsToTokenUnits(expected.totalCents);
     const log = logs.find(
       (candidate) =>
-        getAddress(candidate.address) === payoutBatch &&
+        SameAddress(candidate.address, payoutBatch) &&
         candidate.args.count === BigInt(expected.recipientsCount) &&
         candidate.args.total === total
     );
@@ -417,22 +468,10 @@ export class Ethereum implements Settlement {
     };
   }
 
-  /** `confirmed` is the nonce as of block `latest - ETH_CONFIRMATIONS`. */
-  async GetAccountNonce(
-    address: string,
-    block: 'pending' | 'confirmed'
-  ): Promise<number> {
-    const client = GetPublicClient();
-    const account = ToAddress(address);
-    if (block === 'pending') {
-      return client.getTransactionCount({
-        address: account,
-        blockTag: 'pending',
-      });
-    }
-    return client.getTransactionCount({
-      address: account,
-      blockNumber: await this.ConfirmedBlockNumber(),
+  async GetAccountNonce(address: string, blockNumber: number): Promise<number> {
+    return GetPublicClient().getTransactionCount({
+      address: ToAddress(address),
+      blockNumber: BigInt(blockNumber),
     });
   }
 
@@ -546,7 +585,7 @@ export class Ethereum implements Settlement {
     try {
       return await GetPublicClient().estimateGas({ account: from, to, data });
     } catch (error) {
-      const reason = RevertMessage(error);
+      const { message: reason } = DecodeRevert(error);
       throw new AppError(
         `The payout transaction would revert: ${reason}`,
         400,
@@ -603,7 +642,7 @@ export class Ethereum implements Settlement {
       return this.Pending(hash);
     };
     if (
-      getAddress(receipt.from) !== getAddress(expected.wallet) ||
+      !SameAddress(receipt.from, expected.wallet) ||
       !SameAddress(receipt.to, built.to)
     ) {
       return Unsettled('the receipt is for another sender or contract');
@@ -640,13 +679,24 @@ export class Ethereum implements Settlement {
     ) {
       return Unsettled('the reverted transaction carries other calldata');
     }
-    const message = await this.RevertReason(transaction, receipt.blockNumber);
+    const revert = await this.RevertReason(transaction, receipt.blockNumber);
+    if (revert.errorName === 'BatchAlreadyPaid') {
+      // Another transaction paid this batch first: never a failure.
+      const blockNumber = Number(receipt.blockNumber);
+      if (!(await this.IsBatchPaid(expected, blockNumber))) {
+        return Unsettled('BatchAlreadyPaid without a paid batch');
+      }
+      return (
+        (await this.FindBatchPayment(expected, blockNumber)) ??
+        Unsettled('the batch is paid but its BatchPaid log was not found')
+      );
+    }
     return {
       transaction_hash: hash,
       status: 'failed',
       viewer_url: this.ExplorerUrl('tx', hash),
-      failure_code: MapRevertToFailureCode(message),
-      failure_message: message,
+      failure_code: MapRevertToFailureCode(revert.message),
+      failure_message: revert.message,
     };
   }
 
@@ -654,7 +704,7 @@ export class Ethereum implements Settlement {
   private async RevertReason(
     transaction: Transaction,
     blockNumber: bigint
-  ): Promise<string> {
+  ): Promise<RevertDetails> {
     try {
       await GetPublicClient().call({
         account: transaction.from,
@@ -664,16 +714,10 @@ export class Ethereum implements Settlement {
         value: transaction.value,
         blockNumber,
       });
-      return 'The transaction reverted';
+      return { errorName: null, message: 'The transaction reverted' };
     } catch (error) {
-      return RevertMessage(error);
+      return DecodeRevert(error);
     }
-  }
-
-  private async ConfirmedBlockNumber(): Promise<bigint> {
-    const latest = await GetPublicClient().getBlockNumber({ cacheTime: 0 });
-    const depth = BigInt(GetChainConfig().confirmations);
-    return latest > depth ? latest - depth : 0n;
   }
 
   private Pending(transactionHash: string): BroadcastResult {
@@ -802,8 +846,14 @@ function ErrorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The decoded revert reason (Error(string) or a PayoutBatch error name). */
-function RevertMessage(error: unknown): string {
+interface RevertDetails {
+  /** Custom error or `Error`/`Panic` name, when the revert data decodes */
+  errorName: string | null;
+  message: string;
+}
+
+/** The decoded revert: Error(string) reason or a PayoutBatch error name. */
+function DecodeRevert(error: unknown): RevertDetails {
   if (error instanceof BaseError) {
     const cause = error.walk() as { data?: Hex | { data?: Hex } } | null;
     const data =
@@ -815,13 +865,17 @@ function RevertMessage(error: unknown): string {
           abi: PAYOUT_BATCH_ABI,
           data,
         }) as { errorName: string; args?: readonly unknown[] };
-        return decoded.errorName === 'Error'
-          ? String(decoded.args?.[0])
-          : decoded.errorName;
+        return {
+          errorName: decoded.errorName,
+          message:
+            decoded.errorName === 'Error'
+              ? String(decoded.args?.[0])
+              : decoded.errorName,
+        };
       } catch {
         // Not an error this ABI knows; fall back to the node's message.
       }
     }
   }
-  return ErrorText(error);
+  return { errorName: null, message: ErrorText(error) };
 }

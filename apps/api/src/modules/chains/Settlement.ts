@@ -74,20 +74,29 @@ export interface Settlement {
     transactionHash: string,
     expected: PayoutTransactionExpectation
   ): Promise<BroadcastResult>;
-  /** Settles from a confirmed receipt without waiting; `pending` otherwise. */
+  /**
+   * Newest block with ETH_CONFIRMATIONS confirmations. Reconcile reads it
+   * once and passes it to every check below, so they all see one chain state.
+   */
+  GetConfirmedBlockNumber(): Promise<number>;
+  /** Settles from a receipt mined at or before `confirmedBlock`; else `pending`. */
   GetTransactionStatus(
     transactionHash: string,
-    expected: PayoutTransactionExpectation
+    expected: PayoutTransactionExpectation,
+    confirmedBlock: number
   ): Promise<BroadcastResult>;
-  /** A confirmed on-chain payment of the batch by any transaction, or null. */
+  /** Whether the wallet has paid the batch's id on-chain as of `blockNumber`. */
+  IsBatchPaid(
+    expected: PayoutTransactionExpectation,
+    blockNumber: number
+  ): Promise<boolean>;
+  /** Locates the transaction that paid the batch, up to `toBlock`; or null. */
   FindBatchPayment(
-    expected: PayoutTransactionExpectation
+    expected: PayoutTransactionExpectation,
+    toBlock: number
   ): Promise<BroadcastResult | null>;
-  /** Next nonce at the pending or confirmed block; null when the rail has none. */
-  GetAccountNonce(
-    address: string,
-    block: 'pending' | 'confirmed'
-  ): Promise<number | null>;
+  /** The wallet's next nonce as of `blockNumber`; null when the rail has none. */
+  GetAccountNonce(address: string, blockNumber: number): Promise<number | null>;
   /** The addresses the token issuer has blacklisted. */
   IsBlacklisted(addresses: string[]): Promise<string[]>;
   BuildCheckoutPaymentTransaction(
@@ -342,10 +351,18 @@ export class SimulatedSettlement implements Settlement {
     return SimulatedPaid(transactionHash);
   }
 
+  async GetConfirmedBlockNumber(): Promise<number> {
+    return 0;
+  }
+
   async GetTransactionStatus(
     transactionHash: string
   ): Promise<BroadcastResult> {
     return SimulatedPaid(transactionHash);
+  }
+
+  async IsBatchPaid(): Promise<boolean> {
+    return false;
   }
 
   async FindBatchPayment(): Promise<BroadcastResult | null> {

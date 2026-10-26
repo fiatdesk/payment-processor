@@ -14,6 +14,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import type { Balance, Payout, PayoutBatch } from '@zoneless/shared-types';
+import { PAYOUT_BATCH_ABI } from '../../modules/chains/abi/PayoutBatch';
 import { USDC_ABI } from '../../modules/chains/abi/Usdc';
 import { ComputeBatchId } from '../../modules/chains/PayoutEncoding';
 import { PayoutModule } from '../../modules/Payout';
@@ -46,6 +47,8 @@ describe('Payouts on Anvil', () => {
   let platform: Address;
   let platformWallet: WalletClient;
   let deployer: WalletClient;
+  /** Unsigned transactions of batches built below, for wallet replays. */
+  const unsigned: Record<string, Hex> = {};
 
   beforeAll(async () => {
     anvil = await StartAnvil();
@@ -205,6 +208,7 @@ describe('Payouts on Anvil', () => {
     const { addresses } = Context();
 
     const built = await Build(IDS.slice(0, 3));
+    unsigned.paid = built.unsigned_transaction as Hex;
     expect(built).toMatchObject({
       transaction_type: 'payout',
       to: addresses.payoutBatch,
@@ -241,6 +245,47 @@ describe('Payouts on Anvil', () => {
       });
     }
     expect(Batch(built.payout_batch).status).toBe('paid');
+  });
+
+  it('reverts a wallet replay of a paid batch with BatchAlreadyPaid, paying nothing twice', async () => {
+    const { publicClient, addresses } = Context();
+    const before = await Promise.all(RECIPIENTS.slice(0, 3).map(UsdcBalance));
+    const { to, data } = parseTransaction(unsigned.paid);
+    const replay = await platformWallet.sendTransaction({
+      to,
+      data,
+      gas: 500_000n,
+      account: platformWallet.account ?? null,
+      chain: foundry,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: replay,
+    });
+    expect(receipt.status).toBe('reverted');
+    await expect(
+      publicClient.readContract({
+        address: addresses.payoutBatch,
+        abi: PAYOUT_BATCH_ABI,
+        functionName: 'paid',
+        args: [platform, ComputeBatchId(IDS.slice(0, 3))],
+      })
+    ).resolves.toBe(true);
+    await expect(
+      Promise.all(RECIPIENTS.slice(0, 3).map(UsdcBalance))
+    ).resolves.toEqual(before);
+    await expect(
+      module.BroadcastPayoutsBatch('acct_z_platform', {
+        transaction_hash: replay,
+        payouts: IDS.slice(0, 3),
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(IDS.slice(0, 3).map((id) => Payout(id).status)).toEqual([
+      'paid',
+      'paid',
+      'paid',
+    ]);
+    expect(Available()).toBe(0);
   });
 
   it('refuses to build for a blacklisted recipient', async () => {
@@ -302,6 +347,7 @@ describe('Payouts on Anvil', () => {
 
   it('reconcile replaces a built batch whose nonce another transaction used', async () => {
     const built = await Build([IDS[6]]);
+    unsigned.replaced = built.unsigned_transaction as Hex;
     const hash = await platformWallet.sendTransaction({
       to: platform,
       value: 0n,
@@ -317,6 +363,24 @@ describe('Payouts on Anvil', () => {
     expect(Batch(built.payout_batch).status).toBe('replaced');
     expect(Payout(IDS[6]).status).toBe('pending');
     await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(0n);
+  });
+
+  it('refuses to build payouts the chain already shows paid', async () => {
+    // A wallet sends the released batch anyway, at a nonce of its choosing.
+    const { to, data } = parseTransaction(unsigned.replaced);
+    const hash = await platformWallet.sendTransaction({
+      to,
+      data,
+      account: platformWallet.account ?? null,
+      chain: foundry,
+    });
+    await Context().publicClient.waitForTransactionReceipt({ hash });
+
+    await expect(Build([IDS[6]])).rejects.toMatchObject({
+      statusCode: 400,
+      type: 'payout_batch_already_paid',
+    });
+    await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(3_000_000n);
   });
 
   it('reconcile settles a built batch the wallet sent without broadcasting, from its BatchPaid log', async () => {

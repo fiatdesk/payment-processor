@@ -141,8 +141,11 @@ router.post(
  * - recipients_count: Number of recipients in the transaction
  *
  * Errors: 400 for blacklisted or sanctioned recipients and an underfunded
- * wallet, 409 payout_batch_in_progress while another batch is outstanding,
- * 400 use_wallet_speed_up when re-pricing a batch a wallet broadcast.
+ * wallet, 400 payout_batch_already_paid when the chain shows these payouts
+ * paid, 409 payout_batch_in_progress while another batch is outstanding,
+ * 409 payout_batch_in_flight when replacing a built batch whose transaction
+ * may still be mined, 400 use_wallet_speed_up when re-pricing a batch a
+ * wallet broadcast.
  *
  * Platform authentication is required.
  */

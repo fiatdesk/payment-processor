@@ -137,7 +137,7 @@ contract PayoutBatchTest is Test {
         usdc.approve(address(batch), total);
 
         vm.prank(funder);
-        batch.disperse(usdc, recipients, amounts, bytes32(uint256(seed)));
+        batch.disperse(usdc, recipients, amounts, keccak256(abi.encode(seed, "batch")));
 
         uint256 received;
         for (uint256 i; i < n; ++i) {
@@ -146,6 +146,93 @@ contract PayoutBatchTest is Test {
         assertEq(received, total);
         assertEq(usdc.balanceOf(funder), 0);
         assertEq(usdc.allowance(funder, address(batch)), 0);
+    }
+
+    function testDisperseSameBatchIdTwiceReverts() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
+        vm.startPrank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+
+        vm.expectRevert(PayoutBatch.BatchAlreadyPaid.selector);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(recipients[0]), 1e6);
+        assertEq(usdc.balanceOf(payer), 1_000_000e6 - 2e6);
+    }
+
+    function testSameBatchIdDifferentPayerSucceeds() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
+        address other = makeAddr("other-payer");
+        usdc.mint(other, 2e6);
+        vm.prank(other);
+        usdc.approve(address(batch), 2e6);
+
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        vm.prank(other);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+
+        assertTrue(batch.paid(payer, BATCH_ID));
+        assertTrue(batch.paid(other, BATCH_ID));
+        assertEq(usdc.balanceOf(recipients[0]), 2e6);
+    }
+
+    function testPaidViewFalseBeforeTrueAfter() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(1, 1e6);
+        assertFalse(batch.paid(payer, BATCH_ID));
+
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+
+        assertTrue(batch.paid(payer, BATCH_ID));
+        assertFalse(batch.paid(payer, keccak256("another batch")));
+    }
+
+    function testRevertedDisperseDoesNotMarkPaid() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
+        usdc.blacklist(recipients[1], true);
+
+        vm.expectRevert(bytes("Blacklistable: account is blacklisted"));
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        assertFalse(batch.paid(payer, BATCH_ID));
+
+        usdc.blacklist(recipients[1], false);
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+
+        assertTrue(batch.paid(payer, BATCH_ID));
+        assertEq(usdc.balanceOf(recipients[1]), 1e6);
+    }
+
+    function testZeroBatchIdReverts() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(1, 1e6);
+
+        vm.expectRevert(PayoutBatch.ZeroBatchId.selector);
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, bytes32(0));
+
+        assertEq(usdc.balanceOf(payer), 1_000_000e6);
+    }
+
+    function testFuzzNoDoubleSpendAcrossRetries(uint8 count, uint8 retries) public {
+        uint256 n = bound(count, 1, 20);
+        uint256 attempts = bound(retries, 1, 10);
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(n, 1e6);
+
+        vm.startPrank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        for (uint256 i; i < attempts; ++i) {
+            vm.expectRevert(PayoutBatch.BatchAlreadyPaid.selector);
+            batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        }
+        vm.stopPrank();
+
+        for (uint256 i; i < n; ++i) {
+            assertEq(usdc.balanceOf(recipients[i]), 1e6);
+        }
+        assertEq(usdc.balanceOf(payer), 1_000_000e6 - n * 1e6);
     }
 
     function _uniformBatch(uint256 count, uint256 amount)
