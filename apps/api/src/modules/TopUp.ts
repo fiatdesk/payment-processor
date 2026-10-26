@@ -26,7 +26,8 @@ import {
   QueryOperators,
 } from '@zoneless/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
-import { IncomingDeposit, SolanaExplorerUrl } from './chains/Solana';
+import { ExplorerUrl } from './chains/Settlement';
+import type { IncomingDeposit } from './chains/types';
 import { CreateTopUpInput, UpdateTopUpInput } from '@zoneless/shared-schemas';
 
 export class TopUpModule {
@@ -99,10 +100,10 @@ export class TopUpModule {
         const balanceModule = new BalanceModule(this.db);
 
         const metadata: Record<string, string> = {
-          blockchain_tx: deposit.signature,
+          blockchain_tx: deposit.transactionHash,
           network: 'solana',
           sender_address: deposit.senderAddress,
-          explorer_url: SolanaExplorerUrl('tx', deposit.signature),
+          explorer_url: ExplorerUrl('tx', deposit.transactionHash),
         };
 
         const topUp = this.TopUpObject(
@@ -202,12 +203,13 @@ export class TopUpModule {
 
     return this.CreateFromDeposit(
       {
-        signature: GenerateId('sim_dep'),
+        transactionHash: GenerateId('sim_dep'),
+        logIndex: 0,
         amount: amountCents / 100,
         amountCents,
         senderAddress: 'SimulatedTestWallet1111111111111111111',
         timestamp: Now(),
-        slot: 0,
+        blockNumber: 0,
       },
       platformAccountId
     );

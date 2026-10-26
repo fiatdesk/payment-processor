@@ -11,6 +11,7 @@ import {
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
+import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -749,12 +750,11 @@ describe('InvoiceModule', () => {
         CreateFromPaymentAttempt: jest.fn(),
         AttachBalanceTransaction: jest.fn(),
       };
-      const solana = {
-        CollectSubscriptionPayment: jest.fn().mockResolvedValue({
-          signature: 'already_collected',
-          alreadyCollected: true,
-        }),
-      };
+      const settlement = CreateMockSettlement();
+      settlement.CollectSubscriptionPayment.mockResolvedValue({
+        transaction_hash: 'already_collected',
+        alreadyCollected: true,
+      });
 
       module = new InvoiceModule(
         mockDb,
@@ -764,7 +764,7 @@ describe('InvoiceModule', () => {
         paymentIntentModule as never,
         chargeModule as never,
         undefined,
-        solana as never
+        settlement
       );
 
       mockDb.Get = jest.fn().mockImplementation(async (collection: string) => {
@@ -811,7 +811,12 @@ describe('InvoiceModule', () => {
 
       const result = await module.PayInvoice(existing.id, {});
 
-      expect(solana.CollectSubscriptionPayment).toHaveBeenCalled();
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
+        subscriberWallet: 'Wallet111',
+        planId: 'PlanPda_1',
+        subscriptionId: 'SubPda_1',
+        amountCents: existing.amount_due,
+      });
       expect(chargeModule.CreateFromPaymentAttempt).not.toHaveBeenCalled();
       expect(paymentIntentModule.MarkSucceeded).not.toHaveBeenCalled();
       expect(result.status).not.toBe('paid');

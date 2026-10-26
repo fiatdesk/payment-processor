@@ -51,10 +51,20 @@ import {
   subscriptionsProgram,
 } from '@solana/subscriptions';
 import {
-  GetAppConfig,
   GetCheckoutFeePayerSecretKey,
   RequireSubscriptionOperatorSecretKey,
 } from '../AppConfig';
+import type { Settlement } from './Settlement';
+import type {
+  BroadcastResult,
+  CheckoutPaymentVerification,
+  CheckoutSubscribeVerification,
+  IncomingDeposit,
+  RailDescription,
+  TransferRecipient,
+  UnsignedPayoutBatch,
+  UnsignedTransaction,
+} from './types';
 
 /**
  * Derive a deterministic on-chain planId (u64) from an off-chain price id string.
@@ -107,59 +117,6 @@ export function ValidateSponsoredCheckoutTransaction(
   return transaction.serialize().toString('base64');
 }
 
-/** Result of verifying a checkout payment transaction on-chain */
-export interface CheckoutPaymentVerification {
-  verified: boolean;
-  /** Total USDC (in cents) transferred to the merchant in this transaction */
-  amount_cents: number;
-  /** The payer's wallet address (transfer authority) */
-  payer_address: string | null;
-  /** Reason verification failed, if it did */
-  failure_reason?: string;
-}
-
-/** Result of verifying an on-chain subscribe transaction */
-export interface CheckoutSubscribeVerification {
-  verified: boolean;
-  /** Subscriber wallet that signed the subscribe transaction */
-  subscriber_address: string | null;
-  /** Subscription delegation PDA created by the subscribe instruction */
-  subscription_delegation_pda: string | null;
-  /** Reason verification failed, if it did */
-  failure_reason?: string;
-}
-
-/** Shared shape returned by unsigned transaction builders */
-export interface UnsignedSolanaTransaction {
-  unsigned_transaction: string;
-  estimated_fee_lamports: number;
-  blockhash: string;
-  last_valid_block_height: number;
-  min_context_slot: number;
-}
-
-/** Represents a single recipient in a batch USDC transfer */
-export interface TransferRecipient {
-  destinationAddress: string;
-  amountInCents: number;
-}
-
-/** Represents an incoming USDC deposit detected on-chain */
-export interface IncomingDeposit {
-  /** Transaction signature (unique identifier) */
-  signature: string;
-  /** Amount in USDC (human-readable, e.g., 10.50) */
-  amount: number;
-  /** Amount in cents (e.g., 1050) */
-  amountCents: number;
-  /** Sender's wallet address */
-  senderAddress: string;
-  /** Unix timestamp of the transaction */
-  timestamp: number;
-  /** Block slot number */
-  slot: number;
-}
-
 // Rate limiting for bulk deposit scanning (public RPC is strict).
 const RPC_DELAY_MS = 2000;
 // Confirmation polling should be snappy — not the deposit-scan delay.
@@ -177,21 +134,7 @@ export const MAX_BATCH_RECIPIENTS = 10;
 const Sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Build a Solana Explorer URL without needing a full Solana instance.
- * Reads LIVEMODE from env to determine the cluster.
- */
-export function SolanaExplorerUrl(
-  type: 'tx' | 'address',
-  value: string
-): string {
-  if (GetAppConfig().settlement_rail === 'simulated') return '';
-  const livemode = process.env.LIVEMODE === 'true';
-  const clusterParam = livemode ? '' : '?cluster=devnet';
-  return `https://explorer.solana.com/${type}/${value}${clusterParam}`;
-}
-
-export class Solana {
+export class Solana implements Settlement {
   connection: Connection;
   network: Cluster;
 
@@ -200,6 +143,16 @@ export class Solana {
     this.network = livemode ? 'mainnet-beta' : 'devnet';
     const rpcUrl = process.env.SOLANA_RPC_URL || clusterApiUrl(this.network);
     this.connection = new Connection(rpcUrl);
+  }
+
+  Describe(): RailDescription {
+    return {
+      rail: 'onchain',
+      network: 'solana',
+      chain_id: null,
+      native_currency: 'sol',
+      token_address: this.GetUSDCMintAddress(),
+    };
   }
 
   /**
@@ -221,7 +174,7 @@ export class Solana {
     }
   }
 
-  async GetSOLBalance(publicKeyString: string): Promise<number> {
+  async GetNativeBalance(publicKeyString: string): Promise<number> {
     if (!publicKeyString) {
       throw new Error('Public key is required');
     }
@@ -274,13 +227,7 @@ export class Solana {
   async BuildBatchPayoutTransaction(
     senderPublicKey: string,
     recipients: TransferRecipient[]
-  ): Promise<{
-    unsigned_transaction: string;
-    estimated_fee_lamports: number;
-    blockhash: string;
-    last_valid_block_height: number;
-    recipients_count: number;
-  }> {
+  ): Promise<UnsignedPayoutBatch> {
     if (recipients.length === 0) {
       throw new Error('At least one recipient is required');
     }
@@ -364,8 +311,11 @@ export class Solana {
     }
 
     // Get Latest Blockhash
-    const { blockhash, lastValidBlockHeight } = await this.WithRetry(() =>
-      this.connection.getLatestBlockhash('confirmed')
+    const {
+      context,
+      value: { blockhash, lastValidBlockHeight },
+    } = await this.WithRetry(() =>
+      this.connection.getLatestBlockhashAndContext('confirmed')
     );
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = sender;
@@ -390,10 +340,19 @@ export class Solana {
 
     return {
       unsigned_transaction: serializedTransaction,
-      estimated_fee_lamports: fee.value || 0,
-      blockhash,
-      last_valid_block_height: lastValidBlockHeight,
+      estimated_fee: String(fee.value ?? 0),
+      fee_currency: 'sol',
+      chain_id: null,
+      nonce: null,
+      to: null,
+      solana: {
+        blockhash,
+        last_valid_block_height: lastValidBlockHeight,
+        min_context_slot: context.slot,
+      },
       recipients_count: recipients.length,
+      transaction_type: 'payout',
+      batch_id: null,
     };
   }
 
@@ -402,14 +361,11 @@ export class Solana {
    * The transaction must be fully signed before calling this method.
    *
    * @param signedTransaction - The signed transaction as a base64-encoded string
-   * @returns Transaction result with signature and status
+   * @returns Transaction result with transaction hash and status
    */
-  async BroadcastSignedTransaction(signedTransaction: string): Promise<{
-    signature: string;
-    status: 'paid' | 'failed';
-    viewer_url: string;
-    failure_message?: string;
-  }> {
+  async BroadcastSignedTransaction(
+    signedTransaction: string
+  ): Promise<BroadcastResult> {
     try {
       const transactionBuffer = Buffer.from(signedTransaction, 'base64');
 
@@ -425,7 +381,7 @@ export class Solana {
       const confirmed = await this.WaitForSignatureConfirmation(signature);
       if (!confirmed.ok) {
         return {
-          signature,
+          transaction_hash: signature,
           status: 'failed',
           viewer_url: this.ExplorerUrl('tx', signature),
           failure_message:
@@ -435,7 +391,7 @@ export class Solana {
       }
 
       return {
-        signature,
+        transaction_hash: signature,
         status: 'paid',
         viewer_url: this.ExplorerUrl('tx', signature),
       };
@@ -451,7 +407,7 @@ export class Solana {
         );
         if (confirmed.ok) {
           return {
-            signature: maybeSignature,
+            transaction_hash: maybeSignature,
             status: 'paid',
             viewer_url: this.ExplorerUrl('tx', maybeSignature),
           };
@@ -459,7 +415,7 @@ export class Solana {
       }
 
       return {
-        signature: '',
+        transaction_hash: '',
         status: 'failed',
         viewer_url: '',
         failure_message: `Broadcast failed: ${errorMessage}`,
@@ -542,7 +498,7 @@ export class Solana {
   /**
    * Get the USDC mint address for the current network.
    */
-  GetUSDCMintAddress(): string {
+  private GetUSDCMintAddress(): string {
     return this.network === 'mainnet-beta'
       ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' // Mainnet USDC
       : '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'; // Devnet USDC
@@ -728,12 +684,13 @@ export class Solana {
             const senderAddress = info.authority || info.source || 'unknown';
 
             return {
-              signature: sigInfo.signature,
+              transactionHash: sigInfo.signature,
+              logIndex: 0,
               amount,
               amountCents,
               senderAddress,
               timestamp: sigInfo.blockTime || Math.floor(Date.now() / 1000),
-              slot: sigInfo.slot,
+              blockNumber: sigInfo.slot,
             };
           }
         }
@@ -758,7 +715,7 @@ export class Solana {
     amountInCents: number,
     checkoutSessionId: string,
     options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedSolanaTransaction> {
+  ): Promise<UnsignedTransaction> {
     if (!payerPublicKey) {
       throw new Error('Payer public key is required');
     }
@@ -837,7 +794,7 @@ export class Solana {
   async BuildInitSubscriptionAuthorityTransaction(
     subscriberWallet: string,
     options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedSolanaTransaction | null> {
+  ): Promise<UnsignedTransaction | null> {
     if (!subscriberWallet) {
       throw new Error('Subscriber wallet is required');
     }
@@ -910,7 +867,7 @@ export class Solana {
     priceId: string,
     planPda: string,
     options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedSolanaTransaction> {
+  ): Promise<UnsignedTransaction> {
     if (!subscriberWallet) {
       throw new Error('Subscriber wallet is required');
     }
@@ -922,7 +879,7 @@ export class Solana {
     }
 
     const feeSponsored = !!options?.feeSponsored;
-    const planOwner = this.GetPlanOwnerPublicKey();
+    const planOwner = this.GetPlanOwnerAddress();
     const planId = PlanIdFromPriceId(priceId);
     const usdcMintAddress = this.GetUSDCMintAddress();
     const tokenMint = address(usdcMintAddress);
@@ -1049,7 +1006,7 @@ export class Solana {
    */
   async ValidateAndBroadcastCheckoutTransaction(
     signedByCustomerBase64: string
-  ): Promise<{ signature: string }> {
+  ): Promise<{ transaction_hash: string }> {
     const signedTransaction = ValidateSponsoredCheckoutTransaction(
       signedByCustomerBase64,
       this.GetCheckoutFeePayerKeypair().publicKey
@@ -1061,14 +1018,14 @@ export class Solana {
         broadcast.failure_message || 'Failed to broadcast checkout transaction'
       );
     }
-    return { signature: broadcast.signature };
+    return { transaction_hash: broadcast.transaction_hash };
   }
 
   /**
    * Return the subscription delegation PDA when this wallet is already
    * subscribed to the plan, otherwise null.
    */
-  async FindExistingSubscriptionDelegation(
+  async FindExistingSubscription(
     planPda: string,
     subscriberWallet: string
   ): Promise<string | null> {
@@ -1092,7 +1049,7 @@ export class Solana {
   async VerifySubscribeTransaction(
     signature: string,
     expected: {
-      planPda: string;
+      planId: string;
       subscriberWallet: string;
     }
   ): Promise<CheckoutSubscribeVerification> {
@@ -1107,7 +1064,7 @@ export class Solana {
       return {
         verified: false,
         subscriber_address: null,
-        subscription_delegation_pda: null,
+        subscription_onchain_id: null,
         failure_reason:
           'Transaction not found on-chain (may not be confirmed yet)',
       };
@@ -1117,7 +1074,7 @@ export class Solana {
       return {
         verified: false,
         subscriber_address: null,
-        subscription_delegation_pda: null,
+        subscription_onchain_id: null,
         failure_reason: `Transaction failed on-chain: ${JSON.stringify(
           tx.meta.err
         )}`,
@@ -1125,7 +1082,7 @@ export class Solana {
     }
 
     const [subscriptionPda] = await findSubscriptionDelegationPda({
-      planPda: address(expected.planPda),
+      planPda: address(expected.planId),
       subscriber: address(expected.subscriberWallet),
     });
 
@@ -1140,7 +1097,7 @@ export class Solana {
       return {
         verified: false,
         subscriber_address: expected.subscriberWallet,
-        subscription_delegation_pda: null,
+        subscription_onchain_id: null,
         failure_reason:
           'Subscription account was not created for this subscriber and plan',
       };
@@ -1167,7 +1124,7 @@ export class Solana {
       return {
         verified: false,
         subscriber_address: feePayerAddress,
-        subscription_delegation_pda: subscriptionPda,
+        subscription_onchain_id: subscriptionPda,
         failure_reason:
           'Subscribe transaction was not signed by the expected wallet',
       };
@@ -1176,7 +1133,7 @@ export class Solana {
     return {
       verified: true,
       subscriber_address: expected.subscriberWallet,
-      subscription_delegation_pda: subscriptionPda,
+      subscription_onchain_id: subscriptionPda,
     };
   }
 
@@ -1188,16 +1145,16 @@ export class Solana {
    */
   async CollectSubscriptionPayment(params: {
     subscriberWallet: string;
-    planPda: string;
-    subscriptionPda: string;
+    planId: string;
+    subscriptionId: string;
     amountCents: number;
     /** Optional; must match a plan destination if the plan has an allowlist. */
     destinationWallet?: string;
-  }): Promise<{ signature: string; alreadyCollected: boolean }> {
+  }): Promise<{ transaction_hash: string; alreadyCollected: boolean }> {
     const {
       subscriberWallet,
-      planPda,
-      subscriptionPda,
+      planId: planPda,
+      subscriptionId: subscriptionPda,
       amountCents,
       destinationWallet,
     } = params;
@@ -1319,13 +1276,16 @@ export class Solana {
         .sendTransaction();
 
       return {
-        signature: result.context.signature,
+        transaction_hash: result.context.signature,
         alreadyCollected: false,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       if (/#400|exceeds period limit/i.test(message)) {
-        return { signature: 'already_collected', alreadyCollected: true };
+        return {
+          transaction_hash: 'already_collected',
+          alreadyCollected: true,
+        };
       }
       throw new Error(
         `Subscription collect failed (destination ${resolvedDestination}, ATA ${receiverAta.toBase58()}): ${message}`
@@ -1338,7 +1298,7 @@ export class Solana {
    * (SUBSCRIPTION_OPERATOR_KEY). This is the `merchant` argument to `subscribe`
    * and the authorized puller.
    */
-  GetPlanOwnerPublicKey(): string {
+  GetPlanOwnerAddress(): string {
     const secretKey = RequireSubscriptionOperatorSecretKey();
     return Keypair.fromSecretKey(bs58.decode(secretKey)).publicKey.toBase58();
   }
@@ -1379,7 +1339,7 @@ export class Solana {
     transaction: Transaction,
     feePayer: PublicKey,
     options?: { feeSponsored?: boolean }
-  ): Promise<UnsignedSolanaTransaction> {
+  ): Promise<UnsignedTransaction> {
     const {
       context,
       value: { blockhash, lastValidBlockHeight },
@@ -1406,10 +1366,16 @@ export class Solana {
       unsigned_transaction: transaction
         .serialize({ requireAllSignatures: false })
         .toString('base64'),
-      estimated_fee_lamports: fee.value || 0,
-      blockhash,
-      last_valid_block_height: lastValidBlockHeight,
-      min_context_slot: context.slot,
+      estimated_fee: String(fee.value ?? 0),
+      fee_currency: 'sol',
+      chain_id: null,
+      nonce: null,
+      to: null,
+      solana: {
+        blockhash,
+        last_valid_block_height: lastValidBlockHeight,
+        min_context_slot: context.slot,
+      },
     };
   }
 

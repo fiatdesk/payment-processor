@@ -48,12 +48,12 @@ describe('SimulatedSettlement', () => {
     await expect(
       settlement.CollectSubscriptionPayment({
         subscriberWallet: 'Payer111',
-        planPda: 'sim_plan_price_z_1',
-        subscriptionPda: 'sim_sub_1',
+        planId: 'sim_plan_price_z_1',
+        subscriptionId: 'sim_sub_1',
         amountCents: 2000,
       })
     ).resolves.toEqual({
-      signature: 'sim_collect:Payer111',
+      transaction_hash: 'sim_collect:Payer111',
       alreadyCollected: false,
     });
   });
@@ -65,15 +65,57 @@ describe('SimulatedSettlement', () => {
       ])
     ).resolves.toMatchObject({
       unsigned_transaction: 'sim_tx',
-      last_valid_block_height: 1,
+      // The payout broadcast schema still requires a positive block height.
+      solana: { last_valid_block_height: 1 },
       recipients_count: 1,
     });
     await expect(
       settlement.BroadcastSignedTransaction('sim_tx')
     ).resolves.toEqual({
-      signature: 'sim_sig_payout',
+      transaction_hash: 'sim_sig_payout',
       status: 'paid',
       viewer_url: '',
+    });
+  });
+
+  it('describes the simulated rail', () => {
+    expect(new SimulatedSettlement().Describe()).toEqual({
+      rail: 'simulated',
+      network: 'simulated',
+      chain_id: null,
+      native_currency: 'none',
+      token_address: 'simulated',
+    });
+  });
+
+  it('returns an empty explorer url on the simulated rail', () => {
+    expect(new SimulatedSettlement().ExplorerUrl('tx', 'abc')).toBe('');
+  });
+
+  it('shapes a simulated payout batch with chain-neutral fields', async () => {
+    const batch = await new SimulatedSettlement().BuildBatchPayoutTransaction(
+      'Sender111',
+      [{ destinationAddress: 'A', amountInCents: 100 }]
+    );
+    expect(batch).toMatchObject({
+      unsigned_transaction: 'sim_tx',
+      estimated_fee: '0',
+      fee_currency: 'none',
+      chain_id: null,
+      nonce: null,
+      to: null,
+      recipients_count: 1,
+      transaction_type: 'payout',
+    });
+    expect(batch).not.toHaveProperty('estimated_fee_lamports');
+  });
+
+  it('broadcasts with transaction_hash', async () => {
+    await expect(
+      new SimulatedSettlement().BroadcastSignedTransaction('sim_tx')
+    ).resolves.toMatchObject({
+      transaction_hash: 'sim_sig_payout',
+      status: 'paid',
     });
   });
 });

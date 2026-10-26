@@ -19,12 +19,13 @@ import type { SubscriptionModule } from './Subscription';
 import type { PaymentIntentModule } from './PaymentIntent';
 import type { ChargeModule } from './Charge';
 import type { PaymentLinkModule } from './PaymentLink';
-import { SolanaExplorerUrl } from './chains/Solana';
 import {
+  ExplorerUrl,
   GetSettlement,
   SimulatedSignature,
   type Settlement,
 } from './chains/Settlement';
+import type { UnsignedTransaction } from './chains/types';
 import { IsCheckoutFeeSponsored } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -69,6 +70,26 @@ export interface PreparedCheckoutPayment {
    * Omitted for one-time payments.
    */
   subscription_step?: 'init_authority' | 'subscribe';
+}
+
+/** Map a rail's unsigned transaction onto the public prepare response fields. */
+function ToPreparedTransactionFields(
+  transaction: UnsignedTransaction
+): Pick<
+  PreparedCheckoutPayment,
+  | 'unsigned_transaction'
+  | 'estimated_fee_lamports'
+  | 'blockhash'
+  | 'last_valid_block_height'
+  | 'min_context_slot'
+> {
+  return {
+    unsigned_transaction: transaction.unsigned_transaction,
+    estimated_fee_lamports: Number(transaction.estimated_fee),
+    blockhash: transaction.solana?.blockhash ?? '',
+    last_valid_block_height: transaction.solana?.last_valid_block_height ?? 0,
+    min_context_slot: transaction.solana?.min_context_slot ?? 0,
+  };
 }
 
 /** Convert a stored nullable address into CreateCustomer address input. */
@@ -119,7 +140,7 @@ export class CheckoutPaymentModule {
   private readonly paymentLinkModule: PaymentLinkModule | null;
   private readonly customerModule: CustomerModule | null;
   private readonly subscriptionModule: SubscriptionModule | null;
-  private readonly solana: Settlement;
+  private readonly settlement: Settlement;
 
   constructor(
     db: Database,
@@ -129,7 +150,7 @@ export class CheckoutPaymentModule {
     paymentIntentModule?: PaymentIntentModule,
     chargeModule?: ChargeModule,
     paymentLinkModule?: PaymentLinkModule,
-    solana?: Settlement,
+    settlement?: Settlement,
     customerModule?: CustomerModule,
     subscriptionModule?: SubscriptionModule
   ) {
@@ -145,7 +166,7 @@ export class CheckoutPaymentModule {
     this.paymentLinkModule = paymentLinkModule || null;
     this.customerModule = customerModule || null;
     this.subscriptionModule = subscriptionModule || null;
-    this.solana = solana || GetSettlement();
+    this.settlement = settlement || GetSettlement();
   }
 
   /**
@@ -166,7 +187,7 @@ export class CheckoutPaymentModule {
         wallet_address: merchantWallet.wallet_address,
         network: merchantWallet.network,
         currency: merchantWallet.currency,
-        usdc_mint: this.solana.GetUSDCMintAddress(),
+        usdc_mint: this.settlement.Describe().token_address,
       },
       merchant: this.ResolveMerchant(session, account),
     };
@@ -302,12 +323,14 @@ export class CheckoutPaymentModule {
             payerWallet,
             feeSponsored
           )
-        : await this.solana.BuildCheckoutPaymentTransaction(
-            payerWallet,
-            merchantWallet.wallet_address,
-            session.amount_total!,
-            session.id,
-            { feeSponsored }
+        : ToPreparedTransactionFields(
+            await this.settlement.BuildCheckoutPaymentTransaction(
+              payerWallet,
+              merchantWallet.wallet_address,
+              session.amount_total!,
+              session.id,
+              { feeSponsored }
+            )
           );
 
     await this.MarkPaymentIntentRequiresConfirmation(session, payerWallet);
@@ -347,7 +370,7 @@ export class CheckoutPaymentModule {
       );
     }
 
-    const existingPda = await this.solana.FindExistingSubscriptionDelegation(
+    const existingPda = await this.settlement.FindExistingSubscription(
       price.subscription_plan_pda,
       payerWallet
     );
@@ -364,24 +387,27 @@ export class CheckoutPaymentModule {
       };
     }
 
-    const initTx = await this.solana.BuildInitSubscriptionAuthorityTransaction(
-      payerWallet,
-      { feeSponsored }
-    );
+    const initTx =
+      await this.settlement.BuildInitSubscriptionAuthorityTransaction?.(
+        payerWallet,
+        { feeSponsored }
+      );
     if (initTx) {
       return {
-        ...initTx,
+        ...ToPreparedTransactionFields(initTx),
         subscription_step: 'init_authority',
       };
     }
 
     return {
-      ...(await this.solana.BuildSubscribeTransaction(
-        payerWallet,
-        price.id,
-        price.subscription_plan_pda,
-        { feeSponsored }
-      )),
+      ...ToPreparedTransactionFields(
+        await this.settlement.BuildSubscribeTransaction(
+          payerWallet,
+          price.id,
+          price.subscription_plan_pda,
+          { feeSponsored }
+        )
+      ),
       subscription_step: 'subscribe',
     };
   }
@@ -445,10 +471,10 @@ export class CheckoutPaymentModule {
     ) {
       try {
         const broadcast =
-          await this.solana.ValidateAndBroadcastCheckoutTransaction(
+          await this.settlement.ValidateAndBroadcastCheckoutTransaction(
             options.signed_transaction
           );
-        resolvedSignature = broadcast.signature;
+        resolvedSignature = broadcast.transaction_hash;
       } catch (error) {
         throw new AppError(
           error instanceof Error
@@ -533,7 +559,7 @@ export class CheckoutPaymentModule {
     });
 
     try {
-      await this.solana.WaitForSubscriptionAuthority(subscriberWallet);
+      await this.settlement.WaitForSubscriptionAuthority?.(subscriberWallet);
     } catch (error) {
       throw new AppError(
         error instanceof Error
@@ -562,11 +588,14 @@ export class CheckoutPaymentModule {
 
     await this.MarkPaymentIntentProcessing(session);
 
-    const verification = await this.solana.VerifyCheckoutPayment(signature, {
-      merchantWalletAddress: merchantWallet.wallet_address,
-      amountInCents: session.amount_total!,
-      checkoutSessionId: session.id,
-    });
+    const verification = await this.settlement.VerifyCheckoutPayment(
+      signature,
+      {
+        merchantWalletAddress: merchantWallet.wallet_address,
+        amountInCents: session.amount_total!,
+        checkoutSessionId: session.id,
+      }
+    );
 
     if (!verification.verified) {
       const failureMessage =
@@ -665,15 +694,15 @@ export class CheckoutPaymentModule {
       signature,
     });
 
-    const verification = await this.solana.VerifySubscribeTransaction(
+    const verification = await this.settlement.VerifySubscribeTransaction(
       signature,
       {
-        planPda: price.subscription_plan_pda,
+        planId: price.subscription_plan_pda,
         subscriberWallet,
       }
     );
 
-    if (!verification.verified || !verification.subscription_delegation_pda) {
+    if (!verification.verified || !verification.subscription_onchain_id) {
       throw new AppError(
         verification.failure_reason || 'Subscription verification failed',
         ERRORS.INVALID_REQUEST.status,
@@ -683,7 +712,7 @@ export class CheckoutPaymentModule {
 
     return this.FinalizeSubscriptionCheckout(session, {
       subscriberWallet,
-      subscriptionDelegationPda: verification.subscription_delegation_pda,
+      subscriptionDelegationPda: verification.subscription_onchain_id,
       signature,
     });
   }
@@ -710,7 +739,7 @@ export class CheckoutPaymentModule {
     );
     const delegationPda =
       subscriptionDelegationPda ||
-      (await this.solana.FindExistingSubscriptionDelegation(
+      (await this.settlement.FindExistingSubscription(
         price.subscription_plan_pda,
         subscriberWallet
       ));
@@ -771,14 +800,14 @@ export class CheckoutPaymentModule {
 
     if (!hasTrial) {
       try {
-        const collection = await this.solana.CollectSubscriptionPayment({
+        const collection = await this.settlement.CollectSubscriptionPayment({
           subscriberWallet,
-          planPda: price.subscription_plan_pda,
-          subscriptionPda: subscriptionDelegationPda,
+          planId: price.subscription_plan_pda,
+          subscriptionId: subscriptionDelegationPda,
           destinationWallet: merchantWallet.wallet_address,
           amountCents: price.unit_amount ?? session.amount_total!,
         });
-        collectionSignature = collection.signature;
+        collectionSignature = collection.transaction_hash;
       } catch (error) {
         // Subscribe already landed — surface the collect error instead of
         // pretending checkout collected USDC (collectionSignature === signature).
@@ -1034,7 +1063,7 @@ export class CheckoutPaymentModule {
           blockchain_tx: signature,
           network: 'solana',
           sender_address: payerWallet ?? '',
-          explorer_url: SolanaExplorerUrl('tx', signature),
+          explorer_url: ExplorerUrl('tx', signature),
         },
         status: 'available',
         available_on: timestamp,

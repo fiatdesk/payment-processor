@@ -20,8 +20,11 @@ import type { ChargeModule } from './Charge';
 import type { PriceModule } from './Price';
 import { BalanceModule } from './Balance';
 import { BalanceTransactionModule } from './BalanceTransaction';
-import { SolanaExplorerUrl } from './chains/Solana';
-import { GetSettlement, type Settlement } from './chains/Settlement';
+import {
+  ExplorerUrl,
+  GetSettlement,
+  type Settlement,
+} from './chains/Settlement';
 import { GenerateId } from '../utils/IdGenerator';
 import {
   BalanceTransaction as BalanceTransactionType,
@@ -105,7 +108,7 @@ export class InvoiceModule {
   private readonly priceModule: PriceModule | null;
   private readonly balanceModule: BalanceModule;
   private readonly balanceTransactionModule: BalanceTransactionModule;
-  private readonly solana: Settlement;
+  private readonly settlement: Settlement;
 
   constructor(
     db: Database,
@@ -115,7 +118,7 @@ export class InvoiceModule {
     paymentIntentModule?: PaymentIntentModule,
     chargeModule?: ChargeModule,
     priceModule?: PriceModule,
-    solana?: Settlement
+    settlement?: Settlement
   ) {
     this.db = db;
     this.eventService = eventService || null;
@@ -133,7 +136,7 @@ export class InvoiceModule {
     this.priceModule = priceModule || null;
     this.balanceModule = new BalanceModule(db);
     this.balanceTransactionModule = new BalanceTransactionModule(db);
-    this.solana = solana || GetSettlement();
+    this.settlement = settlement || GetSettlement();
   }
 
   /**
@@ -1380,7 +1383,7 @@ export class InvoiceModule {
     const timestamp = Now();
     const explorerUrl =
       signature && signature !== 'already_collected'
-        ? SolanaExplorerUrl('tx', signature)
+        ? ExplorerUrl('tx', signature)
         : '';
 
     const balanceTransaction =
@@ -1698,10 +1701,10 @@ export class InvoiceModule {
     }
 
     const amountCents = invoice.amount_due;
-    const collection = await this.solana.CollectSubscriptionPayment({
+    const collection = await this.settlement.CollectSubscriptionPayment({
       subscriberWallet,
-      planPda: price.subscription_plan_pda,
-      subscriptionPda: subscription.subscription_delegation_pda,
+      planId: price.subscription_plan_pda,
+      subscriptionId: subscription.subscription_delegation_pda,
       amountCents,
     });
 
@@ -1721,7 +1724,7 @@ export class InvoiceModule {
     }
 
     return {
-      signature: collection.signature,
+      signature: collection.transaction_hash,
       subscriberWallet,
     };
   }

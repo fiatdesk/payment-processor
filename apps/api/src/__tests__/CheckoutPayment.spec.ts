@@ -6,7 +6,8 @@ import { EventService } from '../modules/EventService';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
 import { PaymentIntentModule } from '../modules/PaymentIntent';
 import { ProductModule } from '../modules/Product';
-import { Solana } from '../modules/chains/Solana';
+import type { Settlement } from '../modules/chains/Settlement';
+import type { UnsignedTransaction } from '../modules/chains/types';
 import {
   CheckoutSession,
   CheckoutSessionLineItem,
@@ -20,6 +21,7 @@ import {
   GetFixedTimestamp,
   ResetIdCounter,
 } from './Setup';
+import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -69,6 +71,22 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
   };
 }
 
+function UnsignedTx(unsignedTransaction: string): UnsignedTransaction {
+  return {
+    unsigned_transaction: unsignedTransaction,
+    estimated_fee: '5000',
+    fee_currency: 'sol',
+    chain_id: null,
+    nonce: null,
+    to: null,
+    solana: {
+      blockhash: 'blockhash_1',
+      last_valid_block_height: 100,
+      min_context_slot: 90,
+    },
+  };
+}
+
 function BuildLineItem(
   overrides: Partial<CheckoutSessionLineItem> = {}
 ): CheckoutSessionLineItem {
@@ -97,21 +115,7 @@ describe('CheckoutPaymentModule', () => {
   let checkoutSessionModule: CheckoutSessionModule;
   let paymentIntentModule: PaymentIntentModule;
   let chargeModule: ChargeModule;
-  let mockSolana: jest.Mocked<
-    Pick<
-      Solana,
-      | 'BuildCheckoutPaymentTransaction'
-      | 'BuildInitSubscriptionAuthorityTransaction'
-      | 'BuildSubscribeTransaction'
-      | 'VerifyCheckoutPayment'
-      | 'VerifySubscribeTransaction'
-      | 'CollectSubscriptionPayment'
-      | 'ValidateAndBroadcastCheckoutTransaction'
-      | 'FindExistingSubscriptionDelegation'
-      | 'WaitForSubscriptionAuthority'
-      | 'GetUSDCMintAddress'
-    >
-  >;
+  let mockSettlement: jest.Mocked<Settlement>;
   let mockExternalWalletModule: jest.Mocked<
     Pick<ExternalWalletModule, 'GetDefaultWallet'>
   >;
@@ -150,37 +154,16 @@ describe('CheckoutPaymentModule', () => {
       paymentIntentModule
     );
 
-    mockSolana = {
-      BuildCheckoutPaymentTransaction: jest.fn().mockResolvedValue({
-        unsigned_transaction: 'unsigned_tx_base64',
-        estimated_fee_lamports: 5000,
-        blockhash: 'blockhash_1',
-        last_valid_block_height: 100,
-        min_context_slot: 90,
-      }),
-      BuildInitSubscriptionAuthorityTransaction: jest
-        .fn()
-        .mockResolvedValue(null),
-      BuildSubscribeTransaction: jest.fn().mockResolvedValue({
-        unsigned_transaction: 'unsigned_subscribe_base64',
-        estimated_fee_lamports: 5000,
-        blockhash: 'blockhash_1',
-        last_valid_block_height: 100,
-        min_context_slot: 90,
-      }),
-      VerifyCheckoutPayment: jest.fn(),
-      VerifySubscribeTransaction: jest.fn(),
-      CollectSubscriptionPayment: jest.fn().mockResolvedValue({
-        signature: 'collect_sig',
-        alreadyCollected: false,
-      }),
-      ValidateAndBroadcastCheckoutTransaction: jest.fn().mockResolvedValue({
-        signature: 'relay_sig',
-      }),
-      FindExistingSubscriptionDelegation: jest.fn().mockResolvedValue(null),
-      WaitForSubscriptionAuthority: jest.fn().mockResolvedValue(undefined),
-      GetUSDCMintAddress: jest.fn().mockReturnValue('UsdcMint111'),
-    };
+    mockSettlement = CreateMockSettlement();
+    mockSettlement.BuildCheckoutPaymentTransaction.mockResolvedValue(
+      UnsignedTx('unsigned_tx_base64')
+    );
+    mockSettlement.BuildSubscribeTransaction.mockResolvedValue(
+      UnsignedTx('unsigned_subscribe_base64')
+    );
+    mockSettlement.ValidateAndBroadcastCheckoutTransaction.mockResolvedValue({
+      transaction_hash: 'relay_sig',
+    });
 
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
@@ -194,7 +177,7 @@ describe('CheckoutPaymentModule', () => {
       paymentIntentModule,
       chargeModule,
       undefined,
-      mockSolana as unknown as Solana
+      mockSettlement
     );
   });
 
@@ -257,7 +240,9 @@ describe('CheckoutPaymentModule', () => {
         { email: 'buyer@example.com' }
       );
 
-      expect(mockSolana.BuildCheckoutPaymentTransaction).toHaveBeenCalledWith(
+      expect(
+        mockSettlement.BuildCheckoutPaymentTransaction
+      ).toHaveBeenCalledWith(
         'PayerWallet111',
         'MerchantWallet111',
         1000,
@@ -280,6 +265,9 @@ describe('CheckoutPaymentModule', () => {
           checkout_session: session.id,
           amount_total: 1000,
           unsigned_transaction: 'unsigned_tx_base64',
+          estimated_fee_lamports: 5000,
+          blockhash: 'blockhash_1',
+          last_valid_block_height: 100,
           min_context_slot: 90,
         })
       );
@@ -323,15 +311,17 @@ describe('CheckoutPaymentModule', () => {
       );
 
       expect(
-        mockSolana.BuildInitSubscriptionAuthorityTransaction
+        mockSettlement.BuildInitSubscriptionAuthorityTransaction
       ).toHaveBeenCalledWith('PayerWallet111', { feeSponsored: false });
-      expect(mockSolana.BuildSubscribeTransaction).toHaveBeenCalledWith(
+      expect(mockSettlement.BuildSubscribeTransaction).toHaveBeenCalledWith(
         'PayerWallet111',
         recurringPrice.id,
         'PlanPda111',
         { feeSponsored: false }
       );
-      expect(mockSolana.BuildCheckoutPaymentTransaction).not.toHaveBeenCalled();
+      expect(
+        mockSettlement.BuildCheckoutPaymentTransaction
+      ).not.toHaveBeenCalled();
       expect(result.unsigned_transaction).toBe('unsigned_subscribe_base64');
       expect(result.subscription_step).toBe('subscribe');
     });
@@ -359,13 +349,9 @@ describe('CheckoutPaymentModule', () => {
         },
       });
 
-      mockSolana.BuildInitSubscriptionAuthorityTransaction.mockResolvedValue({
-        unsigned_transaction: 'unsigned_init_base64',
-        estimated_fee_lamports: 5000,
-        blockhash: 'blockhash_1',
-        last_valid_block_height: 100,
-        min_context_slot: 90,
-      });
+      mockSettlement.BuildInitSubscriptionAuthorityTransaction.mockResolvedValue(
+        UnsignedTx('unsigned_init_base64')
+      );
 
       jest
         .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
@@ -381,7 +367,7 @@ describe('CheckoutPaymentModule', () => {
         { email: 'buyer@example.com' }
       );
 
-      expect(mockSolana.BuildSubscribeTransaction).not.toHaveBeenCalled();
+      expect(mockSettlement.BuildSubscribeTransaction).not.toHaveBeenCalled();
       expect(result.unsigned_transaction).toBe('unsigned_init_base64');
       expect(result.subscription_step).toBe('init_authority');
     });
@@ -454,21 +440,21 @@ describe('CheckoutPaymentModule', () => {
         },
       ]);
 
-      mockSolana.VerifyCheckoutPayment.mockResolvedValue({
+      mockSettlement.VerifyCheckoutPayment.mockResolvedValue({
         verified: true,
         payer_address: 'PayerWallet111',
         amount_cents: 1000,
       });
-      mockSolana.ValidateAndBroadcastCheckoutTransaction.mockResolvedValueOnce({
-        signature: 'sig_abc',
-      });
+      mockSettlement.ValidateAndBroadcastCheckoutTransaction.mockResolvedValueOnce(
+        { transaction_hash: 'sig_abc' }
+      );
 
       const result = await module.ConfirmPayment(session.url_slug, undefined, {
         signed_transaction: 'signed_tx_base64',
       });
 
       expect(
-        mockSolana.ValidateAndBroadcastCheckoutTransaction
+        mockSettlement.ValidateAndBroadcastCheckoutTransaction
       ).toHaveBeenCalledWith('signed_tx_base64');
       expect(eventService.Emit.mock.calls.map((call) => call[0])).toEqual([
         'payment_intent.processing',
@@ -549,7 +535,7 @@ describe('CheckoutPaymentModule', () => {
         .mockResolvedValueOnce(processing)
         .mockResolvedValueOnce(failed);
 
-      mockSolana.VerifyCheckoutPayment.mockResolvedValue({
+      mockSettlement.VerifyCheckoutPayment.mockResolvedValue({
         verified: false,
         payer_address: null,
         amount_cents: 0,

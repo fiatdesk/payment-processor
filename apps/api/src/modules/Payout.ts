@@ -13,7 +13,7 @@ import { BalanceTransactionModule } from './BalanceTransaction';
 import { BalanceModule } from './Balance';
 import { ExternalWalletModule } from './ExternalWallet';
 import { AccountModule } from './Account';
-import { GetSettlement, IsSimulatedSettlement } from './chains/Settlement';
+import { GetSettlement, type Settlement } from './chains/Settlement';
 import { GetPlatformAccountId } from './PlatformAccess';
 import { GetAppConfig } from './AppConfig';
 import { GenerateId } from '../utils/IdGenerator';
@@ -73,7 +73,7 @@ export class PayoutModule {
   private readonly externalWalletModule: ExternalWalletModule;
   private readonly balanceModule: BalanceModule;
   private readonly balanceTransactionModule: BalanceTransactionModule;
-  private readonly solana: ReturnType<typeof GetSettlement>;
+  private readonly settlement: Settlement;
 
   constructor(db: Database, eventService?: EventService) {
     this.db = db;
@@ -82,7 +82,7 @@ export class PayoutModule {
     this.externalWalletModule = new ExternalWalletModule(db);
     this.balanceModule = new BalanceModule(db);
     this.balanceTransactionModule = new BalanceTransactionModule(db);
-    this.solana = GetSettlement();
+    this.settlement = GetSettlement();
     this.listHelper = new ListHelper<PayoutType>(db, {
       collection: 'Payouts',
       orderByField: 'created',
@@ -206,7 +206,7 @@ export class PayoutModule {
     }
 
     // Verify the wallet address is valid on the Solana network
-    const walletExists = await this.solana.CheckWalletExists(
+    const walletExists = await this.settlement.CheckWalletExists(
       wallet.wallet_address
     );
     if (!walletExists) {
@@ -666,7 +666,7 @@ export class PayoutModule {
     );
 
     // Build the unsigned transaction
-    const transactionData = await this.solana.BuildBatchPayoutTransaction(
+    const transactionData = await this.settlement.BuildBatchPayoutTransaction(
       platformWalletPublicKey,
       recipients
     );
@@ -676,9 +676,10 @@ export class PayoutModule {
     return {
       object: 'payout_batch_build',
       unsigned_transaction: transactionData.unsigned_transaction,
-      estimated_fee_lamports: transactionData.estimated_fee_lamports,
-      blockhash: transactionData.blockhash,
-      last_valid_block_height: transactionData.last_valid_block_height,
+      estimated_fee_lamports: Number(transactionData.estimated_fee),
+      blockhash: transactionData.solana?.blockhash ?? '',
+      last_valid_block_height:
+        transactionData.solana?.last_valid_block_height ?? 0,
       payouts,
       total_amount: totalAmount,
       recipients_count: transactionData.recipients_count,
@@ -756,7 +757,7 @@ export class PayoutModule {
     });
 
     // Broadcast the transaction
-    const result = await this.solana.BroadcastSignedTransaction(
+    const result = await this.settlement.BroadcastSignedTransaction(
       signed_transaction
     );
 
@@ -765,12 +766,13 @@ export class PayoutModule {
 
     if (result.status === 'paid') {
       // Success: mark all payouts as paid
+      const { network, native_currency } = this.settlement.Describe();
       for (const payout of payouts) {
         await this.MarkPayoutPaid(payout, {
-          network: IsSimulatedSettlement() ? 'simulated' : 'solana',
-          blockchain_tx: result.signature,
+          network,
+          blockchain_tx: result.transaction_hash,
           gas_fee: 0, // Fee was paid by platform, not deducted from payout
-          gas_fee_currency: 'sol',
+          gas_fee_currency: native_currency,
           viewer_url: result.viewer_url,
         });
 
@@ -797,8 +799,9 @@ export class PayoutModule {
 
     return {
       object: 'payout_batch_broadcast',
-      signature: result.signature,
-      status: result.status,
+      signature: result.transaction_hash,
+      // Anything short of paid was refunded above.
+      status: result.status === 'paid' ? 'paid' : 'failed',
       viewer_url: result.viewer_url,
       payouts: updatedPayouts,
       failure_message: result.failure_message,

@@ -21,7 +21,7 @@ import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { VerifyToken } from '../utils/Token';
 import { GetJwtSecret, GetAppConfig } from '../modules/AppConfig';
-import { SolanaExplorerUrl } from '../modules/chains/Solana';
+import { ExplorerUrl, GetSettlement } from '../modules/chains/Settlement';
 
 const router = express.Router();
 
@@ -168,9 +168,9 @@ router.get(
     const depositInfo: DepositInfo = {
       object: 'deposit_info',
       wallet_address: platformWallet.wallet_address,
-      network: 'solana',
+      network: GetSettlement().Describe().network,
       currency: 'usdc',
-      explorer_url: SolanaExplorerUrl('address', platformWallet.wallet_address),
+      explorer_url: ExplorerUrl('address', platformWallet.wallet_address),
     };
 
     res.json(depositInfo);

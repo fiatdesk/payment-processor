@@ -127,7 +127,7 @@ export class PriceModule {
       const destinationAddress = await this.GetPlatformWalletPublicKey(
         price.platform_account
       );
-      const pullerAddress = settlement.GetPlanOwnerPublicKey();
+      const pullerAddress = settlement.GetPlanOwnerAddress();
       price.subscription_plan_pda = await settlement.CreateSubscriptionPlan(
         price.id,
         periodHours,

@@ -1,6 +1,7 @@
 import { PayoutModule } from '../modules/Payout';
 import { Database } from '../modules/Database';
 import { Payout } from '@zoneless/shared-types';
+import type { Settlement } from '../modules/chains/Settlement';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -23,23 +24,7 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 jest.mock('../modules/chains/Settlement', () => ({
-  GetSettlement: () => ({
-    CheckWalletExists: jest.fn().mockResolvedValue(true),
-    GetUSDCBalance: jest.fn().mockResolvedValue(100),
-    GetSOLBalance: jest.fn().mockResolvedValue(1),
-    BuildBatchPayoutTransaction: jest.fn().mockResolvedValue({
-      unsigned_transaction: 'base64tx',
-      estimated_fee_lamports: 5000,
-      blockhash: 'blockhash123',
-      last_valid_block_height: 100000,
-      recipients_count: 1,
-    }),
-    BroadcastSignedTransaction: jest.fn().mockResolvedValue({
-      status: 'paid',
-      signature: 'sig123',
-      viewer_url: 'https://solscan.io/tx/sig123',
-    }),
-  }),
+  GetSettlement: () => require('./mocks/Settlement').CreateMockSettlement(),
   IsSimulatedSettlement: jest.fn(() => false),
 }));
 
@@ -263,7 +248,73 @@ describe('PayoutModule', () => {
       });
 
       expect(result.payouts).toEqual([payout]);
+      expect(result).toMatchObject({
+        object: 'payout_batch_build',
+        unsigned_transaction: 'base64tx',
+        estimated_fee_lamports: 5000,
+        blockhash: 'blockhash123',
+        last_valid_block_height: 100000,
+        recipients_count: 1,
+      });
       expect(mockDb.Update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('BroadcastPayoutsBatch', () => {
+    it('records the rail description and transaction hash on paid payouts', async () => {
+      const payout = {
+        id: 'po_z_1',
+        object: 'payout',
+        account: 'acct_z_seller',
+        platform_account: 'acct_z_platform',
+        amount: 1000,
+        currency: 'usdc',
+        destination: 'wa_z_seller',
+        status: 'pending',
+      } as Payout;
+      const internals = module as unknown as {
+        accountModule: { GetAccount: () => Promise<unknown> };
+        settlement: jest.Mocked<Settlement>;
+      };
+      jest.spyOn(module, 'GetPayout').mockResolvedValue(payout);
+      jest.spyOn(internals.accountModule, 'GetAccount').mockResolvedValue({
+        id: 'acct_z_seller',
+        platform_account: 'acct_z_platform',
+      });
+      const settlement = internals.settlement;
+      settlement.Describe.mockReturnValue({
+        rail: 'simulated',
+        network: 'simulated',
+        chain_id: null,
+        native_currency: 'none',
+        token_address: 'simulated',
+      });
+
+      const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+        signed_transaction: 'signed_tx',
+        payouts: [payout.id],
+      });
+
+      expect(settlement.BroadcastSignedTransaction).toHaveBeenCalledWith(
+        'signed_tx'
+      );
+      expect(result).toMatchObject({
+        object: 'payout_batch_broadcast',
+        signature: 'sig123',
+        status: 'paid',
+        viewer_url: 'https://solscan.io/tx/sig123',
+      });
+      expect(mockDb.Update).toHaveBeenCalledWith(
+        'Payouts',
+        'po_z_1',
+        expect.objectContaining({
+          status: 'paid',
+          'metadata.network': 'simulated',
+          'metadata.blockchain_tx': 'sig123',
+          'metadata.gas_fee_currency': 'none',
+        }),
+        expect.anything()
+      );
     });
   });
 });

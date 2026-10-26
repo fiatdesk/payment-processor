@@ -134,3 +134,43 @@ libs/shared-types/src/lib/Config.ts
 sdks/node/README.md
 sdks/node/src/resources/*.ts
 ```
+
+## Task 4: `Settlement` interface and chain-neutral types
+
+`Settlement` is now an explicit interface (`apps/api/src/modules/chains/Settlement.ts`) with chain-neutral types in `apps/api/src/modules/chains/types.ts`. `Solana` and `SimulatedSettlement` implement it, every module reaches the chain through `GetSettlement()`, the module-level `ExplorerUrl` helper or `chains/types`, and module fields are named `settlement`. Solana is still the on-chain rail.
+
+Internal renames: `GetSOLBalance` → `GetNativeBalance`, `GetPlanOwnerPublicKey` → `GetPlanOwnerAddress`, `FindExistingSubscriptionDelegation` → `FindExistingSubscription`, `GetUSDCMintAddress` → private (exposed as `Describe().token_address`), `SolanaExplorerUrl` → `ExplorerUrl`. Builders return `estimated_fee` / `fee_currency` / `chain_id` / `nonce` / `to` with the blockhash data under an optional `solana` sub-object; broadcasts return `transaction_hash`; `IncomingDeposit` carries `transactionHash`, `logIndex` and `blockNumber`.
+
+Public API field names are unchanged until Task 5: `CheckoutPayment` and `Payout` map the chain-neutral results back onto `estimated_fee_lamports`, `blockhash`, `last_valid_block_height`, `min_context_slot` and `signature`.
+
+Behaviour changes (simulated rail only; the on-chain rail returns the same values as before):
+
+- Paid payouts record `metadata.gas_fee_currency: 'none'` instead of `'sol'` (`metadata.network` was already `'simulated'`).
+- `GET /v1/config/deposit-info` returns `network: 'simulated'` instead of `'solana'`; `DepositInfo.network` is now typed `string`.
+
+Added:
+
+- `apps/api/src/modules/chains/types.ts`
+- `apps/api/src/__tests__/mocks/Settlement.ts`
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/Invoice.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/mocks/Solana.ts
+apps/api/src/modules/Balance.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/Price.ts
+apps/api/src/modules/TopUp.ts
+apps/api/src/modules/TopUpMonitor.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/Solana.ts
+apps/api/src/routes/config.routes.ts
+libs/shared-types/src/lib/Config.ts
+```

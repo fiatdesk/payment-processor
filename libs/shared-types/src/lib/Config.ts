@@ -138,8 +138,8 @@ export interface DepositInfo {
   object: 'deposit_info';
   /** The Solana wallet address to send USDC to */
   wallet_address: string;
-  /** The network to use */
-  network: 'solana';
+  /** The network to use, from the active settlement rail */
+  network: string;
   /** The currency to send */
   currency: 'usdc';
   /** URL to view the wallet on a blockchain explorer */

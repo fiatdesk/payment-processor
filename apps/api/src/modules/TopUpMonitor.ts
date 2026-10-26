@@ -23,8 +23,12 @@ import { Database } from './Database';
 import { TopUpModule } from './TopUp';
 import { AccountModule } from './Account';
 import { ExternalWalletModule } from './ExternalWallet';
-import { IncomingDeposit } from './chains/Solana';
-import { GetSettlement, IsSimulatedSettlement } from './chains/Settlement';
+import type { IncomingDeposit } from './chains/types';
+import {
+  GetSettlement,
+  IsSimulatedSettlement,
+  type Settlement,
+} from './chains/Settlement';
 import { EventService } from './EventService';
 import { TopUp, CheckDepositsResponse } from '@zoneless/shared-types';
 import { Logger } from '../utils/Logger';
@@ -54,7 +58,7 @@ export class TopUpMonitor {
   private readonly topUpModule: TopUpModule;
   private readonly accountModule: AccountModule;
   private readonly externalWalletModule: ExternalWalletModule;
-  private readonly solana: ReturnType<typeof GetSettlement>;
+  private readonly settlement: Settlement;
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning: boolean = false;
 
@@ -64,7 +68,7 @@ export class TopUpMonitor {
     this.topUpModule = new TopUpModule(db, eventService);
     this.accountModule = new AccountModule(db);
     this.externalWalletModule = new ExternalWalletModule(db);
-    this.solana = GetSettlement();
+    this.settlement = GetSettlement();
   }
 
   /**
@@ -275,7 +279,7 @@ export class TopUpMonitor {
     );
 
     // Fetch recent incoming deposits
-    const deposits = await this.solana.GetIncomingDeposits(
+    const deposits = await this.settlement.GetIncomingDeposits(
       wallet.publicKey,
       limit,
       processedSignatures
@@ -303,7 +307,7 @@ export class TopUpMonitor {
         }
       } catch (error) {
         Logger.error('Failed to process deposit', error as Error, {
-          signature: deposit.signature,
+          signature: deposit.transactionHash,
         });
         result.errors++;
       }
@@ -326,18 +330,18 @@ export class TopUpMonitor {
   ): Promise<TopUp | null> {
     // Double-check the signature hasn't been processed (race condition protection)
     const alreadyProcessed = await this.topUpModule.IsSignatureProcessed(
-      deposit.signature
+      deposit.transactionHash
     );
 
     if (alreadyProcessed) {
       Logger.debug(
-        `Skipping already processed signature: ${deposit.signature}`
+        `Skipping already processed signature: ${deposit.transactionHash}`
       );
       return null;
     }
 
     Logger.info('Processing incoming deposit', {
-      signature: deposit.signature,
+      signature: deposit.transactionHash,
       amount: deposit.amount,
       amountCents: deposit.amountCents,
       sender: deposit.senderAddress,

@@ -214,7 +214,7 @@ export class BalanceModule {
           : settlement.GetUSDCBalance(wallet.wallet_address),
         IsSimulatedSettlement()
           ? Promise.resolve(0)
-          : settlement.GetSOLBalance(wallet.wallet_address),
+          : settlement.GetNativeBalance(wallet.wallet_address),
         this.GetBalance(platformAccountId),
         this.GetConnectedAccountsOwed(platformAccountId),
       ]);
