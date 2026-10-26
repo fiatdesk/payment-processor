@@ -11,6 +11,14 @@
         "jestConfig": "apps/api/jest.config.ts"
       }
     },
+    "test-anvil": {
+      "executor": "@nx/jest:jest",
+      "dependsOn": ["contracts:build"],
+      "cache": false,
+      "options": {
+        "jestConfig": "apps/api/jest.anvil.config.ts"
+      }
+    },
     "prune-lockfile": {
       "dependsOn": ["build"],
       "cache": true,

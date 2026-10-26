@@ -5,3 +5,8 @@
 /.nx/cache
 /.nx/workspace-data
 .angular
+
+# Foundry dependencies and build output
+contracts/lib
+contracts/out
+contracts/cache

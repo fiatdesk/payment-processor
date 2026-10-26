@@ -1,0 +1,2 @@
+# Foundry dependencies (git submodules) are not Nx projects
+contracts/lib

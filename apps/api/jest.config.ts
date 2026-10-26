@@ -13,4 +13,5 @@ export default {
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   testMatch: ['**/*.spec.ts'],
+  testPathIgnorePatterns: ['\\.anvil\\.spec\\.ts$'],
 };

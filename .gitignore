@@ -59,3 +59,8 @@ apps/api/src/scripts/
 
 # Deployment script
 deploy-local.sh
+
+# Foundry build output and local dry-run broadcasts
+contracts/out
+contracts/cache
+contracts/broadcast/**/dry-run

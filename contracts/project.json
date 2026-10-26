@@ -1,0 +1,25 @@
+{
+  "name": "contracts",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "contracts/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "forge build",
+        "cwd": "contracts",
+        "forwardAllArgs": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "forge test -vv",
+        "cwd": "contracts",
+        "forwardAllArgs": false
+      }
+    }
+  },
+  "tags": []
+}
