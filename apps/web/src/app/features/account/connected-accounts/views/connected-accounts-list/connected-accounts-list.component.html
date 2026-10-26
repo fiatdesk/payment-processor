@@ -1,0 +1,42 @@
+<div class="header-wrapper">
+  <h1>Connected Accounts</h1>
+  <button
+    type="button"
+    class="action-button action-button-dainty"
+    (click)="actions.OpenCreate()"
+  >
+    <img class="button-icon" src="assets/icons/add.svg" alt="" />
+    <span>Create</span>
+  </button>
+</div>
+
+<div class="field">
+  <div class="field-pill">
+    @for (tab of statusTabs; track tab.id) {
+    <div
+      class="field-pill-option"
+      role="button"
+      tabindex="0"
+      [class.field-pill-option-selected]="statusTab() === tab.id"
+      (click)="SetStatusTab(tab.id)"
+      (keydown.enter)="SetStatusTab(tab.id)"
+      (keydown.space)="SetStatusTab(tab.id)"
+    >
+      <span>{{ tab.label }}</span>
+    </div>
+    }
+  </div>
+</div>
+
+<app-paginated-list
+  #accountsList
+  endpoint="accounts"
+  [columns]="connectedAccountColumns"
+  [limit]="20"
+  [queryParams]="accountsQueryParams()"
+  rowLinkPrefix="/account/connected-accounts"
+></app-paginated-list>
+
+<app-create-connected-account-host
+  (viewAccount)="OnViewCreatedAccount($event)"
+></app-create-connected-account-host>

@@ -1,0 +1,202 @@
+@use './base.scss' as *;
+
+.header-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing;
+}
+
+.view-section {
+  margin-bottom: $spacing-extra-large;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: $title-weight;
+  margin: 0;
+}
+
+h2.section-title {
+  font-size: 20px;
+  font-weight: $title-weight;
+  margin: 0 0 $spacing 0;
+}
+
+.section-description {
+  font-size: $font-size;
+  color: $text-color;
+  opacity: $dimmed;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing;
+}
+
+.text-link {
+  display: inline-block;
+  font-size: $font-size;
+  font-weight: $medium-weight;
+  color: $base-color;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.2;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.settings-section-title {
+  font-size: $font-size-med;
+  font-weight: $title-weight;
+  font-family: $title-font;
+  color: $text-color;
+  margin-bottom: $spacing;
+}
+
+.section-header .settings-section-title {
+  margin-bottom: 0;
+}
+
+.button-icon {
+  width: 16px;
+  height: 16px;
+  filter: $background-color-filter;
+}
+
+.button-icon-dark {
+  width: 16px;
+  height: 16px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: $spacing-large;
+  border-bottom: 1px solid $darkest-background-color;
+}
+
+.tab-button {
+  font-family: $text-font;
+  font-size: $font-size;
+  font-weight: 600;
+  padding: $spacing-small $spacing;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: $text-color;
+  opacity: $dimmed;
+  position: relative;
+  transition: $transition-fast;
+  margin-bottom: -1px;
+}
+
+.tab-button:hover {
+  opacity: $dimmed;
+  color: $base-color;
+}
+
+.tab-active {
+  opacity: 1;
+  color: $base-color;
+}
+
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: $base-color;
+}
+
+.balance-label {
+  font-size: $font-size;
+  color: $text-color;
+  opacity: $dimmed;
+  margin-bottom: $spacing-extra-small;
+}
+
+.balance-wrapper {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: $spacing;
+  gap: $spacing-small;
+}
+
+.balance {
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.balance-secondary {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.currency-label {
+  font-size: $font-size-small;
+  opacity: $dimmed-extra;
+}
+
+.balance-details-button {
+  margin-left: $spacing-small;
+  font-size: $font-size-small;
+}
+
+.view-panels {
+  margin-top: $spacing-large;
+}
+
+.view-left-panel {
+  width: 75%;
+}
+
+.view-right-panel {
+  flex: 1;
+}
+
+.dashed-placeholder {
+  border: 1px dashed $darkest-background-color;
+  width: 100%;
+  border-radius: $border-radius-small;
+  padding: $spacing-large $spacing;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media only screen and (max-width: 1000px) {
+  h1 {
+    font-size: 24px;
+  }
+
+  .balance {
+    font-size: 28px;
+  }
+
+  .balance-secondary {
+    font-size: 20px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: $spacing;
+  }
+
+  .view-panels {
+    display: block;
+  }
+}

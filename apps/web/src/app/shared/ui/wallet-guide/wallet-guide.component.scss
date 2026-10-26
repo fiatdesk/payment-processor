@@ -1,0 +1,68 @@
+@use '../../../styles/base.scss' as *;
+@use '../../../styles/collapsible.scss' as *;
+
+.wallet-guide {
+  .guide-header {
+    display: flex;
+    align-items: center;
+    gap: $spacing-extra-small;
+    margin-bottom: $spacing;
+    font-weight: 600;
+    font-size: $font-size;
+
+    .phantom-logo {
+      height: 18px;
+      width: auto;
+      position: relative;
+      top: 1px;
+    }
+  }
+
+  .guide-steps {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing;
+  }
+
+  .guide-step {
+    display: flex;
+    align-items: flex-start;
+    gap: $spacing;
+
+    .step-number {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: $base-color;
+      color: white;
+      border-radius: 50%;
+      font-size: $font-size-small;
+      font-weight: 600;
+    }
+
+    .step-content {
+      flex: 1;
+
+      .step-title {
+        font-weight: 600;
+        font-size: $font-size;
+        margin-bottom: $spacing-extra-small;
+      }
+
+      .step-description {
+        font-size: $font-size-small;
+        opacity: $dimmed;
+        line-height: 1.5;
+
+        a {
+          color: $base-color !important;
+          text-decoration: underline !important;
+          font-size: $font-size-small;
+        }
+      }
+    }
+  }
+}

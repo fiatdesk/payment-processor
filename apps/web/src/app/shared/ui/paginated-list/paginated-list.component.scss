@@ -1,0 +1,254 @@
+@use '../../../styles/base.scss' as *;
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: $font-size;
+}
+
+th,
+td {
+  text-align: left;
+  padding: $spacing-snug $spacing;
+}
+
+th:first-child,
+td:first-child {
+  padding-left: 0;
+}
+
+th:last-child,
+td:last-child {
+  padding-right: 0;
+}
+
+th {
+  border-bottom: 1px solid $darkest-background-color;
+  font-weight: 600;
+  color: $text-color;
+  opacity: $dimmed;
+  font-size: $font-size-small;
+  padding-bottom: $spacing-small;
+}
+
+.row {
+  border-bottom: 1px solid $darker-background-color;
+  transition: $transition-fast;
+}
+
+.row-interactive {
+  cursor: pointer;
+}
+
+.row-interactive:hover {
+  background-color: $dark-background-color;
+  position: relative;
+  z-index: 3;
+}
+
+.row-cell {
+  position: relative;
+}
+
+.row-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.actions-cell {
+  position: relative;
+  z-index: 2;
+}
+
+.row td {
+  padding-top: $spacing-snug;
+  padding-bottom: $spacing-snug;
+}
+
+.data-cell {
+  display: flex;
+  align-items: center;
+  gap: $spacing-small;
+}
+
+.bold-cell {
+  font-weight: 500;
+}
+
+.dimmed-cell {
+  opacity: $dimmed;
+}
+
+.progress-ring {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+}
+
+.progress-ring-track {
+  stroke: $darkest-background-color;
+  stroke-width: 2.5;
+}
+
+.progress-ring-value {
+  stroke: $base-color;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.image-cell {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: $dark-background-color;
+  border-radius: $border-radius-small;
+  overflow: hidden;
+  margin-right: $spacing-extra-small;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.image-cell .image-thumbnail {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+}
+
+.image-cell .large-icon {
+  opacity: $dimmed-disabled;
+  width: 20px;
+  height: 20px;
+}
+
+.currency-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.currency-code {
+  font-size: $font-size-small;
+  opacity: $dimmed-extra;
+  font-weight: 400;
+}
+
+.empty-state {
+  text-align: center;
+  padding: $spacing-large;
+  opacity: $dimmed;
+}
+
+.result-count {
+  margin-top: $spacing;
+  font-size: $font-size-small;
+  font-weight: 500;
+  color: $base-color;
+}
+
+.loading-skeleton {
+  margin-top: $spacing-small;
+}
+
+.skeleton-row {
+  height: 40px;
+  background: linear-gradient(
+    90deg,
+    $darker-background-color 25%,
+    $dark-background-color 50%,
+    $darker-background-color 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  margin-bottom: 1px;
+  border-radius: $border-radius-small;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: $spacing-large;
+  padding-top: $spacing;
+}
+
+.page-info {
+  font-size: $font-size-small;
+  color: $text-color;
+}
+
+.page-range {
+  font-weight: 500;
+}
+
+.page-total {
+  opacity: $dimmed;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: $spacing-small;
+}
+
+.pagination-button {
+  font-family: $text-font;
+  font-size: $font-size;
+  font-weight: 500;
+  padding: $spacing-small $spacing;
+  border-radius: $border-radius-small;
+  cursor: pointer;
+  transition: $transition-fast;
+  background-color: $background-color;
+  color: $text-color;
+  border: 1px solid $darkest-background-color;
+}
+
+.pagination-button:hover:not(.pagination-disabled) {
+  background-color: $dark-background-color;
+}
+
+.pagination-disabled {
+  opacity: $dimmed-extra;
+  cursor: not-allowed;
+}
+
+.pagination-disabled:hover {
+  background-color: $background-color;
+}
+
+@media only screen and (max-width: 1000px) {
+  table {
+    font-size: $font-size-small;
+  }
+
+  th {
+    font-size: $font-size-small;
+  }
+
+  .pagination-wrapper {
+    flex-direction: column;
+    gap: $spacing;
+    align-items: flex-start;
+  }
+
+  .pagination-controls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

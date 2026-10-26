@@ -1,0 +1,1105 @@
+<!-- Reusable attribute tooltip (e.g. "Expandable"). Rendered next to an attribute's type. -->
+<ng-template #attributeTooltip let-attr>
+  @if (attr.tooltip) {
+  <span class="attribute-expandable" tabindex="0">
+    {{ attr.tooltip.label }}
+    <span
+      class="attribute-tooltip"
+      role="tooltip"
+      [innerHTML]="attr.tooltip.content"
+    ></span>
+  </span>
+  }
+</ng-template>
+
+<div class="docs-layout">
+  <!-- Top bar -->
+  <header class="docs-topbar">
+    <div class="topbar-left">
+      <button
+        class="topbar-menu-toggle"
+        (click)="ToggleMobileMenu()"
+        aria-label="Open menu"
+      >
+        <img src="/assets/icons/menu.svg" alt="" />
+      </button>
+      <a href="https://zoneless.com" class="topbar-logo">
+        <img
+          src="/assets/images/logos/logo-lg-text-blue-300w.png"
+          alt="Zoneless"
+        />
+      </a>
+      <span class="topbar-product">Docs</span>
+    </div>
+
+    <button class="search-trigger" (click)="OpenSearch()">
+      <img src="/assets/icons/search.svg" alt="" class="search-trigger-icon" />
+      <span>Find anything</span>
+      <kbd>/</kbd>
+    </button>
+
+    <div class="topbar-actions">
+      <a
+        [href]="'https://github.com/' + github.repo"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="topbar-link"
+      >
+        <img
+          src="/assets/images/logos/github-mark.svg"
+          alt=""
+          class="topbar-link-icon"
+        />
+        <span>GitHub</span>
+        @if (github.stars() !== null) {
+        <span class="topbar-stars"
+          >★ {{ github.FormatStars(github.stars()!) }}</span
+        >
+        }
+      </a>
+      <a
+        href="https://discord.gg/mdMQJug9mG"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="topbar-link"
+      >
+        <img
+          src="/assets/images/logos/discord.svg"
+          alt=""
+          class="topbar-link-icon discord"
+        />
+        <span>Discord</span>
+      </a>
+      <button
+        class="theme-toggle"
+        (click)="themeService.ToggleTheme()"
+        aria-label="Toggle theme"
+      >
+        <span
+          class="theme-toggle-indicator"
+          [class.dark]="themeService.IsDark()"
+        ></span>
+        <span class="theme-toggle-icon" [class.active]="!themeService.IsDark()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+          </svg>
+        </span>
+        <span class="theme-toggle-icon" [class.active]="themeService.IsDark()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="docs-sidebar" [class.open]="mobileMenuOpen()">
+    <div class="sidebar-header">
+      <a href="https://zoneless.com" class="sidebar-logo">
+        <img
+          src="/assets/images/logos/logo-lg-text-blue-300w.png"
+          alt="Zoneless"
+        />
+      </a>
+      <button class="mobile-close" (click)="ToggleMobileMenu()">
+        <img src="/assets/icons/close.svg" alt="Close" />
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      @for (section of sections; track section.id) {
+      <div class="nav-section">
+        <!-- Top level section header (e.g., Guides, Core Resources) -->
+        <button
+          class="nav-section-header"
+          [class.expanded]="IsSectionExpanded(section.id)"
+          (click)="ToggleSection(section.id)"
+        >
+          <span class="section-title">{{ section.title }}</span>
+          <img
+            src="/assets/icons/arrow_forward.svg"
+            alt=""
+            class="expand-icon"
+            [class.expanded]="IsSectionExpanded(section.id)"
+          />
+        </button>
+
+        <!-- Subsections (e.g., Accounts, Login Links) -->
+        @if (IsSectionExpanded(section.id) && section.children) {
+        <div class="nav-subsections">
+          @for (subSection of section.children; track subSection.id) {
+          <div class="nav-subsection">
+            @if (HasChildren(subSection)) {
+            <!-- Subsection with children (e.g., Accounts) -->
+            <button
+              class="nav-subsection-header"
+              [class.active]="IsSectionLinkActive(subSection.id)"
+              (click)="NavigateToSection(subSection.id)"
+            >
+              <span class="subsection-title">{{ subSection.title }}</span>
+            </button>
+
+            <!-- Always show children for active section -->
+            @if (IsSectionLinkActive(subSection.id)) {
+            <div class="nav-items">
+              @for (item of subSection.children; track item.id) {
+              <button
+                class="nav-item"
+                [class.active]="IsSubSectionActive(subSection.id, item.id)"
+                (click)="NavigateToSubSection(subSection.id, item.id)"
+              >
+                <span class="item-title">{{ item.title }}</span>
+              </button>
+              }
+            </div>
+            } } @else {
+            <!-- Direct link (no children) -->
+            <button
+              class="nav-subsection-header nav-link"
+              [class.active]="IsSectionLinkActive(subSection.id)"
+              (click)="NavigateToSection(subSection.id)"
+            >
+              <span class="subsection-title">{{ subSection.title }}</span>
+            </button>
+            }
+          </div>
+          }
+        </div>
+        }
+      </div>
+      }
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="docs-content">
+    @for (page of activePages(); track page.id) {
+    <article
+      class="doc-article"
+      [class.guide]="IsGuidePage()"
+      [id]="GetPageAnchorId(page)"
+    >
+      <!-- Page Header -->
+      <div class="article-header-row">
+        <div class="article-header-left">
+          @if (IsGuidePage() && $index === 0) {
+          <nav class="article-breadcrumb" aria-label="Breadcrumb">
+            <a href="/" class="breadcrumb-link">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <span>{{ GetBreadcrumbCategory() }}</span>
+          </nav>
+          }
+          <h1>{{ page.title }}</h1>
+          <p class="article-description" [innerHTML]="page.description"></p>
+          <div class="article-meta-row">
+            <button class="meta-chip" (click)="CopyForLlm(page)">
+              @if (copiedPageId() === page.id) {
+              <img
+                src="/assets/icons/check.svg"
+                alt=""
+                class="meta-chip-icon copied"
+              />
+              <span>Copied!</span>
+              } @else {
+              <img
+                src="/assets/icons/content_copy.svg"
+                alt=""
+                class="meta-chip-icon"
+              />
+              <span>Copy for LLM</span>
+              }
+            </button>
+            @if (page.stripeDocsUrl) {
+            <a
+              class="meta-chip"
+              [href]="page.stripeDocsUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src="/assets/icons/open-in-new-tab.svg"
+                alt=""
+                class="meta-chip-icon"
+              />
+              <span>Stripe API equivalent</span>
+            </a>
+            }
+          </div>
+          @if ($index === 0 && AgentGuidePrompt(); as agentPrompt) {
+          <app-agent-prompt-cta
+            class="docs-agent-prompt"
+            [prompt]="agentPrompt.prompt"
+            [description]="agentPrompt.description"
+          />
+          }
+        </div>
+        @if (page.endpoints && page.endpoints.length > 0) {
+        <div class="article-header-right">
+          @if (HasApiNavPanel(page)) {
+          <div class="api-nav-panel">
+            @if (page.events && page.events.length > 0) {
+            <div class="api-nav-tabs">
+              <button
+                type="button"
+                class="api-nav-tab"
+                [class.active]="GetApiNavTab(page.id) === 'endpoints'"
+                (click)="SetApiNavTab(page.id, 'endpoints')"
+              >
+                Endpoints
+              </button>
+              <button
+                type="button"
+                class="api-nav-tab"
+                [class.active]="GetApiNavTab(page.id) === 'events'"
+                (click)="SetApiNavTab(page.id, 'events')"
+              >
+                Events
+              </button>
+            </div>
+            } @if (GetApiNavTab(page.id) === 'endpoints') {
+            <div class="api-nav-list">
+              @for (endpoint of page.endpoints; track $index) {
+              <a
+                class="api-nav-row"
+                [href]="GetEndpointHref(endpoint)"
+                (click)="NavigateToEndpoint($event, endpoint)"
+              >
+                <div class="api-nav-row-content">
+                  @if (endpoint.title) {
+                  <div class="api-nav-row-title">{{ endpoint.title }}</div>
+                  }
+                  <div class="api-nav-row-meta">
+                    <span
+                      class="method-badge"
+                      [class]="endpoint.method.toLowerCase()"
+                    >
+                      {{ endpoint.method }}
+                    </span>
+                    <code>{{ endpoint.path }}</code>
+                  </div>
+                </div>
+                <img
+                  src="/assets/icons/arrow_forward.svg"
+                  alt=""
+                  class="api-nav-chevron"
+                />
+              </a>
+              }
+            </div>
+            } @else if (page.events && page.events.length > 0) {
+            <div class="api-nav-list">
+              @for (event of page.events; track event.name) {
+              <a
+                class="api-nav-row api-nav-event-row"
+                href="/events/types"
+                (click)="NavigateToEventTypes($event)"
+              >
+                <div class="api-nav-row-content">
+                  <div class="api-nav-row-title api-nav-event-name">
+                    {{ event.name }}
+                  </div>
+                  <div
+                    class="api-nav-row-description"
+                    [innerHTML]="event.description"
+                  ></div>
+                </div>
+                <img
+                  src="/assets/icons/arrow_forward.svg"
+                  alt=""
+                  class="api-nav-chevron"
+                />
+              </a>
+              }
+            </div>
+            }
+          </div>
+          } @else {
+          <div class="doc-panel">
+            <div class="doc-panel-header">ENDPOINTS</div>
+            <div class="doc-panel-body">
+              @for (endpoint of page.endpoints; track $index) {
+              <div class="endpoint-row">
+                <span
+                  class="method-badge"
+                  [class]="endpoint.method.toLowerCase()"
+                >
+                  {{ endpoint.method }}
+                </span>
+                <code>{{ endpoint.path }}</code>
+              </div>
+              }
+            </div>
+          </div>
+          }
+        </div>
+        }
+      </div>
+
+      <!-- Two-column sections -->
+      @for (section of page.sections; track $index) {
+      <div
+        class="section-row"
+        [class.has-right]="section.right && section.right.length > 0"
+      >
+        <!-- Left column - text content -->
+        <div class="section-left">
+          @for (block of section.left; track $index) {
+          <!-- Heading -->
+          @if (block.type === 'heading') { @if (block.level === 2) {
+          <h2
+            [id]="GetAnchorId(page.id, block.text)"
+            [class.attributes-heading]="
+                        block.text === 'Parameters' ||
+                        block.text === 'Attributes' ||
+                        block.text === 'Returns'
+                      "
+          >
+            <a
+              class="anchor-link"
+              [href]="GetAnchorHref(page.id, GetAnchorId(page.id, block.text))"
+              (click)="ScrollToAnchor($event, GetAnchorId(page.id, block.text))"
+            >
+              <img src="/assets/icons/link.svg" alt="" />
+            </a>
+            @if (IsGuidePage() && GetStepNumber(block.text)) {
+            <span class="step-number">{{ GetStepNumber(block.text) }}</span>
+            <span class="step-title">{{ GetStepTitle(block.text) }}</span>
+            } @else { {{ block.text }} }
+          </h2>
+          } @else {
+          <h3
+            [id]="GetAnchorId(page.id, block.text)"
+            [class.attributes-heading]="
+                        block.text === 'Parameters' ||
+                        block.text === 'Attributes' ||
+                        block.text === 'Returns'
+                      "
+          >
+            <a
+              class="anchor-link"
+              [href]="GetAnchorHref(page.id, GetAnchorId(page.id, block.text))"
+              (click)="ScrollToAnchor($event, GetAnchorId(page.id, block.text))"
+            >
+              <img src="/assets/icons/link.svg" alt="" />
+            </a>
+            {{ block.text }}
+          </h3>
+          } }
+
+          <!-- Paragraph -->
+          @if (block.type === 'paragraph') { @if (block.html) {
+          <p [innerHTML]="block.text"></p>
+          } @else {
+          <p>{{ block.text }}</p>
+          } }
+
+          <!-- List -->
+          @if (block.type === 'list') {
+          <ul>
+            @for (item of block.items; track $index) { @if (item.html) {
+            <li [innerHTML]="item.text"></li>
+            } @else {
+            <li>{{ item.text }}</li>
+            } }
+          </ul>
+          }
+
+          <!-- Callout -->
+          @if (block.type === 'callout') {
+          <aside class="callout" [class]="block.variant">
+            <div class="callout-content">
+              @if (block.title) {
+              <strong>{{ block.title }}</strong>
+              } @if (block.html) {
+              <span [innerHTML]="block.text"></span>
+              } @else {
+              <span>{{ block.text }}</span>
+              }
+            </div>
+          </aside>
+          }
+
+          <!-- Attributes (Stripe style) -->
+          @if (block.type === 'attributes') {
+          <div class="attributes-list">
+            @for (attr of block.attributes; track attr.name) {
+            <div class="attribute-item" [id]="GetAnchorId(page.id, attr.name)">
+              <div class="attribute-header">
+                <a
+                  class="anchor-link"
+                  [href]="GetAnchorHref(page.id, GetAnchorId(page.id, attr.name))"
+                  (click)="ScrollToAnchor($event, GetAnchorId(page.id, attr.name))"
+                >
+                  <img src="/assets/icons/link.svg" alt="" />
+                </a>
+                <code class="attribute-name">{{ attr.name }}</code>
+                <span class="attribute-type">
+                  @if (attr.nullable) {
+                  <span class="nullable">nullable</span>
+                  } {{ attr.type }}
+                </span>
+                @if (attr.required) {
+                <span class="attribute-required">
+                  @if (attr.requiredText) { {{ attr.requiredText }} } @else {
+                  Required }
+                </span>
+                }
+                <ng-container
+                  [ngTemplateOutlet]="attributeTooltip"
+                  [ngTemplateOutletContext]="{ $implicit: attr }"
+                />
+              </div>
+              <p
+                class="attribute-description"
+                [innerHTML]="attr.description"
+              ></p>
+              @if (attr.enumNote) {
+              <p class="attribute-enum-note" [innerHTML]="attr.enumNote"></p>
+              } @if (attr.enumValues && attr.enumValues.length > 0) {
+              <div class="enum-values">
+                <div class="enum-header">Possible enum values</div>
+                <div class="enum-list">
+                  @for (val of attr.enumValues; track GetEnumValue(val)) {
+                  <div class="enum-item">
+                    <code class="enum-code">{{ GetEnumValue(val) }}</code>
+                    @if (GetEnumDescription(val)) {
+                    <span
+                      class="enum-description"
+                      [innerHTML]="GetEnumDescription(val)"
+                    ></span>
+                    }
+                  </div>
+                  }
+                </div>
+              </div>
+              } @if (attr.children && attr.children.length > 0) {
+              <button
+                class="child-attributes-toggle"
+                [class.expanded]="IsAttributeExpanded(attr.name)"
+                (click)="ToggleAttribute(attr.name)"
+              >
+                @if (IsAttributeExpanded(attr.name)) {
+                <span class="toggle-icon-text">×</span>
+                <span>Hide child attributes</span>
+                } @else {
+                <span class="toggle-icon-text">+</span>
+                <span>Show child attributes</span>
+                }
+              </button>
+              @if (IsAttributeExpanded(attr.name)) {
+              <div class="child-attributes-container">
+                <div class="child-attributes-list">
+                  @for (childAttr of attr.children; track childAttr.name) {
+                  <div
+                    class="attribute-item"
+                    [id]="GetAnchorId(page.id, attr.name + '.' + childAttr.name)"
+                  >
+                    <div class="attribute-header">
+                      <a
+                        class="anchor-link"
+                        [href]="
+                                          GetAnchorHref(
+                                            page.id,
+                                            GetAnchorId(page.id, attr.name + '.' + childAttr.name)
+                                          )
+                                        "
+                        (click)="
+                                          ScrollToAnchor(
+                                            $event,
+                                            GetAnchorId(page.id, attr.name + '.' + childAttr.name)
+                                          )
+                                        "
+                      >
+                        <img src="/assets/icons/link.svg" alt="" />
+                      </a>
+                      <code class="attribute-name">{{ childAttr.name }}</code>
+                      <span class="attribute-type">
+                        @if (childAttr.nullable) {
+                        <span class="nullable">nullable</span>
+                        } {{ childAttr.type }}
+                      </span>
+                      @if (childAttr.required) {
+                      <span class="attribute-required">Required</span>
+                      }
+                      <ng-container
+                        [ngTemplateOutlet]="attributeTooltip"
+                        [ngTemplateOutletContext]="{ $implicit: childAttr }"
+                      />
+                    </div>
+                    <p
+                      class="attribute-description"
+                      [innerHTML]="childAttr.description"
+                    ></p>
+                    @if (childAttr.enumNote) {
+                    <p
+                      class="attribute-enum-note"
+                      [innerHTML]="childAttr.enumNote"
+                    ></p>
+                    } @if (childAttr.enumValues && childAttr.enumValues.length >
+                    0) {
+                    <div class="enum-values">
+                      <div class="enum-header">Possible enum values</div>
+                      <div class="enum-list">
+                        @for ( val of childAttr.enumValues; track
+                        GetEnumValue(val) ) {
+                        <div class="enum-item">
+                          <code class="enum-code">{{ GetEnumValue(val) }}</code>
+                          @if (GetEnumDescription(val)) {
+                          <span
+                            class="enum-description"
+                            [innerHTML]="GetEnumDescription(val)"
+                          ></span>
+                          }
+                        </div>
+                        }
+                      </div>
+                    </div>
+                    } @if (childAttr.children && childAttr.children.length > 0)
+                    {
+                    <button
+                      class="child-attributes-toggle"
+                      [class.expanded]="
+                                          IsAttributeExpanded(attr.name + '.' + childAttr.name)
+                                        "
+                      (click)="ToggleAttribute(attr.name + '.' + childAttr.name)"
+                    >
+                      @if ( IsAttributeExpanded(attr.name + '.' +
+                      childAttr.name) ) {
+                      <span class="toggle-icon-text">×</span>
+                      <span>Hide child attributes</span>
+                      } @else {
+                      <span class="toggle-icon-text">+</span>
+                      <span>Show child attributes</span>
+                      }
+                    </button>
+                    @if (IsAttributeExpanded(attr.name + '.' + childAttr.name))
+                    {
+                    <div class="child-attributes-container">
+                      <div class="child-attributes-list">
+                        @for ( grandchildAttr of childAttr.children; track
+                        grandchildAttr.name ) {
+                        <div
+                          class="attribute-item"
+                          [id]="
+                                                  GetAnchorId(
+                                                    page.id,
+                                                    attr.name +
+                                                      '.' +
+                                                      childAttr.name +
+                                                      '.' +
+                                                      grandchildAttr.name
+                                                  )
+                                                "
+                        >
+                          <div class="attribute-header">
+                            <a
+                              class="anchor-link"
+                              [href]="
+                                                      GetAnchorHref(
+                                                        page.id,
+                                                        GetAnchorId(
+                                                          page.id,
+                                                          attr.name +
+                                                            '.' +
+                                                            childAttr.name +
+                                                            '.' +
+                                                            grandchildAttr.name
+                                                        )
+                                                      )
+                                                    "
+                              (click)="
+                                                      ScrollToAnchor(
+                                                        $event,
+                                                        GetAnchorId(
+                                                          page.id,
+                                                          attr.name +
+                                                            '.' +
+                                                            childAttr.name +
+                                                            '.' +
+                                                            grandchildAttr.name
+                                                        )
+                                                      )
+                                                    "
+                            >
+                              <img src="/assets/icons/link.svg" alt="" />
+                            </a>
+                            <code class="attribute-name"
+                              >{{ grandchildAttr.name }}</code
+                            >
+                            <span class="attribute-type">
+                              @if (grandchildAttr.nullable) {
+                              <span class="nullable">nullable</span>
+                              } {{ grandchildAttr.type }}
+                            </span>
+                            @if (grandchildAttr.required) {
+                            <span class="attribute-required">Required</span>
+                            }
+                            <ng-container
+                              [ngTemplateOutlet]="attributeTooltip"
+                              [ngTemplateOutletContext]="{
+                                                      $implicit: grandchildAttr,
+                                                    }"
+                            />
+                          </div>
+                          <p
+                            class="attribute-description"
+                            [innerHTML]="grandchildAttr.description"
+                          ></p>
+                          @if (grandchildAttr.enumNote) {
+                          <p
+                            class="attribute-enum-note"
+                            [innerHTML]="grandchildAttr.enumNote"
+                          ></p>
+                          } @if ( grandchildAttr.enumValues &&
+                          grandchildAttr.enumValues.length > 0 ) {
+                          <div class="enum-values">
+                            <div class="enum-header">Possible enum values</div>
+                            <div class="enum-list">
+                              @for ( val of grandchildAttr.enumValues; track
+                              GetEnumValue(val) ) {
+                              <div class="enum-item">
+                                <code class="enum-code"
+                                  >{{ GetEnumValue(val) }}</code
+                                >
+                                @if (GetEnumDescription(val)) {
+                                <span
+                                  class="enum-description"
+                                  [innerHTML]="GetEnumDescription(val)"
+                                ></span>
+                                }
+                              </div>
+                              }
+                            </div>
+                          </div>
+                          }
+                        </div>
+                        }
+                      </div>
+                    </div>
+                    } }
+                  </div>
+                  }
+                </div>
+              </div>
+              } }
+            </div>
+            }
+          </div>
+
+          <!-- More Attributes Section -->
+          @if (block.moreAttributes && block.moreAttributes.length > 0) {
+          <div class="more-attributes-section">
+            <div class="more-attributes-header">
+              <h3>More attributes</h3>
+              <button
+                class="expand-all-btn"
+                (click)="ExpandAllMoreAttributes(block.moreAttributes)"
+              >
+                {{ AreAllMoreAttributesExpanded(block.moreAttributes) ?
+                'Collapse all' : 'Expand all' }}
+              </button>
+            </div>
+            <div class="more-attributes-list">
+              @for (attr of block.moreAttributes; track attr.name) {
+              <div
+                class="more-attribute-item"
+                [id]="GetAnchorId(page.id, attr.name)"
+                [class.expanded]="IsMoreAttributeExpanded(attr.name)"
+              >
+                <a
+                  class="anchor-link"
+                  [href]="GetAnchorHref(page.id, GetAnchorId(page.id, attr.name))"
+                  (click)="ScrollToAnchor($event, GetAnchorId(page.id, attr.name))"
+                >
+                  <img src="/assets/icons/link.svg" alt="" />
+                </a>
+                <button
+                  class="more-attribute-toggle"
+                  (click)="ToggleMoreAttribute(attr.name)"
+                >
+                  <img
+                    src="/assets/icons/arrow_forward.svg"
+                    alt=""
+                    class="chevron-icon"
+                    [class.expanded]="IsMoreAttributeExpanded(attr.name)"
+                  />
+                  <code class="attribute-name">{{ attr.name }}</code>
+                  <span class="attribute-type">
+                    @if (attr.nullable) {
+                    <span class="nullable">nullable</span>
+                    } {{ attr.type }}
+                  </span>
+                  @if (attr.required) {
+                  <span class="attribute-required">
+                    @if (attr.requiredText) { {{ attr.requiredText }} } @else {
+                    Required }
+                  </span>
+                  }
+                  <ng-container
+                    [ngTemplateOutlet]="attributeTooltip"
+                    [ngTemplateOutletContext]="{ $implicit: attr }"
+                  />
+                </button>
+                @if (IsMoreAttributeExpanded(attr.name)) {
+                <div class="more-attribute-content">
+                  <p
+                    class="attribute-description"
+                    [innerHTML]="attr.description"
+                  ></p>
+                  @if (attr.enumNote) {
+                  <p
+                    class="attribute-enum-note"
+                    [innerHTML]="attr.enumNote"
+                  ></p>
+                  } @if (attr.enumValues && attr.enumValues.length > 0) {
+                  <div class="enum-values">
+                    <div class="enum-header">Possible enum values</div>
+                    <div class="enum-list">
+                      @for (val of attr.enumValues; track GetEnumValue(val)) {
+                      <div class="enum-item">
+                        <code class="enum-code">{{ GetEnumValue(val) }}</code>
+                        @if (GetEnumDescription(val)) {
+                        <span
+                          class="enum-description"
+                          [innerHTML]="GetEnumDescription(val)"
+                        ></span>
+                        }
+                      </div>
+                      }
+                    </div>
+                  </div>
+                  } @if (attr.children && attr.children.length > 0) {
+                  <button
+                    class="child-attributes-toggle"
+                    [class.expanded]="IsAttributeExpanded('more.' + attr.name)"
+                    (click)="ToggleAttribute('more.' + attr.name)"
+                  >
+                    @if (IsAttributeExpanded('more.' + attr.name)) {
+                    <span class="toggle-icon-text">×</span>
+                    <span>Hide child attributes</span>
+                    } @else {
+                    <span class="toggle-icon-text">+</span>
+                    <span>Show child attributes</span>
+                    }
+                  </button>
+                  @if (IsAttributeExpanded('more.' + attr.name)) {
+                  <div class="child-attributes-container">
+                    <div class="child-attributes-list">
+                      @for (childAttr of attr.children; track childAttr.name) {
+                      <div
+                        class="attribute-item"
+                        [id]="
+                                              GetAnchorId(page.id, attr.name + '.' + childAttr.name)
+                                            "
+                      >
+                        <div class="attribute-header">
+                          <a
+                            class="anchor-link"
+                            [href]="
+                                                  GetAnchorHref(
+                                                    page.id,
+                                                    GetAnchorId(
+                                                      page.id,
+                                                      attr.name + '.' + childAttr.name
+                                                    )
+                                                  )
+                                                "
+                            (click)="
+                                                  ScrollToAnchor(
+                                                    $event,
+                                                    GetAnchorId(
+                                                      page.id,
+                                                      attr.name + '.' + childAttr.name
+                                                    )
+                                                  )
+                                                "
+                          >
+                            <img src="/assets/icons/link.svg" alt="" />
+                          </a>
+                          <code class="attribute-name"
+                            >{{ childAttr.name }}</code
+                          >
+                          <span class="attribute-type">
+                            @if (childAttr.nullable) {
+                            <span class="nullable">nullable</span>
+                            } {{ childAttr.type }}
+                          </span>
+                          @if (childAttr.required) {
+                          <span class="attribute-required">Required</span>
+                          }
+                          <ng-container
+                            [ngTemplateOutlet]="attributeTooltip"
+                            [ngTemplateOutletContext]="{ $implicit: childAttr }"
+                          />
+                        </div>
+                        <p
+                          class="attribute-description"
+                          [innerHTML]="childAttr.description"
+                        ></p>
+                        @if (childAttr.enumNote) {
+                        <p
+                          class="attribute-enum-note"
+                          [innerHTML]="childAttr.enumNote"
+                        ></p>
+                        } @if ( childAttr.enumValues &&
+                        childAttr.enumValues.length > 0 ) {
+                        <div class="enum-values">
+                          <div class="enum-header">Possible enum values</div>
+                          <div class="enum-list">
+                            @for ( val of childAttr.enumValues; track
+                            GetEnumValue(val) ) {
+                            <div class="enum-item">
+                              <code class="enum-code"
+                                >{{ GetEnumValue(val) }}</code
+                              >
+                              @if (GetEnumDescription(val)) {
+                              <span
+                                class="enum-description"
+                                [innerHTML]="GetEnumDescription(val)"
+                              ></span>
+                              }
+                            </div>
+                            }
+                          </div>
+                        </div>
+                        } @if ( childAttr.children && childAttr.children.length
+                        > 0 ) {
+                        <button
+                          class="child-attributes-toggle"
+                          [class.expanded]="
+                                                  IsAttributeExpanded(
+                                                    'more.' + attr.name + '.' + childAttr.name
+                                                  )
+                                                "
+                          (click)="
+                                                  ToggleAttribute(
+                                                    'more.' + attr.name + '.' + childAttr.name
+                                                  )
+                                                "
+                        >
+                          @if ( IsAttributeExpanded( 'more.' + attr.name + '.' +
+                          childAttr.name ) ) {
+                          <span class="toggle-icon-text">×</span>
+                          <span>Hide child attributes</span>
+                          } @else {
+                          <span class="toggle-icon-text">+</span>
+                          <span>Show child attributes</span>
+                          }
+                        </button>
+                        @if ( IsAttributeExpanded( 'more.' + attr.name + '.' +
+                        childAttr.name ) ) {
+                        <div class="child-attributes-container">
+                          <div class="child-attributes-list">
+                            @for ( grandchildAttr of childAttr.children; track
+                            grandchildAttr.name ) {
+                            <div
+                              class="attribute-item"
+                              [id]="
+                                                          GetAnchorId(
+                                                            page.id,
+                                                            attr.name +
+                                                              '.' +
+                                                              childAttr.name +
+                                                              '.' +
+                                                              grandchildAttr.name
+                                                          )
+                                                        "
+                            >
+                              <div class="attribute-header">
+                                <a
+                                  class="anchor-link"
+                                  [href]="
+                                                              GetAnchorHref(
+                                                                page.id,
+                                                                GetAnchorId(
+                                                                  page.id,
+                                                                  attr.name +
+                                                                    '.' +
+                                                                    childAttr.name +
+                                                                    '.' +
+                                                                    grandchildAttr.name
+                                                                )
+                                                              )
+                                                            "
+                                  (click)="
+                                                              ScrollToAnchor(
+                                                                $event,
+                                                                GetAnchorId(
+                                                                  page.id,
+                                                                  attr.name +
+                                                                    '.' +
+                                                                    childAttr.name +
+                                                                    '.' +
+                                                                    grandchildAttr.name
+                                                                )
+                                                              )
+                                                            "
+                                >
+                                  <img src="/assets/icons/link.svg" alt="" />
+                                </a>
+                                <code class="attribute-name"
+                                  >{{ grandchildAttr.name }}</code
+                                >
+                                <span class="attribute-type">
+                                  @if (grandchildAttr.nullable) {
+                                  <span class="nullable">nullable</span>
+                                  } {{ grandchildAttr.type }}
+                                </span>
+                                @if (grandchildAttr.required) {
+                                <span class="attribute-required">Required</span>
+                                }
+                                <ng-container
+                                  [ngTemplateOutlet]="attributeTooltip"
+                                  [ngTemplateOutletContext]="{
+                                                              $implicit: grandchildAttr,
+                                                            }"
+                                />
+                              </div>
+                              <p
+                                class="attribute-description"
+                                [innerHTML]="grandchildAttr.description"
+                              ></p>
+                              @if (grandchildAttr.enumNote) {
+                              <p
+                                class="attribute-enum-note"
+                                [innerHTML]="grandchildAttr.enumNote"
+                              ></p>
+                              }
+                            </div>
+                            }
+                          </div>
+                        </div>
+                        } }
+                      </div>
+                      }
+                    </div>
+                  </div>
+                  } }
+                </div>
+                }
+              </div>
+              }
+            </div>
+          </div>
+          } } }
+        </div>
+
+        <!-- Right column - code snippets / images -->
+        @if (section.right && section.right.length > 0) {
+        <div class="section-right">
+          @for (block of section.right; track $index) {
+          <!-- Code Snippet -->
+          @if (block.type === 'code') {
+          <div class="code-panel">
+            <app-code-snippet
+              [tabs]="block.tabs"
+              [title]="block.title"
+              [endpoint]="block.endpoint"
+              theme="dark"
+            />
+          </div>
+          }
+
+          <!-- Object display -->
+          @if (block.type === 'object') {
+          <div class="doc-panel">
+            <div class="doc-panel-header">{{ block.title }}</div>
+            <pre
+              class="doc-panel-code"
+            ><code [innerHTML]="HighlightSyntax(block.code)"></code></pre>
+          </div>
+          }
+
+          <!-- Image / screenshot -->
+          @if (block.type === 'image') {
+          <figure class="doc-image" [class.is-placeholder]="block.placeholder">
+            @if (block.placeholder) {
+            <div class="doc-image-placeholder">
+              <span class="doc-image-placeholder-label">{{ block.alt }}</span>
+              <span class="doc-image-placeholder-path">{{ block.src }}</span>
+            </div>
+            } @else {
+            <img [src]="block.src" [alt]="block.alt" />
+            } @if (block.caption) {
+            <figcaption>{{ block.caption }}</figcaption>
+            }
+          </figure>
+          } }
+        </div>
+        }
+      </div>
+      }
+    </article>
+    }
+  </main>
+</div>
+
+<!-- Search Modal -->
+@if (searchOpen()) {
+<div class="search-overlay" (click)="CloseSearch()">
+  <div class="search-modal" (click)="$event.stopPropagation()">
+    <div class="search-input-wrapper">
+      <img src="/assets/icons/search.svg" alt="" class="search-input-icon" />
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Search docs..."
+        [value]="searchQuery()"
+        (input)="OnSearchInput($event)"
+        (keydown)="OnSearchKeydown($event)"
+      />
+    </div>
+    <div class="search-results">
+      @for ( result of filteredSearchResults(); track result.sectionId +
+      (result.subSectionId || '') ) {
+      <button
+        class="search-result-item"
+        [class.selected]="selectedSearchIndex() === $index"
+        (click)="SelectSearchResult(result)"
+        (mouseenter)="selectedSearchIndex.set($index)"
+      >
+        <div class="search-result-info">
+          <span class="search-result-title">{{ result.title }}</span>
+          <span class="search-result-category">{{ result.category }}</span>
+        </div>
+        @if (result.matchContext) {
+        <p class="search-result-context">{{ result.matchContext }}</p>
+        } @else if (result.description) {
+        <p class="search-result-description">{{ result.description }}</p>
+        }
+      </button>
+      } @if (filteredSearchResults().length === 0) {
+      <div class="search-no-results">No results found</div>
+      }
+    </div>
+    <div class="search-footer">
+      <span class="search-hint"><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+      <span class="search-hint"><kbd>↵</kbd> Go</span>
+      <span class="search-hint"><kbd>esc</kbd> Close</span>
+    </div>
+  </div>
+</div>
+}

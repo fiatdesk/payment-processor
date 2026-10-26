@@ -1,0 +1,112 @@
+@if (variant() === 'compact') {
+<aside class="agent-prompt-compact" aria-label="Coding agent prompt">
+  <div class="compact-command">
+    <div
+      class="compact-copy-cluster"
+      [class.is-busy]="copyStatus() !== 'idle'"
+      [class.is-scrolling]="previewScrolling()"
+      (mouseenter)="StartPreviewScroll($event)"
+      (mouseleave)="RewindPreviewScroll($event)"
+      (focusin)="StartPreviewScroll($event)"
+      (focusout)="OnPreviewFocusOut($event)"
+    >
+      <button class="compact-copy-button" type="button" (click)="CopyPrompt()">
+        @switch (copyStatus()) { @case ('copied') { Copied! } @case ('error') {
+        Copy failed } @default { Copy prompt } }
+      </button>
+      <p class="compact-prompt-preview" aria-hidden="true">
+        <span class="compact-prompt-track">
+          <span>{{ prompt() }}</span>
+          <span>{{ prompt() }}</span>
+        </span>
+      </p>
+    </div>
+  </div>
+  @if (copyStatus() === 'copied') {
+  <p class="compact-caption compact-caption-active">
+    Now paste it into Cursor, Claude Code, or any coding agent to add Zoneless.
+  </p>
+  }
+</aside>
+} @else if (variant() === 'note') {
+<aside class="agent-prompt-note" aria-label="Coding agent prompt">
+  <div class="note-card" [class.is-copied]="copyStatus() === 'copied'">
+    <svg
+      class="note-frame"
+      viewBox="0 0 640 220"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M18 28
+             C 36 10, 118 16, 214 14
+             C 332 11, 468 20, 612 18
+             C 628 26, 626 78, 622 128
+             C 624 176, 610 204, 528 206
+             C 412 210, 286 200, 164 208
+             C 78 212, 22 194, 16 142
+             C 12 88, 10 42, 18 28 Z"
+      />
+    </svg>
+    <p class="note-prompt">
+      {{ prompt() }}<span class="note-caret" aria-hidden="true"></span>
+    </p>
+    <button class="note-stamp" type="button" (click)="CopyPrompt()">
+      @switch (copyStatus()) { @case ('copied') { Copied! } @case ('error') {
+      Copy failed } @default { Copy prompt } }
+    </button>
+  </div>
+  <p
+    class="note-caption"
+    [class.is-visible]="copyStatus() === 'copied'"
+    [attr.aria-hidden]="copyStatus() !== 'copied'"
+  >
+    Now paste it into Cursor, Claude Code, or any coding agent to add Zoneless.
+  </p>
+</aside>
+} @else {
+<aside
+  class="agent-prompt"
+  [class.is-copied]="copyStatus() === 'copied'"
+  aria-label="Coding agent prompt"
+>
+  <div class="agent-prompt-heading">
+    <span class="agent-prompt-eyebrow">{{ eyebrow() }}</span>
+    <p>{{ description() }}</p>
+  </div>
+
+  <div class="agent-prompt-command">
+    <p class="agent-prompt-text">{{ prompt() }}</p>
+    <button class="card-copy-button" type="button" (click)="CopyPrompt()">
+      <img
+        [src]="
+            copyStatus() === 'copied'
+              ? '/assets/icons/check.svg'
+              : '/assets/icons/content_copy.svg'
+          "
+        alt=""
+      />
+      <span class="card-copy-labels">
+        <span [class.is-current]="copyStatus() === 'idle'"
+          >Copy agent prompt</span
+        >
+        <span [class.is-current]="copyStatus() === 'copied'">Copied!</span>
+        <span [class.is-current]="copyStatus() === 'error'">Copy failed</span>
+      </span>
+    </button>
+  </div>
+
+  <p
+    class="card-caption"
+    [class.is-visible]="copyStatus() === 'copied'"
+    [attr.aria-hidden]="copyStatus() !== 'copied'"
+  >
+    Now paste it into Cursor, Claude Code, or any coding agent to add Zoneless.
+  </p>
+</aside>
+}
+
+<span class="copy-feedback" aria-live="polite">
+  @if (copyStatus() === 'copied') { Prompt copied to clipboard. } @else if
+  (copyStatus() === 'error') { The prompt could not be copied. }
+</span>

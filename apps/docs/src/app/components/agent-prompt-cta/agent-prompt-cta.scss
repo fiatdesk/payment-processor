@@ -1,0 +1,419 @@
+@use 'sass:color';
+@use '../../styles/base.scss' as *;
+
+:host {
+  display: block;
+  width: min(100%, 760px);
+  margin-top: 0;
+  overflow: visible;
+}
+
+.agent-prompt {
+  display: grid;
+  gap: $spacing;
+  padding: $spacing-large;
+  text-align: left;
+  background: color.mix($base-color, $background-color, 3%);
+  border: 1px solid color.mix($base-color, $lightest-background-color, 45%);
+  border-radius: $border-radius-small;
+  box-shadow: 0 1px 2px rgba($text-color, 0.04);
+}
+
+.agent-prompt-heading {
+  p {
+    margin: $spacing-small 0 0;
+    color: rgba($text-color, 0.72);
+    font-size: $font-size;
+    line-height: 1.5;
+  }
+}
+
+.agent-prompt-eyebrow {
+  color: $base-color;
+  font-size: $font-size-med;
+  font-weight: 600;
+}
+
+.agent-prompt-command {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing;
+  padding: 0;
+}
+
+.agent-prompt-text {
+  margin: 0;
+  padding: $spacing;
+  width: 100%;
+  box-sizing: border-box;
+  color: rgba($text-color, 0.58);
+  background: $background-color;
+  border-radius: $border-radius-small;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.card-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-small;
+  min-height: 40px;
+  padding: 8px 14px;
+  color: $base-color;
+  background: $background-color;
+  appearance: none;
+  border: 1px solid color.mix($base-color, $lightest-background-color, 40%);
+  border-radius: $border-radius-small;
+  font-family: $text-font;
+  font-size: $font-size;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  img {
+    width: 16px;
+    height: 16px;
+    filter: $base-filter;
+  }
+
+  &:hover {
+    background: color.mix($base-color, $background-color, 6%);
+    border-color: $base-color;
+  }
+}
+
+.card-copy-labels {
+  display: grid;
+  justify-items: start;
+
+  span {
+    grid-area: 1 / 1;
+    visibility: hidden;
+    white-space: nowrap;
+  }
+
+  .is-current {
+    visibility: visible;
+  }
+}
+
+.card-caption {
+  margin: 0;
+  color: $base-color;
+  font-size: $font-size-small;
+  line-height: 1.4;
+  min-height: 1.4em;
+  opacity: 0;
+
+  &.is-visible {
+    opacity: 1;
+    animation: caption-swap 0.25s ease;
+  }
+}
+
+.agent-prompt-compact {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 620px);
+  margin-inline: auto;
+}
+
+.compact-command {
+  display: flex;
+  justify-content: center;
+}
+
+.compact-copy-cluster {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  isolation: isolate;
+}
+
+.compact-copy-button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  // Sized to the widest label ("Copy prompt") so the button
+  // doesn't resize when the state changes to "Copied!".
+  min-width: 168px;
+  padding: 16px 28px;
+  color: $base-color;
+  background: transparent;
+  appearance: none;
+  border: 2px solid $base-color;
+  border-radius: $border-radius-small;
+  font-size: $font-size-med;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    background: rgba($base-color, 0.05);
+    box-shadow: 0 0 0 2px $base-color;
+  }
+}
+
+.compact-prompt-preview {
+  position: absolute;
+  left: calc(100% + 22px);
+  top: 50%;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  width: min(42ch, 46vw);
+  margin: 0;
+  overflow: hidden;
+  color: color.mix($base-color, #fff, 42%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0.84;
+  transform: translateY(-50%);
+  mask-image: linear-gradient(to right, #000 0%, #000 26%, transparent 78%);
+  transition: opacity 0.2s ease, color 0.2s ease, mask-image 0.2s ease;
+}
+
+.compact-prompt-track {
+  display: flex;
+  gap: 3em;
+  width: max-content;
+  white-space: nowrap;
+  transform: translateX(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .compact-copy-cluster:not(.is-busy):hover .compact-prompt-preview,
+  .compact-copy-cluster:not(.is-busy).is-scrolling .compact-prompt-preview {
+    opacity: 1;
+    color: color.mix($base-color, #fff, 72%);
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 14%,
+      #000 62%,
+      transparent
+    );
+  }
+}
+
+.compact-copy-cluster.is-scrolling:not(.is-busy) .compact-prompt-track {
+  animation: agent-prompt-marquee 36s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-prompt-preview {
+    opacity: 0.7;
+  }
+
+  .compact-prompt-track {
+    animation: none;
+  }
+}
+
+.compact-caption {
+  position: absolute;
+  top: calc(100% + $spacing);
+  left: 0;
+  right: 0;
+  margin: 0;
+  color: rgba($text-color, 0.55);
+  font-size: $font-size-small;
+  text-align: center;
+  transition: color 0.2s ease;
+}
+
+.compact-caption-active {
+  color: $base-color;
+  animation: caption-swap 0.25s ease;
+}
+
+@keyframes caption-swap {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.copy-feedback {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.agent-prompt-note {
+  position: relative;
+  width: min(100%, 680px);
+  margin-inline: auto;
+}
+
+.note-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-large;
+  padding: 40px 52px 48px;
+  overflow: visible;
+  background: transparent;
+  transform: rotate(-1.1deg);
+  transition: transform 0.25s ease;
+
+  &:hover,
+  &.is-copied {
+    transform: rotate(0deg);
+  }
+}
+
+.note-frame {
+  position: absolute;
+  inset: -12px -10px -14px;
+  width: calc(100% + 20px);
+  height: calc(100% + 26px);
+  color: $base-color;
+  pointer-events: none;
+  overflow: visible;
+
+  path {
+    fill: color.mix($base-color, $background-color, 6%);
+    stroke: currentColor;
+    stroke-width: 10px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+}
+
+.note-prompt {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: rgba($text-color, 0.78);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.note-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.12em;
+  vertical-align: -0.12em;
+  background: $base-color;
+  animation: note-caret 1.05s steps(1) infinite;
+
+  .is-copied & {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes note-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.note-stamp {
+  position: relative;
+  z-index: 1;
+  align-self: flex-end;
+  min-width: 148px;
+  margin: 0 12px 6px 0;
+  padding: 12px 22px;
+  color: $base-color;
+  background: transparent;
+  appearance: none;
+  border: 2.5px solid $base-color;
+  border-radius: 10px 14px 9px 12px;
+  font-size: $font-size-med;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: rotate(2.4deg);
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    background: rgba($base-color, 0.05);
+    box-shadow: 0 0 0 2px $base-color;
+    transform: rotate(0deg);
+  }
+}
+
+.note-caption {
+  margin: $spacing 0 0;
+  color: $base-color;
+  font-size: $font-size-small;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+
+  &.is-visible {
+    opacity: 1;
+    visibility: visible;
+    animation: caption-swap 0.25s ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-card,
+  .note-stamp {
+    transform: none;
+    transition: none;
+  }
+
+  .note-caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1024px) {
+  .compact-prompt-preview {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .agent-prompt {
+    padding: $spacing;
+  }
+
+  .card-copy-button {
+    width: 100%;
+  }
+
+  .agent-prompt-note {
+    width: 100%;
+    padding-inline: 8px;
+  }
+
+  .note-card {
+    padding: 32px 36px 40px;
+  }
+
+  .note-stamp {
+    margin-right: 8px;
+  }
+}

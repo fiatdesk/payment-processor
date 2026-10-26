@@ -1,0 +1,40 @@
+<div class="doc-panel" [class.dark]="theme === 'dark'">
+  <div class="doc-panel-header code-header-extra">
+    @if (endpoint) {
+    <div class="code-endpoint">
+      <span class="method-badge" [class]="endpoint.method.toLowerCase()"
+        >{{ endpoint.method }}</span
+      >
+      <code class="endpoint-path">{{ endpoint.path }}</code>
+    </div>
+    } @else if (title) {
+    <span class="code-title">{{ title }}</span>
+    }
+    <div class="code-tabs">
+      @for (tab of tabs; track tab.id) {
+      <button
+        class="code-tab"
+        [class.active]="activeTab() === tab.id"
+        (click)="SetActiveTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+      }
+    </div>
+    <div class="code-actions">
+      @if (filename) {
+      <span class="code-filename">{{ filename }}</span>
+      }
+      <button class="copy-btn" (click)="CopyCode()" title="Copy code">
+        <img
+          src="/assets/icons/content_copy.svg"
+          alt="Copy"
+          class="copy-icon"
+        />
+      </button>
+    </div>
+  </div>
+  <pre
+    class="doc-panel-code"
+  ><code [innerHTML]="GetHighlightedCode()"></code></pre>
+</div>

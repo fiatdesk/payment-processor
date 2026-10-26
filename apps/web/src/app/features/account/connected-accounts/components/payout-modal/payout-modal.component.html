@@ -1,0 +1,143 @@
+<app-modal
+  [isOpen]="actions.payoutOpen()"
+  title="Pay out to wallet"
+  closeLabel="Cancel"
+  submitLabel="Pay out"
+  [loading]="actions.payoutLoading()"
+  [submitDisabled]="!actions.canSubmitPayout()"
+  (submitted)="actions.ConfirmPayout()"
+  (closed)="actions.ClosePayout()"
+>
+  <div class="fund-modal">
+    @if (!hasBalance()) {
+    <div class="payout-status">No balance available</div>
+    } @if (actions.activeAccount() && !actions.activeAccount()?.payouts_enabled)
+    {
+    <div class="payout-status">
+      Payouts are not enabled for this account. Outstanding identity
+      requirements may need to be resolved first.
+    </div>
+    }
+
+    <div class="field">
+      <div class="field-title">Amount</div>
+      <div class="amount-input-row">
+        <span class="amount-prefix">US$</span>
+        <input
+          type="text"
+          inputmode="decimal"
+          class="text-input amount-input"
+          placeholder="0.00"
+          [value]="actions.payoutAmount()"
+          (input)="OnAmountInput($event)"
+          [disabled]="actions.payoutLoading()"
+        />
+      </div>
+      <div class="field-help">
+        Available to pay out: US${{ availableLabel() }}
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-title">Send to</div>
+      <div class="fund-static-value">
+        {{ walletLabel() }}
+        @if (actions.GetDefaultWallet()?.default_for_currency) {
+        <span class="wallet-default"> (Default for USDC)</span>
+        }
+      </div>
+    </div>
+
+    @if (!isSimulatedSettlement()) {
+    <div class="field">
+      <div class="field-title">Sign payout</div>
+      <div class="field-help signer-help">
+        Sign with the platform wallet that holds the payout funds.
+      </div>
+      <div class="signer-options">
+        <label class="signer-option">
+          <input
+            type="radio"
+            name="payout-signer"
+            [checked]="actions.payoutSignerMethod() === 'wallet'"
+            (change)="OnSignerMethodChange('wallet')"
+            [disabled]="actions.payoutLoading()"
+          />
+          <span>Browser wallet</span>
+        </label>
+        <label class="signer-option">
+          <input
+            type="radio"
+            name="payout-signer"
+            [checked]="actions.payoutSignerMethod() === 'private_key'"
+            (change)="OnSignerMethodChange('private_key')"
+            [disabled]="actions.payoutLoading()"
+          />
+          <span>Private key</span>
+        </label>
+      </div>
+
+      <div class="signer-details">
+        @if (actions.payoutSignerMethod() === 'wallet') {
+        <button
+          type="button"
+          class="action-button action-button-dainty outline signer-button"
+          (click)="actions.ConnectPayoutWallet()"
+          [disabled]="actions.payoutLoading()"
+        >
+          {{
+            connectedSignerAddress()
+              ? 'Change wallet'
+              : 'Connect platform wallet'
+          }}
+        </button>
+        @if (connectedSignerAddress()) {
+        <div class="field-help signer-address">
+          Connected:
+          <span [title]="connectedSignerAddress()">{{
+            connectedSignerLabel()
+          }}</span>
+        </div>
+        } } @else {
+        <input
+          type="password"
+          class="text-input private-key-input"
+          name="payout-private-key"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="Paste base58 private key"
+          [value]="actions.payoutPrivateKey()"
+          (input)="OnPrivateKeyInput($event)"
+          (blur)="actions.ValidatePayoutPrivateKey()"
+          [disabled]="actions.payoutLoading()"
+        />
+        <div class="field-help">
+          Your private key is used only in this browser to sign this payout. It
+          is never sent to or stored by Zoneless.
+        </div>
+        @if (actions.payoutPrivateKeyAddress()) {
+        <div class="field-help signer-valid">Private key verified.</div>
+        } }
+      </div>
+    </div>
+    }
+
+    <div class="confirm-section">
+      <div class="confirm-heading">Confirm payout</div>
+      <label class="confirm-row">
+        <input
+          type="checkbox"
+          [checked]="actions.payoutConfirmed()"
+          (change)="OnConfirmChange($event)"
+          [disabled]="actions.payoutLoading()"
+        />
+        <span>{{ confirmLabel() }}</span>
+      </label>
+    </div>
+
+    @if (actions.payoutError()) {
+    <div class="fund-error">{{ actions.payoutError() }}</div>
+    }
+  </div>
+</app-modal>

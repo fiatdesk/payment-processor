@@ -1,0 +1,188 @@
+@use '../../styles/base.scss' as *;
+@use '../../styles/panels.scss';
+
+// ============================================
+// Dark Theme Variables
+// ============================================
+$dark-bg: #1e2430;
+$dark-header-bg: #262f3d;
+$dark-border: #363f4f;
+$dark-text: #e6e6e6;
+$dark-text-muted: rgba(#e6e6e6, 0.6);
+
+.code-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.code-endpoint {
+  display: flex;
+  align-items: center;
+  gap: $spacing-small;
+}
+
+.method-badge {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+
+  &.get {
+    color: #16a34a;
+  }
+
+  &.post {
+    color: #2563eb;
+  }
+
+  &.delete {
+    color: #dc2626;
+  }
+}
+
+.endpoint-path {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: rgba($text-color, 0.85);
+  background: none;
+  padding: 0;
+}
+
+.code-tabs {
+  display: flex;
+  gap: $spacing-extra-small;
+}
+
+.code-tab {
+  padding: $spacing-extra-small $spacing;
+  background: transparent;
+  border: none;
+  border-radius: $border-radius-small;
+  font-family: $text-font;
+  font-size: $font-size-small;
+  color: rgba($text-color, 0.6);
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: $text-color;
+  }
+
+  &.active {
+    background: rgba(0, 0, 0, 0.08);
+    color: $text-color;
+  }
+}
+
+.code-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing;
+}
+
+.code-filename {
+  font-size: $font-size-small;
+  color: rgba($text-color, 0.5);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: $border-radius-small;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .copy-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.5;
+  }
+}
+
+.code-header-extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing;
+}
+
+// ============================================
+// Dark Theme Overrides
+// ============================================
+.doc-panel.dark {
+  background: $dark-bg;
+  border-color: $dark-border;
+
+  .doc-panel-header {
+    background: $dark-header-bg;
+    border-color: $dark-border;
+    color: $dark-text-muted;
+  }
+
+  .code-title {
+    color: $dark-text-muted;
+  }
+
+  .method-badge {
+    &.get {
+      color: #22c55e;
+    }
+
+    &.post {
+      color: #3b82f6;
+    }
+
+    &.delete {
+      color: #ef4444;
+    }
+  }
+
+  .endpoint-path {
+    color: $dark-text;
+  }
+
+  .code-tab {
+    color: $dark-text-muted;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: $dark-text;
+    }
+
+    &.active {
+      background: rgba(255, 255, 255, 0.12);
+      color: $dark-text;
+    }
+  }
+
+  .copy-btn {
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .copy-icon {
+      filter: invert(1);
+      opacity: 0.6;
+    }
+  }
+
+  .doc-panel-code {
+    background: $dark-bg;
+    color: $dark-text;
+  }
+}

@@ -1,0 +1,87 @@
+<!-- Wallet Guide Toggle -->
+<div
+  class="collapsible-toggle"
+  tabindex="0"
+  role="button"
+  (click)="ToggleWalletGuide()"
+  (keydown.enter)="ToggleWalletGuide()"
+  (keydown.space)="ToggleWalletGuide(); $event.preventDefault()"
+>
+  <svg
+    class="collapsible-icon"
+    [class.expanded]="showWalletGuide()"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M9 6L15 12L9 18"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+  <span class="collapsible-text">{{ title }}</span>
+</div>
+
+<!-- Expandable Wallet Guide -->
+@if (showWalletGuide()) {
+<div class="collapsible-content wallet-guide">
+  <div class="guide-header">
+    <span>Get started with</span>
+    <img
+      src="assets/icons/phantom-wallet.svg"
+      alt="Phantom"
+      class="phantom-logo"
+    />
+    <span>in 3 steps</span>
+  </div>
+  <div class="guide-steps">
+    <div class="guide-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <div class="step-title">Download Phantom</div>
+        <div class="step-description">
+          Visit
+          <a
+            href="https://phantom.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            >phantom.app</a
+          >
+          and install the browser extension or mobile app.
+        </div>
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <div class="step-title">Create your wallet</div>
+        <div class="step-description">
+          Follow the setup wizard. Save your recovery phrase securely — never
+          share it with anyone.
+        </div>
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        @if (mode === 'connect') {
+        <div class="step-title">Copy your address</div>
+        <div class="step-description">
+          Click your wallet name at the top to copy your Solana address, then
+          connect it or paste it into the form.
+        </div>
+        } @else {
+        <div class="step-title">Return here and connect</div>
+        <div class="step-description">
+          Once your wallet is set up, return to this page and click Pay to
+          connect.
+        </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+}

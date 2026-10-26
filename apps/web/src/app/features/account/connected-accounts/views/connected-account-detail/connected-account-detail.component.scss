@@ -1,0 +1,253 @@
+@use '../../../../../styles/base.scss' as *;
+@use '../../../../../styles/chips.scss' as *;
+@use '../../../../../styles/buttons.scss' as *;
+@use '../../../../../styles/account.scss' as *;
+@use '../../../../../styles/align.scss' as *;
+@use '../../../../../styles/spacing.scss' as *;
+@use '../../../../../styles/forms.scss' as *;
+@use '../../../../../styles/identity-requirements.scss' as *;
+
+.link-highlight {
+  font-weight: 500;
+}
+
+.header-meta {
+  flex-wrap: wrap;
+  margin-top: $spacing-extra-small;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-extra-small;
+  font-size: $font-size-small;
+  opacity: $dimmed;
+}
+
+.meta-item-active {
+  opacity: 1;
+}
+
+.meta-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.balances-header {
+  margin-bottom: $spacing;
+}
+
+.balances-header .section-title {
+  margin-bottom: 0;
+}
+
+.balance-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: $spacing-small;
+}
+
+.balance-card {
+  border: 1px solid $darkest-background-color;
+  border-radius: $border-radius-small;
+  background: $darker-background-color;
+  padding: $spacing;
+}
+
+.balance-card-label {
+  font-size: $font-size-small;
+  opacity: $dimmed;
+  margin-bottom: $spacing-extra-small;
+}
+
+.balance-card-value {
+  font-size: $font-size-med;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-extra-small;
+  flex-wrap: wrap;
+}
+
+.balance-card-currency {
+  font-size: $font-size-small;
+  font-weight: 400;
+  opacity: $dimmed;
+}
+
+.tab-bar-nested {
+  margin-top: 0;
+}
+
+.view-all-link {
+  margin-top: $spacing-small;
+}
+
+.wallet-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-small;
+}
+
+.wallet-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing;
+  padding: $spacing;
+  border: 1px solid $darkest-background-color;
+  border-radius: $border-radius-small;
+}
+
+.wallet-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.wallet-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wallet-name {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.wallet-address {
+  font-size: $font-size-small;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wallet-badges {
+  display: flex;
+  gap: $spacing-extra-small;
+  flex-shrink: 0;
+}
+
+.capabilities-status {
+  display: flex;
+  align-items: center;
+  gap: $spacing-extra-small;
+  margin-bottom: $spacing-small;
+
+  img {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.capabilities-check-icon {
+  filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(600%)
+    hue-rotate(130deg) brightness(95%) contrast(95%);
+}
+
+.capabilities-active {
+  font-weight: 600;
+  color: $success-green;
+}
+
+.capabilities-list {
+  line-height: 1.5;
+}
+
+.requirements-list {
+  margin: 0;
+  padding-left: $spacing;
+  line-height: 1.5;
+}
+
+.payments-tab {
+  margin-top: $spacing;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.actions-required-header {
+  margin-bottom: $spacing;
+
+  .section-title {
+    margin-bottom: 0;
+    line-height: 1.2;
+  }
+}
+
+.actions-required-title {
+  margin-bottom: 0;
+}
+
+.actions-required-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background-color: #dc2626;
+  color: white;
+  font-size: $font-size-small;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.action-required-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing;
+  width: 100%;
+  padding: $spacing $spacing-snug;
+  border: 1px solid $darkest-background-color;
+  border-radius: $border-radius-small;
+  background: $background-color;
+  text-align: left;
+  cursor: pointer;
+  font-family: $text-font;
+  color: $text-color;
+  transition: background-color $transition-fast;
+
+  &:hover {
+    background-color: $darker-background-color;
+  }
+}
+
+.action-required-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.action-required-title {
+  font-size: $font-size;
+  font-weight: 600;
+  margin-bottom: $spacing-extra-small;
+}
+
+.action-required-subtitle {
+  font-size: $font-size-small;
+  opacity: $dimmed;
+}
+
+.action-required-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: $dimmed-extra;
+}
+
+@media only screen and (max-width: 1000px) {
+  .balance-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-row {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,233 @@
+@use 'app/styles/base.scss' as *;
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Regular.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+html,
+input,
+textarea {
+  margin: 0px;
+  padding: 0px;
+  overflow-x: hidden;
+  font-family: $text-font !important;
+  font-weight: $text-weight !important;
+  letter-spacing: -0.01em;
+  color: $text-color;
+  background-color: $background-color;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: $title-font !important;
+  font-weight: $title-weight !important;
+  letter-spacing: -0.02em;
+  margin: 0px;
+  margin-bottom: $spacing;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 32px;
+}
+
+h2 {
+  font-size: 24px;
+}
+
+h3 {
+  font-size: 18px;
+}
+
+h4 {
+  font-size: 16px;
+}
+
+@media only screen and (max-width: 1000px) {
+  h1 {
+    font-size: 24px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 16px;
+  }
+
+  h4 {
+    font-size: 14px;
+  }
+}
+
+nav {
+  z-index: 10;
+}
+
+p {
+  font-size: $font-size;
+  margin-bottom: $spacing;
+  margin-top: 0px;
+  line-height: 1.5;
+}
+
+div {
+  font-size: $font-size;
+  line-height: 1.5;
+}
+
+input,
+textarea {
+  line-height: 1.5;
+}
+
+ul {
+  font-size: $font-size;
+  margin-top: 0px;
+  margin-bottom: $spacing;
+  padding-left: $spacing-large;
+  line-height: 1.5;
+}
+
+ol {
+  line-height: 1.5;
+}
+
+a,
+a:visited {
+  color: $button-color !important;
+  font-size: $font-size;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a:hover {
+  filter: brightness(0.85);
+}
+
+i,
+b,
+em {
+  font-size: $font-size;
+}
+
+.site-wrapper {
+  padding-top: $spacing-extra-large;
+  padding-bottom: $spacing-extra-large;
+  padding-left: $spacing-extra-extra-large;
+  padding-right: $spacing-extra-extra-large;
+  max-width: 1400px;
+  min-height: 80vh;
+  margin: auto;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+.large-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.hover-icon {
+  cursor: pointer;
+  opacity: $dimmed;
+  transition: $transition;
+}
+
+.hover-icon:hover {
+  opacity: 1;
+}
+
+.line {
+  width: 100%;
+  height: 1px;
+  background-color: $text-color;
+  opacity: 0.1;
+  margin: $spacing 0px;
+}
+
+.shadow {
+  box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.25);
+  -webkit-box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.25);
+  -moz-box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.25);
+}
+
+.light-shadow {
+  box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.15);
+  -webkit-box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.15);
+  -moz-box-shadow: 2px 3px 9px 0px rgba(0, 0, 0, 0.15);
+}
+
+.uline {
+  text-decoration: underline !important;
+}
+
+.dimmed {
+  opacity: $dimmed;
+}
+
+.dimmed-hover {
+  opacity: $dimmed;
+  cursor: pointer;
+  transition: $transition;
+}
+
+.dimmed-hover:hover {
+  opacity: 1;
+}
+
+.dimmed-extra {
+  opacity: $dimmed-extra;
+}
+
+.dimmed-disabled {
+  opacity: $dimmed-disabled;
+  cursor: not-allowed;
+}
+
+.dimmed-disabled:hover {
+  opacity: $dimmed-disabled !important;
+  cursor: not-allowed !important;
+}
+
+.bolded {
+  font-weight: 500;
+}
+
+@media only screen and (max-width: 1000px) {
+  .site-wrapper {
+    padding: 16px;
+    padding-top: 32px;
+  }
+}

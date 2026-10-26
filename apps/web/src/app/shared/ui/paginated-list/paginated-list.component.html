@@ -1,0 +1,164 @@
+<table>
+  @if (!hideColumnHeadings) {
+  <thead>
+    <tr>
+      @for (column of columns; track column.field) {
+      <th>{{ column.header }}</th>
+      }
+    </tr>
+  </thead>
+  }
+  <tbody>
+    @if (!loading() && items().length > 0) { @for (item of items(); track
+    item.id) { @let rowLink = GetRowLink(item);
+    <tr
+      class="row more-icon-highlight"
+      [class.row-interactive]="IsRowInteractive()"
+      (click)="OnRowClick(item)"
+    >
+      @for (column of columns; track column.field; let isFirst = $first) {
+      <td
+        [class.row-cell]="rowLink !== null && column.type !== 'actions'"
+        [class.actions-cell]="column.type === 'actions'"
+      >
+        @if (rowLink && column.type !== 'actions') {
+        <a
+          class="row-link"
+          [routerLink]="rowLink"
+          [attr.tabindex]="isFirst ? null : -1"
+          [attr.aria-hidden]="isFirst ? null : true"
+          [attr.aria-label]="isFirst ? 'Open ' + item.id : null"
+        ></a>
+        }
+        <div
+          class="data-cell"
+          [class.bold-cell]="column.bolded"
+          [class.dimmed-cell]="column.dimmed"
+        >
+          @if (column.progressGetter) {
+          <svg class="progress-ring" viewBox="0 0 20 20" aria-hidden="true">
+            <circle
+              class="progress-ring-track"
+              cx="10"
+              cy="10"
+              r="7"
+              fill="none"
+            />
+            @if (GetColumnProgress(item, column); as progress) {
+            <circle
+              class="progress-ring-value"
+              cx="10"
+              cy="10"
+              r="7"
+              fill="none"
+              [attr.stroke-dasharray]="GetProgressDasharray(progress)"
+            />
+            }
+          </svg>
+          } @if (column.imageField) {
+          <div class="image-cell">
+            @if (GetItemImage(item, column.imageField)) {
+            <img
+              class="image-thumbnail"
+              [src]="GetItemImage(item, column.imageField)"
+              alt=""
+            />
+            } @else {
+            <img
+              class="large-icon"
+              [src]="'assets/icons/' + column.placeholderIcon"
+              alt=""
+            />
+            }
+          </div>
+          } @switch (column.type) { @case ('currency') {
+          <span
+            >${{ GetItemNumber(item, column.field) | number : '1.2-2' }}</span
+          >
+          } @case ('currency-with-code') { @let formatted =
+          GetFormattedCurrency(item, column.field, column.currencyField ||
+          'currency');
+          <span class="currency-value">
+            @if (formatted.isNegative) {
+            <span>-</span>
+            }
+            <span>$</span>
+            <span>{{ formatted.value | number : '1.2-2' }}</span>
+            <span class="currency-code">{{ formatted.currency }}</span>
+          </span>
+          } @case ('date') {
+          <span>{{
+            GetItemDate(item, column.field)
+              | date : column.dateFormat || 'MMM d, h:mm a'
+          }}</span>
+          } @case ('status') {
+          <app-status-chip
+            [status]="GetItemString(item, column)"
+          ></app-status-chip>
+          } @case ('number') {
+          <span>{{
+            GetItemNumber(item, column.field) | number : '1.0-2'
+          }}</span>
+          } @case ('actions') {
+          <app-popup-menu
+            [actions]="column.actions || []"
+            [item]="item"
+          ></app-popup-menu>
+          } @default { @if (column.capitalize) {
+          <span>{{ GetItemString(item, column) | titlecase }}</span>
+          } @else {
+          <span>{{ GetItemString(item, column) }}</span>
+          } } }
+        </div>
+      </td>
+      }
+    </tr>
+    } } @if (!loading() && items().length === 0) {
+    <tr>
+      <td [attr.colspan]="columns.length" class="empty-state">
+        No items found
+      </td>
+    </tr>
+    }
+  </tbody>
+</table>
+
+@if (loading()) {
+<div class="loading-skeleton">
+  @for (i of [].constructor(limit); track $index) {
+  <div class="skeleton-row"></div>
+  }
+</div>
+} @if (paginationEnabled && items().length > 0) {
+<div class="pagination-wrapper">
+  <div class="page-info">
+    <span class="page-range">{{ GetDisplayRange() }}</span>
+    <span class="page-total"> of {{ GetTotalDisplay() }} results</span>
+  </div>
+  <div class="pagination-controls">
+    <button
+      type="button"
+      class="pagination-button"
+      [class.pagination-disabled]="pageNumber() === 0"
+      [disabled]="pageNumber() === 0"
+      (click)="PreviousPage()"
+    >
+      Previous
+    </button>
+    <button
+      type="button"
+      class="pagination-button"
+      [class.pagination-disabled]="!hasMore()"
+      [disabled]="!hasMore()"
+      (click)="NextPage()"
+    >
+      Next
+    </button>
+  </div>
+</div>
+} @else if (showResultCount && !loading() && items().length > 0) {
+<div class="result-count">
+  {{ items().length }}
+  {{ items().length === 1 ? 'result' : 'results' }}
+</div>
+}

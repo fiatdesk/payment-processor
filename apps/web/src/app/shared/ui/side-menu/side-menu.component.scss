@@ -1,0 +1,282 @@
+@use '../../../styles/base.scss' as *;
+@use '../../../styles/scrollbars.scss' as *;
+
+.side-menu-wrapper {
+  border-right: 1px solid $darker-background-color;
+  height: 100%;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  text-align: center;
+  transition: $transition-slow;
+  background-color: $background-color;
+}
+
+.variant-full {
+  background-color: $mid-background-color;
+  width: 56px;
+}
+
+.expanded-side-menu {
+  width: 180px;
+  text-align: left;
+}
+
+.variant-full.expanded-side-menu {
+  width: 220px;
+}
+
+.side-menu-top {
+  padding: $spacing $spacing;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expanded-side-menu .side-menu-top {
+  justify-content: flex-start;
+}
+
+.side-menu-bottom {
+  padding: $spacing;
+}
+
+.sub-menus-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-large $spacing;
+}
+
+.variant-full .sub-menus-wrapper {
+  padding: $spacing $spacing-snug;
+}
+
+.menu-group {
+  margin-bottom: $spacing;
+}
+
+.menu-group:last-child {
+  margin-bottom: 0;
+}
+
+.menu-group-label {
+  font-size: $font-size-small;
+  font-weight: $medium-weight;
+  color: $text-color;
+  opacity: $dimmed-extra;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: $spacing-small $spacing-extra-small;
+  margin-bottom: $spacing-extra-small;
+}
+
+ul {
+  margin-top: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+li {
+  list-style: none;
+}
+
+li:last-child {
+  margin-bottom: $spacing;
+}
+
+.variant-full li:last-child {
+  margin-bottom: $spacing-extra-small;
+}
+
+a {
+  color: $text-color !important;
+}
+
+.side-menu-item {
+  padding: $spacing-small 0;
+  display: inline-flex;
+  align-items: center;
+  transition: $transition-fast;
+  cursor: pointer;
+  border-radius: $border-radius-small;
+  width: 100%;
+}
+
+.variant-full .side-menu-item {
+  padding: $spacing-extra-small $spacing-small;
+}
+
+.variant-full .side-menu-item:hover {
+  background-color: $darker-background-color;
+}
+
+.side-menu-text {
+  display: inline-block;
+  vertical-align: top;
+  opacity: $dimmed-extra;
+  transition: $transition-fast;
+  font-size: $font-size;
+}
+
+.variant-full .side-menu-text {
+  font-size: $font-size-small;
+}
+
+.menu-icon {
+  margin-right: $spacing-small;
+  transition: $transition-fast;
+  opacity: $dimmed-extra;
+  width: 18px;
+  height: 18px;
+}
+
+.menu-icon.large-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.side-menu-item:hover .side-menu-text,
+.side-menu-item:hover .menu-icon {
+  opacity: $dimmed;
+}
+
+.text-selected {
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
+.menu-icon-selected {
+  opacity: 1 !important;
+}
+
+.variant-full a.side-menu-item:has(.menu-icon-selected) {
+  background-color: $darker-background-color;
+}
+
+.variant-full .text-selected {
+  color: $base-color;
+}
+
+.variant-full .menu-icon-selected {
+  filter: $base-filter;
+}
+
+.line {
+  margin: 0;
+}
+
+.side-menu-bottom ul {
+  margin-bottom: 0;
+}
+
+.side-menu-bottom li {
+  margin-bottom: 0;
+}
+
+.bottom-menu-items {
+  margin-bottom: $spacing-small;
+}
+
+.bottom-menu-items li {
+  margin-bottom: 0;
+}
+
+.toggle-button-wrapper li {
+  margin-bottom: 0;
+}
+
+.expanded-bottom {
+  text-align: right;
+}
+
+.expanded-bottom img {
+  transform: rotate(180deg);
+}
+
+.desktop-hidden {
+  display: none;
+}
+
+@media only screen and (max-width: 1000px) {
+  .side-menu-wrapper,
+  .expanded-side-menu,
+  .variant-full,
+  .variant-full.expanded-side-menu {
+    width: 100%;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid $darker-background-color;
+  }
+
+  .side-menu-top {
+    display: none;
+  }
+
+  .sub-menus-wrapper {
+    display: flex;
+    flex: none;
+    padding: $spacing;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .menu-group {
+    display: flex;
+    margin-bottom: 0;
+  }
+
+  .menu-group-label {
+    display: none;
+  }
+
+  ul {
+    display: flex;
+    margin-bottom: 0;
+  }
+
+  li {
+    margin-right: $spacing-large;
+  }
+
+  .line {
+    display: none;
+  }
+
+  .side-menu-bottom {
+    display: none;
+  }
+
+  .side-menu-item {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .side-menu-text {
+    font-size: $font-size;
+    white-space: nowrap;
+  }
+
+  .menu-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  li:last-child {
+    margin-bottom: 0;
+  }
+
+  .desktop-hidden {
+    display: inline-flex;
+  }
+
+  .variant-full .side-menu-item:hover,
+  .variant-full a.side-menu-item:has(.menu-icon-selected) {
+    background-color: transparent;
+  }
+}

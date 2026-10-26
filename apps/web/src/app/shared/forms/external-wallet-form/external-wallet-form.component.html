@@ -1,0 +1,70 @@
+<div class="external-wallet-form">
+  <!-- Test Mode Banner -->
+  @if (mode === 'onboard' && configService.IsTestMode()) {
+  <app-test-mode-banner
+    message="You're using a test account."
+    actionLabel="Use test wallet"
+    (actionClicked)="FillTestData()"
+  ></app-test-mode-banner>
+  }
+
+  <!-- Header (onboard mode only) -->
+  @if (mode === 'onboard') {
+  <h1>Add your payout wallet</h1>
+  <p>
+    Enter your Solana wallet address to receive USDC payouts. USDC is a
+    stablecoin pegged 1:1 to the US dollar.
+  </p>
+  }
+
+  <app-wallet-guide></app-wallet-guide>
+
+  <div class="wallet-info">
+    <div class="wallet-info-row">
+      <span class="info-label">Network:</span>
+      <img
+        src="assets/images/logos/solana.svg"
+        alt="Solana"
+        class="info-logo"
+      />
+      <span class="info-value">Solana</span>
+    </div>
+    <div class="wallet-info-row">
+      <span class="info-label">Currency:</span>
+      <img src="assets/images/logos/usdc.svg" alt="USDC" class="info-logo" />
+      <span class="info-value">USDC</span>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-title">Solana Wallet Address</div>
+    <p class="field-help">
+      Make sure this address supports USDC on the Solana network.
+    </p>
+    <div class="field-value field-with-status">
+      <input
+        [ngModel]="walletAddress()"
+        (ngModelChange)="OnWalletAddressChange($event)"
+        type="text"
+        placeholder="e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+        [class.field-error]="showErrors && walletAddressError()"
+      />
+      @if (validationStatus() === 'valid') {
+      <div class="status-badge valid">✓</div>
+      } @if (validationStatus() === 'invalid') {
+      <div class="status-badge invalid">✗</div>
+      }
+    </div>
+    @if (showErrors && walletAddressError()) {
+    <div class="error">{{ walletAddressError() }}</div>
+    }
+  </div>
+
+  <div class="warning-box">
+    <div class="warning-icon">⚠</div>
+    <div class="warning-text">
+      <strong>Important:</strong> Double-check your wallet address. Funds sent
+      to an incorrect address cannot be recovered.
+    </div>
+  </div>
+</div>

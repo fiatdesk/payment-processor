@@ -1,0 +1,19 @@
+<div class="account-host">
+  <app-page-loader [loading]="loading()"></app-page-loader>
+
+  @if (ready()) { @if (dashboardType() === 'full') {
+  <app-full-shell
+    [sideMenu]="sideMenu()"
+    [showTestMode]="configService.IsTestMode()"
+  >
+    <router-outlet></router-outlet>
+  </app-full-shell>
+  } @else {
+  <app-express-shell
+    [sideMenu]="sideMenu()"
+    [showTestMode]="configService.IsTestMode()"
+  >
+    <router-outlet></router-outlet>
+  </app-express-shell>
+  } }
+</div>

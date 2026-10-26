@@ -1,0 +1,205 @@
+import { BaseResource } from './Base';
+import { RequestExtraOptions } from '../HttpClient';
+import {
+  Account,
+  AccountDeletedResponse,
+  ListResponse,
+  ExternalWallet,
+  Person,
+  PersonDeleted,
+  LoginLink,
+} from '@zoneless/shared-types';
+import type {
+  CreateAccountInput,
+  UpdateAccountInput,
+  ListAccountsInput,
+  RejectAccountInput,
+  CreateExternalWalletInput,
+  UpdateExternalWalletInput,
+  ListExternalWalletsInput,
+  CreatePersonInput,
+  UpdatePersonInput,
+  ListPersonsInput,
+} from '../generated/Inputs';
+import {
+  ExternalAccounts,
+  ExternalWalletDeletedResponse,
+} from './ExternalAccounts';
+import { ApplyDateFilter } from '../utils';
+import { Persons } from './Persons';
+import { LoginLinks } from './LoginLinks';
+/**
+ * @see https://docs.zoneless.com/accounts
+ */
+export class Accounts extends BaseResource {
+  private readonly externalAccounts: ExternalAccounts;
+  private readonly persons: Persons;
+  private readonly loginLinks: LoginLinks;
+
+  constructor(client: InstanceType<typeof BaseResource>['client']) {
+    super(client);
+    this.externalAccounts = new ExternalAccounts(client);
+    this.persons = new Persons(client);
+    this.loginLinks = new LoginLinks(client);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/create */
+  async create(
+    params: CreateAccountInput = {},
+    options?: RequestExtraOptions
+  ): Promise<Account> {
+    return this.client.Post<Account>('/accounts', params, options);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/retrieve */
+  async retrieve(id: string, options?: RequestExtraOptions): Promise<Account> {
+    return this.client.Get<Account>(`/accounts/${id}`, undefined, options);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/retrieve */
+  async retrieveMe(options?: RequestExtraOptions): Promise<Account> {
+    return this.client.Get<Account>('/accounts/me', undefined, options);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/update */
+  async update(
+    id: string,
+    params: UpdateAccountInput,
+    options?: RequestExtraOptions
+  ): Promise<Account> {
+    return this.client.Post<Account>(`/accounts/${id}`, params, options);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/delete */
+  async del(
+    id: string,
+    options?: RequestExtraOptions
+  ): Promise<AccountDeletedResponse> {
+    return this.client.Delete<AccountDeletedResponse>(
+      `/accounts/${id}`,
+      undefined,
+      options
+    );
+  }
+
+  /** @see https://docs.zoneless.com/accounts/list */
+  async list(
+    params: ListAccountsInput = {},
+    options?: RequestExtraOptions
+  ): Promise<ListResponse<Account>> {
+    const query: Record<string, string | number | undefined> = {
+      limit: params.limit,
+      starting_after: params.starting_after,
+      ending_before: params.ending_before,
+    };
+
+    ApplyDateFilter(query, 'created', params.created);
+
+    return this.client.Get<ListResponse<Account>>('/accounts', query, options);
+  }
+
+  /** @see https://docs.zoneless.com/accounts/reject */
+  async reject(
+    id: string,
+    params: RejectAccountInput,
+    options?: RequestExtraOptions
+  ): Promise<Account> {
+    return this.client.Post<Account>(`/accounts/${id}/reject`, params, options);
+  }
+
+  // ============================================
+  // External Accounts (Wallets)
+  // ============================================
+
+  /** @see https://docs.zoneless.com/external-wallets/create */
+  async createExternalAccount(
+    accountId: string,
+    params: CreateExternalWalletInput
+  ): Promise<ExternalWallet> {
+    return this.externalAccounts.create(accountId, params);
+  }
+
+  /** @see https://docs.zoneless.com/external-wallets/retrieve */
+  async retrieveExternalAccount(
+    accountId: string,
+    externalAccountId: string
+  ): Promise<ExternalWallet> {
+    return this.externalAccounts.retrieve(accountId, externalAccountId);
+  }
+
+  /** @see https://docs.zoneless.com/external-wallets/update */
+  async updateExternalAccount(
+    accountId: string,
+    externalAccountId: string,
+    params: UpdateExternalWalletInput
+  ): Promise<ExternalWallet> {
+    return this.externalAccounts.update(accountId, externalAccountId, params);
+  }
+
+  /** @see https://docs.zoneless.com/external-wallets/delete */
+  async deleteExternalAccount(
+    accountId: string,
+    externalAccountId: string
+  ): Promise<ExternalWalletDeletedResponse> {
+    return this.externalAccounts.del(accountId, externalAccountId);
+  }
+
+  /** @see https://docs.zoneless.com/external-wallets/list */
+  async listExternalAccounts(
+    accountId: string,
+    params: ListExternalWalletsInput = {}
+  ): Promise<ListResponse<ExternalWallet>> {
+    return this.externalAccounts.list(accountId, params);
+  }
+
+  // ============================================
+  // Persons
+  // ============================================
+
+  /** @see https://docs.zoneless.com/persons/create */
+  async createPerson(
+    accountId: string,
+    params: CreatePersonInput = {}
+  ): Promise<Person> {
+    return this.persons.create(accountId, params);
+  }
+
+  /** @see https://docs.zoneless.com/persons/retrieve */
+  async retrievePerson(accountId: string, personId: string): Promise<Person> {
+    return this.persons.retrieve(accountId, personId);
+  }
+
+  /** @see https://docs.zoneless.com/persons/update */
+  async updatePerson(
+    accountId: string,
+    personId: string,
+    params: UpdatePersonInput
+  ): Promise<Person> {
+    return this.persons.update(accountId, personId, params);
+  }
+
+  /** @see https://docs.zoneless.com/persons/delete */
+  async deletePerson(
+    accountId: string,
+    personId: string
+  ): Promise<PersonDeleted> {
+    return this.persons.del(accountId, personId);
+  }
+
+  /** @see https://docs.zoneless.com/persons/list */
+  async listPersons(
+    accountId: string,
+    params: ListPersonsInput = {}
+  ): Promise<ListResponse<Person>> {
+    return this.persons.list(accountId, params);
+  }
+
+  // ============================================
+  // Login Links
+  // ============================================
+
+  /** @see https://docs.zoneless.com/login-links/create */
+  async createLoginLink(accountId: string): Promise<LoginLink> {
+    return this.loginLinks.create(accountId);
+  }
+}

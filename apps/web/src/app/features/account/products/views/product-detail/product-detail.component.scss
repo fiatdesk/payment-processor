@@ -1,0 +1,61 @@
+@use '../../../../../styles/base.scss' as *;
+@use '../../../../../styles/chips.scss' as *;
+@use '../../../../../styles/buttons.scss' as *;
+@use '../../../../../styles/account.scss' as *;
+@use '../../../../../styles/align.scss' as *;
+@use '../../../../../styles/spacing.scss' as *;
+@use '../../../../../styles/forms.scss' as *;
+@use '../../../../../styles/collapsible.scss' as *;
+
+.link-highlight {
+  font-weight: 500;
+}
+
+.product-name {
+  margin: 0;
+}
+
+.product-image-wrapper {
+  width: 55px;
+  height: 55px;
+  border-radius: $border-radius-small;
+  background-color: $dark-background-color;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  .icon {
+    opacity: $dimmed-disabled;
+  }
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.section-edit-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing;
+}
+
+.section-edit-top h2 {
+  margin: 0;
+}
+
+.cross-sell-input {
+  margin-top: $spacing;
+
+  span {
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  input {
+    max-width: 360px;
+  }
+}

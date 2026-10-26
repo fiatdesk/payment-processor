@@ -1,0 +1,189 @@
+@use 'app/styles/base.scss' as *;
+
+:root {
+  --doc-bg: #ffffff;
+  --doc-bg-subtle: #{$light-background-color};
+  --doc-bg-muted: #{$lighter-background-color};
+  --doc-border: #{$lightest-background-color};
+  --doc-text-rgb: 30, 41, 59;
+  --doc-text: #{$text-color};
+  --doc-panel-header: #f1f3f5;
+  --doc-panel-body: #f6f8fa;
+  --doc-icon-filter: none;
+  --doc-shadow-color: rgba(0, 0, 0, 0.1);
+  --doc-required-color: rgb(177, 54, 0);
+
+  --syn-string: #22863a;
+  --syn-boolean: #005cc5;
+  --syn-null: #005cc5;
+  --syn-number: #d73a49;
+  --syn-keyword: #d73a49;
+  --syn-comment: #6a737d;
+  --syn-flag: #6f42c1;
+}
+
+[data-theme='dark'] {
+  --doc-bg: #0a0e1a;
+  --doc-bg-subtle: #111827;
+  --doc-bg-muted: #1e293b;
+  --doc-border: #2d3748;
+  --doc-text-rgb: 226, 232, 240;
+  --doc-text: #e2e8f0;
+  --doc-panel-header: #1e2430;
+  --doc-panel-body: #131a27;
+  --doc-icon-filter: invert(0.85);
+  --doc-shadow-color: rgba(0, 0, 0, 0.4);
+  --doc-required-color: #f97066;
+
+  --syn-string: #22d485;
+  --syn-boolean: #5ebfff;
+  --syn-null: #5ebfff;
+  --syn-number: #f59e0b;
+  --syn-keyword: #5ebfff;
+  --syn-comment: #6b7280;
+  --syn-flag: #a78bfa;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Regular.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body,
+html,
+input,
+textarea {
+  margin: 0;
+  padding: 0;
+  font-family: $text-font !important;
+  font-weight: $text-weight !important;
+  letter-spacing: -0.01em;
+  color: $text-color;
+}
+
+html,
+body {
+  background-color: var(--doc-bg);
+}
+
+body {
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: $title-font !important;
+  font-weight: $title-weight !important;
+  letter-spacing: -0.02em;
+  margin: 0;
+  margin-bottom: $spacing;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 32px;
+  color: $base-color;
+}
+
+h2 {
+  font-size: 24px;
+}
+
+h3 {
+  font-size: 18px;
+}
+
+h4 {
+  font-size: 16px;
+}
+
+p {
+  font-size: $font-size;
+  margin-bottom: $spacing;
+  margin-top: 0;
+  line-height: 1.5;
+}
+
+div {
+  font-size: $font-size;
+  line-height: 1.5;
+}
+
+ul {
+  font-size: $font-size;
+  margin-top: 0;
+  margin-bottom: $spacing;
+  padding-left: $spacing-large;
+  line-height: 1.5;
+}
+
+a,
+a:visited {
+  color: $base-color !important;
+  font-size: $font-size;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+.syn-string {
+  color: var(--syn-string);
+}
+.syn-boolean {
+  color: var(--syn-boolean);
+}
+.syn-null {
+  color: var(--syn-null);
+}
+.syn-number {
+  color: var(--syn-number);
+}
+.syn-keyword {
+  color: var(--syn-keyword);
+}
+.syn-flag {
+  color: var(--syn-flag);
+}
+.syn-comment {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+
+.doc-panel.dark {
+  --syn-string: #22d485;
+  --syn-boolean: #5ebfff;
+  --syn-null: #5ebfff;
+  --syn-number: #f59e0b;
+  --syn-keyword: #5ebfff;
+  --syn-comment: #6b7280;
+  --syn-flag: #a78bfa;
+}

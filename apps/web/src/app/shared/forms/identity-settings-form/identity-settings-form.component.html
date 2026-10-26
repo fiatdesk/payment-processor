@@ -1,0 +1,192 @@
+<div class="identity-settings-form">
+  <p class="field-help identity-intro">
+    Connect your
+    <a href="https://didit.me" target="_blank" rel="noopener noreferrer"
+      >Didit</a
+    >
+    account so Zoneless can create verification sessions for connected accounts.
+    Credentials stay on your platform account and are never shared with Zoneless
+    cloud.
+  </p>
+
+  <div class="field">
+    <div class="field-title">Didit API key</div>
+    <p class="field-help">
+      From the Didit Business Console. Leave blank to keep the current key.
+    </p>
+    <input
+      [ngModel]="apiKey()"
+      (ngModelChange)="OnApiKeyChange($event)"
+      class="field-value"
+      type="password"
+      autocomplete="new-password"
+      [placeholder]="
+        apiKeyConfigured()
+          ? '•••••••• (configured)'
+          : 'Paste your Didit API key'
+      "
+      name="didit-api-key"
+      [class.field-error]="showErrors && apiKeyError()"
+    />
+    @if (showErrors && apiKeyError()) {
+    <div class="error">{{ apiKeyError() }}</div>
+    }
+  </div>
+
+  <div class="field">
+    <div class="field-title">KYC workflow ID</div>
+    <p class="field-help">
+      The published Didit workflow used for individual KYC verification
+      sessions.
+    </p>
+    <input
+      [ngModel]="workflowId()"
+      (ngModelChange)="OnWorkflowIdChange($event)"
+      class="field-value"
+      type="text"
+      placeholder="550e8400-e29b-41d4-a716-446655440000"
+      name="didit-workflow-id"
+      autocomplete="off"
+      [class.field-error]="showErrors && workflowIdError()"
+    />
+    @if (showErrors && workflowIdError()) {
+    <div class="error">{{ workflowIdError() }}</div>
+    }
+  </div>
+
+  <div class="field">
+    <div class="field-title">
+      KYB workflow ID <span class="field-optional">Optional</span>
+    </div>
+    <p class="field-help">
+      The published Didit workflow used for company verification sessions. When
+      unset, business accounts use the KYC workflow.
+    </p>
+    <input
+      [ngModel]="kybWorkflowId()"
+      (ngModelChange)="OnKybWorkflowIdChange($event)"
+      class="field-value"
+      type="text"
+      placeholder="550e8400-e29b-41d4-a716-446655440000"
+      name="didit-kyb-workflow-id"
+      autocomplete="off"
+    />
+  </div>
+
+  <div class="field">
+    <div class="field-title">
+      Webhook secret <span class="field-optional">Optional</span>
+    </div>
+    <p class="field-help">
+      Shared secret from your Didit webhook destination. Point Didit at:
+    </p>
+    <app-copy-text
+      class="webhook-url-copy"
+      [text]="diditWebhookUrl"
+      tooltipText="Copy webhook URL"
+    ></app-copy-text>
+    <input
+      [ngModel]="webhookSecret()"
+      (ngModelChange)="OnWebhookSecretChange($event)"
+      class="field-value"
+      type="password"
+      autocomplete="new-password"
+      [placeholder]="
+        webhookSecretConfigured()
+          ? '•••••••• (configured)'
+          : 'Paste your Didit webhook secret'
+      "
+      name="didit-webhook-secret"
+      [class.field-error]="showErrors && webhookSecretError()"
+    />
+    @if (showErrors && webhookSecretError()) {
+    <div class="error">{{ webhookSecretError() }}</div>
+    }
+  </div>
+
+  <div class="field">
+    <div class="field-title">
+      Default payout volume threshold
+      <span class="field-optional">Optional</span>
+    </div>
+    <p class="field-help">
+      Require identity verification after a connected account reaches this
+      lifetime paid payout volume (USD), unless a country override applies.
+      Leave blank to disable the default.
+    </p>
+    <div class="field-prefix-input">
+      <span class="field-prefix">$</span>
+      <input
+        [ngModel]="payoutVolumeThreshold()"
+        (ngModelChange)="OnPayoutVolumeThresholdChange($event)"
+        class="field-value"
+        type="text"
+        inputmode="decimal"
+        placeholder="1000"
+        name="payout-volume-threshold"
+        autocomplete="off"
+        [class.field-error]="showErrors && payoutVolumeThresholdError()"
+      />
+    </div>
+    @if (showErrors && payoutVolumeThresholdError()) {
+    <div class="error">{{ payoutVolumeThresholdError() }}</div>
+    }
+  </div>
+
+  <div class="field">
+    <div class="field-title">
+      Country thresholds <span class="field-optional">Optional</span>
+    </div>
+    <p class="field-help">
+      Override the default payout threshold for specific countries.
+    </p>
+
+    @for (row of countryThresholds(); track $index; let i = $index) {
+    <div class="country-threshold-row">
+      <select
+        class="field-value country-threshold-select"
+        [ngModel]="row.country"
+        (ngModelChange)="OnCountryChange(i, $event)"
+        [name]="'country-threshold-country-' + i"
+      >
+        <option value="">Select country</option>
+        @for (iso of AvailableCountriesForRow(i); track iso.code) {
+        <option [value]="iso.code">{{ iso.emoji }} {{ iso.country }}</option>
+        }
+      </select>
+      <div class="field-prefix-input country-threshold-amount">
+        <span class="field-prefix">$</span>
+        <input
+          [ngModel]="row.threshold"
+          (ngModelChange)="OnCountryThresholdChange(i, $event)"
+          class="field-value"
+          type="text"
+          inputmode="decimal"
+          placeholder="0"
+          [name]="'country-threshold-amount-' + i"
+          autocomplete="off"
+        />
+      </div>
+      <button
+        type="button"
+        class="text-link"
+        (click)="RemoveCountryThresholdRow(i)"
+      >
+        Remove
+      </button>
+    </div>
+    }
+
+    <button
+      type="button"
+      class="action-button action-button-dainty outline"
+      (click)="AddCountryThresholdRow()"
+    >
+      Add country override
+    </button>
+
+    @if (showErrors && countryThresholdsError()) {
+    <div class="error">{{ countryThresholdsError() }}</div>
+    }
+  </div>
+</div>

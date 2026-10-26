@@ -1,0 +1,48 @@
+@use '../../../../styles/base.scss' as *;
+@use '../shell-layout.scss';
+
+.full-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: $spacing-snug $spacing-large;
+  background-color: $background-color;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-extra-small;
+}
+
+.top-bar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: $border-radius-small;
+  transition: background-color $transition-fast;
+}
+
+.top-bar-icon-button:hover {
+  background-color: $darker-background-color;
+}
+
+.top-bar-icon-button img {
+  width: 18px;
+  height: 18px;
+  opacity: $dimmed;
+}
+
+@media only screen and (max-width: 1000px) {
+  .full-top-bar {
+    padding: $spacing-small $spacing;
+  }
+}

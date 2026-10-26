@@ -1,0 +1,385 @@
+<div class="setup-wrapper">
+  <app-page-loader [loading]="loading()"></app-page-loader>
+
+  <div class="setup-container">
+    <!-- Progress indicator -->
+    @if(step() !== STEPS.WELCOME && step() !== STEPS.COMPLETE) {
+    <div class="progress-bar">
+      <div
+        class="progress-fill"
+        [style.width.%]="(GetStepNumber() / GetTotalSteps()) * 100"
+      ></div>
+    </div>
+    }
+
+    <!-- Operator-managed instance notice -->
+    @if(operatorMode()) {
+    <div class="setup-content welcome-content">
+      <img
+        class="welcome-logo"
+        src="assets/images/logos/logo-blue-200h.png"
+        alt="Zoneless"
+      />
+      <h1>This instance is operator-managed</h1>
+      <p class="welcome-subtitle">
+        Platform accounts on this Zoneless instance are provisioned by the
+        hosting operator. Sign up through your hosting provider to create a
+        platform, or sign in below if you already have one.
+      </p>
+
+      <a class="action-button operator-login-link" href="/platform-login">
+        Platform Login
+      </a>
+
+      <p class="setup-note">
+        Received a login link? Open it to access your dashboard directly.
+      </p>
+    </div>
+    }
+
+    <!-- Step 1: Welcome -->
+    @if(step() === STEPS.WELCOME && !operatorMode()) {
+    <div class="setup-content welcome-content">
+      <img
+        class="welcome-logo"
+        src="assets/images/logos/logo-blue-200h.png"
+        alt="Zoneless"
+      />
+      <h1>Welcome to Zoneless</h1>
+      <p class="welcome-subtitle">
+        The open-source Stripe, built on stablecoins.
+      </p>
+
+      <div class="feature-list">
+        <div class="feature-item">
+          <img class="feature-icon" src="assets/icons/bolt.svg" alt="" />
+          <div class="feature-text">
+            <strong>Instant settlement</strong>
+            <span>Payments settle in seconds, 24/7</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <img class="feature-icon" src="assets/icons/globe.svg" alt="" />
+          <div class="feature-text">
+            <strong>Same API &amp; dashboard</strong>
+            <span>Stripe-compatible — migrate in an afternoon</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <img class="feature-icon" src="assets/icons/savings.svg" alt="" />
+          <div class="feature-text">
+            <strong>Near-zero fees</strong>
+            <span>Fractions of a cent per payment, not a percentage cut</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <img
+            class="feature-icon"
+            src="assets/icons/lock_open_right.svg"
+            alt=""
+          />
+          <div class="feature-text">
+            <strong>Self-custody</strong>
+            <span>Your keys, your money — fully open-source</span>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="action-button" (click)="Next()">
+        Get Started
+      </button>
+
+      <p class="setup-note">
+        This setup will only take a minute. You'll configure your business
+        details and Solana wallet.
+      </p>
+    </div>
+    }
+
+    <!-- Step 2: Platform Details -->
+    @if(step() === STEPS.PLATFORM) {
+    <div class="setup-content">
+      <button type="button" class="back-button" (click)="Back()">← Back</button>
+
+      <h1>Business Details</h1>
+      <p class="step-description">
+        Configure your business name and branding. These appear on Checkout,
+        Payment Links, and your dashboard.
+      </p>
+
+      <app-business-profile-form
+        #platformDetailsForm
+        mode="setup"
+        [initialData]="platformDetails()"
+        [showErrors]="platformShowErrors()"
+      ></app-business-profile-form>
+
+      <label class="custom-checkbox field-check telemetry-opt-in">
+        <input
+          type="checkbox"
+          [checked]="telemetryEnabled()"
+          (change)="telemetryEnabled.set($any($event.target).checked)"
+        />
+        <span class="checkmark"></span>
+        <div>
+          Share anonymous usage statistics with Zoneless. Helps improve the
+          open-source project. No payment details, emails, or business data.
+          <a
+            href="https://zoneless.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Learn more</a
+          >.
+        </div>
+      </label>
+
+      @if(error()) {
+      <div class="error-message">{{ error() }}</div>
+      }
+
+      <button type="button" class="action-button" (click)="Next()">
+        Continue
+      </button>
+    </div>
+    }
+
+    <!-- Step 3: Wallet Setup -->
+    @if(step() === STEPS.WALLET) {
+    <div class="setup-content">
+      <button type="button" class="back-button" (click)="Back()">← Back</button>
+
+      <h1>Solana Wallet</h1>
+      <p class="step-description">
+        Configure the Solana wallet that holds your USDC balance. Your secret
+        key is generated locally and never sent to Zoneless — self-custody by
+        default.
+      </p>
+
+      <div class="wallet-options">
+        <label
+          class="wallet-option"
+          [class.selected]="walletOption() === 'generate'"
+        >
+          <input
+            type="radio"
+            name="walletOption"
+            value="generate"
+            [checked]="walletOption() === 'generate'"
+            (change)="OnWalletOptionChange('generate')"
+          />
+          <div class="option-content">
+            <span class="option-title">Generate a new wallet</span>
+            <span class="option-description">
+              Create a new Solana keypair in your browser. You must save the
+              secret key securely - it won't be shown again.
+            </span>
+          </div>
+        </label>
+
+        <label
+          class="wallet-option"
+          [class.selected]="walletOption() === 'import'"
+        >
+          <input
+            type="radio"
+            name="walletOption"
+            value="import"
+            [checked]="walletOption() === 'import'"
+            (change)="OnWalletOptionChange('import')"
+          />
+          <div class="option-content">
+            <span class="option-title">Use an existing wallet</span>
+            <span class="option-description">
+              Enter your existing Solana wallet address. You keep your own
+              secret key.
+            </span>
+          </div>
+        </label>
+      </div>
+
+      @if(walletOption() === 'generate') { @if(!walletGenerated()) {
+      <!-- Generate button -->
+      <div class="generate-section">
+        @if(generatingWallet()) {
+        <div class="action-button secondary loader-button">
+          <app-loader size="small" color="default"></app-loader>
+        </div>
+        } @else {
+        <button
+          type="button"
+          class="action-button secondary"
+          (click)="GenerateWallet()"
+        >
+          Generate Wallet
+        </button>
+        }
+      </div>
+      } @else {
+      <!-- Generated wallet display -->
+      <div class="generated-wallet">
+        <div class="wallet-warning">
+          <strong>Save your secret key now!</strong>
+          <p>
+            This is the only time you will see your secret key. Store it
+            securely - you'll need it to sign transactions from your server.
+          </p>
+        </div>
+
+        <div class="credential-card">
+          <div class="credential-header">
+            <span class="credential-label">Wallet Address (Public Key)</span>
+            <button
+              type="button"
+              class="copy-button"
+              (click)="CopyToClipboard(generatedPublicKey(), 'gen_public')"
+            >
+              {{ copiedField() === 'gen_public' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <div class="credential-value mono">{{ generatedPublicKey() }}</div>
+          <span class="credential-help">
+            Send USDC to this address to fund your balance.
+          </span>
+        </div>
+
+        <div class="credential-card danger">
+          <div class="credential-header">
+            <span class="credential-label">Secret Key</span>
+            <button
+              type="button"
+              class="copy-button"
+              (click)="CopyToClipboard(generatedSecretKey(), 'gen_secret')"
+            >
+              {{ copiedField() === 'gen_secret' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <div class="credential-value mono secret">
+            {{ generatedSecretKey() }}
+          </div>
+          <span class="credential-help warning">
+            Store this securely on your server. You'll use it to sign
+            transactions. This key is never sent to Zoneless.
+          </span>
+        </div>
+      </div>
+      } } @if(walletOption() === 'import') {
+      <div class="import-fields">
+        <div class="form-group">
+          <label for="importPublicKey">Wallet Address (Public Key) *</label>
+          <input
+            type="text"
+            id="importPublicKey"
+            [ngModel]="importPublicKey()"
+            (ngModelChange)="importPublicKey.set($event)"
+            placeholder="86UwRzGshf..."
+            class="form-input mono"
+          />
+          <span class="field-help">
+            Enter your Solana wallet address. Keep your secret key safe on your
+            own server — you'll use it to sign transactions.
+          </span>
+        </div>
+      </div>
+      } @if(error()) {
+      <div class="error-message">{{ error() }}</div>
+      }
+
+      <!-- Show Complete Setup button only when ready -->
+      @if(walletOption() === 'import' || walletGenerated()) { @if(submitting())
+      {
+      <div class="action-button loader-button">
+        <app-loader size="small" color="light"></app-loader>
+      </div>
+      } @else {
+      <button type="button" class="action-button" (click)="Next()">
+        Complete Setup
+      </button>
+      } }
+    </div>
+    }
+
+    <!-- Step 4: Complete -->
+    @if(step() === STEPS.COMPLETE && setupResult()) {
+    <div class="setup-content complete-content">
+      <img
+        class="success-icon"
+        src="assets/icons/verified_user.svg"
+        alt="Success"
+      />
+      <h1>Setup Complete!</h1>
+      <p class="step-description">
+        Your payments stack is ready. Save your API key below —
+        <strong>it won't be shown again.</strong>
+      </p>
+
+      <div class="credentials-section">
+        <div class="credential-card danger">
+          <div class="credential-header">
+            <span class="credential-label">API Key</span>
+            <button
+              type="button"
+              class="copy-button"
+              (click)="CopyToClipboard(setupResult()!.api_key, 'api_key')"
+            >
+              {{ copiedField() === 'api_key' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <div class="credential-value mono secret">
+            {{ setupResult()!.api_key }}
+          </div>
+          <span class="credential-help warning">
+            Save this now — it won't be shown again. Use this key to
+            authenticate API requests from your application.
+          </span>
+        </div>
+
+        <div class="credential-card">
+          <div class="credential-header">
+            <span class="credential-label">Solana Wallet Address</span>
+            <button
+              type="button"
+              class="copy-button"
+              (click)="
+                CopyToClipboard(
+                  setupResult()!.solana_public_key,
+                  'solana_public'
+                )
+              "
+            >
+              {{ copiedField() === 'solana_public' ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <div class="credential-value mono">
+            {{ setupResult()!.solana_public_key }}
+          </div>
+          <span class="credential-help">
+            Send USDC to this address to fund your balance.
+          </span>
+        </div>
+      </div>
+
+      <div class="next-steps">
+        <h3>Next Steps</h3>
+        <ol>
+          <li>Save your API key — you'll need it to make API requests</li>
+          @if(walletOption() === 'generate') {
+          <li>
+            Save your secret key securely on your server (shown in previous
+            step)
+          </li>
+          }
+          <li>Fund your Solana wallet with SOL (for fees) and USDC</li>
+          <li>
+            Point your Stripe integration at this instance, or explore the
+            dashboard
+          </li>
+        </ol>
+      </div>
+
+      <button type="button" class="action-button" (click)="GoToDashboard()">
+        Go to Dashboard
+      </button>
+    </div>
+    }
+  </div>
+</div>

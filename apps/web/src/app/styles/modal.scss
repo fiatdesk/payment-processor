@@ -1,0 +1,127 @@
+@use './base.scss' as *;
+
+// Dialog Styles
+// Shared primitives for modal dialogs. Compose these inside a component that
+// owns the open/close state. The component is responsible for rendering the
+// backdrop + surface, attaching keyboard handlers, and emitting events.
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing;
+  opacity: 0;
+  transition: opacity $transition ease;
+}
+
+.modal-backdrop-open {
+  opacity: 1;
+}
+
+.modal-surface {
+  background-color: $background-color;
+  border-radius: $border-radius;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24),
+    0 4px 12px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(8px) scale(0.98);
+  opacity: 0;
+  transition: transform $transition ease, opacity $transition ease;
+}
+
+.modal-surface-open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: $spacing-large $spacing-large 0 $spacing-large;
+  gap: $spacing;
+}
+
+.modal-title {
+  margin: 0;
+  font-family: $title-font;
+  font-weight: $title-weight;
+  font-size: $font-size-large;
+  color: $text-color;
+  line-height: 1.3;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: $spacing-extra-small;
+  border-radius: $border-radius-small;
+  transition: background-color $transition;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: $darker-background-color;
+  }
+
+  &:disabled {
+    opacity: $dimmed-disabled;
+    cursor: not-allowed;
+  }
+
+  img {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.modal-body {
+  padding: $spacing $spacing-large;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-small;
+  padding: $spacing $spacing-large $spacing-large $spacing-large;
+}
+
+.modal-confirm-destructive {
+  background-color: #dc2626;
+  background-image: none;
+
+  &:hover {
+    background-color: #b91c1c;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .modal-surface {
+    max-width: 100%;
+  }
+
+  .modal-header {
+    padding: $spacing $spacing 0 $spacing;
+  }
+
+  .modal-body {
+    padding: $spacing-small $spacing;
+  }
+
+  .modal-actions {
+    padding: $spacing $spacing $spacing $spacing;
+  }
+}

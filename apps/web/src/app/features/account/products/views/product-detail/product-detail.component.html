@@ -1,0 +1,237 @@
+@if(product(); as p){
+<div class="flex align-vert-start space-between">
+  <div class="flex flex-column gap-small">
+    <a class="link-highlight" href="/account/products">Products</a>
+    <div class="flex align-vert gap-snug">
+      <div class="product-image-wrapper">
+        @if (p.images[0]) {
+        <img class="product-image" [src]="p.images[0]" alt="Product image" />
+        } @else {
+        <div class="product-image-placeholder">
+          <img
+            class="icon large-icon"
+            src="assets/icons/package.svg"
+            alt="Product image"
+          />
+        </div>
+        }
+      </div>
+      <div class="flex flex-column gap-extra-small">
+        <div class="flex align-vert gap-small">
+          <h1 class="product-name">{{ p.name }}</h1>
+          @if(p.active) {
+          <span class="chip green-chip">Active</span>
+          } @else {
+          <span class="chip grey-chip">Archived</span>
+          }
+        </div>
+        @if (DefaultPrice(p.default_price); as price) {
+        <div class="flex align-vert gap-extra-small">
+          <span>${{ (price.unit_amount ?? 0) / 100 | number : '1.2-2' }}</span>
+          @if (price.recurring) {
+          <span>•</span>
+          <img
+            src="assets/icons/autorenew.svg"
+            class="icon small-icon"
+            alt="Autorenew icon"
+          />
+          <span>{{ FormatIntervalPerLabel(price.recurring.interval) }}</span>
+          }
+        </div>
+        } @else {
+        <div>No prices</div>
+        }
+      </div>
+    </div>
+  </div>
+  <div class="flex align-vert gap-small">
+    <button
+      type="button"
+      class="action-button action-button-dainty outline"
+      (click)="OnEdit()"
+    >
+      <span>Edit Product</span>
+    </button>
+    <app-popup-menu
+      [actions]="productActions"
+      [item]="p"
+      [highlightIcon]="true"
+    >
+    </app-popup-menu>
+  </div>
+</div>
+<div class="flex gap-extra-large view-panels">
+  <div class="view-left-panel">
+    <div class="view-section">
+      <div class="flex align-vert space-between">
+        <h2 class="section-title">Pricing</h2>
+        <button
+          type="button"
+          class="action-button action-button-small outline"
+          (click)="OnAddPrice()"
+          (keydown.enter)="OnAddPrice()"
+          (keydown.space)="OnAddPrice()"
+          tabindex="0"
+        >
+          <img src="assets/icons/add.svg" class="icon" alt="Add icon" />
+        </button>
+      </div>
+      <app-paginated-list
+        #pricesList
+        endpoint="prices"
+        [columns]="priceColumns"
+        [limit]="10"
+        [queryParams]="priceQueryParams()"
+        [paginationEnabled]="false"
+        rowLinkPrefix="/account/prices"
+      ></app-paginated-list>
+    </div>
+    <div class="view-section">
+      <h2 class="section-title">Cross-sells</h2>
+      <p class="section-description">
+        Suggest a related product for customers to add to their order, directly
+        in Checkout. <a href="#" target="_blank">Learn more</a>
+      </p>
+      <div class="flex gap-medium align-vert cross-sell-input">
+        <span>Cross-sells to</span>
+        <input type="text" placeholder="Find a product..." />
+      </div>
+    </div>
+    <div class="view-section">
+      <h2 class="section-title">Features</h2>
+      <div class="dashed-placeholder">
+        <span>No features</span>
+      </div>
+    </div>
+    <!-- <div class="view-section">
+			<h2 class="section-title">Logs</h2>
+		</div> -->
+    <div class="view-section">
+      <h2 class="section-title">Events</h2>
+      <app-events-list [itemId]="p.id"></app-events-list>
+    </div>
+  </div>
+  <div class="view-right-panel">
+    <!-- <div class="view-section">
+			<h2 class="section-title">Insights</h2>
+		</div> -->
+    <div class="view-section">
+      <div class="section-edit-top">
+        <h2 class="section-title">Details</h2>
+        <button
+          type="button"
+          class="action-button action-button-small outline"
+          (click)="OnEdit()"
+        >
+          <img src="assets/icons/edit.svg" class="icon" alt="Edit icon" />
+        </button>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Product ID</div>
+        <div><app-copy-text [text]="p.id"></app-copy-text></div>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Marketing feature list</div>
+        @if(p.marketing_features.length > 0){
+        <div class="dimmed">
+          @for(feature of p.marketing_features; track feature.name){
+          <span>{{ feature.name }}</span>
+          @if(feature !== p.marketing_features[p.marketing_features.length -
+          1]){
+          <span>, </span>
+          } }
+        </div>
+        } @else {
+        <div class="dimmed">—</div>
+        }
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Description</div>
+        <div class="dimmed">
+          {{ p.description ? p.description : '—' }}
+        </div>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Attributes</div>
+        <div class="dimmed">—</div>
+      </div>
+      @if (detailsExpanded()) {
+      <div class="mb">
+        <div class="bolded mb-small">Statement descriptor</div>
+        <div class="dimmed">
+          {{ p.statement_descriptor ? p.statement_descriptor : '—' }}
+        </div>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Custom unit label</div>
+        <div class="dimmed">
+          {{ p.unit_label ? p.unit_label : '—' }}
+        </div>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Created</div>
+        <div class="dimmed flex align-vert gap-extra-small">
+          <img src="assets/icons/clock.svg" class="icon" alt="Clock icon" />
+          <span>{{
+            p.created ? (p.created * 1000 | date : 'd MMM y') : '—'
+          }}</span>
+        </div>
+      </div>
+      <div class="mb">
+        <div class="bolded mb-small">Updated</div>
+        <div class="dimmed flex align-vert gap-extra-small">
+          <img src="assets/icons/clock.svg" class="icon" alt="Clock icon" />
+          <span>{{
+            p.updated ? (p.updated * 1000 | date : 'd MMM y') : '—'
+          }}</span>
+        </div>
+      </div>
+      }
+      <div
+        class="collapsible-toggle"
+        tabindex="0"
+        role="button"
+        (click)="ToggleDetailsExpanded()"
+        (keydown.enter)="ToggleDetailsExpanded()"
+        (keydown.space)="ToggleDetailsExpanded(); $event.preventDefault()"
+      >
+        <span class="collapsible-text">{{
+          detailsExpanded() ? 'View less' : 'View more'
+        }}</span>
+        <img
+          src="assets/icons/chevron_down.svg"
+          class="collapsible-down-icon"
+          [class.expanded]="detailsExpanded()"
+          alt="Down chevron icon"
+        />
+      </div>
+    </div>
+    <div class="view-section">
+      <div class="section-edit-top">
+        <h2 class="section-title">Metadata</h2>
+        <button
+          type="button"
+          class="action-button action-button-small outline"
+          (click)="OnEditMetadata()"
+        >
+          <img src="assets/icons/edit.svg" class="icon" alt="Edit icon" />
+        </button>
+      </div>
+      @if (MetadataToArray(p.metadata).length > 0) { @for (entry of
+      MetadataToArray(p.metadata); track entry.key) {
+      <div class="mb">
+        <div class="bolded mb-small">{{ entry.key }}</div>
+        <div class="dimmed">{{ entry.value }}</div>
+      </div>
+      } } @else {
+      <div class="dashed-placeholder">
+        <span>No metadata</span>
+      </div>
+      }
+    </div>
+  </div>
+</div>
+}
+
+<app-product-actions-host></app-product-actions-host>
+<app-price-actions-host></app-price-actions-host>

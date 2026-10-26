@@ -1,0 +1,62 @@
+@use 'base.scss' as *;
+
+// ============================================
+// Layout Variables
+// ============================================
+$max-width: 1200px;
+$section-spacing: 120px;
+$section-spacing-mobile: 64px;
+
+// ============================================
+// Section Container
+// ============================================
+.section-container {
+  max-width: $max-width;
+  margin: 0 auto;
+  padding-left: $spacing-extra-large;
+  padding-right: $spacing-extra-large;
+
+  @media (max-width: 768px) {
+    padding-left: $spacing;
+    padding-right: $spacing;
+  }
+}
+
+// ============================================
+// Section Padding
+// ============================================
+.section-padding {
+  padding-top: $section-spacing;
+  padding-bottom: $section-spacing;
+
+  @media (max-width: 768px) {
+    padding-top: $section-spacing-mobile;
+    padding-bottom: $section-spacing-mobile;
+  }
+}
+
+// ============================================
+// Section Background
+// ============================================
+.section-bg {
+  background: linear-gradient(
+    180deg,
+    $light-background-color 0%,
+    rgba($light-background-color, 0.5) 100%
+  );
+}
+
+// ============================================
+// Card
+// ============================================
+.card {
+  background: $background-color;
+  border: 1px solid $lightest-background-color;
+  border-radius: $border-radius;
+  transition: all $transition;
+
+  &:hover {
+    border-color: rgba($base-color, 0.2);
+    box-shadow: 0 8px 32px rgba($base-color, 0.08);
+  }
+}

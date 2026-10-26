@@ -1,0 +1,104 @@
+{
+  "name": "docs",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "apps/docs/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/docs",
+        "browser": "apps/docs/src/main.ts",
+        "polyfills": [],
+        "tsConfig": "apps/docs/tsconfig.app.json",
+        "inlineStyleLanguage": "scss",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/docs/public"
+          },
+          {
+            "glob": "**/*",
+            "input": "apps/docs/src/assets",
+            "output": "assets"
+          }
+        ],
+        "styles": ["apps/docs/src/styles.scss"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "1mb",
+              "maximumError": "2mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "16kb",
+              "maximumError": "32kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "options": {
+        "port": 4205
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "docs:build:production"
+        },
+        "development": {
+          "buildTarget": "docs:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    },
+    "extract-i18n": {
+      "executor": "@angular/build:extract-i18n",
+      "options": {
+        "buildTarget": "docs:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/docs/jest.config.ts",
+        "tsConfig": "apps/docs/tsconfig.spec.json"
+      }
+    },
+    "generate-md": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx apps/docs/scripts/generate-agent-docs.ts --output dist/apps/docs/browser"
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "docs:build",
+        "staticFilePath": "dist/apps/docs/browser",
+        "spa": true
+      }
+    }
+  }
+}

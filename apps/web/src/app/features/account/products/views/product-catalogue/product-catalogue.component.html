@@ -1,0 +1,72 @@
+<div class="header-wrapper">
+  <h1>Product Catalogue</h1>
+  <button
+    type="button"
+    class="action-button action-button-dainty"
+    (click)="actions.OpenCreate()"
+  >
+    <img class="button-icon" src="assets/icons/add.svg" alt="" />
+    <span>Create Product</span>
+  </button>
+</div>
+<div class="tab-bar">
+  <button
+    type="button"
+    class="tab-button"
+    [class.tab-active]="productsTab() === 'all'"
+    (click)="SetProductsTab('all')"
+  >
+    All Products
+  </button>
+</div>
+
+@if (productsTab() === 'all') {
+<div class="field">
+  <div class="field-pill">
+    <div
+      class="field-pill-option"
+      role="button"
+      tabindex="0"
+      [class.field-pill-option-selected]="productsActiveTab() === 'all'"
+      (click)="SetProductsActiveTab('all')"
+      (keydown.enter)="SetProductsActiveTab('all')"
+      (keydown.space)="SetProductsActiveTab('all')"
+    >
+      <span>All</span>
+    </div>
+    <div
+      class="field-pill-option"
+      role="button"
+      tabindex="0"
+      [class.field-pill-option-selected]="productsActiveTab() === 'active'"
+      (click)="SetProductsActiveTab('active')"
+      (keydown.enter)="SetProductsActiveTab('active')"
+      (keydown.space)="SetProductsActiveTab('active')"
+    >
+      <span>Active</span>
+    </div>
+    <div
+      class="field-pill-option"
+      role="button"
+      tabindex="0"
+      [class.field-pill-option-selected]="productsActiveTab() === 'archived'"
+      (click)="SetProductsActiveTab('archived')"
+      (keydown.enter)="SetProductsActiveTab('archived')"
+      (keydown.space)="SetProductsActiveTab('archived')"
+    >
+      <span>Archived</span>
+    </div>
+  </div>
+</div>
+<app-paginated-list
+  #productsList
+  endpoint="products"
+  [columns]="productColumns"
+  [limit]="10"
+  [queryParams]="productsQueryParams()"
+  [expand]="productsExpand()"
+  rowLinkPrefix="/account/products"
+></app-paginated-list>
+}
+
+<app-product-actions-host></app-product-actions-host>

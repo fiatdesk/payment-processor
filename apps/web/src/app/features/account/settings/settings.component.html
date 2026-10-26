@@ -1,0 +1,297 @@
+@if (identityTaskDetailOpen()) {
+<div class="identity-task-detail">
+  <div class="flex flex-column gap-small">
+    <div class="breadcrumb-row">
+      <button
+        type="button"
+        class="link-highlight breadcrumb-button"
+        (click)="CloseIdentityTaskDetail()"
+      >
+        Settings
+      </button>
+      <span class="breadcrumb-sep">›</span>
+      <span class="breadcrumb-current">{{ identityRepresentativeName() }}</span>
+    </div>
+    <h1>{{ identityPanelTitle() }}</h1>
+    <p class="section-description">
+      {{ identityTaskDescription() }}
+    </p>
+  </div>
+
+  <div class="view-section identity-needed-section">
+    <h2 class="section-title">Information needed</h2>
+    <div class="identity-needed-card">
+      <div class="identity-needed-label">Verification document</div>
+      <div class="identity-needed-status">
+        <img src="assets/icons/info.svg" alt="" class="identity-needed-icon" />
+        <span>{{ identityDocumentMissingLabel() }}</span>
+      </div>
+    </div>
+    <button
+      type="button"
+      class="action-button"
+      [disabled]="identityVerificationStarting()"
+      (click)="StartIdentityVerification()"
+    >
+      {{ identityVerificationStarting() ? 'Starting…' : 'Start' }}
+    </button>
+    @if (identityVerificationError()) {
+    <p class="identity-task-error">{{ identityVerificationError() }}</p>
+    }
+  </div>
+
+  <div class="view-section">
+    <h2 class="section-title">Impacted capabilities</h2>
+    <div class="identity-impact-row">
+      <span class="identity-impact-label">Payouts:</span>
+      <span class="identity-impact-value">{{ identityImpactCopy() }}</span>
+    </div>
+  </div>
+</div>
+} @else {
+<div class="view-section">
+  <h1>Settings</h1>
+</div>
+
+@if (showIdentityTask()) {
+<div class="view-section">
+  <div class="settings-section-title">Tasks</div>
+  <div class="identity-task-card">
+    <div class="identity-task-card-top">
+      <div class="identity-task-card-title">{{ identityTaskTitle() }}</div>
+      <div class="identity-task-card-actions">
+        <button
+          type="button"
+          class="text-link"
+          (click)="OpenIdentityTaskDetail()"
+        >
+          View details
+        </button>
+        <button
+          type="button"
+          class="action-button action-button-dainty"
+          [disabled]="identityVerificationStarting()"
+          (click)="StartIdentityVerification()"
+        >
+          {{ identityVerificationStarting() ? 'Starting…' : 'Start' }}
+        </button>
+      </div>
+    </div>
+    <div class="identity-task-card-bottom">
+      <p class="identity-task-card-description">
+        {{ identityTaskDescription() }}
+      </p>
+      <div class="identity-task-card-impact">
+        <span class="identity-task-card-impact-label">Impact</span>
+        <span class="identity-task-card-impact-value">{{
+          identityImpactSentence()
+        }}</span>
+      </div>
+      @if (identityVerificationError()) {
+      <p class="identity-task-error">{{ identityVerificationError() }}</p>
+      }
+    </div>
+  </div>
+</div>
+}
+
+<!-- Business Details Card (platform only) -->
+@if (authService.isPlatform()) {
+<div class="view-section">
+  <div class="settings-section-title">Business details</div>
+  <app-settings-card
+    [title]="accountService.GetBusinessDetailsTitle(accountService.account())"
+    [rows]="accountService.GetBusinessDetailsCardRows(accountService.account())"
+    [showEditButton]="true"
+    (editClicked)="OnEditBusinessClick()"
+  ></app-settings-card>
+</div>
+
+<div class="view-section">
+  <div class="settings-section-title">Identity verification</div>
+  <app-settings-card
+    [title]="accountService.GetIdentitySettingsTitle(accountService.account())"
+    [rows]="
+      accountService.GetIdentitySettingsCardRows(accountService.account())
+    "
+    [showEditButton]="true"
+    (editClicked)="OnEditIdentityClick()"
+  ></app-settings-card>
+</div>
+}
+
+<!-- Account type + personal details (connected accounts only) -->
+@if (!authService.isPlatform()) {
+<div class="view-section">
+  <div class="settings-section-title">Account type</div>
+  <app-settings-card
+    [title]="accountService.GetAccountTypeTitle(accountService.account())"
+    [rows]="accountService.GetAccountTypeCardRows(accountService.account())"
+    [showEditButton]="true"
+    (editClicked)="OnEditAccountTypeClick()"
+  ></app-settings-card>
+</div>
+
+<div class="view-section">
+  <div class="settings-section-title">Personal details</div>
+  <app-settings-card
+    [title]="personService.GetFullName(personService.person())"
+    [rows]="personService.GetSettingsCardRows(personService.person())"
+    [showEditButton]="true"
+    (editClicked)="OnEditPersonClick()"
+  ></app-settings-card>
+</div>
+}
+
+<!-- External Wallet Card -->
+@if (externalWalletService.wallet()) {
+<div class="view-section">
+  <div class="settings-section-title">Payout wallet</div>
+  <app-settings-card
+    [title]="externalWalletService.GetWalletTitle()"
+    [rows]="externalWalletService.GetSettingsCardRows()"
+    [showEditButton]="true"
+    (editClicked)="OnEditWalletClick()"
+  ></app-settings-card>
+</div>
+}
+
+<!-- Anonymous usage (self-host platform only) -->
+@if ( authService.isPlatform() && telemetryService.status()?.available ) {
+<div class="view-section">
+  <div class="settings-section-title">Anonymous usage</div>
+  <label class="custom-checkbox field-check telemetry-opt-in">
+    <input
+      type="checkbox"
+      [checked]="!!telemetryService.status()?.consented"
+      [disabled]="!!telemetryService.status()?.forced_off || telemetrySaving()"
+      (change)="OnTelemetryToggle($any($event.target).checked)"
+    />
+    <span class="checkmark"></span>
+    <div>
+      Share anonymous usage statistics with Zoneless. Helps improve the
+      open-source project. No payment details, emails, or business data.
+      <a
+        href="https://zoneless.com/privacy"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Learn more</a
+      >.
+    </div>
+  </label>
+  @if (telemetryService.status()?.forced_off) {
+  <p class="telemetry-forced-off">
+    Telemetry is disabled on this instance via environment configuration.
+  </p>
+  }
+</div>
+}
+
+<div class="view-section">
+  <button
+    type="button"
+    class="action-button action-button-dainty outline"
+    (click)="LogOut()"
+  >
+    <span>Log Out</span>
+    <img class="icon" src="assets/icons/logout.svg" alt="Log Out" />
+  </button>
+</div>
+}
+
+<!-- Edit Business Details Slide Panel -->
+@if (authService.isPlatform()) {
+<app-slide-panel
+  [isOpen]="editBusinessPanelOpen()"
+  title="Edit business details"
+  [loading]="editBusinessLoading()"
+  submitLabel="Save"
+  [submitDisabled]="false"
+  (closed)="OnEditBusinessPanelClosed()"
+  (submitted)="OnEditBusinessSubmit()"
+>
+  <app-business-profile-form
+    #editBusinessForm
+    mode="edit"
+    [account]="accountService.account()"
+    [isOpen]="editBusinessPanelOpen()"
+    [showErrors]="editBusinessShowErrors()"
+  ></app-business-profile-form>
+</app-slide-panel>
+
+<app-slide-panel
+  [isOpen]="editIdentityPanelOpen()"
+  title="Identity verification"
+  [loading]="editIdentityLoading()"
+  submitLabel="Save"
+  [submitDisabled]="false"
+  (closed)="OnEditIdentityPanelClosed()"
+  (submitted)="OnEditIdentitySubmit()"
+>
+  <app-identity-settings-form
+    #editIdentityForm
+    [account]="accountService.account()"
+    [isOpen]="editIdentityPanelOpen()"
+    [showErrors]="editIdentityShowErrors()"
+  ></app-identity-settings-form>
+</app-slide-panel>
+}
+
+<!-- Edit Account Type + Person Slide Panels -->
+@if (!authService.isPlatform()) {
+<app-slide-panel
+  [isOpen]="editAccountTypePanelOpen()"
+  title="Edit account type"
+  [loading]="editAccountTypeLoading()"
+  submitLabel="Save"
+  [submitDisabled]="false"
+  (closed)="OnEditAccountTypePanelClosed()"
+  (submitted)="OnEditAccountTypeSubmit()"
+>
+  <app-account-type-form
+    #editAccountTypeForm
+    mode="edit"
+    [account]="accountService.account()"
+    [isOpen]="editAccountTypePanelOpen()"
+    [showErrors]="editAccountTypeShowErrors()"
+  ></app-account-type-form>
+</app-slide-panel>
+
+<app-slide-panel
+  [isOpen]="editPersonPanelOpen()"
+  title="Edit personal details"
+  [loading]="editPersonLoading()"
+  submitLabel="Save"
+  [submitDisabled]="false"
+  (closed)="OnEditPersonPanelClosed()"
+  (submitted)="OnEditPersonSubmit()"
+>
+  <app-person-form
+    #editPersonForm
+    mode="edit"
+    [person]="personService.person()"
+    [isOpen]="editPersonPanelOpen()"
+    [showErrors]="editPersonShowErrors()"
+  ></app-person-form>
+</app-slide-panel>
+}
+
+<!-- Edit Wallet Slide Panel -->
+<app-slide-panel
+  [isOpen]="editWalletPanelOpen()"
+  title="Edit payout wallet"
+  [loading]="editWalletLoading()"
+  submitLabel="Save"
+  [submitDisabled]="false"
+  (closed)="OnEditWalletPanelClosed()"
+  (submitted)="OnEditWalletSubmit()"
+>
+  <app-external-wallet-form
+    #editWalletForm
+    mode="edit"
+    [wallet]="externalWalletService.wallet()"
+    [isOpen]="editWalletPanelOpen()"
+    [showErrors]="editWalletShowErrors()"
+    (validationChange)="OnWalletValidationChange($event)"
+  ></app-external-wallet-form>
+</app-slide-panel>

@@ -1,0 +1,164 @@
+<div class="view-section today-section">
+  <div class="header-wrapper">
+    <h1>Today</h1>
+  </div>
+
+  <div class="today-grid">
+    <div class="today-primary" [class.loading]="todayLoading()">
+      <div class="today-stats">
+        <div class="today-stat">
+          <div class="metric-label">Gross volume</div>
+          <div class="today-stat-value">{{ todayVolumeLabel() }}</div>
+          <div class="today-stat-sub">{{ todayAsOfLabel }}</div>
+        </div>
+        <div class="today-stat">
+          <div class="metric-label">Yesterday</div>
+          <div class="today-stat-value today-stat-value-muted">
+            {{ yesterdayVolumeLabel() }}
+          </div>
+        </div>
+      </div>
+
+      <div class="today-chart">
+        @if (todayCumulative(); as cumulative) {
+        <app-line-chart
+          [current]="cumulative.current"
+          [previous]="cumulative.previous"
+          [height]="150"
+          [showGrid]="false"
+          [showBaseline]="true"
+          metricLabel="Gross volume"
+          [formatValue]="formatTodayValue"
+          [formatTooltipValue]="formatTodayTooltipValue"
+          [formatX]="formatTodayX"
+          [formatTooltipDate]="formatTodayTooltipDate"
+        ></app-line-chart>
+        }
+      </div>
+    </div>
+
+    <div class="today-secondary">
+      <div class="summary-card">
+        <div class="summary-card-header">
+          <div class="summary-card-label">Available now</div>
+          <a class="text-link" routerLink="/account/balance">View</a>
+        </div>
+        <div class="summary-value">
+          ${{ availableBalance() | number : '1.2-2' }}
+        </div>
+        @if (pendingBalance() > 0) {
+        <div class="summary-card-sub">
+          Pending ${{ pendingBalance() | number : '1.2-2' }}
+        </div>
+        }
+      </div>
+      <div class="summary-card">
+        <div class="summary-card-header">
+          <div class="summary-card-label">Available to pay out</div>
+          <a class="text-link" routerLink="/account/balance">View</a>
+        </div>
+        <div class="summary-value">
+          ${{ availableBalance() | number : '1.2-2' }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="view-section overview-section">
+  <div class="section-header overview-header">
+    <h2 class="section-title">Your overview</h2>
+  </div>
+
+  <div class="overview-toolbar">
+    <app-date-range-picker
+      label="Date range"
+      [value]="dateRange()"
+      (valueChange)="OnDateRangeChange($event)"
+    ></app-date-range-picker>
+
+    <select
+      class="filter-pill filter-pill-select"
+      [value]="interval()"
+      (change)="OnIntervalChange($event)"
+      aria-label="Interval"
+    >
+      @for (option of availableIntervals(); track option.id) {
+      <option [value]="option.id">{{ option.label }}</option>
+      }
+    </select>
+
+    @if (compare() !== 'none') {
+    <div class="filter-pill">
+      <button
+        type="button"
+        class="filter-pill-clear"
+        (click)="ToggleCompare()"
+        aria-label="Disable comparison"
+      >
+        <img src="assets/icons/cancel.svg" alt="" />
+      </button>
+      <span class="filter-pill-label">Compare</span>
+      <span class="filter-pill-divider" aria-hidden="true"></span>
+      <select
+        class="filter-pill-inline-select"
+        [value]="compare()"
+        (change)="OnCompareChange($event)"
+        aria-label="Comparison period"
+      >
+        <option value="previous_period">Previous period</option>
+      </select>
+    </div>
+    } @else {
+    <button
+      type="button"
+      class="filter-pill"
+      (click)="ToggleCompare()"
+      aria-pressed="false"
+    >
+      <span class="filter-pill-label">Compare</span>
+    </button>
+    }
+  </div>
+
+  <div class="overview-grid" [class.loading]="overviewLoading()">
+    <app-metric-chart-card
+      title="Gross volume"
+      infoText="Total amount of successful payments in the selected period."
+      [series]="overviewGross()"
+      [interval]="interval()"
+      [loading]="overviewLoading()"
+      moreDetailsHref="/account/payments"
+    ></app-metric-chart-card>
+
+    <app-metric-chart-card
+      title="Net volume"
+      infoText="Gross volume minus fees. Currently equal to gross volume."
+      [series]="overviewNet()"
+      [interval]="interval()"
+      [loading]="overviewLoading()"
+      moreDetailsHref="/account/payments"
+    ></app-metric-chart-card>
+
+    <app-metric-chart-card
+      title="New customers"
+      infoText="Customers created in the selected period."
+      [series]="overviewCustomers()"
+      [interval]="interval()"
+      [loading]="overviewLoading()"
+      moreDetailsHref="/account/customers"
+    ></app-metric-chart-card>
+  </div>
+</div>
+
+<div class="view-section">
+  <div class="section-header">
+    <h2 class="section-title">Recent transactions</h2>
+    <a class="text-link" routerLink="/account/payments">See all</a>
+  </div>
+  <app-transaction-list
+    [transactionColumns]="recentTransactionColumns"
+    [limit]="8"
+    [paginationEnabled]="false"
+  ></app-transaction-list>
+</div>

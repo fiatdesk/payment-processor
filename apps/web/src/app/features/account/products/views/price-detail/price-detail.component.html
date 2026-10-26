@@ -1,0 +1,245 @@
+@if(price(); as price){ @if(!price.active && archivedBannedOpen()){
+<div class="archived-banner flex align-vert gap">
+  <div>
+    <h4>This price has been archived</h4>
+    <div class="dimmed">
+      This price can't be added to new invoices, subscriptions, or payment
+      links. Any existing subscriptions remain active until cancelled and any
+      existing payment links are deactivated.
+    </div>
+  </div>
+  <button
+    type="button"
+    class="action-button action-button-dainty outline"
+    (click)="priceActions.OpenUnarchive(price)"
+    (keydown.enter)="priceActions.OpenUnarchive(price)"
+    (keydown.space)="priceActions.OpenUnarchive(price)"
+    tabindex="0"
+  >
+    <img src="assets/icons/undo.svg" class="icon" alt="Undo icon" />
+    <span>Unarchive</span>
+  </button>
+  <img
+    src="assets/icons/close.svg"
+    class="icon hover-icon"
+    alt="Close icon"
+    (click)="CloseArchivedBanned()"
+    (keydown.enter)="CloseArchivedBanned()"
+    (keydown.space)="CloseArchivedBanned()"
+    tabindex="0"
+  />
+</div>
+}
+
+<div class="flex align-vert space-between mb-snug">
+  <div class="flex gap-extra-small align-vert dimmed-extra">
+    <img src="assets/icons/sell.svg" class="icon" alt="Sale tag icon" />
+    <div>PRICE</div>
+  </div>
+  <app-copy-text [text]="price.id" [opacity]="0.5"></app-copy-text>
+</div>
+
+<div class="flex align-vert space-between mb-snug">
+  <div class="flex align-vert gap-small">
+    @if(price.nickname){
+    <h1 class="mb-zero">{{ price.nickname }}</h1>
+    } @else {
+    <h1 class="mb-zero">Price for {{ productName() }}</h1>
+    } @if(!price.active){
+    <span class="chip grey-chip">Archived</span>
+    }
+  </div>
+  <div class="flex gap-extra-small align-vert">
+    <button
+      type="button"
+      class="action-button action-button-dainty outline"
+      (click)="priceActions.OpenEdit(price)"
+      (keydown.enter)="priceActions.OpenEdit(price)"
+      (keydown.space)="priceActions.OpenEdit(price)"
+      tabindex="0"
+    >
+      <img src="assets/icons/edit_square.svg" class="icon" alt="Edit icon" />
+      <span>Edit</span>
+    </button>
+    <app-popup-menu
+      [actions]="popupMenuActions"
+      [item]="price"
+      [highlightIcon]="true"
+    >
+    </app-popup-menu>
+  </div>
+</div>
+
+<div class="line"></div>
+
+<div class="flex align-vert gap-medium mb-extra-large top-attributes">
+  <div>
+    <div class="dimmed-extra mb-extra-small">Product</div>
+    <a
+      class="bolded"
+      (click)="GoToProduct()"
+      (keydown.enter)="GoToProduct()"
+      (keydown.space)="GoToProduct()"
+      tabindex="0"
+      >{{ productName() }}</a
+    >
+  </div>
+  <div class="vertical-line"></div>
+  <div>
+    <div class="dimmed-extra mb-extra-small">Unit Price</div>
+    <div class="flex align-vert gap-extra-small">
+      <span>${{ (price.unit_amount ?? 0) / 100 | number : '1.2-2' }}</span>
+      @if (price.recurring) {
+      <span>/</span>
+      <span>{{ price.recurring.interval }}</span>
+      }
+    </div>
+  </div>
+  <div class="vertical-line"></div>
+  <div>
+    <div class="flex align-vert gap-extra-small mb-extra-small">
+      <div class="dimmed-extra">Trial Period Days</div>
+      <app-more-info-hover
+        text="Settings a default trial period per price is no longer recommended and is incompatible with Checkout and quotes. Free trials can be set per subscription or quote instead."
+      >
+        <div class="chip grey-chip">
+          <span>Legacy</span>
+          <img src="assets/icons/info.svg" class="icon" alt="Info icon" />
+        </div>
+      </app-more-info-hover>
+    </div>
+    <div>—</div>
+  </div>
+  <div class="vertical-line"></div>
+  <div>
+    <div class="dimmed-extra mb-extra-small">Subscriptions</div>
+    <div>—</div>
+  </div>
+  <div class="vertical-line"></div>
+  <div>
+    <div class="dimmed-extra mb-extra-small">MRR</div>
+    <div>—</div>
+  </div>
+</div>
+
+<div class="flex align-vert space-between">
+  <h2 class="mb-zero">Metadata</h2>
+  <div class="flex gap-extra-small align-vert">
+    <button
+      type="button"
+      class="action-button action-button-dainty outline"
+      (click)="OnEditMetadata()"
+      (keydown.enter)="OnEditMetadata()"
+      (keydown.space)="OnEditMetadata()"
+      tabindex="0"
+    >
+      <img src="assets/icons/edit_square.svg" class="icon" alt="Edit icon" />
+      <span>Edit metadata</span>
+    </button>
+  </div>
+</div>
+<div class="dimmed">
+  Use metadata to store custom additional information.
+  <a href="https://docs.zoneless.com/prices/object#metadata" target="_blank"
+    >View docs</a
+  >
+</div>
+<div class="line"></div>
+@if (MetadataToArray(price.metadata).length > 0) {
+<table>
+  <tbody>
+    @for (entry of MetadataToArray(price.metadata); track entry.key) {
+    <tr>
+      <td class="dimmed-extra">{{ entry.key }}</td>
+      <td>{{ entry.value }}</td>
+    </tr>
+    }
+  </tbody>
+
+  <tbody></tbody>
+</table>
+
+} @else {
+<div class="dimmed-disabled">No metadata</div>
+}
+
+<div class="mb-extra-large"></div>
+
+<h2 class="mb-zero">Pricing</h2>
+<div class="line"></div>
+<table>
+  <tbody>
+    <tr>
+      <td class="dimmed-extra">Type</td>
+      <td class="flex align-vert gap-small">
+        <span>Flat rate</span>
+        <app-more-info-hover
+          text="Customers subscribed to this plan are billed for the same set quantity every period."
+        >
+        </app-more-info-hover>
+      </td>
+    </tr>
+    <tr>
+      <td class="dimmed-extra">Currency</td>
+      <td>{{ price.currency | uppercase }}</td>
+    </tr>
+    <tr>
+      <td class="dimmed-extra">Interval</td>
+      @if (price.recurring) {
+      <td>{{ FormatIntervalLabel(price.recurring.interval) }}</td>
+      } @else {
+      <td>One-time</td>
+      }
+    </tr>
+    <tr>
+      <td class="dimmed-extra">Price per unit</td>
+      <td>USDC${{ (price.unit_amount ?? 0) / 100 | number : '1.2-2' }}</td>
+    </tr>
+    <tr>
+      <td class="dimmed-extra">Default price</td>
+      <td>
+        @if(isDefaultPrice()){
+        <span>Yes</span>
+        } @else {
+        <span>No</span>
+        }
+      </td>
+    </tr>
+  </tbody>
+</table>
+<div class="mb-extra-large"></div>
+
+<h2 class="mb-zero">Currencies</h2>
+<div class="line"></div>
+<div class="dimmed-disabled">No other currency options</div>
+<div class="mb-extra-large"></div>
+
+<div class="flex align-vert gap-small">
+  <h2 class="mb-zero">Upsells</h2>
+  <app-more-info-hover
+    text="Increase your average order value by allowing customers to upgrade or add more items to their order."
+    linkUrl="https://docs.zoneless.com"
+  >
+    <div class="chip grey-chip">
+      <span>Boosts revenue</span>
+      <img src="assets/icons/info.svg" class="icon" alt="Info icon" />
+    </div>
+  </app-more-info-hover>
+</div>
+<div class="line"></div>
+<div class="flex align-vert gap-extra-large cross-sell-input">
+  <span class="dimmed-extra">Upsells to</span>
+  <input type="text" placeholder="Find a price..." />
+  <app-more-info-hover
+    text="Upsells are currently available for prices with the same currency, longer billing periods, and an annualised price that is less than or equal to the annualised base price."
+  >
+  </app-more-info-hover>
+</div>
+<div class="mb-extra-large"></div>
+
+<h2 class="mb-zero">Events</h2>
+<div class="line"></div>
+<app-events-list [itemId]="price.id"></app-events-list>
+}
+
+<app-price-actions-host></app-price-actions-host>

@@ -1,0 +1,47 @@
+@use './base.scss' as *;
+
+// ============================================
+// Shared Panel Classes
+// Used by: code-snippet, object-panel, endpoints-panel
+// ============================================
+
+.doc-panel {
+  background: var(--doc-bg);
+  border: 1px solid var(--doc-border);
+  border-radius: $border-radius-small;
+  overflow: hidden;
+}
+
+.doc-panel-header {
+  padding: $spacing-small $spacing;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(var(--doc-text-rgb), 0.5);
+  letter-spacing: 0.05em;
+  background: var(--doc-panel-header);
+  border-bottom: 1px solid var(--doc-border);
+}
+
+.doc-panel-body {
+  padding: $spacing;
+  background: var(--doc-panel-body);
+}
+
+.doc-panel-code {
+  padding: $spacing;
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(var(--doc-text-rgb), 0.85);
+  overflow-x: auto;
+  overflow-y: auto;
+  white-space: pre;
+  background: var(--doc-panel-body);
+  max-height: 480px;
+
+  @media (max-width: 640px) {
+    padding: $spacing-small;
+    font-size: 11px;
+  }
+}
