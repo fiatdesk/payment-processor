@@ -95,15 +95,18 @@ const RELAY_REFUSED_MESSAGE = 'The network did not accept the payment';
 /**
  * 409 while the payment waits for confirmations. `transaction_hash` may be
  * null (the authorization was used but is not confirmed yet); retrying with
- * `{ signature }` is always safe.
+ * `{ signature }` is always safe. `reason: 'another_confirmation'` says a
+ * concurrent confirm is relaying or recording this payment.
  */
 function PaymentPending(
   transactionHash: string | null,
-  message = 'The payment is waiting for network confirmations. Confirm again with this transaction_hash.'
+  message = 'The payment is waiting for network confirmations. Confirm again with this transaction_hash.',
+  reason?: 'another_confirmation'
 ): AppError {
   return new AppError(message, 409, 'payment_pending', {
     code: 'payment_pending',
     transaction_hash: transactionHash,
+    ...(reason ? { reason } : {}),
   });
 }
 
@@ -753,7 +756,8 @@ export class CheckoutPaymentModule {
       if (Date.now() >= deadline) {
         throw PaymentPending(
           paidBy,
-          'Another confirmation is recording this payment. Confirm again shortly.'
+          'Another confirmation is recording this payment. Confirm again shortly.',
+          'another_confirmation'
         );
       }
       await new Promise((resolve) => setTimeout(resolve, SETTLEMENT_POLL_MS));
@@ -941,7 +945,8 @@ export class CheckoutPaymentModule {
                 await this.checkoutSessionModule.GetCheckoutSession(session.id);
               throw PaymentPending(
                 latest?.payment_details?.transaction_hash ?? null,
-                'Another confirmation is relaying this payment. Confirm again with this transaction_hash.'
+                'Another confirmation is relaying this payment. Confirm again with this transaction_hash.',
+                'another_confirmation'
               );
             }
             current = hash;

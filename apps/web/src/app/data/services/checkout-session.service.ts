@@ -25,17 +25,22 @@ export type CheckoutPaymentConfirmation =
  */
 export const CONFIRM_REQUEST_TIMEOUT_MS = 120_000;
 
+/** Answers that mean a gateway, not the API, gave up on the request. */
+const GATEWAY_FAILURE_STATUSES = [502, 503, 504];
+
 /** A confirm that did not finish but can be sent again. */
 export interface CheckoutConfirmRetry {
   /**
    * `payment_pending`: still confirming. `payment_resubmit_required`: the
    * network does not know the recorded relay; only the signature can
-   * relay it again. `unreachable`: no answer (network error, timeout or a
-   * gateway 504), so the payment may be in flight.
+   * relay it again. `unreachable`: no answer (network error or timeout) or
+   * a 502/503/504, so the payment may be in flight.
    */
   reason: 'payment_pending' | 'payment_resubmit_required' | 'unreachable';
   /** The payment transaction the API reported, if it has one yet */
   transactionHash: string | null;
+  /** Another confirm is relaying or recording this payment. */
+  anotherConfirmation: boolean;
 }
 
 /** How to retry a failed confirm, or null when retrying cannot help. */
@@ -48,10 +53,18 @@ export function ReadConfirmRetry(error: unknown): CheckoutConfirmRetry | null {
       reason: type,
       transactionHash:
         typeof transactionHash === 'string' ? transactionHash : null,
+      anotherConfirmation: details?.['reason'] === 'another_confirmation',
     };
   }
-  if (status === undefined || status === 504) {
-    return { reason: 'unreachable', transactionHash: null };
+  // A gateway's 502/503 is as unknown an outcome as its 504, and the API's
+  // own 502 (the network was unreachable) asks for a retry too. Retrying with
+  // the signature never pays twice; the poll's 5 minutes bound the cost.
+  if (status === undefined || GATEWAY_FAILURE_STATUSES.includes(status)) {
+    return {
+      reason: 'unreachable',
+      transactionHash: null,
+      anotherConfirmation: false,
+    };
   }
   return null;
 }

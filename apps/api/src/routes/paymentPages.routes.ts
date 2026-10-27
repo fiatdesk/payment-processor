@@ -170,8 +170,10 @@ router.post(
  * `{ signature }` is always safe: it never pays twice and reuses the relay
  * already sent. While the payment confirms the response is a 409 with
  * `code: 'payment_pending'` and the `transaction_hash` (which may be null,
- * when the authorization was used but is not confirmed yet); retry with
- * `{ signature }` or with that `{ transaction_hash }`. A 409
+ * when the authorization was used but is not confirmed yet), plus
+ * `reason: 'another_confirmation'` when a concurrent confirm is relaying or
+ * recording it; retry with `{ signature }` or with that
+ * `{ transaction_hash }`. A 409
  * `payment_resubmit_required` means the network does not know the relayed
  * transaction: confirm again with `{ signature }`. Subscription mode takes
  * `{ subscribe_signature, permit_signature?, deadline }` (or, on retry, the

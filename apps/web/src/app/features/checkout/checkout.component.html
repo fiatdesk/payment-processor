@@ -479,7 +479,7 @@
         type="button"
         class="checkout-pay-button"
         [class.checkout-pay-button-processing]="IsBusy()"
-        [disabled]="IsBusy()"
+        [disabled]="IsBusy() || IsPayBlocked()"
         (click)="Pay()"
       >
         @if (IsBusy()) {

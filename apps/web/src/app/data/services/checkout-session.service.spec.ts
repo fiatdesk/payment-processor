@@ -85,6 +85,7 @@ describe('CheckoutSessionService', () => {
       expect(ReadConfirmRetry(error)).toEqual({
         reason: 'unreachable',
         transactionHash: null,
+        anotherConfirmation: false,
       });
     });
 
@@ -110,6 +111,7 @@ describe('CheckoutSessionService', () => {
       expect(ReadConfirmRetry(error)).toEqual({
         reason: 'payment_pending',
         transactionHash: HASH,
+        anotherConfirmation: false,
       });
     });
   });
@@ -131,7 +133,27 @@ describe('CheckoutSessionService', () => {
         ReadConfirmRetry(
           ApiFailure(409, { type: 'payment_pending', transaction_hash: null })
         )
-      ).toEqual({ reason: 'payment_pending', transactionHash: null });
+      ).toEqual({
+        reason: 'payment_pending',
+        transactionHash: null,
+        anotherConfirmation: false,
+      });
+    });
+
+    it('reads a pending payment another confirm is recording', () => {
+      expect(
+        ReadConfirmRetry(
+          ApiFailure(409, {
+            type: 'payment_pending',
+            transaction_hash: HASH,
+            reason: 'another_confirmation',
+          })
+        )
+      ).toEqual({
+        reason: 'payment_pending',
+        transactionHash: HASH,
+        anotherConfirmation: true,
+      });
     });
 
     it('reads payment_resubmit_required', () => {
@@ -142,17 +164,24 @@ describe('CheckoutSessionService', () => {
             transaction_hash: HASH,
           })
         )
-      ).toEqual({ reason: 'payment_resubmit_required', transactionHash: HASH });
+      ).toEqual({
+        reason: 'payment_resubmit_required',
+        transactionHash: HASH,
+        anotherConfirmation: false,
+      });
     });
 
-    it('treats a network error and a gateway timeout as unreachable', () => {
-      expect(ReadConfirmRetry(new TypeError('Failed to fetch'))).toEqual({
+    it.each([
+      ['a network error', new TypeError('Failed to fetch')],
+      ['a gateway 502', ApiFailure(502)],
+      ['a gateway 503', ApiFailure(503)],
+      ['a gateway 504', ApiFailure(504)],
+      ["the API's own 502", ApiFailure(502, { type: 'blockchain_error' })],
+    ])('treats %s as unreachable', (_label, error) => {
+      expect(ReadConfirmRetry(error)).toEqual({
         reason: 'unreachable',
         transactionHash: null,
-      });
-      expect(ReadConfirmRetry(ApiFailure(504))).toEqual({
-        reason: 'unreachable',
-        transactionHash: null,
+        anotherConfirmation: false,
       });
     });
 
@@ -162,9 +191,6 @@ describe('CheckoutSessionService', () => {
       ).toBeNull();
       expect(
         ReadConfirmRetry(ApiFailure(500, { type: 'api_error' }))
-      ).toBeNull();
-      expect(
-        ReadConfirmRetry(ApiFailure(502, { type: 'api_error' }))
       ).toBeNull();
       expect(ReadConfirmRetry('not an error')).toBeNull();
     });

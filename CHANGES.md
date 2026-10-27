@@ -1162,9 +1162,9 @@ Hosted checkout now pays on Ethereum from the customer's browser wallet. The cus
   - Other errors are shown as is (400s carry generic messages) and drop the held signature. That includes 5xx answers other than a 504.
   - A wallet rejection (4001) reads "The request was rejected in your wallet." Other viem errors show their `shortMessage`.
   - Polling stops when the component is destroyed.
-- **Another payment is confirming** (a prepare answered by `payment_pending`, for another wallet's or tab's relay):
-  - The page shows "A payment for this checkout is already being confirmed" and follows that payment with confirm `{ transaction_hash }`. The hash comes from the 409, or from the public session when the 409 has none.
-  - A completed session ends the wait. An open session with no recorded hash ends it with "The other payment for this checkout did not go through. You can pay now."
+- **Another payment is confirming** (a prepare answered by `payment_pending`). The API answers prepare this way for any wallet other than the recorded payer. The same wallet in another tab is not refused: it prepares and signs again.
+  - The page shows "A payment for this checkout is already being confirmed" and follows that payment with confirm `{ transaction_hash }`, using the hash from the 409.
+  - A completed session ends the wait. A defensive branch, for an open session with no recorded hash, ends it with "The other payment for this checkout did not go through. You can pay now."
   - `payment_resubmit_required` there (no signature is held) stops with "The payment was not sent to the network. Press Pay to sign it again." Pay then prepares and signs.
 - **Confirm request** (`checkout-session.service.ts`):
   - `ConfirmPayment(urlSlug, { signature } | { transaction_hash } | { already_subscribed, subscription_onchain_id })` uses a 120 s request timeout. The API waits up to `CHECKOUT_CONFIRM_TIMEOUT_MS` (90 s by default) before answering.
@@ -1220,6 +1220,64 @@ apps/web/src/app/features/checkout/checkout.component.ts
 apps/web/src/app/features/checkout/util/mobile-wallet.spec.ts
 apps/web/src/app/features/checkout/util/mobile-wallet.ts
 apps/web/src/app/shared/ui/wallet-guide/wallet-guide.component.html
+```
+
+### Task 12 fix round 1: retry gateway errors, no dead-end re-sign, resume on load
+
+- **Gateway 502 and 503** are retried with the held signature, like a 504 or no answer, so a proxy reset during the long-poll no longer drops a payment that may already be relayed. The API's own 502 ("The payment network is unavailable; try again") is retried the same way. A 500 still drops the signature.
+- **Who must sign again.** The page reads the public session's `payment_details.payer_wallet` when prepare answers `payment_pending`, and when a confirm by hash answers `payment_resubmit_required` with no signature held.
+  - If it is the connected wallet, the page prepares, signs and confirms at once. This covers a prepare that raced the same wallet's relay in another tab.
+  - Another wallet follows the payment by hash. The notice is "A payment for this checkout is already being confirmed. It was started from 0xABCD…1234, and only that wallet can finish it."
+  - If the network then lost that payment, the page says which wallet must sign it again and that another wallet can't pay this checkout until it expires. Pay is turned off instead of looping.
+  - With no wallet connected (after a reload), the page asks that wallet to press Pay and sign again.
+- **Resume on load.** An open payment-mode session with a recorded `payment_details.transaction_hash` starts in the confirming state. It is confirmed by `{ transaction_hash }` and polled as for `payment_pending`, so a reload or a new tab finishes the payment without signing again. "Check payment status" after the 5-minute stop also confirms by the known hash.
+- **Explorer links** are built only from `0x` + 64-hex hashes (`IsTransactionHash`). Anything else is shown as text.
+- **Confirm timeout coupling.** `CHECKOUT_CONFIRM_TIMEOUT_MS` is capped at 110000 (was 300000), below the web's 120 s confirm request timeout. The env-var docs and both `.env` examples say so.
+- **"Already being confirmed" at confirm time.** The two 409s for a concurrent confirm ("Another confirmation is recording…" and "…relaying…") carry `reason: 'another_confirmation'`. The page then shows "A payment for this checkout is already being confirmed".
+- **Wallet discovery.** Once a `Connect()` has started, a late EIP-6963 announcement no longer replaces the `window.ethereum` fallback. It is held and used at `Disconnect()` or the next `Connect()`.
+- **Before the wallet prompt**, the authorization must pay this checkout: `from` is the connected wallet, `to` is `merchant_wallet_address`, and `value` is `amount_total × 10 000`. A mismatch shows "This payment request is out of date. Reload the page and try again." and nothing is signed.
+- **Structure.** The confirm and poll loop, the held signature, the confirming state, `StillConfirmingError`, `SignatureRequiredError` and the authorization check live in `features/checkout/util/checkout-payment.ts`, with their own spec. Defensive branches are commented as such.
+- **Tests:**
+  - Component:
+    - 502 and 503 retry with the held signature, and a 500 drops it.
+    - Polling stops on destroy.
+    - A reported hash survives a later null-hash 409.
+    - The confirm-time "already being confirmed" copy, and a malformed hash shown as text.
+    - The stale-request guards.
+    - The other-wallet flows, mirroring the real API: prepare always answers 409 for that wallet, follow to completion, and the lost payment that names the payer and turns Pay off.
+    - The same-wallet race.
+    - Resume on load, by hash, and its re-sign prompt.
+  - Wallet:
+    - A late announcement during a pending `Connect()` is not swapped in, and is used at the next `Connect()` and at `Disconnect()`.
+    - Non-string `icon` and `rdns` are rejected.
+  - API: the `reason` detail is present on the two concurrent-confirm 409s and absent on a plain `payment_pending`, and the 110000 ms bound.
+
+Added in fix round 1:
+
+```
+apps/web/src/app/features/checkout/util/checkout-payment.spec.ts
+apps/web/src/app/features/checkout/util/checkout-payment.ts
+```
+
+Modified in fix round 1:
+
+```
+.env.example
+.env.production.example
+CHANGES.md
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/docs/src/app/pages/docs/data/environment-variables.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/data/services/checkout-session.service.spec.ts
+apps/web/src/app/data/services/checkout-session.service.ts
+apps/web/src/app/features/checkout/checkout.component.html
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
 ```
 
 ## Task 13: `Subscriptions` contract for allowance-based recurring pulls

@@ -778,14 +778,17 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       Pending(MOCK_RELAY_HASH)
     );
 
-    await expect(
-      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
-    ).rejects.toMatchObject({
+    const error = await module
+      .ConfirmPayment(SLUG, { signature: SIGNATURE })
+      .catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
       statusCode: 409,
       type: 'payment_pending',
       details: { code: 'payment_pending', transaction_hash: MOCK_RELAY_HASH },
     });
-
+    // Only a confirm racing another one says so.
+    expect((error as AppError).details).not.toHaveProperty('reason');
     expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
     expect(Intent().status).toBe('processing');
     ExpectNothingCompleted();
@@ -1375,6 +1378,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       await expect(outcome).resolves.toMatchObject({
         statusCode: 409,
         type: 'payment_pending',
+        details: { reason: 'another_confirmation' },
       });
       ExpectNothingCompleted();
     });
@@ -1432,7 +1436,10 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       module.ConfirmPayment(SLUG, { signature: SIGNATURE })
     ).rejects.toMatchObject({
       statusCode: 409,
-      details: { transaction_hash: OTHER_HASH },
+      details: {
+        transaction_hash: OTHER_HASH,
+        reason: 'another_confirmation',
+      },
     });
     expect(Session().payment_details?.transaction_hash).toBe(OTHER_HASH);
     expect(settlement.VerifyCheckoutPayment).not.toHaveBeenCalled();

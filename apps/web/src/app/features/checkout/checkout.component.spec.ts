@@ -103,11 +103,15 @@ function ApiFailure(status: number, body: Record<string, unknown>): Error {
   });
 }
 
-function PaymentPending(transactionHash: string | null): Error {
+function PaymentPending(
+  transactionHash: string | null,
+  reason?: string
+): Error {
   return ApiFailure(409, {
     code: 'payment_pending',
     type: 'payment_pending',
     transaction_hash: transactionHash,
+    ...(reason ? { reason } : {}),
     message:
       'The payment is waiting for network confirmations. Confirm again with this transaction_hash.',
   });
@@ -123,11 +127,16 @@ function ResubmitRequired(transactionHash: string): Error {
   });
 }
 
+type FakeWalletProvider = Eip1193Provider & {
+  request: jest.Mock;
+  chainId: number;
+};
+
 /** A browser wallet on `chainId` holding `account`. */
 function FakeWallet(
   options: { chainId?: number; account?: string } = {}
-): Eip1193Provider & { request: jest.Mock; chainId: number } {
-  const wallet = {
+): FakeWalletProvider {
+  const wallet: FakeWalletProvider = {
     chainId: options.chainId ?? SEPOLIA,
     request: jest.fn(
       async ({ method, params }: { method: string; params?: unknown }) => {
@@ -205,6 +214,8 @@ describe('CheckoutComponent', () => {
   /** False: the browser has no wallet, so discovery finds nothing. */
   let walletInstalled: boolean;
   let announce: () => void;
+  /** The `checkoutSessionId` route parameter; null skips loading. */
+  let routeSlug: string | null;
 
   /** Renders checkout for an open session once wallet discovery has run. */
   function Render(): {
@@ -228,6 +239,7 @@ describe('CheckoutComponent', () => {
   beforeEach(() => {
     wallet = FakeWallet();
     walletInstalled = true;
+    routeSlug = null;
     announce = () =>
       walletInstalled &&
       window.dispatchEvent(
@@ -248,11 +260,11 @@ describe('CheckoutComponent', () => {
       providers: [
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => null } } },
+          useValue: { snapshot: { paramMap: { get: () => routeSlug } } },
         },
         { provide: CheckoutSessionService, useValue: checkoutSessionService },
         { provide: ConfigService, useValue: configService },
-        { provide: MetaService, useValue: {} },
+        { provide: MetaService, useValue: { SetMetaTitle: jest.fn() } },
       ],
     });
     checkoutSessionService.PreparePayment.mockResolvedValue(PREPARED);
@@ -399,6 +411,32 @@ describe('CheckoutComponent', () => {
       expect(component.paymentPhase()).toBe('idle');
     });
 
+    it.each([
+      ['from another wallet', { from: OTHER_PAYER }],
+      ['to another merchant', { to: OTHER_PAYER }],
+      ['for another amount', { value: '2000000' }],
+    ])(
+      'does not sign a payment request %s',
+      async (_label, message: Record<string, string>) => {
+        const { component } = Render();
+        checkoutSessionService.PreparePayment.mockResolvedValue({
+          ...PREPARED,
+          typed_data: {
+            ...TYPED_DATA,
+            message: { ...TYPED_DATA.message, ...message },
+          },
+        });
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+        expect(component.paymentError()).toBe(
+          'This payment request is out of date. Reload the page and try again.'
+        );
+      }
+    );
+
     it('explains a request rejected in the wallet', async () => {
       const { component } = Render();
       wallet.request.mockImplementation(async ({ method }) => {
@@ -436,6 +474,24 @@ describe('CheckoutComponent', () => {
         'The USDC authorization cannot be relayed'
       );
       expect(component.paymentPhase()).toBe('idle');
+    });
+
+    it('drops the held signature after a 500', async () => {
+      const { component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        ApiFailure(500, { type: 'api_error', message: 'Internal error' })
+      );
+
+      await component.Pay();
+
+      expect(component.paymentError()).toBe('Internal error');
+      expect(component.SubmitLabel()).not.toBe('Check payment status');
+
+      await component.Pay();
+
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(2);
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(component.paymentPhase()).toBe('complete');
     });
 
     it('confirms an existing on-chain subscription without signing', async () => {
@@ -520,6 +576,7 @@ describe('CheckoutComponent', () => {
     });
 
     it('re-sends the held signature after payment_resubmit_required', async () => {
+      // Defensive: the API sends this code only to a confirm by hash.
       const { component } = Render();
       checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
         ResubmitRequired(HASH)
@@ -537,29 +594,112 @@ describe('CheckoutComponent', () => {
       expect(component.paymentPhase()).toBe('complete');
     });
 
-    it('retries with the signature after a network error or a gateway timeout', async () => {
+    it.each([
+      ['a network error', new TypeError('Failed to fetch')],
+      [
+        'a gateway 502',
+        Object.assign(new Error('API Call failed: Bad Gateway'), {
+          status: 502,
+        }),
+      ],
+      [
+        'a gateway 503',
+        Object.assign(new Error('API Call failed: Service Unavailable'), {
+          status: 503,
+        }),
+      ],
+      [
+        'a gateway 504',
+        Object.assign(new Error('API Call failed: Gateway Timeout'), {
+          status: 504,
+        }),
+      ],
+    ])('retries with the held signature after %s', async (_label, failure) => {
       const { component } = Render();
-      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
-        new TypeError('Failed to fetch')
-      )
-        .mockRejectedValueOnce(
-          Object.assign(new Error('API Call failed: Gateway Timeout'), {
-            status: 504,
-          })
-        )
-        .mockResolvedValueOnce(COMPLETED);
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(failure);
 
       const paying = component.Pay();
-      await jest.advanceTimersByTimeAsync(2 * POLL_INTERVAL_MS);
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
       await paying;
 
-      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(3);
-      expect(
-        checkoutSessionService.ConfirmPayment.mock.calls.every(
-          ([, body]) => body.signature === SIGNATURE
-        )
-      ).toBe(true);
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, { signature: SIGNATURE }],
+        [SESSION.url_slug, { signature: SIGNATURE }],
+      ]);
+      expect(component.paymentError()).toBeNull();
       expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('keeps a reported hash when a later 409 has none', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH)
+      ).mockRejectedValueOnce(PaymentPending(null));
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(2);
+      expect(component.pendingTransactionHash()).toBe(HASH);
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector('.payment-status a')
+      ).not.toBeNull();
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+      await paying;
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('says when another confirmation is recording the payment', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH, 'another_confirmation')
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(Text(fixture)).toContain(
+        'A payment for this checkout is already being confirmed'
+      );
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+      await paying;
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('links only a well-formed transaction hash', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending('0x1234')
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(Text(fixture)).toContain('0x1234');
+      expect(
+        fixture.nativeElement.querySelector('.payment-status a')
+      ).toBeNull();
+      expect(configService.GetExplorerUrl).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+      await paying;
+    });
+
+    it('stops polling when the page is destroyed', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
+        PaymentPending(HASH)
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+      fixture.destroy();
+      await jest.advanceTimersByTimeAsync(10 * POLL_INTERVAL_MS);
+      await paying;
+
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(1);
     });
 
     it('stops after 5 minutes and checks again with the held signature', async () => {
@@ -595,23 +735,30 @@ describe('CheckoutComponent', () => {
   });
 
   describe('a payment another wallet is confirming', () => {
-    beforeEach(() => jest.useFakeTimers());
-
-    function OtherWalletConfirming(transactionHash: string | null): Error {
+    /** The 409 the API answers prepare with for any wallet but the payer's. */
+    function OtherWalletConfirming(): Error {
       return ApiFailure(409, {
         code: 'payment_pending',
         type: 'payment_pending',
-        transaction_hash: transactionHash,
+        transaction_hash: HASH,
         message:
           'A payment from another wallet is confirming for this Checkout Session',
       });
     }
 
+    beforeEach(() => {
+      jest.useFakeTimers();
+      checkoutSessionService.PreparePayment.mockRejectedValue(
+        OtherWalletConfirming()
+      );
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue({
+        ...SESSION,
+        payment_details: { transaction_hash: HASH, payer_wallet: OTHER_PAYER },
+      });
+    });
+
     it('follows it by its transaction hash until the session completes', async () => {
       const { fixture, component } = Render();
-      checkoutSessionService.PreparePayment.mockRejectedValue(
-        OtherWalletConfirming(HASH)
-      );
       checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
         PaymentPending(HASH)
       );
@@ -620,7 +767,7 @@ describe('CheckoutComponent', () => {
       await jest.advanceTimersByTimeAsync(0);
 
       expect(Text(fixture)).toContain(
-        'A payment for this checkout is already being confirmed'
+        'A payment for this checkout is already being confirmed. It was started from 0x90F7…b906, and only that wallet can finish it.'
       );
 
       await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
@@ -634,56 +781,133 @@ describe('CheckoutComponent', () => {
       expect(component.paymentPhase()).toBe('complete');
     });
 
-    it('reads the session for the transaction hash when the 409 has none', async () => {
-      const { component } = Render();
-      checkoutSessionService.PreparePayment.mockRejectedValue(
-        OtherWalletConfirming(null)
-      );
-      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue({
-        ...SESSION,
-        payment_details: { transaction_hash: HASH, payer_wallet: OTHER_PAYER },
-      });
-
-      await component.Pay();
-
-      expect(
-        checkoutSessionService.GetPublicCheckoutSession
-      ).toHaveBeenCalledWith(SESSION.url_slug);
-      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
-        SESSION.url_slug,
-        { transaction_hash: HASH }
-      );
-      expect(component.paymentPhase()).toBe('complete');
-    });
-
-    it('asks for a new signature when the network lost a payment and no signature is held', async () => {
-      const { component } = Render();
-      checkoutSessionService.PreparePayment.mockRejectedValueOnce(
-        OtherWalletConfirming(HASH)
-      );
-      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+    it('names the wallet that must sign again when the network lost the payment, without a Pay that loops', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
         ResubmitRequired(HASH)
       );
 
       await component.Pay();
 
-      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
-      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(1);
       expect(component.paymentError()).toBe(
-        'The payment was not sent to the network. Press Pay to sign it again.'
+        "The payment from 0x90F7…b906 did not reach the network. Open this checkout with that wallet to sign it again. Another wallet can't pay this checkout until it expires."
       );
       expect(component.paymentPhase()).toBe('idle');
+      fixture.detectChanges();
+      expect(
+        (
+          fixture.nativeElement.querySelector(
+            'button.checkout-pay-button'
+          ) as HTMLButtonElement
+        ).disabled
+      ).toBe(true);
 
-      // Pay prepares again and signs.
+      await component.Pay();
+
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(1);
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(1);
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+    });
+
+    it("signs here when the confirming payment is this wallet's own", async () => {
+      // A prepare that raced this wallet's relay in another tab.
+      checkoutSessionService.PreparePayment.mockRejectedValueOnce(
+        ApiFailure(409, {
+          code: 'payment_pending',
+          type: 'payment_pending',
+          transaction_hash: HASH,
+          message: 'A payment is confirming for this Checkout Session',
+        })
+      ).mockResolvedValue(PREPARED);
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue({
+        ...SESSION,
+        payment_details: { transaction_hash: HASH, payer_wallet: PAYER },
+      });
+      const { component } = Render();
+
       await component.Pay();
 
       expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(2);
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, { signature: SIGNATURE }],
+      ]);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+  });
+
+  describe('a payment recorded before the page loaded', () => {
+    const RECORDED = {
+      ...SESSION,
+      payment_details: { transaction_hash: HASH, payer_wallet: PAYER },
+    } as CheckoutSession;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      routeSlug = SESSION.url_slug;
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue(
+        RECORDED
+      );
+    });
+
+    /** Opens the checkout page; Angular runs `ngOnInit` once. */
+    async function Load(): Promise<CheckoutComponent> {
+      const fixture = TestBed.createComponent(CheckoutComponent);
+      fixture.detectChanges();
+      await jest.advanceTimersByTimeAsync(0);
+      return fixture.componentInstance;
+    }
+
+    it('resumes confirming by its hash without the wallet', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentPhase()).toBe('confirming');
+      expect(component.pendingTransactionHash()).toBe(HASH);
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, { transaction_hash: HASH }],
+        [SESSION.url_slug, { transaction_hash: HASH }],
+      ]);
+      expect(wallet.request).not.toHaveBeenCalled();
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('asks the payer to sign again when the network lost it, then signs on Pay', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        ResubmitRequired(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentError()).toBe(
+        'The payment from 0x3C44…93BC did not reach the network. Press Pay and sign it again with that wallet.'
+      );
+      expect(component.IsPayBlocked()).toBe(false);
+      expect(wallet.request).not.toHaveBeenCalled();
+
+      component.email = 'payer@example.com';
+      await component.Pay();
+
       expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
       expect(checkoutSessionService.ConfirmPayment).toHaveBeenLastCalledWith(
         SESSION.url_slug,
         { signature: SIGNATURE }
       );
       expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('leaves a session with nothing recorded alone', async () => {
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue(
+        SESSION
+      );
+      const component = await Load();
+
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentPhase()).toBe('idle');
     });
   });
 

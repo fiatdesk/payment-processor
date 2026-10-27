@@ -14,7 +14,6 @@ import type { TypedDataDefinition } from 'viem';
 
 import { IsUserRejectedError, MetaService, WalletService } from '../../core';
 import {
-  CheckoutPaymentConfirmation,
   CheckoutSessionService,
   ReadConfirmRetry,
 } from '../../data/services/checkout-session.service';
@@ -30,9 +29,10 @@ import {
   CheckoutSession,
   CheckoutSessionCustomField,
   CheckoutSessionLineItem,
-  Eip712TypedData,
+  IsTransactionHash,
   Price,
   Product,
+  SameAddress,
 } from '@zoneless/shared-types';
 import {
   CheckoutCollectionOptions,
@@ -56,36 +56,16 @@ import {
   IsMobileBrowser,
   MobileWalletOption,
 } from './util/mobile-wallet';
+import {
+  ALREADY_CONFIRMING_MESSAGE,
+  CheckoutPaymentConfirmer,
+  PaymentPhase,
+  RequireAuthorizationTypedData,
+  ShortAddress,
+  SignatureRequiredError,
+  StillConfirmingError,
+} from './util/checkout-payment';
 import { TEST_WALLET_DATA } from '../../utils/constants/test-data';
-
-type PaymentPhase =
-  | 'idle'
-  | 'awaiting_wallet'
-  | 'processing'
-  | 'confirming'
-  | 'complete';
-
-/** A confirming payment is checked again this often, for this long. */
-const CONFIRM_POLL_INTERVAL_MS = 4_000;
-const CONFIRM_POLL_TIMEOUT_MS = 5 * 60_000;
-
-const CONFIRMING_MESSAGE =
-  'Waiting for network confirmations. This can take a minute.';
-const ALREADY_CONFIRMING_MESSAGE =
-  'A payment for this checkout is already being confirmed';
-const RESIGN_MESSAGE =
-  'The payment was not sent to the network. Press Pay to sign it again.';
-const ATTEMPT_ENDED_MESSAGE =
-  'The other payment for this checkout did not go through. You can pay now.';
-
-/** The payment is still confirming when checkout stops polling. */
-class StillConfirmingError extends Error {
-  constructor() {
-    super(
-      'Your payment is still confirming. Keep this page open, then check again.'
-    );
-  }
-}
 
 type AddressFormValue = {
   name: string;
@@ -168,6 +148,11 @@ export class CheckoutComponent implements OnInit {
   pendingTransactionHash: WritableSignal<string | null> = signal(null);
   /** Polling stopped before the payment confirmed. */
   stillConfirming: WritableSignal<boolean> = signal(false);
+  /**
+   * The wallet that must sign this session's payment again; another wallet
+   * cannot pay it until it expires, so Pay is off.
+   */
+  blockedByWallet: WritableSignal<string | null> = signal(null);
   simulatedWalletOpen: WritableSignal<boolean> = signal(false);
   confirmationExpanded: WritableSignal<boolean> = signal(false);
   billingAddressExpanded: WritableSignal<boolean> = signal(false);
@@ -188,19 +173,17 @@ export class CheckoutComponent implements OnInit {
   termsAccepted = false;
   customFieldValues: Record<string, string> = {};
 
-  /**
-   * The customer's signature of this session's authorization. Retrying
-   * confirm with it is always safe, so it is kept until the payment
-   * settles or fails.
-   */
-  private heldSignature: {
-    checkoutSessionId: string;
-    signature: string;
-  } | null = null;
-  private destroyed = false;
+  private readonly confirmer = new CheckoutPaymentConfirmer(
+    this.checkoutSessionService,
+    {
+      phase: this.paymentPhase,
+      notice: this.paymentNotice,
+      transactionHash: this.pendingTransactionHash,
+    }
+  );
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => (this.destroyed = true));
+    inject(DestroyRef).onDestroy(() => this.confirmer.Stop());
   }
 
   async ngOnInit(): Promise<void> {
@@ -210,6 +193,32 @@ export class CheckoutComponent implements OnInit {
       this.LoadCheckoutSession(urlSlug),
       this.configService.LoadConfig().catch(() => undefined),
     ]);
+    await this.ResumeRecordedPayment();
+  }
+
+  /**
+   * A relay recorded before this page loaded (a reload, or another tab) is
+   * confirmed by its hash, without the wallet.
+   */
+  private async ResumeRecordedPayment(): Promise<void> {
+    const session = this.checkoutSession();
+    const transactionHash = session?.payment_details?.transaction_hash;
+    if (
+      !session ||
+      session.mode !== 'payment' ||
+      session.status !== 'open' ||
+      !transactionHash
+    ) {
+      return;
+    }
+    this.confirmer.ShowConfirming(transactionHash);
+    try {
+      this.CompletePayment(
+        await this.ConfirmOrSignAgain(session, transactionHash, null)
+      );
+    } catch (error) {
+      this.HandlePaymentError(error);
+    }
   }
 
   private async LoadCheckoutSession(urlSlug: string): Promise<void> {
@@ -387,7 +396,7 @@ export class CheckoutComponent implements OnInit {
     const session = this.checkoutSession();
     if (!session) return;
 
-    if (this.paymentPhase() !== 'idle') return;
+    if (this.paymentPhase() !== 'idle' || this.IsPayBlocked()) return;
 
     const validationError = this.ValidateCollectedDetails();
     if (validationError) {
@@ -404,8 +413,12 @@ export class CheckoutComponent implements OnInit {
     }
 
     try {
-      const completedSession = this.HeldSignature(session)
-        ? await this.ConfirmUntilSettled(session)
+      const completedSession = this.confirmer.CanCheckAgain(session)
+        ? await this.ConfirmOrSignAgain(
+            session,
+            this.pendingTransactionHash(),
+            this.walletService.GetAddress() || null
+          )
         : await this.PayWithWallet(session);
       this.CompletePayment(completedSession);
     } catch (error) {
@@ -424,7 +437,7 @@ export class CheckoutComponent implements OnInit {
       const prepared = await this.PreparePayment(session, payerWallet);
       const completedSession =
         (await this.ConfirmAlreadySubscribed(session, prepared)) ??
-        (await this.Confirm(session, {
+        (await this.confirmer.Confirm(session, {
           transaction_hash: `sim_sig:${prepared.checkout_session}:${payerWallet}`,
         }));
       this.CompletePayment(completedSession);
@@ -555,26 +568,37 @@ export class CheckoutComponent implements OnInit {
     session: CheckoutSession
   ): Promise<CheckoutSession> {
     this.paymentPhase.set('awaiting_wallet');
-    const chainId = this.configService.GetChainId();
-    if (chainId === null) {
-      throw new Error(
-        'Could not load the payment network. Refresh the page and try again.'
-      );
-    }
+    const chainId = this.RequireChainId();
     const payerWallet =
       this.walletService.GetAddress() || (await this.walletService.Connect());
+    return this.PrepareSignAndConfirm(session, payerWallet, chainId);
+  }
+
+  /**
+   * `again`: this wallet's own recorded payment is being signed again, so a
+   * second "a payment is confirming" answer is not followed once more.
+   */
+  private async PrepareSignAndConfirm(
+    session: CheckoutSession,
+    payerWallet: string,
+    chainId: number,
+    again = false
+  ): Promise<CheckoutSession> {
+    this.paymentPhase.set('awaiting_wallet');
     await this.walletService.EnsureChain(chainId);
 
     let prepared: CheckoutPaymentTransaction;
     try {
       prepared = await this.PreparePayment(session, payerWallet);
     } catch (error) {
-      // Another wallet or tab is paying: follow that payment instead.
       const retry = ReadConfirmRetry(error);
-      if (retry?.reason !== 'payment_pending') throw error;
-      this.paymentNotice.set(ALREADY_CONFIRMING_MESSAGE);
-      this.ShowConfirming(retry.transactionHash);
-      return this.ConfirmUntilSettled(session, retry.transactionHash);
+      if (again || retry?.reason !== 'payment_pending') throw error;
+      return this.FollowPayment(
+        session,
+        payerWallet,
+        chainId,
+        retry.transactionHash
+      );
     }
 
     const completedSession = await this.ConfirmAlreadySubscribed(
@@ -583,96 +607,92 @@ export class CheckoutComponent implements OnInit {
     );
     if (completedSession) return completedSession;
 
-    const typedData = RequireAuthorizationTypedData(prepared, chainId);
+    const typedData = RequireAuthorizationTypedData(
+      prepared,
+      chainId,
+      payerWallet
+    );
     const signature = await this.walletService.SignTypedData(
       typedData as unknown as TypedDataDefinition
     );
-    this.heldSignature = { checkoutSessionId: session.id, signature };
-    return this.ConfirmUntilSettled(session);
+    this.confirmer.Hold(session, signature);
+    return this.confirmer.ConfirmUntilSettled(session);
   }
 
   /**
-   * Confirm, then while the API answers `payment_pending` or
-   * `payment_resubmit_required`, or gives no answer, confirm again every
-   * 4 s for up to 5 minutes. A held signature is always what is sent: the
-   * API never pays twice for it and relays it again if the network dropped
-   * the payment. Without one (another wallet or tab is paying), checkout
-   * follows the payment by its transaction hash, read from the session when
-   * the API has not reported one.
+   * Prepare answered that a payment is confirming. The API says so to any
+   * wallet but the recorded payer, or to the payer when its relay was
+   * recorded (in another tab) while it prepared. The payer signs here too;
+   * any other wallet follows the payment by its hash.
    */
-  private async ConfirmUntilSettled(
+  private async FollowPayment(
     session: CheckoutSession,
-    knownTransactionHash: string | null = null
+    payerWallet: string,
+    chainId: number,
+    reportedTransactionHash: string | null
   ): Promise<CheckoutSession> {
-    const deadline = Date.now() + CONFIRM_POLL_TIMEOUT_MS;
-    let transactionHash = knownTransactionHash;
-
-    while (!this.destroyed) {
-      const confirmation = this.Confirmation(session, transactionHash);
-      if (!confirmation) {
-        // Nothing to confirm with yet: the session records the relay's hash.
-        const latest =
-          await this.checkoutSessionService.GetPublicCheckoutSession(
-            session.url_slug
-          );
-        if (latest.status === 'complete') return latest;
-        transactionHash = latest.payment_details?.transaction_hash ?? null;
-        if (!transactionHash) throw new Error(ATTEMPT_ENDED_MESSAGE);
-        continue;
-      }
-      try {
-        return await this.Confirm(session, confirmation);
-      } catch (error) {
-        const retry = ReadConfirmRetry(error);
-        if (!retry) throw error;
-        if (
-          retry.reason === 'payment_resubmit_required' &&
-          !('signature' in confirmation)
-        ) {
-          throw new Error(RESIGN_MESSAGE);
-        }
-        transactionHash = retry.transactionHash ?? transactionHash;
-        this.ShowConfirming(transactionHash);
-      }
-      if (Date.now() >= deadline) throw new StillConfirmingError();
-      await Delay(CONFIRM_POLL_INTERVAL_MS);
-    }
-    throw new StillConfirmingError();
-  }
-
-  private Confirm(
-    session: CheckoutSession,
-    confirmation: CheckoutPaymentConfirmation
-  ): Promise<CheckoutSession> {
-    if (this.paymentPhase() !== 'confirming') {
-      this.paymentPhase.set('processing');
-    }
-    return this.checkoutSessionService.ConfirmPayment(
-      session.url_slug,
-      confirmation
+    const latest = await this.checkoutSessionService.GetPublicCheckoutSession(
+      session.url_slug
     );
+    if (latest.status === 'complete') return latest;
+    const recordedPayer = latest.payment_details?.payer_wallet ?? null;
+    if (SameAddress(recordedPayer, payerWallet)) {
+      return this.PrepareSignAndConfirm(session, payerWallet, chainId, true);
+    }
+    const transactionHash =
+      reportedTransactionHash ??
+      latest.payment_details?.transaction_hash ??
+      null;
+    this.confirmer.ShowConfirming(
+      transactionHash,
+      recordedPayer
+        ? `${ALREADY_CONFIRMING_MESSAGE}. It was started from ${ShortAddress(
+            recordedPayer
+          )}, and only that wallet can finish it.`
+        : ALREADY_CONFIRMING_MESSAGE
+    );
+    return this.ConfirmOrSignAgain(session, transactionHash, payerWallet);
   }
 
-  private ShowConfirming(transactionHash: string | null): void {
-    this.paymentPhase.set('confirming');
-    this.pendingTransactionHash.set(transactionHash);
-    if (!this.paymentNotice()) this.paymentNotice.set(CONFIRMING_MESSAGE);
-  }
-
-  /** The held signature, else the payment's hash, else nothing yet. */
-  private Confirmation(
+  /**
+   * Confirm until settled. When the network lost a payment and no signature
+   * is held, the recorded payer must sign again: `signer`, the wallet that
+   * pressed Pay, does so at once when it is that payer. Otherwise the
+   * `SignatureRequiredError` reaches `HandlePaymentError`.
+   */
+  private async ConfirmOrSignAgain(
     session: CheckoutSession,
-    transactionHash: string | null
-  ): CheckoutPaymentConfirmation | null {
-    const signature = this.HeldSignature(session);
-    if (signature) return { signature };
-    return transactionHash ? { transaction_hash: transactionHash } : null;
+    transactionHash: string | null,
+    signer: string | null
+  ): Promise<CheckoutSession> {
+    try {
+      return await this.confirmer.ConfirmUntilSettled(session, transactionHash);
+    } catch (error) {
+      if (
+        !(error instanceof SignatureRequiredError) ||
+        !signer ||
+        !SameAddress(error.payerWallet, signer)
+      ) {
+        throw error;
+      }
+      this.paymentNotice.set(null);
+      return this.PrepareSignAndConfirm(
+        session,
+        signer,
+        this.RequireChainId(),
+        true
+      );
+    }
   }
 
-  private HeldSignature(session: CheckoutSession): string | null {
-    return this.heldSignature?.checkoutSessionId === session.id
-      ? this.heldSignature.signature
-      : null;
+  private RequireChainId(): number {
+    const chainId = this.configService.GetChainId();
+    if (chainId === null) {
+      throw new Error(
+        'Could not load the payment network. Refresh the page and try again.'
+      );
+    }
+    return chainId;
   }
 
   private PreparePayment(
@@ -691,7 +711,7 @@ export class CheckoutComponent implements OnInit {
     prepared: CheckoutPaymentTransaction
   ): Promise<CheckoutSession | null> {
     if (!prepared.already_subscribed) return Promise.resolve(null);
-    return this.Confirm(session, {
+    return this.confirmer.Confirm(session, {
       already_subscribed: true,
       subscription_onchain_id: prepared.subscription_onchain_id,
     });
@@ -799,9 +819,8 @@ export class CheckoutComponent implements OnInit {
   }
 
   private CompletePayment(completedSession: CheckoutSession): void {
-    this.heldSignature = null;
+    this.confirmer.Forget();
     this.paymentNotice.set(null);
-    this.pendingTransactionHash.set(null);
     this.checkoutSession.set(completedSession);
     this.paymentPhase.set('complete');
     this.HandleAfterCompletion(completedSession);
@@ -813,14 +832,33 @@ export class CheckoutComponent implements OnInit {
    */
   private HandlePaymentError(error: unknown): void {
     const stillConfirming = error instanceof StillConfirmingError;
-    if (!stillConfirming) {
-      this.heldSignature = null;
-      this.pendingTransactionHash.set(null);
-    }
+    if (!stillConfirming) this.confirmer.Forget();
     this.stillConfirming.set(stillConfirming);
     this.paymentNotice.set(null);
-    this.paymentError.set(this.ErrorMessage(error));
+    this.paymentError.set(
+      error instanceof SignatureRequiredError
+        ? this.SignatureRequiredMessage(error)
+        : this.ErrorMessage(error)
+    );
     this.paymentPhase.set('idle');
+  }
+
+  /**
+   * Who must sign a lost payment again. Another connected wallet cannot pay
+   * this session until it expires, so Pay is turned off for it.
+   */
+  private SignatureRequiredMessage(error: SignatureRequiredError): string {
+    const payer = error.payerWallet;
+    if (!payer) return error.message;
+    const lost = `The payment from ${ShortAddress(
+      payer
+    )} did not reach the network.`;
+    const connected = this.walletService.GetAddress();
+    if (connected && !SameAddress(connected, payer)) {
+      this.blockedByWallet.set(payer);
+      return `${lost} Open this checkout with that wallet to sign it again. Another wallet can't pay this checkout until it expires.`;
+    }
+    return `${lost} Press Pay and sign it again with that wallet.`;
   }
 
   private HandleAfterCompletion(session: CheckoutSession): void {
@@ -871,9 +909,17 @@ export class CheckoutComponent implements OnInit {
     return Math.round((discount / subtotal) * 100);
   }
 
-  /** Explorer link for the confirming payment; empty without an explorer. */
+  /**
+   * Explorer link for the confirming payment; empty without an explorer or
+   * for anything that is not a transaction hash.
+   */
   TransactionUrl(transactionHash: string): string {
+    if (!IsTransactionHash(transactionHash)) return '';
     return this.configService.GetExplorerUrl('tx', transactionHash);
+  }
+
+  IsPayBlocked(): boolean {
+    return this.blockedByWallet() !== null;
   }
 
   ShortHash(transactionHash: string): string {
@@ -939,29 +985,4 @@ export class CheckoutComponent implements OnInit {
   TotalDueLabel(): string {
     return this.IsSubscription() ? 'Total due today' : 'Total due';
   }
-}
-
-/**
- * The prepared EIP-3009 authorization, checked to be for `chainId`: a
- * wallet signs typed data only for the chain it is on.
- */
-function RequireAuthorizationTypedData(
-  prepared: CheckoutPaymentTransaction,
-  chainId: number
-): Eip712TypedData {
-  if (prepared.method !== 'eip3009_transfer' || !prepared.typed_data) {
-    throw new Error(
-      'This checkout cannot be paid from a wallet on this network yet.'
-    );
-  }
-  if (prepared.typed_data.domain.chainId !== chainId) {
-    throw new Error(
-      'The payment is for a different network than this checkout. Refresh the page and try again.'
-    );
-  }
-  return prepared.typed_data;
-}
-
-function Delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

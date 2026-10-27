@@ -195,6 +195,68 @@ describe('WalletService', () => {
       expect(service.wallet()?.provider).toBe(injected);
     });
 
+    it('does not swap the provider under a Connect that has started', async () => {
+      let answer: (accounts: string[]) => void = () => undefined;
+      const injected = FakeProvider({
+        eth_requestAccounts: () =>
+          new Promise<string[]>((resolve) => (answer = resolve)),
+      });
+      fakeWindow.ethereum = injected;
+      const service = new WalletService();
+      jest.advanceTimersByTime(300);
+
+      const connecting = service.Connect();
+      await jest.advanceTimersByTimeAsync(0);
+      // eth_requestAccounts is waiting for the user.
+      expect(Requests(injected)).toEqual([{ method: 'eth_requestAccounts' }]);
+      const late = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      Announce(fakeWindow, late, 'Late');
+
+      expect(service.wallet()?.provider).toBe(injected);
+      answer([ADDRESS.toLowerCase()]);
+      await expect(connecting).resolves.toBe(ADDRESS);
+      expect(service.wallet()?.provider).toBe(injected);
+    });
+
+    it('switches to a recorded late announcement on the next Connect', async () => {
+      const injected = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      fakeWindow.ethereum = injected;
+      const service = new WalletService();
+      jest.advanceTimersByTime(300);
+      await service.Connect();
+      const late = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      Announce(fakeWindow, late, 'Late');
+      expect(service.wallet()?.provider).toBe(injected);
+
+      await service.Connect();
+
+      expect(service.wallet()?.provider).toBe(late);
+      expect(Requests(late)).toEqual([{ method: 'eth_requestAccounts' }]);
+    });
+
+    it('switches to a recorded late announcement after Disconnect', async () => {
+      const injected = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      fakeWindow.ethereum = injected;
+      const service = new WalletService();
+      jest.advanceTimersByTime(300);
+      await service.Connect();
+      const late = FakeProvider();
+      Announce(fakeWindow, late, 'Late');
+
+      service.Disconnect();
+
+      expect(service.wallet()?.provider).toBe(late);
+      expect(service.GetAddress()).toBe('');
+    });
+
     it('reports discovery complete when a wallet announces itself', () => {
       const service = new WalletService();
       expect(service.discoveryComplete()).toBe(false);
@@ -236,6 +298,20 @@ describe('WalletService', () => {
         'a non-string uuid',
         {
           info: { uuid: 7, name: 'A', icon: '', rdns: 'a' },
+          provider: FakeProvider(),
+        },
+      ],
+      [
+        'a non-string icon',
+        {
+          info: { uuid: 'a', name: 'A', icon: 42, rdns: 'a' },
+          provider: FakeProvider(),
+        },
+      ],
+      [
+        'a non-string rdns',
+        {
+          info: { uuid: 'a', name: 'A', icon: '', rdns: null },
           provider: FakeProvider(),
         },
       ],
