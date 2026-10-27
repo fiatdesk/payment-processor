@@ -13,9 +13,11 @@ import {
   SameAddress,
 } from '@zoneless/shared-types';
 
+import { GetApiErrorCode, IsUserRejectedError } from '../../../core';
 import {
   CheckoutPaymentConfirmation,
   CheckoutSessionService,
+  CheckoutSubscribeConfirmation,
   ReadConfirmRetry,
 } from '../../../data/services/checkout-session.service';
 
@@ -75,13 +77,20 @@ export type CheckoutConfirmApi = Pick<
   'ConfirmPayment' | 'GetPublicCheckoutSession'
 >;
 
+/** What the customer signed: a payment's signature, or a subscription's. */
+export type SignedConfirmation =
+  | { signature: string }
+  | CheckoutSubscribeConfirmation;
+
 export class CheckoutPaymentConfirmer {
   /**
-   * The customer's signature of the session's authorization. Confirming
-   * again with it is always safe, so it is kept until the payment settles
-   * or fails.
+   * What the customer signed for the session. Confirming again with it is
+   * always safe, so it is kept until the payment settles or fails.
    */
-  private held: { checkoutSessionId: string; signature: string } | null = null;
+  private held: {
+    checkoutSessionId: string;
+    confirmation: SignedConfirmation;
+  } | null = null;
   private stopped = false;
 
   constructor(
@@ -89,13 +98,20 @@ export class CheckoutPaymentConfirmer {
     private readonly state: CheckoutPaymentState
   ) {}
 
-  Hold(session: CheckoutSession, signature: string): void {
-    this.held = { checkoutSessionId: session.id, signature };
+  /** Holds a payment's `signature`, or a subscription's signatures. */
+  Hold(
+    session: CheckoutSession,
+    signed: string | CheckoutSubscribeConfirmation
+  ): void {
+    this.held = {
+      checkoutSessionId: session.id,
+      confirmation: typeof signed === 'string' ? { signature: signed } : signed,
+    };
   }
 
-  HeldSignature(session: CheckoutSession): string | null {
+  Held(session: CheckoutSession): SignedConfirmation | null {
     return this.held?.checkoutSessionId === session.id
-      ? this.held.signature
+      ? this.held.confirmation
       : null;
   }
 
@@ -104,7 +120,7 @@ export class CheckoutPaymentConfirmer {
    * held, or polling stopped with a reported transaction.
    */
   CanCheckAgain(session: CheckoutSession): boolean {
-    return !!this.HeldSignature(session) || !!this.state.transactionHash();
+    return !!this.Held(session) || !!this.state.transactionHash();
   }
 
   /** Forget the signature and the reported transaction. */
@@ -176,7 +192,7 @@ export class CheckoutPaymentConfirmer {
         // (defensive) is simply sent again.
         if (
           retry.reason === 'payment_resubmit_required' &&
-          !('signature' in confirmation)
+          'transaction_hash' in confirmation
         ) {
           return this.RequireSignature(session);
         }
@@ -192,13 +208,13 @@ export class CheckoutPaymentConfirmer {
     throw new StillConfirmingError();
   }
 
-  /** The held signature, else the payment's hash, else nothing yet. */
+  /** What is held, else the payment's hash, else nothing yet. */
   private Confirmation(
     session: CheckoutSession,
     transactionHash: string | null
   ): CheckoutPaymentConfirmation | null {
-    const signature = this.HeldSignature(session);
-    if (signature) return { signature };
+    const held = this.Held(session);
+    if (held) return held;
     return transactionHash ? { transaction_hash: transactionHash } : null;
   }
 
@@ -254,4 +270,65 @@ export function RequireAuthorizationTypedData(
 /** `0xABCD…1234` */
 export function ShortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/**
+ * Who must sign a lost payment again. Another connected wallet cannot pay
+ * the session until it expires: `blockedBy` is then the recorded payer.
+ */
+export function ReadSignatureRequired(
+  error: SignatureRequiredError,
+  connected: string | null
+): { message: string; blockedBy: string | null } {
+  const payer = error.payerWallet;
+  if (!payer) return { message: error.message, blockedBy: null };
+  const lost = `The payment from ${ShortAddress(
+    payer
+  )} did not reach the network.`;
+  if (connected && !SameAddress(connected, payer)) {
+    return {
+      message: `${lost} Open this checkout with that wallet to sign it again. Another wallet can't pay this checkout until it expires.`,
+      blockedBy: payer,
+    };
+  }
+  return {
+    message: `${lost} Press Pay and sign it again with that wallet.`,
+    blockedBy: null,
+  };
+}
+
+/** Fixed words for API error codes whose own message is not for customers. */
+const CHECKOUT_ERROR_MESSAGES = new Map<string, string>([
+  [
+    'period_already_collected',
+    "This billing period was already charged to your wallet outside this checkout, so this checkout didn't start a subscription. Contact the merchant for help.",
+  ],
+  [
+    'onchain_plan_amount_exceeded',
+    'This subscription can only be bought with a quantity of 1. Contact the merchant for a new checkout link.',
+  ],
+  [
+    'subscription_authorization_stale',
+    'This subscription request expired before it was sent. Press Subscribe to sign a new one.',
+  ],
+]);
+
+/** What to tell the customer about a failed payment or subscription. */
+export function CheckoutErrorMessage(
+  error: unknown,
+  isSubscription: boolean
+): string {
+  if (IsUserRejectedError(error)) {
+    return 'The request was rejected in your wallet.';
+  }
+  const fixed = CHECKOUT_ERROR_MESSAGES.get(GetApiErrorCode(error) ?? '');
+  if (fixed) return fixed;
+  // viem's errors carry a one-line summary next to their long message.
+  const shortMessage = (error as { shortMessage?: unknown } | null)
+    ?.shortMessage;
+  if (typeof shortMessage === 'string' && shortMessage) return shortMessage;
+  if (error instanceof Error && error.message) return error.message;
+  return isSubscription
+    ? 'Something went wrong starting your subscription. Please try again.'
+    : 'Something went wrong processing your payment. Please try again.';
 }

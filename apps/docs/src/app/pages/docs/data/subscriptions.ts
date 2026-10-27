@@ -1675,6 +1675,13 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
+          title: 'Subscribing in hosted checkout: ',
+          text: 'The customer connects an Ethereum wallet, and checkout shows what they are authorizing: the amount, period and token from the <code>Subscribe</code> message, and when the first charge is taken (today, or the trial end). A first-time wallet approves twice. It signs a USDC permit that adds this plan’s allowance (at least 12 periods and at least a year) to the Subscriptions contract’s current allowance, and checkout shows that added amount and the total the permit sets. It then signs the <code>Subscribe</code>. A wallet whose allowance already covers the plan signs only the <code>Subscribe</code>. Both signatures are sent in one confirm and relayed in one transaction, so the customer needs no ETH. Retrying a confirm with the same signatures never subscribes twice. The customer can stop every pull by canceling on-chain or by revoking their USDC allowance to the Subscriptions contract.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'info',
           title: 'Processing renewals: ',
           text: 'Creating a subscription does not collect future cycle invoices on its own. Use the <a href="/billing">Billing Helpers</a> API (<code>runForPlatform</code>) on a schedule—or enable the in-process billing monitor—to invoice and collect due subscriptions in USDC.',
           html: true,

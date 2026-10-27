@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
-import { ApiService } from '../../core';
+import { ApiService, GetApiErrorCode, type ApiError } from '../../core';
 import { Subscription } from '@zoneless/shared-types';
 import {
   CancelSubscriptionInput,
@@ -7,6 +7,24 @@ import {
   ResumeSubscriptionInput,
   UpdateSubscriptionInput,
 } from '@zoneless/shared-schemas';
+
+/**
+ * Shown for a 400 `onchain_plan_amount_exceeded` in place of the API's
+ * words: an on-chain plan collects at most its amount once per period.
+ */
+export const ONCHAIN_PLAN_AMOUNT_EXCEEDED_MESSAGE =
+  'An on-chain subscription bills one price at quantity 1, and nothing can raise its invoices above that price. Remove the extra items or set the quantity to 1.';
+
+/** The same error with fixed words when an on-chain plan can't collect it. */
+function WithFixedMessage(error: unknown): unknown {
+  if (GetApiErrorCode(error) !== 'onchain_plan_amount_exceeded') return error;
+  const { status, type, details } = error as ApiError;
+  return Object.assign(new Error(ONCHAIN_PLAN_AMOUNT_EXCEEDED_MESSAGE), {
+    status,
+    type,
+    details,
+  });
+}
 
 @Injectable({
   providedIn: 'root',
@@ -22,6 +40,8 @@ export class SubscriptionService {
     this.loading.set(true);
     try {
       return await this.api.Call<Subscription>('POST', `subscriptions`, data);
+    } catch (error) {
+      throw WithFixedMessage(error);
     } finally {
       this.loading.set(false);
     }
@@ -55,6 +75,8 @@ export class SubscriptionService {
         `subscriptions/${subscriptionId}`,
         data
       );
+    } catch (error) {
+      throw WithFixedMessage(error);
     } finally {
       this.loading.set(false);
     }

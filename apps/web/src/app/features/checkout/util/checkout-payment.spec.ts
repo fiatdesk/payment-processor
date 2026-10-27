@@ -117,10 +117,29 @@ describe('CheckoutPaymentConfirmer', () => {
   it('holds a signature for its own session only', () => {
     confirmer.Hold(SESSION, SIGNATURE);
 
-    expect(confirmer.HeldSignature(SESSION)).toBe(SIGNATURE);
+    expect(confirmer.Held(SESSION)).toEqual({ signature: SIGNATURE });
     expect(
-      confirmer.HeldSignature({ ...SESSION, id: 'cs_other' } as CheckoutSession)
+      confirmer.Held({ ...SESSION, id: 'cs_other' } as CheckoutSession)
     ).toBeNull();
+  });
+
+  it('sends held subscribe signatures on every retry and treats them as signed', async () => {
+    const signed = {
+      permit_signature: SIGNATURE,
+      subscribe_signature: `0x${'ef'.repeat(65)}`,
+      deadline: 1793106000,
+    };
+    confirmer.Hold(SESSION, signed);
+    api.ConfirmPayment.mockRejectedValueOnce(ResubmitRequired());
+
+    await expect(Settle()).resolves.toBe(COMPLETED);
+
+    expect(api.ConfirmPayment.mock.calls).toEqual([
+      [SESSION.url_slug, signed],
+      [SESSION.url_slug, signed],
+    ]);
+    expect(api.GetPublicCheckoutSession).not.toHaveBeenCalled();
+    expect(confirmer.CanCheckAgain(SESSION)).toBe(true);
   });
 
   it('shows the confirming state while the payment is pending', async () => {
@@ -291,7 +310,7 @@ describe('CheckoutPaymentConfirmer', () => {
 
     confirmer.Forget();
 
-    expect(confirmer.HeldSignature(SESSION)).toBeNull();
+    expect(confirmer.Held(SESSION)).toBeNull();
     expect(state.transactionHash()).toBeNull();
     expect(confirmer.CanCheckAgain(SESSION)).toBe(false);
   });

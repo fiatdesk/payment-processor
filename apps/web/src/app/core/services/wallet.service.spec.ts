@@ -76,6 +76,27 @@ function StatefulProvider(options: {
   return Object.assign(provider, { state });
 }
 
+/** A provider that also emits EIP-1193 events, as wallets do. */
+function EventedProvider(
+  handlers: Record<string, (params: unknown) => unknown> = {}
+): ReturnType<typeof FakeProvider> & {
+  Emit(event: string, ...args: unknown[]): void;
+  ListenerCount(event: string): number;
+} {
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  return Object.assign(FakeProvider(handlers), {
+    on: (event: string, listener: (...args: unknown[]) => void) => {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)?.add(listener);
+    },
+    removeListener: (event: string, listener: (...args: unknown[]) => void) =>
+      listeners.get(event)?.delete(listener),
+    Emit: (event: string, ...args: unknown[]) =>
+      listeners.get(event)?.forEach((listener) => listener(...args)),
+    ListenerCount: (event: string) => listeners.get(event)?.size ?? 0,
+  });
+}
+
 /** The request objects the provider received, in order. */
 function Requests(provider: { request: jest.Mock }): unknown[] {
   return provider.request.mock.calls.map(([request]) => request);
@@ -344,6 +365,67 @@ describe('WalletService', () => {
       );
 
       expect(service.wallet()?.info.icon).toBe('');
+    });
+  });
+
+  describe('account changes', () => {
+    /** Anvil default account #3 (public test key). */
+    const OTHER = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+    let provider: ReturnType<typeof EventedProvider>;
+    let service: WalletService;
+
+    beforeEach(() => {
+      provider = EventedProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      service = new WalletService();
+      Announce(fakeWindow, provider);
+    });
+
+    it('follows the account the wallet switches to after Connect', async () => {
+      await service.Connect();
+
+      provider.Emit('accountsChanged', [OTHER.toLowerCase()]);
+      expect(service.account()).toBe(OTHER);
+
+      provider.Emit('accountsChanged', []);
+      expect(service.account()).toBeNull();
+    });
+
+    it('drops an account the wallet reports malformed', async () => {
+      await service.Connect();
+
+      provider.Emit('accountsChanged', ['0x1234']);
+
+      expect(service.account()).toBeNull();
+    });
+
+    it('ignores account changes before Connect and after Disconnect', async () => {
+      provider.Emit('accountsChanged', [OTHER.toLowerCase()]);
+      expect(service.account()).toBeNull();
+
+      await service.Connect();
+      service.Disconnect();
+      provider.Emit('accountsChanged', [OTHER.toLowerCase()]);
+
+      expect(service.account()).toBeNull();
+    });
+
+    it('moves its listener to a wallet that replaces the window.ethereum fallback', () => {
+      const injected = EventedProvider();
+      fakeWindow.ethereum = injected;
+      const fallbackService = new WalletService();
+      // The announced provider from beforeEach went to the other service.
+      jest.advanceTimersByTime(300);
+      expect(fallbackService.wallet()?.provider).toBe(injected);
+      expect(injected.ListenerCount('accountsChanged')).toBe(1);
+
+      const late = EventedProvider();
+      Announce(fakeWindow, late, 'Late');
+
+      expect(fallbackService.wallet()?.provider).toBe(late);
+      expect(injected.ListenerCount('accountsChanged')).toBe(0);
+      expect(late.ListenerCount('accountsChanged')).toBe(1);
     });
   });
 

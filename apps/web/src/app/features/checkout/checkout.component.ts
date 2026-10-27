@@ -3,16 +3,18 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  effect,
   inject,
   OnInit,
   signal,
+  untracked,
   WritableSignal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import type { TypedDataDefinition } from 'viem';
 
-import { IsUserRejectedError, MetaService, WalletService } from '../../core';
+import { MetaService, WalletService } from '../../core';
 import {
   CheckoutSessionService,
   ReadConfirmRetry,
@@ -58,13 +60,19 @@ import {
 } from './util/mobile-wallet';
 import {
   ALREADY_CONFIRMING_MESSAGE,
+  CheckoutErrorMessage,
   CheckoutPaymentConfirmer,
   PaymentPhase,
+  ReadSignatureRequired,
   RequireAuthorizationTypedData,
   ShortAddress,
   SignatureRequiredError,
   StillConfirmingError,
 } from './util/checkout-payment';
+import {
+  CheckoutSubscriber,
+  SubscribeTerms,
+} from './util/checkout-subscription';
 import { TEST_WALLET_DATA } from '../../utils/constants/test-data';
 
 type AddressFormValue = {
@@ -153,6 +161,8 @@ export class CheckoutComponent implements OnInit {
    * cannot pay it until it expires, so Pay is off.
    */
   blockedByWallet: WritableSignal<string | null> = signal(null);
+  /** The subscription terms the wallet is asked to sign, once prepared. */
+  subscribeTerms: WritableSignal<SubscribeTerms | null> = signal(null);
   simulatedWalletOpen: WritableSignal<boolean> = signal(false);
   confirmationExpanded: WritableSignal<boolean> = signal(false);
   billingAddressExpanded: WritableSignal<boolean> = signal(false);
@@ -182,8 +192,22 @@ export class CheckoutComponent implements OnInit {
     }
   );
 
+  private readonly subscriber = new CheckoutSubscriber(
+    this.walletService,
+    this.confirmer,
+    this.subscribeTerms
+  );
+
   constructor() {
     inject(DestroyRef).onDestroy(() => this.confirmer.Stop());
+    // The wallet switched to the payer that must sign again: it may pay.
+    effect(() => {
+      const account = this.walletService.account();
+      if (SameAddress(account, untracked(this.blockedByWallet))) {
+        this.blockedByWallet.set(null);
+        this.paymentError.set(null);
+      }
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -436,7 +460,7 @@ export class CheckoutComponent implements OnInit {
     try {
       const prepared = await this.PreparePayment(session, payerWallet);
       const completedSession =
-        (await this.ConfirmAlreadySubscribed(session, prepared)) ??
+        (await this.subscriber.ConfirmExisting(session, prepared)) ??
         (await this.confirmer.Confirm(session, {
           transaction_hash: `sim_sig:${prepared.checkout_session}:${payerWallet}`,
         }));
@@ -601,11 +625,19 @@ export class CheckoutComponent implements OnInit {
       );
     }
 
-    const completedSession = await this.ConfirmAlreadySubscribed(
+    const completedSession = await this.subscriber.ConfirmExisting(
       session,
       prepared
     );
     if (completedSession) return completedSession;
+    if (session.mode === 'subscription') {
+      return this.subscriber.SignAndConfirm(
+        session,
+        prepared,
+        chainId,
+        payerWallet
+      );
+    }
 
     const typedData = RequireAuthorizationTypedData(
       prepared,
@@ -704,17 +736,6 @@ export class CheckoutComponent implements OnInit {
       payerWallet,
       this.BuildCustomerDetailsPayload()
     );
-  }
-
-  private ConfirmAlreadySubscribed(
-    session: CheckoutSession,
-    prepared: CheckoutPaymentTransaction
-  ): Promise<CheckoutSession | null> {
-    if (!prepared.already_subscribed) return Promise.resolve(null);
-    return this.confirmer.Confirm(session, {
-      already_subscribed: true,
-      subscription_onchain_id: prepared.subscription_onchain_id,
-    });
   }
 
   private BuildCustomerDetailsPayload(): CustomerDetailsPayload {
@@ -828,57 +849,35 @@ export class CheckoutComponent implements OnInit {
 
   /**
    * Back to idle with the error shown. A payment that is still confirming
-   * keeps its signature and hash, so Pay checks on it again.
+   * keeps its signature and hash, so Pay checks on it again. A lost payment
+   * that another wallet must sign again turns Pay off for this one.
    */
   private HandlePaymentError(error: unknown): void {
     const stillConfirming = error instanceof StillConfirmingError;
-    if (!stillConfirming) this.confirmer.Forget();
+    if (!stillConfirming) {
+      this.confirmer.Forget();
+      this.subscribeTerms.set(null);
+    }
     this.stillConfirming.set(stillConfirming);
     this.paymentNotice.set(null);
-    this.paymentError.set(
+    const signatureRequired =
       error instanceof SignatureRequiredError
-        ? this.SignatureRequiredMessage(error)
-        : this.ErrorMessage(error)
+        ? ReadSignatureRequired(error, this.walletService.GetAddress() || null)
+        : null;
+    if (signatureRequired?.blockedBy) {
+      this.blockedByWallet.set(signatureRequired.blockedBy);
+    }
+    this.paymentError.set(
+      signatureRequired?.message ??
+        CheckoutErrorMessage(error, this.IsSubscription())
     );
     this.paymentPhase.set('idle');
-  }
-
-  /**
-   * Who must sign a lost payment again. Another connected wallet cannot pay
-   * this session until it expires, so Pay is turned off for it.
-   */
-  private SignatureRequiredMessage(error: SignatureRequiredError): string {
-    const payer = error.payerWallet;
-    if (!payer) return error.message;
-    const lost = `The payment from ${ShortAddress(
-      payer
-    )} did not reach the network.`;
-    const connected = this.walletService.GetAddress();
-    if (connected && !SameAddress(connected, payer)) {
-      this.blockedByWallet.set(payer);
-      return `${lost} Open this checkout with that wallet to sign it again. Another wallet can't pay this checkout until it expires.`;
-    }
-    return `${lost} Press Pay and sign it again with that wallet.`;
   }
 
   private HandleAfterCompletion(session: CheckoutSession): void {
     const redirectUrl = GetCheckoutRedirectUrl(session);
     if (!redirectUrl) return;
     window.setTimeout(() => window.location.assign(redirectUrl), 1200);
-  }
-
-  private ErrorMessage(error: unknown): string {
-    if (IsUserRejectedError(error)) {
-      return 'The request was rejected in your wallet.';
-    }
-    // viem's errors carry a one-line summary next to their long message.
-    const shortMessage = (error as { shortMessage?: unknown } | null)
-      ?.shortMessage;
-    if (typeof shortMessage === 'string' && shortMessage) return shortMessage;
-    if (error instanceof Error && error.message) return error.message;
-    return this.IsSubscription()
-      ? 'Something went wrong starting your subscription. Please try again.'
-      : 'Something went wrong processing your payment. Please try again.';
   }
 
   LineItemImage(item: CheckoutSessionLineItem): string | null {
@@ -972,8 +971,8 @@ export class CheckoutComponent implements OnInit {
     if (this.IsSubscription()) {
       const cadence = this.RecurringIntervalLabel();
       return cadence
-        ? `Connect your wallet to authorize recurring ${amount} USDC every ${cadence}.`
-        : `Connect your wallet to authorize this recurring USDC subscription.`;
+        ? `Connect your wallet to authorize recurring ${amount} USDC every ${cadence}. First-time wallets approve twice. No ETH is needed for gas.`
+        : `Connect your wallet to authorize this recurring USDC subscription. First-time wallets approve twice. No ETH is needed for gas.`;
     }
     return `Connect your wallet and sign once to pay ${amount} in USDC. No ETH is needed for gas.`;
   }

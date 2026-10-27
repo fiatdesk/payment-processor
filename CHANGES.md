@@ -1617,3 +1617,96 @@ libs/shared-types/src/lib/Event.ts
 libs/shared-types/src/lib/PaymentIntent.ts
 libs/shared-types/src/lib/Subscription.ts
 ```
+
+## Task 15: Subscription checkout and dashboard (web)
+
+Hosted checkout now starts on-chain subscriptions from the customer's browser wallet. A first-time wallet signs the USDC permit and then the `Subscribe` message; a wallet whose allowance already covers the plan signs only the `Subscribe`. One confirm carries both signatures and the prepared `deadline`, and the API relays them in one transaction (Task 14). The dashboard shows the on-chain subscription and its on-chain states.
+
+- **Subscribe flow** (`features/checkout/util/checkout-subscription.ts`, addendum A2):
+  - `CheckoutSubscriber` signs with `eth_signTypedData_v4`: the permit first when `subscription.needs_permit`, then `subscription.subscribe_typed_data`. It confirms `{ permit_signature?, subscribe_signature, deadline }` through the Task 12 confirmer, so `payment_pending`, gateway errors and the 5-minute stop behave as for payments, and every retry sends the same signatures.
+  - Before the wallet is asked, the messages must match this checkout:
+    - both are for the configured chain;
+    - the `Subscribe` is from the connected wallet, for `subscription.plan_id`, in the session's USDC (`merchant_wallet.token_address`), for the price's `unit_amount × 10 000` and period (a month is 30 days, as the API creates plans), with the prepared `deadline`;
+    - the permit is from the connected wallet, lets the Subscriptions contract (the `Subscribe` domain's `verifyingContract`) spend that USDC, has the same deadline, and sets at least the allowance the plan adds.
+  - A mismatch shows "This subscription request is out of date. Reload the page and try again." and nothing is signed. A message for another chain shows its own network message.
+  - `already_subscribed` still confirms `{ already_subscribed, subscription_onchain_id }` without signing.
+  - `checkout.component.ts` does not grow (987 lines, was 988). The error text and the "who must sign again" reading moved to `checkout-payment.ts` as pure functions.
+- **What the customer is shown** (addenda A1 and A3), while the wallet signs:
+  - the amount, period and token from the `Subscribe` message, e.g. "10.00 USDC every month" and "USDC (0x1c7D…7238)";
+  - with a permit, the allowance the plan adds (`amount × max(12, ceil(365 days / period))`, e.g. "130.00 USDC (13 charges)" for a month) and the total allowance the permit sets (its `value`, which includes the wallet's current allowance);
+  - without a permit, that the existing allowance already covers the subscription;
+  - "First charge on <date>" from `message.firstChargeAt` when present and non-zero (a trial), otherwise "First charge today". The Task 14 fix round adds `firstChargeAt`; this is built against fixtures of that shape.
+  - The help text says "First-time wallets approve twice. No ETH is needed for gas."
+- **Fixed error text** (never the API's words):
+  - 409 `period_already_collected` at confirm;
+  - 400 `onchain_plan_amount_exceeded` at prepare (quantity above 1);
+  - 409 `subscription_authorization_stale`, which drops the signatures so Subscribe prepares and signs again;
+  - 400 `onchain_plan_amount_exceeded` from dashboard subscription create and update. `SubscriptionService` replaces the message, and keeps the status, type and `code`.
+  - `GetApiErrorCode()` (`api.service.ts`) reads an error's `code`, falling back to its type.
+- **Wallet account changes** (addendum A2, `wallet.service.ts`):
+  - After `Connect()`, the provider's `accountsChanged` event updates `account()`. An empty or malformed account clears it. Events before `Connect()` or after `Disconnect()` are ignored.
+  - The listener moves with the wallet when a late EIP-6963 announcement replaces the `window.ethereum` fallback.
+  - Checkout clears `blockedByWallet` (and the stale error) when the account switches to the recorded payer that must sign again. The `blockedByWallet` side effect left `SignatureRequiredMessage`: `HandlePaymentError` sets it from `ReadSignatureRequired()`.
+- **Dashboard subscriptions:**
+  - The detail page shows `subscription_onchain_id` (copyable) with a "Subscriber wallet on explorer" link to the subscriber's wallet (`default_payment_method`), where its USDC charges and allowance show. The on-chain id is a contract key, which an explorer has no page for.
+  - On-chain states show as chips next to the status, each with an explanation:
+    - "Cancel pending on-chain" (`cancel_pending_on_chain`), with `cancel_pending_transaction_hash` linked on the explorer;
+    - "Allowance exhausted" (the latest invoice is open and its last collection failed with `collection_failed_allowance`, the condition behind `customer.subscription.allowance_exhausted`), explained as "Renewal authorization exhausted";
+    - "Paused on-chain" (`paused_on_chain`).
+  - The list's status column shows the most pressing on-chain state first. Both views expand `latest_invoice`.
+  - The cancel dialog says canceling also cancels on the Subscriptions contract, and that the customer can also stop every pull by canceling on-chain or revoking their USDC allowance.
+  - The webhook event list labels `customer.subscription.allowance_exhausted`. Without the label the production web build failed to type-check at Task 14's tip.
+- **Dashboard prices:** a recurring price's Pricing table shows its on-chain plan (`subscription_plan_id`, copyable), or "Not created yet".
+- **Docs** (`subscriptions.ts`): a "Subscribing in hosted checkout" callout on the subscription object page describes the customer-facing flow.
+- **Tests:**
+  - Checkout component, with the real `WalletService` and a fake EIP-1193 wallet:
+    - two `eth_signTypedData_v4` calls (permit, then `Subscribe`) when `needs_permit`, one otherwise, and one confirm carrying both signatures and the `deadline`;
+    - the terms shown while signing, a trial's first charge date from `firstChargeAt`, and `firstChargeAt: 0` as today;
+    - the mismatch guards, a rejected permit, a pending subscribe retried with the same signatures, the three fixed error texts, `already_subscribed`, and Pay turning back on after `accountsChanged` to the payer.
+  - Confirmer: held subscribe signatures are re-sent on retry.
+  - Wallet: `accountsChanged` handling and the listener move.
+  - Dashboard: on-chain display helpers, the subscription detail page (on-chain id, explorer links, chips and notices), the cancel dialog copy, the price detail plan id, and the subscription service's fixed error text.
+- **Simulated-rail run** (ruling R4, API on `SETTLEMENT_RAIL=simulated` with a throwaway Mongo database). The web's bodies are used: prepare `{ payer_wallet, email }`, then confirm `{ transaction_hash: "sim_sig:…" }`.
+  - A trial price completes. The repeat confirm is idempotent, and the dashboard fields the web reads are present.
+  - A quantity-2 update answers `code: onchain_plan_amount_exceeded`.
+  - A non-trial price does not complete: see the Task 15 report. On MongoDB, the first-period collect answers 409 `another_confirmation` on the first confirm, because the cycle claim is stored without its `id` (an API issue, outside this task).
+
+Added:
+
+```
+apps/web/src/app/data/services/subscription.service.spec.ts
+apps/web/src/app/features/account/products/views/price-detail/price-detail.component.spec.ts
+apps/web/src/app/features/account/subscriptions/components/subscription-cancel-modal/subscription-cancel-modal.component.spec.ts
+apps/web/src/app/features/account/subscriptions/util/subscription-display.spec.ts
+apps/web/src/app/features/account/subscriptions/views/subscription-detail/subscription-detail.component.spec.ts
+apps/web/src/app/features/checkout/util/checkout-subscription.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/docs/src/app/pages/docs/data/subscriptions.ts
+apps/web/src/app/core/services/api.service.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/data/services/checkout-session.service.ts
+apps/web/src/app/data/services/subscription.service.ts
+apps/web/src/app/data/services/webhook-endpoint.service.ts
+apps/web/src/app/features/account/products/views/price-detail/price-detail.component.html
+apps/web/src/app/features/account/products/views/price-detail/price-detail.component.ts
+apps/web/src/app/features/account/subscriptions/components/subscription-cancel-modal/subscription-cancel-modal.component.html
+apps/web/src/app/features/account/subscriptions/components/subscription-cancel-modal/subscription-cancel-modal.component.scss
+apps/web/src/app/features/account/subscriptions/util/subscription-display.ts
+apps/web/src/app/features/account/subscriptions/views/subscription-detail/subscription-detail.component.html
+apps/web/src/app/features/account/subscriptions/views/subscription-detail/subscription-detail.component.scss
+apps/web/src/app/features/account/subscriptions/views/subscription-detail/subscription-detail.component.ts
+apps/web/src/app/features/account/subscriptions/views/subscription-list/subscription-list.component.ts
+apps/web/src/app/features/checkout/checkout.component.html
+apps/web/src/app/features/checkout/checkout.component.scss
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/checkout/util/checkout-payment.spec.ts
+apps/web/src/app/features/checkout/util/checkout-payment.ts
+apps/web/src/app/shared/ui/status-chip/status-chip.component.ts
+```

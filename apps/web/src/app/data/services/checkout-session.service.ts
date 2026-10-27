@@ -11,11 +11,23 @@ import {
 } from '@zoneless/shared-schemas';
 
 /**
+ * Subscription mode: the signed `Subscribe`, the signed USDC permit when
+ * prepare asked for one, and the `deadline` both were signed with.
+ */
+export interface CheckoutSubscribeConfirmation {
+  permit_signature?: string;
+  subscribe_signature: string;
+  deadline: number;
+}
+
+/**
  * What confirm takes: the customer's signature of the prepared
- * authorization, or, to follow a payment already relayed, its hash.
+ * authorization (or subscription), or, to follow a payment already
+ * relayed, its hash.
  */
 export type CheckoutPaymentConfirmation =
   | { signature: string }
+  | CheckoutSubscribeConfirmation
   | { transaction_hash: string }
   | { already_subscribed: true; subscription_onchain_id?: string };
 
@@ -173,7 +185,8 @@ export class CheckoutSessionService {
   /**
    * Prepare what the customer signs for a checkout session via the public
    * payment pages endpoint: an EIP-3009 USDC authorization as EIP-712
-   * typed data, which the API relays and pays the gas for.
+   * typed data or, in subscription mode, the `Subscribe` and maybe a USDC
+   * permit. The API relays them and pays the gas.
    */
   async PreparePayment(
     urlSlug: string,
@@ -216,9 +229,10 @@ export class CheckoutSessionService {
   }
 
   /**
-   * Confirm a checkout payment. The API relays a `signature`, waits for
-   * confirmations and returns the completed session, or a 409
-   * `payment_pending` while it confirms (see `ReadConfirmRetry`).
+   * Confirm a checkout payment. The API relays a `signature` (or the
+   * subscribe signatures), waits for confirmations and returns the
+   * completed session, or a 409 `payment_pending` while it confirms (see
+   * `ReadConfirmRetry`).
    */
   async ConfirmPayment(
     urlSlug: string,

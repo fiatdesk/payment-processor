@@ -106,6 +106,8 @@ export class SubscriptionListComponent implements OnInit, OnDestroy {
   subscriptionsExpand: WritableSignal<string[]> = signal([
     'customer',
     'items.data.price.product',
+    // The status column shows an exhausted renewal allowance from it.
+    'latest_invoice',
   ]);
 
   ngOnInit(): void {

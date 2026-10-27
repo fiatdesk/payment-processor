@@ -10,11 +10,77 @@ import {
   FormatIntervalLabel,
 } from '../../products/util/price-display';
 
+/** What the chain says about an on-chain subscription, beyond its status. */
+export type SubscriptionOnchainStatus =
+  | 'cancel_pending_on_chain'
+  | 'allowance_exhausted'
+  | 'paused_on_chain';
+
+/** What each on-chain state means for the merchant. */
+export const SUBSCRIPTION_ONCHAIN_NOTICES: Record<
+  SubscriptionOnchainStatus,
+  { title: string; text: string }
+> = {
+  cancel_pending_on_chain: {
+    title: 'Cancel pending on-chain',
+    text: 'The on-chain cancel was sent and is not confirmed yet. It is sent again until it lands, and no further charges are collected.',
+  },
+  allowance_exhausted: {
+    title: 'Renewal authorization exhausted',
+    text: "The subscriber's USDC allowance to the Subscriptions contract can't cover the next charge. They need to re-authorize by approving more USDC for the contract before it can be collected.",
+  },
+  paused_on_chain: {
+    title: 'Paused on-chain',
+    text: 'The subscriber paused this subscription on-chain. Collection resumes when they resume it on-chain.',
+  },
+};
+
+/**
+ * True when the latest invoice is still open because the subscriber's USDC
+ * allowance could not cover it (`customer.subscription.allowance_exhausted`).
+ */
+export function IsSubscriptionAllowanceExhausted(
+  subscription: Subscription
+): boolean {
+  const invoice = subscription.latest_invoice;
+  return (
+    !!invoice &&
+    typeof invoice === 'object' &&
+    invoice.status === 'open' &&
+    invoice.metadata?.['last_payment_error_code'] ===
+      'collection_failed_allowance'
+  );
+}
+
+/** The on-chain states of a subscription, most pressing first. */
+export function GetSubscriptionOnchainStatuses(
+  subscription: Subscription
+): SubscriptionOnchainStatus[] {
+  if (!subscription.subscription_onchain_id) return [];
+  const statuses: SubscriptionOnchainStatus[] = [];
+  if (subscription.cancel_pending_on_chain) {
+    statuses.push('cancel_pending_on_chain');
+  }
+  if (IsSubscriptionAllowanceExhausted(subscription)) {
+    statuses.push('allowance_exhausted');
+  }
+  if (subscription.paused_on_chain) statuses.push('paused_on_chain');
+  return statuses;
+}
+
+/** `0x1234abcd…5678ef90` for a long hex id or hash. */
+export function FormatShortHex(value: string): string {
+  return `${value.slice(0, 10)}…${value.slice(-8)}`;
+}
+
 /**
  * Display status for the subscriptions list.
  * Mirrors Stripe: active subscriptions set to cancel show "Cancels {date}".
+ * An on-chain state that needs attention comes first.
  */
 export function GetSubscriptionListStatus(subscription: Subscription): string {
+  const [onchainStatus] = GetSubscriptionOnchainStatuses(subscription);
+  if (onchainStatus) return onchainStatus;
   if (IsSubscriptionCancelingAtPeriodEnd(subscription)) {
     const cancelAt = GetSubscriptionCancelAt(subscription);
     if (cancelAt) {

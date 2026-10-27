@@ -343,6 +343,43 @@
   margin-top: $spacing-extra-large;
 }
 
+.subscription-terms {
+  margin-top: $spacing;
+  padding: $spacing-snug $spacing;
+  font-size: $font-size-small;
+  color: $checkout-label;
+}
+
+.subscription-terms-title {
+  font-weight: $medium-weight;
+  color: $checkout-heading;
+  margin-bottom: $spacing-small;
+}
+
+.subscription-terms-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-extra-small;
+  margin: 0 0 $spacing-small;
+}
+
+.subscription-terms-row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing;
+
+  dd {
+    margin: 0;
+    color: $checkout-heading;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+.subscription-terms-note {
+  line-height: 1.5;
+}
+
 .payment-status {
   margin-top: $spacing;
   color: $checkout-label;
