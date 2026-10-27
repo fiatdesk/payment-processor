@@ -9,6 +9,7 @@ import type {
   CheckoutTransferAuthorization,
   Eip712TypedData,
 } from '@zoneless/shared-types';
+import type { AppError } from '../../utils/AppError';
 
 export type Rail = 'simulated' | 'onchain';
 
@@ -188,13 +189,153 @@ export interface CheckoutPaymentVerification {
   failure_reason?: string;
 }
 
-/** Result of verifying an on-chain subscribe transaction */
+/**
+ * What a subscriber signs at checkout: our EIP-712 `Subscribe`, plus a USDC
+ * permit for the Subscriptions contract when the allowance is too low.
+ * Nothing on the simulated rail.
+ */
+export interface PreparedSubscribe {
+  /** True when the subscriber must also sign `permit_typed_data` */
+  needs_permit: boolean;
+  /** The USDC permit; null when not needed */
+  permit_typed_data: Eip712TypedData | null;
+  /** The contract's `Subscribe` message; null on the simulated rail */
+  subscribe_typed_data: Eip712TypedData | null;
+  /** Unix time after which both signatures are refused; null if simulated */
+  deadline: number | null;
+  /**
+   * Upper bound of the gas the relayer pays, in atomic units of
+   * `fee_currency`
+   */
+  estimated_fee: string;
+  fee_currency: 'eth' | 'none';
+  chain_id: number | null;
+}
+
+/** A signed subscribe for the relayer to submit. */
+export interface SubscribeRelay {
+  planKey: string;
+  subscriber: string;
+  /** The USDC permit signature, when the subscriber signed one */
+  permitSignature: string | null;
+  subscribeSignature: string;
+  /** The `deadline` both signatures were made with */
+  deadline: number;
+}
+
+/** Hooks around relaying a subscribe. */
+export type RelaySubscribeOptions = Omit<RelayCheckoutOptions, 'createdAt'>;
+
+/** Result of verifying an on-chain subscribe */
 export interface CheckoutSubscribeVerification {
-  verified: boolean;
-  /** Subscriber wallet that signed the subscribe transaction */
+  /**
+   * `verified`: the subscription exists on-chain. `failed`: final; the
+   * transaction did not subscribe and no subscription exists. `pending`:
+   * not settled yet. `not_found`: the node does not know the transaction
+   * and no subscription exists, so waiting cannot help.
+   */
+  status: 'verified' | 'failed' | 'pending' | 'not_found';
+  /**
+   * The transaction that subscribed; null when the subscription exists but
+   * this transaction did not create it
+   */
+  transaction_hash: string | null;
+  /** The subscriber wallet */
   subscriber_address: string | null;
-  /** On-chain subscription id created by the subscribe transaction */
+  /** The on-chain subscription id */
   subscription_onchain_id: string | null;
   /** Reason verification failed, if it did */
   failure_reason?: string;
 }
+
+/** One period's collection from a subscriber. */
+export interface SubscriptionCollectParams {
+  subscriptionOnchainId: string;
+  subscriberWallet: string;
+  planKey: string;
+  amountCents: number;
+  /**
+   * Persists the charge's hash before the network sees it. A throw cancels
+   * the send.
+   */
+  onSigned(transactionHash: string): Promise<void>;
+  /** How long to wait for confirmations before answering `pending` (ms) */
+  timeoutMs?: number;
+}
+
+/**
+ * A collection's outcome. `already_collected`: this period was charged
+ * already (`NotDueYet`) and nothing moved. `pending`: the charge was sent
+ * and recorded but is not confirmed yet; reconcile it by its hash.
+ */
+export type SubscriptionCollection =
+  | {
+      status: 'collected';
+      transaction_hash: string;
+      /** The contract's next due time after this charge */
+      next_charge_at: number | null;
+    }
+  | { status: 'already_collected'; transaction_hash: null }
+  | { status: 'pending'; transaction_hash: string };
+
+/**
+ * What a recorded charge hash says. `paid`: confirmed with its `Charged`
+ * log. `failed`: it reverted; `error` says whether that is a decline.
+ * `dropped`: it will never be mined (another transaction took its nonce, or
+ * the node forgot it). `pending`: not mined yet; `transaction_hash` is a
+ * re-priced replacement when the charge was stuck.
+ */
+export type ChargeReconciliation =
+  | { status: 'paid'; transaction_hash: string; next_charge_at: number | null }
+  | { status: 'failed'; error: AppError }
+  | { status: 'dropped' }
+  | { status: 'pending'; transaction_hash: string };
+
+/** On-chain state of a subscription. */
+export type OnchainSubscriptionStatus =
+  | 'none'
+  | 'active'
+  | 'paused'
+  | 'canceled';
+
+/** What the chain says about a subscription's status and schedule. */
+export interface OnchainSubscriptionState {
+  status: OnchainSubscriptionStatus;
+  /**
+   * When the next period is due on-chain (Unix seconds); null when the rail
+   * keeps no schedule, so the off-chain one applies
+   */
+  next_charge_at: number | null;
+  /** The plan's period in seconds; null when the rail keeps no schedule */
+  period_seconds: number | null;
+  /** The chain's time (latest block); null when the rail has no chain */
+  chain_time: number | null;
+}
+
+/**
+ * Error types of collections. A decline uses up a retry; every other code
+ * is a wait or a state the billing runner resolves.
+ */
+export const COLLECTION_FAILED_ALLOWANCE = 'collection_failed_allowance';
+export const INSUFFICIENT_FUNDS = 'insufficient_funds';
+export const ACCOUNT_FROZEN = 'account_frozen';
+/** The subscription is paused on-chain. */
+export const PAUSED_ON_CHAIN = 'paused_on_chain';
+/** The subscription is canceled on-chain (or never existed): terminal. */
+export const CANCELED_ON_CHAIN = 'canceled_on_chain';
+/** This period was already collected; wait for the next one. */
+export const PERIOD_ALREADY_COLLECTED = 'period_already_collected';
+/** A charge was sent and is not confirmed yet. */
+export const CHARGE_PENDING = 'charge_pending';
+/** The invoice bills a period the contract skipped; it is voided. */
+export const CYCLE_MISSED = 'cycle_missed';
+/** The subscription's price is not on the plan it subscribed to. */
+export const ONCHAIN_PLAN_MISMATCH = 'onchain_plan_mismatch';
+/** The amount exceeds what the on-chain plan can collect per period. */
+export const ONCHAIN_PLAN_AMOUNT_EXCEEDED = 'onchain_plan_amount_exceeded';
+
+export const COLLECTION_DECLINE_CODES: ReadonlySet<string> = new Set([
+  COLLECTION_FAILED_ALLOWANCE,
+  INSUFFICIENT_FUNDS,
+  ACCOUNT_FROZEN,
+]);

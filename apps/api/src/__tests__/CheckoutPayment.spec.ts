@@ -18,7 +18,7 @@ import {
 } from '../modules/chains/Settlement';
 import type {
   CheckoutPaymentVerification,
-  UnsignedTransaction,
+  CheckoutSubscribeVerification,
 } from '../modules/chains/types';
 import { AppError } from '../utils/AppError';
 import { WithKeyedLock } from '../utils/KeyedLock';
@@ -41,9 +41,14 @@ import {
 import { MemoryDatabase } from './mocks/MemoryDatabase';
 import {
   CreateMockSettlement,
+  MOCK_CHARGE_HASH,
   MOCK_PAYER,
+  MOCK_PLAN_KEY,
   MOCK_RELAY_HASH,
+  MOCK_SUBSCRIBE_HASH,
+  MOCK_SUBSCRIPTION_ID,
   MOCK_USDC,
+  MockPreparedSubscribe,
 } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
@@ -122,19 +127,8 @@ function RecurringPrice(): Price {
       trial_period_days: null,
       usage_type: 'licensed',
     },
-    subscription_plan_id: 'PlanId111',
+    subscription_plan_id: MOCK_PLAN_KEY,
   });
-}
-
-function UnsignedTx(unsignedTransaction: string): UnsignedTransaction {
-  return {
-    unsigned_transaction: unsignedTransaction,
-    estimated_fee: '5000',
-    fee_currency: 'eth',
-    chain_id: 11155111,
-    nonce: null,
-    to: null,
-  };
 }
 
 function BuildLineItem(
@@ -227,9 +221,6 @@ describe('CheckoutPaymentModule', () => {
     );
 
     mockSettlement = CreateMockSettlement();
-    mockSettlement.BuildSubscribeTransaction.mockResolvedValue(
-      UnsignedTx('unsigned_subscribe_base64')
-    );
 
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
@@ -466,86 +457,117 @@ describe('CheckoutPaymentModule', () => {
       );
     });
 
-    it('should build a subscribe transaction for subscription mode', async () => {
-      const recurringPrice = RecurringPrice();
-      const session = BuildOpenSession({
-        mode: 'subscription',
-        payment_intent: null,
-        line_items: {
-          object: 'list',
-          data: [BuildLineItem({ price: recurringPrice })],
-          has_more: false,
-          url: '/v1/checkout/sessions/cs_z_1/line_items',
-        },
+    describe('in subscription mode', () => {
+      let session: CheckoutSession;
+
+      beforeEach(() => {
+        session = BuildOpenSession({
+          mode: 'subscription',
+          payment_intent: null,
+          line_items: {
+            object: 'list',
+            data: [BuildLineItem({ price: RecurringPrice() })],
+            has_more: false,
+            url: '/v1/checkout/sessions/cs_z_1/line_items',
+          },
+        });
+        jest
+          .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
+          .mockResolvedValue(session);
+        jest
+          .spyOn(checkoutSessionModule, 'GetCheckoutSession')
+          .mockResolvedValue(session);
+        mockDb.Update = jest.fn().mockResolvedValue(undefined);
       });
 
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
-        .mockResolvedValue(session);
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
-        .mockResolvedValue(session);
-      mockDb.Update = jest.fn().mockResolvedValue(undefined);
+      function Prepare() {
+        return module.PreparePayment(session.url_slug, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        });
+      }
 
-      const result = await module.PreparePayment(
-        session.url_slug,
-        PAYER_WALLET,
-        { email: 'buyer@example.com' }
-      );
+      it('returns the permit and subscribe typed data for a first-time subscriber, relayed', async () => {
+        const result = await Prepare();
 
-      expect(mockSettlement.BuildSubscribeTransaction).toHaveBeenCalledWith(
-        PAYER_WALLET,
-        recurringPrice.id,
-        'PlanId111'
-      );
-      expect(
-        mockSettlement.BuildCheckoutPaymentAuthorization
-      ).not.toHaveBeenCalled();
-      expect(result.unsigned_transaction).toBe('unsigned_subscribe_base64');
-      expect(result.relayed).toBe(false);
-      expect(result).not.toHaveProperty('subscription_step');
-    });
-
-    it('should return the existing subscription_onchain_id when the wallet is already subscribed', async () => {
-      const session = BuildOpenSession({
-        mode: 'subscription',
-        payment_intent: null,
-        line_items: {
-          object: 'list',
-          data: [BuildLineItem({ price: RecurringPrice() })],
-          has_more: false,
-          url: '/v1/checkout/sessions/cs_z_1/line_items',
-        },
+        expect(mockSettlement.BuildSubscribeAuthorization).toHaveBeenCalledWith(
+          PAYER_WALLET,
+          MOCK_PLAN_KEY,
+          session.expires_at,
+          { otherPlansAllowance: 0n }
+        );
+        expect(
+          mockSettlement.BuildCheckoutPaymentAuthorization
+        ).not.toHaveBeenCalled();
+        const prepared = MockPreparedSubscribe(
+          PAYER_WALLET,
+          MOCK_PLAN_KEY,
+          session.expires_at
+        );
+        expect(result).toMatchObject({
+          relayed: true,
+          estimated_fee: prepared.estimated_fee,
+          fee_currency: 'eth',
+          chain_id: 11155111,
+          already_subscribed: false,
+        });
+        expect(result.subscription).toEqual({
+          plan_id: MOCK_PLAN_KEY,
+          needs_permit: true,
+          permit_typed_data: prepared.permit_typed_data,
+          subscribe_typed_data: prepared.subscribe_typed_data,
+          deadline: session.expires_at,
+          already_subscribed: false,
+          subscription_onchain_id: null,
+        });
+        expect(result.subscription?.permit_typed_data).not.toBeNull();
+        expect(result).not.toHaveProperty('unsigned_transaction');
       });
 
-      mockSettlement.FindExistingSubscription.mockResolvedValue(
-        'SubOnchain111'
-      );
+      it('leaves the permit out when the allowance already covers the plan', async () => {
+        mockSettlement.BuildSubscribeAuthorization.mockImplementation(
+          async (subscriber, planKey, expiresAt) =>
+            MockPreparedSubscribe(subscriber, planKey, expiresAt, false)
+        );
 
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
-        .mockResolvedValue(session);
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
-        .mockResolvedValue(session);
-      mockDb.Update = jest.fn().mockResolvedValue(undefined);
+        const result = await Prepare();
 
-      const result = await module.PreparePayment(
-        session.url_slug,
-        PAYER_WALLET,
-        { email: 'buyer@example.com' }
-      );
+        expect(result.subscription).toMatchObject({
+          needs_permit: false,
+          permit_typed_data: null,
+          subscribe_typed_data: expect.objectContaining({
+            primaryType: 'Subscribe',
+          }),
+        });
+      });
 
-      expect(mockSettlement.FindExistingSubscription).toHaveBeenCalledWith(
-        'PlanId111',
-        PAYER_WALLET
-      );
-      expect(mockSettlement.BuildSubscribeTransaction).not.toHaveBeenCalled();
-      expect(result).toMatchObject({
-        unsigned_transaction: '',
-        estimated_fee: '0',
-        already_subscribed: true,
-        subscription_onchain_id: 'SubOnchain111',
+      it('reports an existing on-chain subscription instead of typed data', async () => {
+        mockSettlement.FindExistingSubscription.mockResolvedValue(
+          MOCK_SUBSCRIPTION_ID
+        );
+
+        const result = await Prepare();
+
+        expect(mockSettlement.FindExistingSubscription).toHaveBeenCalledWith(
+          MOCK_PLAN_KEY,
+          PAYER_WALLET
+        );
+        expect(
+          mockSettlement.BuildSubscribeAuthorization
+        ).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+          estimated_fee: '0',
+          already_subscribed: true,
+          subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+          subscription: {
+            plan_id: MOCK_PLAN_KEY,
+            needs_permit: false,
+            permit_typed_data: null,
+            subscribe_typed_data: null,
+            deadline: null,
+            already_subscribed: true,
+            subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+          },
+        });
       });
     });
   });
@@ -1519,18 +1541,569 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       });
     });
 
-    it('lets a typed first-period collect error propagate unwrapped', async () => {
-      const notSupported = NotSupported('CollectSubscriptionPayment');
-      settlement.CollectSubscriptionPayment.mockRejectedValue(notSupported);
+    const PERMIT_SIGNATURE = `0x${'7e'.repeat(64)}1c`;
+    const SUBSCRIBE_SIGNATURE = `0x${'5d'.repeat(64)}1b`;
+    const DEADLINE = 1_700_001_800;
+    const SIGNED = {
+      permit_signature: PERMIT_SIGNATURE,
+      subscribe_signature: SUBSCRIBE_SIGNATURE,
+      deadline: DEADLINE,
+    };
+    const NOW = GetFixedTimestamp();
+    let customers: jest.Mocked<Pick<CustomerModule, 'CreateCustomer'>>;
+    let subscriptions: jest.Mocked<
+      Pick<SubscriptionModule, 'CreateSubscription'>
+    >;
+
+    beforeEach(() => {
+      customers = {
+        CreateCustomer: jest.fn().mockResolvedValue({ id: 'cus_z_1' }),
+      } as unknown as typeof customers;
+      subscriptions = {
+        CreateSubscription: jest.fn().mockResolvedValue({ id: 'sub_z_1' }),
+      } as unknown as typeof subscriptions;
       module = Module(settlement, {
-        customerModule: {} as CustomerModule,
-        subscriptionModule: {} as SubscriptionModule,
+        customerModule: customers as unknown as CustomerModule,
+        subscriptionModule: subscriptions as unknown as SubscriptionModule,
+      });
+    });
+
+    function Claims(): Array<Record<string, unknown>> {
+      return memory.All('SubscriptionCycleClaims');
+    }
+
+    function SeedClaim(overrides: Record<string, unknown> = {}): void {
+      memory.Seed('SubscriptionCycleClaims', {
+        id: `${MOCK_SUBSCRIPTION_ID}:${NOW}`,
+        object: 'subscription_cycle_claim',
+        subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+        due_at: NOW,
+        owner: 'cs_z_pay',
+        charge_hash: MOCK_CHARGE_HASH,
+        charge_sent_at: NOW - 30,
+        created: NOW - 30,
+        ...overrides,
+      });
+    }
+
+    function SubscribePending(
+      transactionHash: string | null
+    ): CheckoutSubscribeVerification {
+      return {
+        status: 'pending',
+        transaction_hash: transactionHash,
+        subscriber_address: null,
+        subscription_onchain_id: null,
+      };
+    }
+
+    function ExpectNoSubscription(): void {
+      expect(Session()).toMatchObject({
+        status: 'open',
+        payment_status: 'unpaid',
+      });
+      expect(subscriptions.CreateSubscription).not.toHaveBeenCalled();
+    }
+
+    it('relays both signatures, recording the hash before sending, then verifies, collects and completes', async () => {
+      const seen: Record<string, unknown> = {};
+      settlement.RelaySubscribe.mockImplementation(async (_relay, options) => {
+        await options.onSigned(MOCK_SUBSCRIBE_HASH);
+        seen.atSend = Session().payment_details?.transaction_hash;
+        return MOCK_SUBSCRIBE_HASH;
+      });
+
+      const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.RelaySubscribe).toHaveBeenCalledWith(
+        {
+          planKey: MOCK_PLAN_KEY,
+          subscriber: PAYER_WALLET,
+          permitSignature: PERMIT_SIGNATURE,
+          subscribeSignature: SUBSCRIBE_SIGNATURE,
+          deadline: DEADLINE,
+        },
+        expect.objectContaining({ pendingHash: null })
+      );
+      expect(seen.atSend).toBe(MOCK_SUBSCRIBE_HASH);
+      expect(settlement.VerifySubscribeTransaction).toHaveBeenCalledWith(
+        MOCK_SUBSCRIBE_HASH,
+        { planKey: MOCK_PLAN_KEY, subscriberWallet: PAYER_WALLET },
+        { timeoutMs: 90_000 }
+      );
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          planKey: MOCK_PLAN_KEY,
+          subscriberWallet: PAYER_WALLET,
+          amountCents: 1000,
+        })
+      );
+      // The cycle was claimed for this session and the charge recorded.
+      expect(Claims()).toEqual([
+        expect.objectContaining({
+          owner: 'cs_z_pay',
+          due_at: NOW,
+          charge_hash: MOCK_CHARGE_HASH,
+        }),
+      ]);
+      expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+        'acct_z_platform',
+        expect.objectContaining({
+          default_payment_method: PAYER_WALLET,
+          items: [{ price: 'price_z_1', quantity: 1 }],
+        }),
+        {
+          settlementTransactionHash: MOCK_CHARGE_HASH,
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          periodStart: NOW,
+        }
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        subscription: 'sub_z_1',
+        payment_details: {
+          transaction_hash: MOCK_SUBSCRIBE_HASH,
+          payer_wallet: PAYER_WALLET,
+        },
+      });
+    });
+
+    it('relays without a permit when none was signed', async () => {
+      await module.ConfirmPayment(SLUG, {
+        subscribe_signature: SUBSCRIBE_SIGNATURE,
+        deadline: DEADLINE,
+      });
+
+      expect(settlement.RelaySubscribe).toHaveBeenCalledWith(
+        expect.objectContaining({ permitSignature: null }),
+        expect.anything()
+      );
+    });
+
+    it('answers payment_pending with the relayed hash while the subscribe confirms, keeping it', async () => {
+      settlement.VerifySubscribeTransaction.mockResolvedValue(
+        SubscribePending(MOCK_SUBSCRIBE_HASH)
+      );
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+        details: {
+          code: 'payment_pending',
+          transaction_hash: MOCK_SUBSCRIBE_HASH,
+        },
+      });
+
+      expect(Session().payment_details?.transaction_hash).toBe(
+        MOCK_SUBSCRIBE_HASH
+      );
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      ExpectNoSubscription();
+    });
+
+    it('completes a retry with transaction_hash without relaying again', async () => {
+      settlement.VerifySubscribeTransaction.mockResolvedValueOnce(
+        SubscribePending(MOCK_SUBSCRIBE_HASH)
+      );
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        type: 'payment_pending',
+      });
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: MOCK_SUBSCRIBE_HASH,
+      });
+
+      expect(settlement.RelaySubscribe).toHaveBeenCalledTimes(1);
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: { transaction_hash: MOCK_SUBSCRIBE_HASH },
+      });
+    });
+
+    it('hands the recorded relay to the rail when the signatures are sent again', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_SUBSCRIBE_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+        },
+      });
+
+      await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.RelaySubscribe).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ pendingHash: MOCK_SUBSCRIBE_HASH })
+      );
+    });
+
+    it('refuses a transaction_hash other than the relayed one', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_SUBSCRIBE_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+        },
       });
 
       await expect(
         module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
-      ).rejects.toBe(notSupported);
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(settlement.VerifySubscribeTransaction).not.toHaveBeenCalled();
+    });
+
+    it('passes a stale-signature 409 through and records nothing', async () => {
+      const stale = new AppError(
+        'The subscription signature can no longer be used. Prepare the subscription again and sign the new request.',
+        409,
+        'subscription_authorization_stale',
+        { code: 'subscription_authorization_stale' }
+      );
+      settlement.RelaySubscribe.mockRejectedValue(stale);
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toBe(stale);
+      expect(Session().payment_details?.transaction_hash).toBeNull();
+      ExpectNoSubscription();
+    });
+
+    it('clears the recorded relay when the network refuses it, so the subscriber can retry', async () => {
+      settlement.RelaySubscribe.mockImplementation(async (_relay, options) => {
+        await options.onSigned(MOCK_SUBSCRIBE_HASH);
+        throw new AppError(
+          'The network did not accept the subscription',
+          400,
+          'blockchain_error'
+        );
+      });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 400,
+        type: 'blockchain_error',
+      });
+      expect(Session().payment_details?.transaction_hash).toBeNull();
+      ExpectNoSubscription();
+    });
+
+    it('fails and clears the relay when the subscribe did not subscribe', async () => {
+      settlement.VerifySubscribeTransaction.mockResolvedValue({
+        status: 'failed',
+        transaction_hash: MOCK_SUBSCRIBE_HASH,
+        subscriber_address: null,
+        subscription_onchain_id: null,
+        failure_reason:
+          'The subscribe transaction did not create the subscription',
+      });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'The subscribe transaction did not create the subscription',
+      });
+      expect(Session().payment_details?.transaction_hash).toBeNull();
+      ExpectNoSubscription();
+    });
+
+    it('completes with the on-chain subscription when another transaction created it', async () => {
+      settlement.RelaySubscribe.mockResolvedValue(null);
+      settlement.VerifySubscribeTransaction.mockResolvedValue({
+        status: 'verified',
+        transaction_hash: null,
+        subscriber_address: PAYER_WALLET,
+        subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+      });
+
+      const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.VerifySubscribeTransaction).toHaveBeenCalledWith(
+        null,
+        expect.anything(),
+        expect.anything()
+      );
+      // No made-up reference: the first period's charge stands for it.
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: { transaction_hash: MOCK_CHARGE_HASH },
+      });
+    });
+
+    it('needs signatures or a transaction_hash', async () => {
+      await expect(module.ConfirmPayment(SLUG, {})).rejects.toMatchObject({
+        statusCode: 400,
+      });
+    });
+
+    it('keeps provider text out of a failed first-period collect and releases the claim', async () => {
+      settlement.CollectSubscriptionPayment.mockRejectedValue(
+        new Error('upstream said: project-key-SECRET-1234')
+      );
+
+      const failure = await module
+        .ConfirmPayment(SLUG, SIGNED)
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(AppError);
+      expect(failure).toMatchObject({
+        statusCode: 400,
+        message:
+          'Subscription authorized on-chain, but the first payment could not be collected. Confirm again to retry.',
+      });
+      expect(JSON.stringify(failure)).not.toContain('SECRET');
+      expect(
+        (Session().payment_details as Record<string, unknown>)?.[
+          'settling_since'
+        ]
+      ).toBeNull();
+      ExpectNoSubscription();
+    });
+
+    it('lets a typed first-period collect error propagate unwrapped', async () => {
+      const notSupported = NotSupported('CollectSubscriptionPayment');
+      settlement.CollectSubscriptionPayment.mockRejectedValue(notSupported);
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toBe(
+        notSupported
+      );
       expect(Session().status).toBe('open');
+    });
+
+    it('refuses a first period collected without this session’s charge: 409, nothing created', async () => {
+      settlement.CollectSubscriptionPayment.mockResolvedValue({
+        status: 'already_collected',
+        transaction_hash: null,
+      });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'period_already_collected',
+      });
+      ExpectNoSubscription();
+    });
+
+    it('answers payment_pending for a first-period charge not confirmed yet, keeping its hash', async () => {
+      settlement.CollectSubscriptionPayment.mockImplementation(
+        async (params) => {
+          await params.onSigned(MOCK_CHARGE_HASH);
+          return { status: 'pending', transaction_hash: MOCK_CHARGE_HASH };
+        }
+      );
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+        details: { transaction_hash: MOCK_SUBSCRIBE_HASH },
+      });
+      expect(Claims()).toEqual([
+        expect.objectContaining({ charge_hash: MOCK_CHARGE_HASH }),
+      ]);
+      expect(Session().payment_details).toMatchObject({
+        pending_charge_hash: MOCK_CHARGE_HASH,
+      });
+      ExpectNoSubscription();
+    });
+
+    it('completes a retry by reconciling this session’s recorded charge, sending nothing new', async () => {
+      SeedClaim();
+
+      const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
+        MOCK_CHARGE_HASH,
+        expect.objectContaining({
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          amountCents: 1000,
+        })
+      );
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+        'acct_z_platform',
+        expect.anything(),
+        expect.objectContaining({ settlementTransactionHash: MOCK_CHARGE_HASH })
+      );
+      expect(result.status).toBe('complete');
+    });
+
+    it('refuses the cycle another session holds', async () => {
+      SeedClaim({ owner: 'cs_z_other', charge_hash: null });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'period_already_collected',
+      });
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      ExpectNoSubscription();
+    });
+
+    it.each([
+      ['another live subscription bills it', { status: 'active' }],
+      [
+        'its earlier subscription’s on-chain cancel is still pending',
+        { status: 'canceled', cancel_pending_on_chain: true },
+      ],
+    ])(
+      'refuses an on-chain subscription when %s',
+      async (_label, overrides) => {
+        memory.Seed('Subscriptions', {
+          id: 'sub_z_other',
+          subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+          ...overrides,
+        });
+
+        await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject(
+          { statusCode: 400 }
+        );
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        ExpectNoSubscription();
+      }
+    );
+
+    it('asks for a permit covering the wallet’s other live on-chain plans too', async () => {
+      Seed({ payment_details: null });
+      memory.Seed('Subscriptions', {
+        id: 'sub_z_b',
+        status: 'active',
+        subscription_onchain_id: `0x${'bb'.repeat(32)}`,
+        default_payment_method: PAYER_WALLET,
+      });
+      memory.Seed('SubscriptionItems', {
+        id: 'si_z_b',
+        subscription: 'sub_z_b',
+        price: 'price_z_b',
+      });
+      memory.Seed('Prices', {
+        id: 'price_z_b',
+        subscription_plan_id: `0x${'b0'.repeat(32)}`,
+        unit_amount: 2000,
+        recurring: { interval: 'month', interval_count: 1 },
+      });
+
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+
+      // 20 USDC every 30 days: 13 periods.
+      expect(settlement.BuildSubscribeAuthorization).toHaveBeenCalledWith(
+        PAYER_WALLET,
+        MOCK_PLAN_KEY,
+        expect.any(Number),
+        { otherPlansAllowance: 20_000_000n * 13n }
+      );
+    });
+
+    it('refuses a quantity above 1, which the plan cannot collect', async () => {
+      Seed({
+        payment_details: null,
+        line_items: {
+          object: 'list',
+          data: [BuildLineItem({ price: RecurringPrice(), quantity: 2 })],
+          has_more: false,
+          url: '/v1/checkout/sessions/cs_z_pay/line_items',
+        },
+      });
+
+      await expect(
+        module.PreparePayment(SLUG, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        details: { code: 'onchain_plan_amount_exceeded' },
+      });
+    });
+
+    it('refuses a client transaction_hash after the session expired when no relay was recorded', async () => {
+      Seed({ expires_at: NOW - 1 });
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_SUBSCRIBE_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'This Checkout Session has expired',
+      });
+      expect(settlement.VerifySubscribeTransaction).not.toHaveBeenCalled();
+    });
+
+    it('completes a simulated subscription by its sim_sig reference, without the one-subscription limit', async () => {
+      const simulatedId = `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}`;
+      module = Module(new SimulatedSettlement(), {
+        customerModule: customers as unknown as CustomerModule,
+        subscriptionModule: subscriptions as unknown as SubscriptionModule,
+      });
+      Seed({ payment_details: null });
+      // Every simulated checkout uses the same test wallet.
+      memory.Seed('Subscriptions', {
+        id: 'sub_z_earlier',
+        status: 'active',
+        subscription_onchain_id: simulatedId,
+      });
+
+      const prepared = await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      expect(prepared).toMatchObject({
+        relayed: false,
+        fee_currency: 'none',
+        subscription: {
+          needs_permit: false,
+          permit_typed_data: null,
+          subscribe_typed_data: null,
+        },
+      });
+
+      const reference = SimulatedSignature('cs_z_pay', PAYER_WALLET);
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: reference,
+      });
+
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: { transaction_hash: reference },
+      });
+      expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+        'acct_z_platform',
+        expect.anything(),
+        expect.objectContaining({ subscriptionOnchainId: simulatedId })
+      );
+    });
+
+    describe('with already_subscribed', () => {
+      it('completes from the wallet’s own on-chain subscription', async () => {
+        settlement.FindExistingSubscription.mockResolvedValue(
+          MOCK_SUBSCRIPTION_ID
+        );
+
+        const result = await module.ConfirmPayment(SLUG, {
+          already_subscribed: true,
+          subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+        });
+
+        expect(settlement.FindExistingSubscription).toHaveBeenCalledWith(
+          MOCK_PLAN_KEY,
+          PAYER_WALLET
+        );
+        expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+          'acct_z_platform',
+          expect.anything(),
+          expect.objectContaining({
+            subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          })
+        );
+        expect(result.status).toBe('complete');
+      });
+
+      it('refuses a subscription id that is not the wallet’s', async () => {
+        settlement.FindExistingSubscription.mockResolvedValue(
+          MOCK_SUBSCRIPTION_ID
+        );
+
+        await expect(
+          module.ConfirmPayment(SLUG, {
+            already_subscribed: true,
+            subscription_onchain_id: `0x${'99'.repeat(32)}`,
+          })
+        ).rejects.toMatchObject({ statusCode: 400 });
+        ExpectNoSubscription();
+      });
     });
   });
 });

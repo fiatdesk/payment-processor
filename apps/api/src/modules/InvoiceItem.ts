@@ -15,14 +15,16 @@ import type { CustomerModule } from './Customer';
 import type { PriceModule } from './Price';
 import { GenerateId } from '../utils/IdGenerator';
 import {
+  Invoice as InvoiceType,
   InvoiceItem as InvoiceItemType,
   InvoiceItemDeleted,
   InvoicePeriod,
   InvoicePricing,
   Price as PriceType,
   QueryOperators,
+  Subscription as SubscriptionType,
 } from '@zoneless/shared-types';
-import { StripUndefined, ValidateUpdate } from './Util';
+import { ExpandableId, StripUndefined, ValidateUpdate } from './Util';
 import {
   CreateInvoiceItemSchema,
   CreateInvoiceItemInput,
@@ -74,7 +76,11 @@ export class InvoiceItemModule {
    */
   async CreateInvoiceItem(
     platformAccountId: string,
-    input: CreateInvoiceItemInput
+    input: CreateInvoiceItemInput,
+    options: {
+      /** A subscription's own line, added when its invoice is built */
+      subscriptionLine?: boolean;
+    } = {}
   ): Promise<InvoiceItemType> {
     const validatedInput = ValidateUpdate(CreateInvoiceItemSchema, input);
 
@@ -93,6 +99,9 @@ export class InvoiceItemModule {
       platformAccountId,
       validatedInput
     );
+    if (!options.subscriptionLine && resolved.amount > 0) {
+      await this.AssertNotOnchainSubscription(validatedInput);
+    }
     const invoiceItem = this.InvoiceItemObject(
       platformAccountId,
       validatedInput,
@@ -110,6 +119,36 @@ export class InvoiceItemModule {
     }
 
     return invoiceItem;
+  }
+
+  /**
+   * An on-chain plan collects at most its amount per period, so nothing may
+   * be added to an on-chain subscription's invoices (400
+   * `onchain_plan_amount_exceeded`). Credits and discounts are fine.
+   */
+  private async AssertNotOnchainSubscription(
+    input: CreateInvoiceItemInput
+  ): Promise<void> {
+    let subscriptionId = input.subscription ?? null;
+    if (!subscriptionId && input.invoice) {
+      const invoice = await this.db.Get<InvoiceType>('Invoices', input.invoice);
+      subscriptionId = ExpandableId(
+        invoice?.parent?.subscription_details?.subscription
+      );
+    }
+    if (!subscriptionId) return;
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    if (subscription?.subscription_onchain_id) {
+      throw new AppError(
+        'An on-chain subscription collects its plan amount per period; invoice items cannot add to it',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type,
+        { code: 'onchain_plan_amount_exceeded' }
+      );
+    }
   }
 
   InvoiceItemObject(

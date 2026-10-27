@@ -14,17 +14,28 @@ import {
   type UsdcDomain,
 } from '../../modules/chains/CheckoutAuthorization';
 import type { Settlement } from '../../modules/chains/Settlement';
+import {
+  BuildPermitTypedData,
+  BuildSubscribeTypedData,
+  BuildSubscriptionsDomain,
+} from '../../modules/chains/SubscriptionAuthorization';
 import type {
   BroadcastResult,
+  ChargeReconciliation,
   CheckoutPaymentVerification,
+  CheckoutSubscribeVerification,
+  OnchainSubscriptionState,
+  SubscriptionCollection,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
   PreparedAuthorization,
+  PreparedSubscribe,
   RelayCheckoutOptions,
+  RelaySubscribeOptions,
+  SubscribeRelay,
   TransferRecipient,
   UnsignedPayoutBatch,
-  UnsignedTransaction,
 } from '../../modules/chains/types';
 
 /** Anvil default accounts #0 and #1 (public test keys). */
@@ -40,6 +51,16 @@ export const MOCK_USDC_DOMAIN: UsdcDomain = {
 };
 /** Hash the mock relay returns for a checkout authorization. */
 export const MOCK_RELAY_HASH = `0x${'c0'.repeat(32)}`;
+export const MOCK_SUBSCRIPTIONS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+/** Plan key CreateSubscriptionPlan returns. */
+export const MOCK_PLAN_KEY = `0x${'a1'.repeat(32)}`;
+/** Subscription id VerifySubscribeTransaction reports. */
+export const MOCK_SUBSCRIPTION_ID = `0x${'5b'.repeat(32)}`;
+/** Hash the mock relay returns for a subscribe. */
+export const MOCK_SUBSCRIBE_HASH = `0x${'5c'.repeat(32)}`;
+/** Hash of the mock's `charge` transaction. */
+export const MOCK_CHARGE_HASH = `0x${'c4'.repeat(32)}`;
+export const MOCK_CANCEL_HASH = `0x${'ca'.repeat(32)}`;
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
 /** What GetConfirmedBlock returns: the block at `latest - ETH_CONFIRMATIONS`. */
@@ -101,16 +122,55 @@ export function MockPayoutBatch(
   };
 }
 
-function MockUnsignedTransaction(
-  unsignedTransaction: string
-): UnsignedTransaction {
+/** A prepared subscribe for 20 USDC every 30 days, valid until `deadline`. */
+export function MockPreparedSubscribe(
+  subscriber: string,
+  planKey: string,
+  deadline: number,
+  needsPermit = true
+): PreparedSubscribe {
+  const terms = {
+    token: MOCK_USDC,
+    amount: 20_000_000n,
+    periodSeconds: 2_592_000n,
+  } as const;
   return {
-    unsigned_transaction: unsignedTransaction,
-    estimated_fee: '5000',
+    needs_permit: needsPermit,
+    permit_typed_data: needsPermit
+      ? BuildPermitTypedData(MOCK_USDC_DOMAIN, {
+          owner: subscriber as `0x${string}`,
+          spender: MOCK_SUBSCRIPTIONS,
+          value: terms.amount * 13n,
+          nonce: 0n,
+          deadline,
+        })
+      : null,
+    subscribe_typed_data: BuildSubscribeTypedData(
+      BuildSubscriptionsDomain(11155111, MOCK_SUBSCRIPTIONS),
+      {
+        planKey: planKey as `0x${string}`,
+        subscriber: subscriber as `0x${string}`,
+        terms,
+        nonce: 0n,
+        deadline,
+      }
+    ),
+    deadline,
+    estimated_fee: '600000000000000',
     fee_currency: 'eth',
     chain_id: 11155111,
-    nonce: null,
-    to: null,
+  };
+}
+
+export function MockSubscribeVerified(
+  transactionHash: string | null,
+  subscriber: string = MOCK_PAYER
+): CheckoutSubscribeVerification {
+  return {
+    status: 'verified',
+    transaction_hash: transactionHash,
+    subscriber_address: subscriber,
+    subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
   };
 }
 
@@ -226,19 +286,66 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
       payer_address: MOCK_PAYER,
     })),
     GetPlanOwnerAddress: jest.fn().mockReturnValue(MOCK_PLAN_OWNER),
-    CreateSubscriptionPlan: jest.fn().mockResolvedValue('plan_onchain_test'),
-    BuildSubscribeTransaction: jest
-      .fn()
-      .mockResolvedValue(MockUnsignedTransaction('0x02subscribe')),
+    CreateSubscriptionPlan: jest.fn().mockResolvedValue(MOCK_PLAN_KEY),
+    BuildSubscribeAuthorization: jest.fn(
+      async (subscriber: string, planKey: string, expiresAt: number) =>
+        MockPreparedSubscribe(subscriber, planKey, expiresAt)
+    ),
+    // Records the relay before "sending" it, as the Ethereum rail does.
+    RelaySubscribe: jest.fn(
+      async (
+        _relay: SubscribeRelay,
+        options: RelaySubscribeOptions
+      ): Promise<string | null> => {
+        if (options.pendingHash) return options.pendingHash;
+        await options.onSigned(MOCK_SUBSCRIBE_HASH);
+        return MOCK_SUBSCRIBE_HASH;
+      }
+    ),
     FindExistingSubscription: jest.fn().mockResolvedValue(null),
-    VerifySubscribeTransaction: jest.fn().mockResolvedValue({
-      verified: true,
-      subscriber_address: MOCK_PAYER,
-      subscription_onchain_id: 'sub_onchain_test',
+    VerifySubscribeTransaction: jest.fn<
+      Promise<CheckoutSubscribeVerification>,
+      Parameters<Settlement['VerifySubscribeTransaction']>
+    >(async (transactionHash) => MockSubscribeVerified(transactionHash)),
+    // Active, with no on-chain schedule unless a test sets one.
+    GetSubscriptionState: jest.fn<
+      Promise<OnchainSubscriptionState>,
+      Parameters<Settlement['GetSubscriptionState']>
+    >(async () => ({
+      status: 'active',
+      next_charge_at: null,
+      period_seconds: null,
+      chain_time: null,
+    })),
+    // Records the charge before "sending" it, as the Ethereum rail does.
+    CollectSubscriptionPayment: jest.fn<
+      Promise<SubscriptionCollection>,
+      Parameters<Settlement['CollectSubscriptionPayment']>
+    >(async (params) => {
+      await params.onSigned(MOCK_CHARGE_HASH);
+      return {
+        status: 'collected',
+        transaction_hash: MOCK_CHARGE_HASH,
+        next_charge_at: null,
+      };
     }),
-    CollectSubscriptionPayment: jest.fn().mockResolvedValue({
-      transaction_hash: 'collect_sig',
-      alreadyCollected: false,
-    }),
+    ReconcileSubscriptionCharge: jest.fn<
+      Promise<ChargeReconciliation>,
+      Parameters<Settlement['ReconcileSubscriptionCharge']>
+    >(async (transactionHash) => ({
+      status: 'paid',
+      transaction_hash: transactionHash,
+      next_charge_at: null,
+    })),
+    FindSubscriptionCharge: jest.fn().mockResolvedValue(null),
+    CancelSubscription: jest.fn(
+      async (
+        _subscriptionOnchainId: string,
+        options: { onSigned(hash: string): Promise<void> }
+      ) => {
+        await options.onSigned(MOCK_CANCEL_HASH);
+        return MOCK_CANCEL_HASH;
+      }
+    ),
   };
 }

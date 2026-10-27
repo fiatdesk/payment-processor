@@ -795,23 +795,41 @@ const SimulatedPaymentSchema = z
   .max(300)
   .regex(/^sim_sig:/);
 
+/** A 65-byte ECDSA signature as 0x hex. */
+const Signature65Schema = z
+  .string()
+  .regex(/^0x[0-9a-fA-F]{130}$/, 'Signature must be 0x + 130 hex');
+
 /**
- * Body for POST /v1/payment_pages/:urlSlug/confirm. Send the customer's
- * EIP-712 `signature` of the prepared authorization, or, to retry while it
- * confirms, the `transaction_hash` from the `payment_pending` error. The
- * simulated rail also accepts its `sim_sig:` references in either field.
+ * Body for POST /v1/payment_pages/:urlSlug/confirm. Payment mode: send the
+ * customer's EIP-712 `signature` of the prepared authorization. Subscription
+ * mode: send `subscribe_signature`, `permit_signature` (when the prepare
+ * said `needs_permit`) and the prepared `deadline`. To retry while either
+ * confirms, send the `transaction_hash` from the `payment_pending` error.
+ * The simulated rail also accepts its `sim_sig:` references in the
+ * signature and hash fields.
  */
 export const ConfirmCheckoutPaymentSchema = z
   .object({
     /** 65-byte ECDSA signature of the prepared typed data, as 0x hex */
-    signature: z
+    signature: z.union([Signature65Schema, SimulatedPaymentSchema]).optional(),
+    /** Signature of `subscription.permit_typed_data` (65 bytes) */
+    permit_signature: Signature65Schema.optional(),
+    /**
+     * Signature of `subscription.subscribe_typed_data`: 65 bytes from a
+     * wallet, or whatever bytes a contract wallet accepts (EIP-1271)
+     */
+    subscribe_signature: z
       .union([
         z
           .string()
-          .regex(/^0x[0-9a-fA-F]{130}$/, 'Signature must be 0x + 130 hex'),
+          .max(4098)
+          .regex(/^0x([0-9a-fA-F]{2})+$/, 'Signature must be 0x + hex bytes'),
         SimulatedPaymentSchema,
       ])
       .optional(),
+    /** The `subscription.deadline` both signatures were made with */
+    deadline: z.number().int().positive().optional(),
     /** Hash of the relayed payment transaction */
     transaction_hash: z
       .union([
@@ -833,6 +851,35 @@ export const ConfirmCheckoutPaymentSchema = z
     {
       message: 'Provide signature or transaction_hash, not both',
       path: ['signature'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.subscribe_signature === undefined ||
+      (data.signature === undefined && data.transaction_hash === undefined),
+    {
+      message:
+        'Provide subscribe_signature or transaction_hash, not both, and no signature',
+      path: ['subscribe_signature'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.permit_signature === undefined ||
+      data.subscribe_signature !== undefined,
+    {
+      message: 'permit_signature needs subscribe_signature',
+      path: ['permit_signature'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.subscribe_signature === undefined ||
+      data.deadline !== undefined ||
+      data.subscribe_signature.startsWith('sim_sig:'),
+    {
+      message: 'deadline is required with subscribe_signature',
+      path: ['deadline'],
     }
   );
 export type ConfirmCheckoutPaymentInput = z.infer<

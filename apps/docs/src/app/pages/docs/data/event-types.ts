@@ -183,6 +183,14 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
 
   // Subscription events
   {
+    name: 'customer.subscription.allowance_exhausted',
+    resource: 'subscription',
+    objectType: 'Subscription',
+    objectHref: '#subscriptions-object',
+    description:
+      "<strong>Zoneless extension:</strong> Occurs whenever a billing period cannot be collected because the customer's USDC allowance to the Subscriptions contract is too low. The subscription becomes <code>past_due</code> until the customer signs a new permit.",
+  },
+  {
     name: 'customer.subscription.created',
     resource: 'subscription',
     objectType: 'Subscription',
@@ -195,7 +203,8 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
     resource: 'subscription',
     objectType: 'Subscription',
     objectHref: '#subscriptions-object',
-    description: "Occurs whenever a customer's subscription ends.",
+    description:
+      "Occurs whenever a customer's subscription ends, including when it is canceled on-chain.",
   },
   {
     name: 'customer.subscription.paused',

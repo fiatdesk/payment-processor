@@ -30,7 +30,10 @@ import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
-import { RecurringIntervalToHours } from '../utils/RecurringInterval';
+import {
+  RecurringIntervalToHours,
+  SECONDS_PER_HOUR,
+} from '../utils/RecurringInterval';
 export class PriceModule {
   private readonly db: Database;
   private readonly eventService: EventService | null;
@@ -120,17 +123,19 @@ export class PriceModule {
     ) {
       const settlement = GetSettlement();
       const amount = price.unit_amount as number;
-      const periodHours = this.PeriodToHours(
-        price.recurring.interval,
-        price.recurring.interval_count
-      );
+      const periodSeconds =
+        this.PeriodToHours(
+          price.recurring.interval,
+          price.recurring.interval_count
+        ) * SECONDS_PER_HOUR;
       const destinationAddress = await this.GetPlatformWalletPublicKey(
         price.platform_account
       );
       const pullerAddress = settlement.GetPlanOwnerAddress();
+      // The on-chain plan key: what subscribers sign and charges name.
       price.subscription_plan_id = await settlement.CreateSubscriptionPlan(
         price.id,
-        periodHours,
+        periodSeconds,
         amount,
         destinationAddress,
         pullerAddress

@@ -12,6 +12,15 @@ import {
   GetFixedTimestamp,
 } from './Setup';
 import { CreateMockSettlement } from './mocks/Settlement';
+import { MemoryDatabase } from './mocks/MemoryDatabase';
+import {
+  CANCELED_ON_CHAIN,
+  COLLECTION_FAILED_ALLOWANCE,
+  CYCLE_MISSED,
+  PAUSED_ON_CHAIN,
+  PERIOD_ALREADY_COLLECTED,
+} from '../modules/chains/types';
+import { AppError } from '../utils/AppError';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -703,137 +712,440 @@ describe('InvoiceModule', () => {
       expect(result.status).toBe('paid');
     });
 
-    it('should not mark paid when on-chain period was already collected', async () => {
-      const existing = DraftInvoice({
-        status: 'open',
-        amount_due: 1099,
-        amount_remaining: 1099,
-        parent: {
-          type: 'subscription_details',
-          subscription_details: {
-            subscription: 'sub_z_1',
-            metadata: null,
-            subscription_proration_date: null,
-          },
-          quote_details: null,
-        },
-        payments: {
-          object: 'list',
-          data: [
-            {
-              id: 'inpay_z_1',
-              object: 'invoice_payment',
-              amount_paid: null,
-              amount_requested: 1099,
-              created: GetFixedTimestamp(),
-              currency: 'usdc',
-              invoice: 'in_z_test001',
-              is_default: true,
-              livemode: false,
-              payment: {
-                charge: null,
-                payment_intent: 'pi_z_1',
-                payment_record: null,
-                type: 'payment_intent',
+    describe('automatic collection from an on-chain subscription', () => {
+      const SUBSCRIBER = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+      const SUB_ONCHAIN = `0x${'5b'.repeat(32)}`;
+      const PLAN_KEY = `0x${'a1'.repeat(32)}`;
+      const CHARGE = `0x${'c4'.repeat(32)}`;
+      const PERIOD = 30 * 24 * 3600;
+      const NOW = GetFixedTimestamp();
+      const CLAIM = `${SUB_ONCHAIN}:${NOW}`;
+      let memory: MemoryDatabase;
+      let settlement: ReturnType<typeof CreateMockSettlement>;
+      let paymentIntentModule: {
+        MarkSucceeded: jest.Mock;
+        MarkPaymentFailed: jest.Mock;
+        MarkProcessing: jest.Mock;
+        SetPendingChargeHash: jest.Mock;
+      };
+      let chargeModule: {
+        CreateFromPaymentAttempt: jest.Mock;
+        AttachBalanceTransaction: jest.Mock;
+      };
+
+      beforeEach(() => {
+        memory = new MemoryDatabase();
+        memory.Seed(
+          'Invoices',
+          DraftInvoice({
+            status: 'open',
+            amount_due: 1099,
+            amount_remaining: 1099,
+            period_start: NOW,
+            period_end: NOW + PERIOD,
+            parent: {
+              type: 'subscription_details',
+              subscription_details: {
+                subscription: 'sub_z_1',
+                metadata: null,
+                subscription_proration_date: null,
               },
-              status: 'open',
-              status_transitions: { canceled_at: null, paid_at: null },
-              platform_account: PLATFORM,
+              quote_details: null,
             },
-          ],
-          has_more: false,
-          total_count: 1,
-          url: '/v1/invoices/in_z_test001/payments',
-        },
-      });
-
-      let invoiceState: Invoice = existing;
-
-      const paymentIntentModule = {
-        MarkSucceeded: jest.fn(),
-        MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
-      };
-      const chargeModule = {
-        CreateFromPaymentAttempt: jest.fn(),
-        AttachBalanceTransaction: jest.fn(),
-      };
-      const settlement = CreateMockSettlement();
-      settlement.CollectSubscriptionPayment.mockResolvedValue({
-        transaction_hash: 'already_collected',
-        alreadyCollected: true,
-      });
-
-      module = new InvoiceModule(
-        mockDb,
-        eventService,
-        customerModule,
-        invoiceItemModule,
-        paymentIntentModule as never,
-        chargeModule as never,
-        undefined,
-        settlement
-      );
-
-      mockDb.Get = jest.fn().mockImplementation(async (collection: string) => {
-        if (collection === 'Invoices') return invoiceState;
-        if (collection === 'Subscriptions') {
-          return {
-            id: 'sub_z_1',
-            platform_account: PLATFORM,
-            subscription_onchain_id: 'SubPda_1',
-            default_payment_method:
-              '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-            metadata: {},
-          };
-        }
-        if (collection === 'Prices') {
-          return {
-            id: 'price_z_1',
-            platform_account: PLATFORM,
-            subscription_plan_id: 'PlanPda_1',
-          };
-        }
-        return null;
-      }) as typeof mockDb.Get;
-
-      mockDb.Find = jest.fn().mockResolvedValue([
-        {
+            payments: {
+              object: 'list',
+              data: [
+                {
+                  id: 'inpay_z_1',
+                  object: 'invoice_payment',
+                  amount_paid: null,
+                  amount_requested: 1099,
+                  created: NOW,
+                  currency: 'usdc',
+                  invoice: 'in_z_test001',
+                  is_default: true,
+                  livemode: false,
+                  payment: {
+                    charge: null,
+                    payment_intent: 'pi_z_1',
+                    payment_record: null,
+                    type: 'payment_intent',
+                  },
+                  status: 'open',
+                  status_transitions: { canceled_at: null, paid_at: null },
+                  platform_account: PLATFORM,
+                },
+              ],
+              has_more: false,
+              total_count: 1,
+              url: '/v1/invoices/in_z_test001/payments',
+            },
+          }) as unknown as Record<string, unknown>
+        );
+        memory.Seed('Subscriptions', {
+          id: 'sub_z_1',
+          object: 'subscription',
+          platform_account: PLATFORM,
+          subscription_onchain_id: SUB_ONCHAIN,
+          default_payment_method: SUBSCRIBER,
+          metadata: {},
+        });
+        memory.Seed('SubscriptionItems', {
           id: 'si_z_1',
           subscription: 'sub_z_1',
           price: 'price_z_1',
-        },
-      ]) as typeof mockDb.Find;
+        });
+        memory.Seed('Prices', {
+          id: 'price_z_1',
+          platform_account: PLATFORM,
+          subscription_plan_id: PLAN_KEY,
+          unit_amount: 1099,
+          recurring: { interval: 'month', interval_count: 1 },
+        });
 
-      mockDb.Update = jest
-        .fn()
-        .mockImplementation(
-          async (
-            _collection: string,
-            _id: string,
-            updates: Partial<Invoice>
-          ) => {
-            invoiceState = { ...invoiceState, ...updates };
-            return invoiceState;
-          }
-        ) as typeof mockDb.Update;
-
-      const result = await module.PayInvoice(existing.id, {});
-
-      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
-        subscriberWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-        planId: 'PlanPda_1',
-        subscriptionId: 'SubPda_1',
-        amountCents: existing.amount_due,
+        paymentIntentModule = {
+          MarkSucceeded: jest.fn(),
+          MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
+          MarkProcessing: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
+          SetPendingChargeHash: jest.fn().mockResolvedValue(true),
+        };
+        chargeModule = {
+          CreateFromPaymentAttempt: jest
+            .fn()
+            .mockResolvedValue({ id: 'ch_z_1' }),
+          AttachBalanceTransaction: jest.fn(),
+        };
+        settlement = CreateMockSettlement();
+        module = new InvoiceModule(
+          memory.AsDatabase(),
+          eventService,
+          customerModule,
+          invoiceItemModule,
+          paymentIntentModule as never,
+          chargeModule as never,
+          undefined,
+          settlement
+        );
       });
-      expect(chargeModule.CreateFromPaymentAttempt).not.toHaveBeenCalled();
-      expect(paymentIntentModule.MarkSucceeded).not.toHaveBeenCalled();
-      expect(result.status).not.toBe('paid');
-      expect(result.attempted).toBe(true);
-      expect(eventService.Emit).toHaveBeenCalledWith(
-        'invoice.payment_failed',
-        PLATFORM,
-        expect.anything()
+
+      function Pay(): Promise<Invoice> {
+        return module.PayInvoice('in_z_test001', {});
+      }
+
+      function Claim(): Record<string, unknown> {
+        return memory.Doc('SubscriptionCycleClaims', CLAIM);
+      }
+
+      function EmittedTypes(): string[] {
+        return eventService.Emit.mock.calls.map(([type]) => type);
+      }
+
+      function ExpectWait(result: Invoice, code: string): void {
+        expect(result.status).toBe('open');
+        expect(result.attempt_count).toBe(0);
+        expect(result.metadata?.['last_payment_error_code']).toBe(code);
+        expect(paymentIntentModule.MarkPaymentFailed).not.toHaveBeenCalled();
+        expect(EmittedTypes()).not.toContain('invoice.payment_failed');
+      }
+
+      it('claims the cycle and records the charge on the claim and the PaymentIntent before sending', async () => {
+        const seen: Record<string, unknown> = {};
+        settlement.CollectSubscriptionPayment.mockImplementation(
+          async (params) => {
+            await params.onSigned(CHARGE);
+            seen.claim = Claim();
+            seen.processing = paymentIntentModule.MarkProcessing.mock.calls;
+            return {
+              status: 'collected',
+              transaction_hash: CHARGE,
+              next_charge_at: NOW + PERIOD,
+            };
+          }
+        );
+
+        const result = await Pay();
+
+        expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subscriptionOnchainId: SUB_ONCHAIN,
+            planKey: PLAN_KEY,
+            subscriberWallet: SUBSCRIBER,
+            amountCents: 1099,
+          })
+        );
+        expect(seen.claim).toMatchObject({
+          owner: 'in_z_test001',
+          due_at: NOW,
+          charge_hash: CHARGE,
+        });
+        expect(seen.processing).toEqual([['pi_z_1']]);
+        expect(paymentIntentModule.SetPendingChargeHash).toHaveBeenCalledWith(
+          'pi_z_1',
+          CHARGE,
+          null
+        );
+        expect(result.status).toBe('paid');
+        expect(chargeModule.CreateFromPaymentAttempt).toHaveBeenCalledWith(
+          PLATFORM,
+          expect.objectContaining({
+            crypto: expect.objectContaining({ transaction_hash: CHARGE }),
+          })
+        );
+        // The settled charge is no longer pending on the PaymentIntent.
+        expect(
+          paymentIntentModule.SetPendingChargeHash
+        ).toHaveBeenLastCalledWith('pi_z_1', null, CHARGE);
+      });
+
+      it('keeps a charge that did not confirm in time pending: no decline, no failure events', async () => {
+        settlement.CollectSubscriptionPayment.mockImplementation(
+          async (params) => {
+            await params.onSigned(CHARGE);
+            return { status: 'pending', transaction_hash: CHARGE };
+          }
+        );
+
+        const result = await Pay();
+
+        ExpectWait(result, 'charge_pending');
+        expect(result.next_payment_attempt).toBe(NOW);
+        expect(Claim()).toMatchObject({ charge_hash: CHARGE });
+      });
+
+      it('reconciles a recorded charge by its hash before sending another', async () => {
+        settlement.CollectSubscriptionPayment.mockImplementationOnce(
+          async (params) => {
+            await params.onSigned(CHARGE);
+            return { status: 'pending', transaction_hash: CHARGE };
+          }
+        );
+        await Pay();
+        jest.mocked(settlement.CollectSubscriptionPayment).mockClear();
+
+        const result = await Pay();
+
+        expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
+          CHARGE,
+          expect.objectContaining({
+            subscriptionOnchainId: SUB_ONCHAIN,
+            amountCents: 1099,
+          })
+        );
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        expect(result.status).toBe('paid');
+      });
+
+      it('sends a new charge when the recorded one was dropped', async () => {
+        memory.Seed('SubscriptionCycleClaims', {
+          id: CLAIM,
+          subscription_onchain_id: SUB_ONCHAIN,
+          due_at: NOW,
+          owner: 'in_z_test001',
+          charge_hash: `0x${'dd'.repeat(32)}`,
+          charge_sent_at: NOW - 60,
+        });
+        settlement.ReconcileSubscriptionCharge.mockResolvedValue({
+          status: 'dropped',
+        });
+
+        const result = await Pay();
+
+        expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+        expect(result.status).toBe('paid');
+        expect(Claim()).toMatchObject({ charge_hash: CHARGE });
+      });
+
+      it('counts a recorded charge that reverted on the allowance as a decline', async () => {
+        memory.Seed('SubscriptionCycleClaims', {
+          id: CLAIM,
+          subscription_onchain_id: SUB_ONCHAIN,
+          due_at: NOW,
+          owner: 'in_z_test001',
+          charge_hash: CHARGE,
+          charge_sent_at: NOW - 60,
+        });
+        settlement.ReconcileSubscriptionCharge.mockResolvedValue({
+          status: 'failed',
+          error: new AppError('allowance', 402, COLLECTION_FAILED_ALLOWANCE),
+        });
+
+        const result = await Pay();
+
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        expect(result.attempt_count).toBe(1);
+        expect(result.metadata?.['last_payment_error_code']).toBe(
+          COLLECTION_FAILED_ALLOWANCE
+        );
+        expect(paymentIntentModule.MarkPaymentFailed).toHaveBeenCalledWith(
+          'pi_z_1',
+          expect.objectContaining({
+            code: COLLECTION_FAILED_ALLOWANCE,
+            decline_code: COLLECTION_FAILED_ALLOWANCE,
+          })
+        );
+        expect(EmittedTypes()).toEqual(
+          expect.arrayContaining([
+            'invoice.payment_failed',
+            'customer.subscription.allowance_exhausted',
+          ])
+        );
+        expect(Claim()).toMatchObject({ charge_hash: null });
+      });
+
+      it('treats a collected period as a wait until the next due time', async () => {
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW + PERIOD,
+          period_seconds: PERIOD,
+          chain_time: NOW + 10,
+        });
+        memory.Seed('Invoices', {
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          period_start: NOW + PERIOD,
+        });
+
+        const result = await Pay();
+
+        ExpectWait(result, PERIOD_ALREADY_COLLECTED);
+        expect(result.next_payment_attempt).toBe(NOW + PERIOD);
+        expect(result.metadata?.['last_payment_error']).toContain(
+          'wait for the next billing period'
+        );
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      });
+
+      it('settles NotDueYet from the chain logs: paid when a charge since the period start is found', async () => {
+        settlement.CollectSubscriptionPayment.mockResolvedValue({
+          status: 'already_collected',
+          transaction_hash: null,
+        });
+        settlement.FindSubscriptionCharge.mockResolvedValue({
+          transaction_hash: CHARGE,
+          next_charge_at: NOW + PERIOD,
+        });
+
+        const result = await Pay();
+
+        expect(settlement.FindSubscriptionCharge).toHaveBeenCalledWith(
+          SUB_ONCHAIN,
+          { amountCents: 1099, since: NOW }
+        );
+        expect(result.status).toBe('paid');
+      });
+
+      it('settles NotDueYet from the chain logs: a missed cycle when none is found', async () => {
+        settlement.CollectSubscriptionPayment.mockResolvedValue({
+          status: 'already_collected',
+          transaction_hash: null,
+        });
+
+        ExpectWait(await Pay(), CYCLE_MISSED);
+      });
+
+      it('refuses to collect an invoice for a period the chain skipped', async () => {
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW,
+          period_seconds: PERIOD,
+          chain_time: NOW + 2 * PERIOD + 5,
+        });
+
+        const result = await Pay();
+
+        ExpectWait(result, CYCLE_MISSED);
+        expect(result.next_payment_attempt).toBeNull();
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      });
+
+      it('waits when another collector holds the cycle', async () => {
+        memory.Seed('SubscriptionCycleClaims', {
+          id: CLAIM,
+          subscription_onchain_id: SUB_ONCHAIN,
+          due_at: NOW,
+          owner: 'cs_z_checkout',
+          charge_hash: null,
+          charge_sent_at: null,
+        });
+
+        ExpectWait(await Pay(), PERIOD_ALREADY_COLLECTED);
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ['paused', PAUSED_ON_CHAIN],
+        ['canceled', CANCELED_ON_CHAIN],
+      ] as const)(
+        'records a subscription %s on-chain without a failed attempt',
+        async (status, code) => {
+          settlement.GetSubscriptionState.mockResolvedValue({
+            status,
+            next_charge_at: NOW,
+            period_seconds: PERIOD,
+            chain_time: NOW,
+          });
+
+          const result = await Pay();
+
+          ExpectWait(result, code);
+          expect(result.next_payment_attempt).toBeNull();
+        }
       );
+
+      it('refuses an amount above what the plan collects, without a decline', async () => {
+        memory.Seed('Invoices', {
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          amount_due: 5000,
+        });
+
+        ExpectWait(await Pay(), 'onchain_plan_amount_exceeded');
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      });
+
+      it('waits a few minutes, without a decline, when the node cannot answer', async () => {
+        settlement.GetSubscriptionState.mockRejectedValue(
+          new AppError(
+            'The payment network is unavailable; try again',
+            502,
+            'blockchain_error'
+          )
+        );
+
+        const result = await Pay();
+
+        ExpectWait(result, 'chain_unavailable');
+        expect(result.next_payment_attempt).toBe(NOW + 300);
+      });
+
+      it('emits allowance_exhausted only for the invoice platform’s subscription', async () => {
+        memory.Seed('Subscriptions', {
+          ...memory.Doc<Record<string, unknown>>('Subscriptions', 'sub_z_1'),
+          platform_account: 'acct_z_other',
+        });
+        settlement.CollectSubscriptionPayment.mockRejectedValue(
+          new AppError('allowance', 402, COLLECTION_FAILED_ALLOWANCE)
+        );
+
+        await Pay();
+
+        expect(EmittedTypes()).not.toContain(
+          'customer.subscription.allowance_exhausted'
+        );
+      });
+
+      it('clears the error code of an earlier attempt when another error follows', async () => {
+        memory.Seed('Invoices', {
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          metadata: { last_payment_error_code: PAUSED_ON_CHAIN },
+        });
+        settlement.CollectSubscriptionPayment.mockRejectedValue(
+          new Error('unexpected')
+        );
+
+        const result = await Pay();
+
+        expect(result.attempt_count).toBe(1);
+        expect(result.metadata).not.toHaveProperty('last_payment_error_code');
+      });
     });
   });
 

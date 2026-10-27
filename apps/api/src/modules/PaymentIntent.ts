@@ -603,6 +603,24 @@ export class PaymentIntentModule {
   }
 
   /**
+   * Compare-and-set of the on-chain charge recorded for this PaymentIntent:
+   * changes `pending_charge_hash` only while it still equals `expected`
+   * (null for none). Returns false when another write came first.
+   */
+  async SetPendingChargeHash(
+    id: string,
+    hash: string | null,
+    expected: string | null
+  ): Promise<boolean> {
+    const updated = await this.db.FindOneAndUpdateByFilter<PaymentIntentType>(
+      'PaymentIntents',
+      { id, pending_charge_hash: expected },
+      { pending_charge_hash: hash }
+    );
+    return updated !== null;
+  }
+
+  /**
    * Mark a PaymentIntent as succeeded and emit `payment_intent.succeeded`.
    * Idempotent when already succeeded.
    */

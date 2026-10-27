@@ -1,19 +1,17 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
- * The on-chain Ethereum rail (mainnet, Sepolia or Anvil). Rail description,
+ * The on-chain Ethereum rail (mainnet, Sepolia or Anvil): rail description,
  * explorer links, address checks, balance reads, deposit detection from USDC
  * `Transfer` logs, batch payouts through the PayoutBatch contract and hosted
- * checkout through relayed EIP-3009 authorizations work; subscriptions
- * reject with `not_supported` until they are implemented.
+ * checkout through relayed EIP-3009 authorizations. Subscriptions on the
+ * Subscriptions contract live in `EthereumSubscriptions`, which this class
+ * delegates to.
  *
  * @module chains/Ethereum
  */
 
 import {
   BaseError,
-  decodeErrorResult,
-  ExecutionRevertedError,
-  RawContractError,
   encodeFunctionData,
   formatEther,
   formatUnits,
@@ -36,7 +34,7 @@ import {
   type TransactionReceipt,
   type TransactionSerialized,
 } from 'viem';
-import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import {
   IsTransactionHash,
   SameAddress,
@@ -47,7 +45,6 @@ import { WithKeyedLock } from '../../utils/KeyedLock';
 import { Logger } from '../../utils/Logger';
 import {
   GetCheckoutConfirmTimeoutMs,
-  GetCheckoutRelayerKey,
   GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
 } from '../AppConfig';
@@ -67,6 +64,30 @@ import {
   type UsdcDomain,
 } from './CheckoutAuthorization';
 import {
+  BLOCK_TIME_SECONDS,
+  CeilDiv,
+  CurrentFees,
+  DecodeRevert,
+  ErrorText,
+  GetReceiptOrNull,
+  IsExecutionRevert,
+  IsKnownTransaction,
+  LatestBlock,
+  NodeCall,
+  NodeUnavailable,
+  RelayerRequired,
+  ReplacementFees,
+  RequireRelayer,
+  RevertReason,
+  SenderLock,
+  SendSigned,
+  ToAddress,
+  WAIT_TIMEOUT_MS,
+  WaitForReceiptDepth,
+  WasAccepted,
+} from './EthereumTransactions';
+import { EthereumSubscriptions } from './EthereumSubscriptions';
+import {
   CentsToTokenUnits,
   EncodeDisperseCall,
   MapRevertToFailureCode,
@@ -75,27 +96,31 @@ import {
 import type { Settlement } from './Settlement';
 import type {
   BroadcastResult,
+  ChargeReconciliation,
   CheckoutPaymentExpectation,
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
   ConfirmedBlock,
   IncomingDeposit,
+  OnchainSubscriptionState,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
   PreparedAuthorization,
+  PreparedSubscribe,
   RailDescription,
   RelayCheckoutOptions,
+  RelaySubscribeOptions,
+  SubscribeRelay,
+  SubscriptionCollectParams,
+  SubscriptionCollection,
   TransferRecipient,
   UnsignedPayoutBatch,
-  UnsignedTransaction,
 } from './types';
 
+export { ReplacementFees };
+
 const USDC_DECIMALS = 6;
-/** Ethereum's slot time; only used for the informational `release_after`. */
-const BLOCK_TIME_SECONDS = 12;
-/** How long broadcast waits for a receipt, or for a wallet's hash to appear. */
-const WAIT_TIMEOUT_MS = 60_000;
 const BATCH_PAID_EVENT = getAbiItem({
   abi: PAYOUT_BATCH_ABI,
   name: 'BatchPaid',
@@ -109,18 +134,11 @@ const AUTHORIZATION_USED_EVENT = getAbiItem({
 const BLOCK_TIMESTAMP_CACHE_SIZE = 256;
 /** Gas of one USDC `transferWithAuthorization`, for the quoted relay fee. */
 const RELAY_GAS_ESTIMATE = 100_000n;
-/** Sends of one relay, re-signed when another sender took the nonce. */
-const RELAY_SEND_ATTEMPTS = 3;
 /** Blocks per `getLogs` call when looking for a used authorization. */
 const AUTHORIZATION_LOG_CHUNK = 2_000n;
 const AUTHORIZATION_LOG_MAX_CHUNKS = 50;
 /** Blocks searched before the session's creation, on top of the estimate. */
 const AUTHORIZATION_LOG_MARGIN = 256n;
-
-interface Fees {
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-}
 
 /** 501 error for a rail capability that does not exist yet. */
 export function NotSupported(method: string): AppError {
@@ -135,6 +153,10 @@ export class Ethereum implements Settlement {
   private usdcDecimalsVerified = false;
   private usdcDomain: UsdcDomain | null = null;
   private readonly blockTimestamps = new Map<bigint, number>();
+  private readonly subscriptions = new EthereumSubscriptions({
+    VerifyDecimals: (usdc) => this.VerifyUsdcDecimals(usdc),
+    Domain: () => this.GetUsdcDomain(),
+  });
 
   Describe(): RailDescription {
     const { chainId, usdc } = GetChainConfig();
@@ -176,8 +198,9 @@ export class Ethereum implements Settlement {
     return Number(formatUnits(balance, USDC_DECIMALS));
   }
 
+  /** SUBSCRIPTION_OPERATOR_KEY's address: owner and puller of every plan. */
   GetPlanOwnerAddress(): string {
-    throw NotSupported('GetPlanOwnerAddress');
+    return this.subscriptions.GetPlanOwnerAddress();
   }
 
   async GetLatestBlockNumber(): Promise<bigint> {
@@ -463,7 +486,7 @@ export class Ethereum implements Settlement {
         serializedTransaction: serialized,
       });
     } catch (error) {
-      if (!(await this.WasAccepted(error, hash))) {
+      if (!(await WasAccepted(error, hash))) {
         Logger.warn('The network refused a payout transaction', {
           transactionHash: hash,
           error: ErrorText(error),
@@ -675,7 +698,7 @@ export class Ethereum implements Settlement {
     });
     const [domain, fees] = await Promise.all([
       this.GetUsdcDomain(),
-      this.CurrentFees(),
+      CurrentFees(),
     ]);
     return {
       method: 'eip3009_transfer',
@@ -734,7 +757,7 @@ export class Ethereum implements Settlement {
     );
     if (options.pendingHash) {
       if (used) return options.pendingHash;
-      if ((await this.IsKnownTransaction(options.pendingHash)) !== false) {
+      if ((await IsKnownTransaction(options.pendingHash)) !== false) {
         return options.pendingHash;
       }
     }
@@ -748,7 +771,7 @@ export class Ethereum implements Settlement {
     const earlier = await NodeCall('authorization log search', async () =>
       this.FindAuthorizationUse(
         { nonce },
-        { createdAt: options.createdAt, head: await this.GetLatestBlock() },
+        { createdAt: options.createdAt, head: await LatestBlock() },
         (hash) => this.PaysMerchant(hash, paid)
       )
     );
@@ -756,8 +779,11 @@ export class Ethereum implements Settlement {
     if (earlier || used) return earlier;
 
     const gas = await this.EstimateRelayGas(relayer.address, usdc, data);
-    return WithKeyedLock(`relayer:${relayer.address}`, () =>
-      this.SendRelay(relayer, usdc, data, gas, options.onSigned)
+    return WithKeyedLock(SenderLock(relayer.address), () =>
+      SendSigned(relayer, usdc, data, gas, {
+        onSigned: options.onSigned,
+        refused: 'The network did not accept the payment',
+      })
     );
   }
 
@@ -804,21 +830,21 @@ export class Ethereum implements Settlement {
 
     try {
       // A transaction the node has never seen will not confirm by waiting.
-      const known = hash === null ? null : await this.IsKnownTransaction(hash);
+      const known = hash === null ? null : await IsKnownTransaction(hash);
       if (hash && known === false && !(await AuthorizationUsed())) {
         return { ...CheckoutPending(hash), status: 'not_found' };
       }
       const mined =
         hash !== null &&
         known !== false &&
-        (await this.WaitForCheckoutReceipt(
+        (await WaitForReceiptDepth(
           hash,
           options.timeoutMs ?? GetCheckoutConfirmTimeoutMs()
         ));
       const confirmed = await this.GetConfirmedBlock();
       let checked: CheckoutPaymentVerification | null = null;
       if (hash && mined) {
-        const receipt = await this.GetReceiptOrNull(hash);
+        const receipt = await GetReceiptOrNull(hash);
         if (receipt && receipt.blockNumber > BigInt(confirmed.number)) {
           return CheckoutPending(hash);
         }
@@ -873,27 +899,110 @@ export class Ethereum implements Settlement {
     }
   }
 
-  async CreateSubscriptionPlan(): Promise<string> {
-    throw NotSupported('CreateSubscriptionPlan');
+  CreateSubscriptionPlan(
+    priceId: string,
+    periodSeconds: number,
+    amountCents: number,
+    destination: string,
+    puller: string
+  ): Promise<string> {
+    return this.subscriptions.CreateSubscriptionPlan(
+      priceId,
+      periodSeconds,
+      amountCents,
+      destination,
+      puller
+    );
   }
 
-  async BuildSubscribeTransaction(): Promise<UnsignedTransaction> {
-    throw NotSupported('BuildSubscribeTransaction');
+  BuildSubscribeAuthorization(
+    subscriber: string,
+    planKey: string,
+    expiresAt: number,
+    options?: { otherPlansAllowance?: bigint }
+  ): Promise<PreparedSubscribe> {
+    return this.subscriptions.BuildSubscribeAuthorization(
+      subscriber,
+      planKey,
+      expiresAt,
+      options
+    );
   }
 
-  async FindExistingSubscription(): Promise<string | null> {
-    throw NotSupported('FindExistingSubscription');
+  RelaySubscribe(
+    relay: SubscribeRelay,
+    options: RelaySubscribeOptions
+  ): Promise<string | null> {
+    return this.subscriptions.RelaySubscribe(relay, options);
   }
 
-  async VerifySubscribeTransaction(): Promise<CheckoutSubscribeVerification> {
-    throw NotSupported('VerifySubscribeTransaction');
+  FindExistingSubscription(
+    planKey: string,
+    subscriber: string
+  ): Promise<string | null> {
+    return this.subscriptions.FindExistingSubscription(planKey, subscriber);
   }
 
-  async CollectSubscriptionPayment(): Promise<{
-    transaction_hash: string;
-    alreadyCollected: boolean;
-  }> {
-    throw NotSupported('CollectSubscriptionPayment');
+  VerifySubscribeTransaction(
+    transactionHash: string | null,
+    expected: { planKey: string; subscriberWallet: string },
+    options?: { timeoutMs?: number }
+  ): Promise<CheckoutSubscribeVerification> {
+    return this.subscriptions.VerifySubscribeTransaction(
+      transactionHash,
+      expected,
+      options
+    );
+  }
+
+  GetSubscriptionState(
+    subscriptionOnchainId: string
+  ): Promise<OnchainSubscriptionState> {
+    return this.subscriptions.GetSubscriptionState(subscriptionOnchainId);
+  }
+
+  CollectSubscriptionPayment(
+    params: SubscriptionCollectParams
+  ): Promise<SubscriptionCollection> {
+    return this.subscriptions.CollectSubscriptionPayment(params);
+  }
+
+  ReconcileSubscriptionCharge(
+    transactionHash: string,
+    expected: {
+      subscriptionOnchainId: string;
+      amountCents: number;
+      sentAt: number | null;
+      onReplaced(transactionHash: string): Promise<void>;
+    }
+  ): Promise<ChargeReconciliation> {
+    return this.subscriptions.ReconcileSubscriptionCharge(
+      transactionHash,
+      expected
+    );
+  }
+
+  FindSubscriptionCharge(
+    subscriptionOnchainId: string,
+    expected: { amountCents: number; since: number }
+  ): Promise<{ transaction_hash: string; next_charge_at: number } | null> {
+    return this.subscriptions.FindSubscriptionCharge(
+      subscriptionOnchainId,
+      expected
+    );
+  }
+
+  CancelSubscription(
+    subscriptionOnchainId: string,
+    options: {
+      pendingHash?: string | null;
+      onSigned(transactionHash: string): Promise<void>;
+    }
+  ): Promise<string | null> {
+    return this.subscriptions.CancelSubscription(
+      subscriptionOnchainId,
+      options
+    );
   }
 
   private async BuildUnsignedTransaction(
@@ -954,18 +1063,6 @@ export class Ethereum implements Settlement {
     };
   }
 
-  private async CurrentFees(): Promise<Fees> {
-    const client = GetPublicClient();
-    const [block, priorityFee] = await Promise.all([
-      client.getBlock({ blockTag: 'latest' }),
-      client.estimateMaxPriorityFeePerGas(),
-    ]);
-    return {
-      maxFeePerGas: 2n * (block.baseFeePerGas ?? 0n) + priorityFee,
-      maxPriorityFeePerGas: priorityFee,
-    };
-  }
-
   /** Simulates the relay; a revert is the authorization's fault (400). */
   private async EstimateRelayGas(
     relayer: Address,
@@ -995,133 +1092,12 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /**
-   * Signs, hands the hash to `onSigned`, then sends. Accepted when the node
-   * takes it, already holds it, or knows the hash after an error; a nonce
-   * conflict re-signs at the next pending nonce; anything else throws.
-   */
-  private async SendRelay(
-    relayer: PrivateKeyAccount,
-    to: Address,
-    data: Hex,
-    gas: bigint,
-    onSigned: RelayCheckoutOptions['onSigned']
-  ): Promise<string> {
-    const client = GetPublicClient();
-    const { chainId } = GetChainConfig();
-    for (let attempt = 1; ; attempt++) {
-      const [fees, nonce] = await NodeCall('relay nonce and fees', () =>
-        Promise.all([
-          this.CurrentFees(),
-          client.getTransactionCount({
-            address: relayer.address,
-            blockTag: 'pending',
-          }),
-        ])
-      );
-      const serialized = await relayer.signTransaction({
-        type: 'eip1559',
-        chainId,
-        nonce,
-        to,
-        data,
-        value: 0n,
-        gas,
-        ...fees,
-      });
-      const hash = keccak256(serialized);
-      await onSigned(hash);
-      try {
-        await client.sendRawTransaction({ serializedTransaction: serialized });
-        return hash;
-      } catch (error) {
-        if (
-          (await this.WasAccepted(error, hash)) ||
-          (await this.IsKnownTransaction(hash)) === true
-        ) {
-          return hash;
-        }
-        if (attempt < RELAY_SEND_ATTEMPTS && IsNonceConflict(error)) {
-          Logger.warn('The relayer nonce was taken; signing the relay again', {
-            transactionHash: hash,
-            nonce,
-            error: ErrorText(error),
-          });
-          continue;
-        }
-        Logger.warn('The network refused a checkout relay', {
-          transactionHash: hash,
-          error: ErrorText(error),
-        });
-        throw new AppError(
-          'The network did not accept the payment',
-          400,
-          'blockchain_error'
-        );
-      }
-    }
-  }
-
-  /** Whether the node has the transaction; null when it cannot say. */
-  private async IsKnownTransaction(hash: string): Promise<boolean | null> {
-    try {
-      await GetPublicClient().getTransaction({ hash: hash as Hex });
-      return true;
-    } catch (error) {
-      return error instanceof TransactionNotFoundError ? false : null;
-    }
-  }
-
-  /**
-   * Polls until the receipt is ETH_CONFIRMATIONS blocks below the head (at
-   * or below the confirmed block); false when `timeoutMs` passes first.
-   */
-  private async WaitForCheckoutReceipt(
-    hash: Hex,
-    timeoutMs: number
-  ): Promise<boolean> {
-    const client = GetPublicClient();
-    const depth = BigInt(GetChainConfig().confirmations);
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-      const receipt = await this.GetReceiptOrNull(hash);
-      if (
-        receipt &&
-        (await this.GetLatestBlockNumber()) - receipt.blockNumber >= depth
-      ) {
-        return true;
-      }
-      const left = deadline - Date.now();
-      if (left <= 0) return false;
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(client.pollingInterval, left))
-      );
-    }
-  }
-
-  private async GetReceiptOrNull(
-    hash: Hex
-  ): Promise<TransactionReceipt | null> {
-    try {
-      return await GetPublicClient().getTransactionReceipt({ hash });
-    } catch (error) {
-      if (error instanceof TransactionReceiptNotFoundError) return null;
-      throw error;
-    }
-  }
-
-  /** The latest block's number and time. */
-  private async GetLatestBlock(): Promise<ConfirmedBlock> {
-    const block = await GetPublicClient().getBlock({ blockTag: 'latest' });
-    return { number: Number(block.number), timestamp: Number(block.timestamp) };
-  }
-
   /** True when the transaction's receipt shows it paid the merchant. */
   private async PaysMerchant(
     hash: Hex,
     expected: Parameters<typeof VerifyCheckoutReceipt>[1]
   ): Promise<boolean> {
-    const receipt = await this.GetReceiptOrNull(hash);
+    const receipt = await GetReceiptOrNull(hash);
     return (
       !!receipt &&
       VerifyCheckoutReceipt(receipt, expected).status === 'verified'
@@ -1218,21 +1194,6 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /** "Already known", or "nonce too low" because this very hash was mined. */
-  private async WasAccepted(error: unknown, hash: Hex): Promise<boolean> {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/already known|known transaction|already imported/i.test(message)) {
-      return true;
-    }
-    if (!/nonce too low/i.test(message)) return false;
-    try {
-      await GetPublicClient().getTransactionReceipt({ hash });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Paid when the batch's own transaction succeeded with its BatchPaid log
    * (or, for an approval, succeeded); failed when it reverted. Anything that
@@ -1287,7 +1248,7 @@ export class Ethereum implements Settlement {
     ) {
       return Unsettled('the reverted transaction carries other calldata');
     }
-    const revert = await this.RevertReason(transaction, receipt.blockNumber);
+    const revert = await RevertReason(transaction, receipt.blockNumber);
     if (revert.errorName === 'BatchAlreadyPaid') {
       // Another transaction paid this batch first: never a failure. The
       // verdict is paid() at the confirmed block, not at the receipt's block
@@ -1311,33 +1272,6 @@ export class Ethereum implements Settlement {
       ),
       failure_message: revert.message,
     };
-  }
-
-  /** Replays a reverted call at its block to read the revert reason. */
-  private async RevertReason(
-    transaction: Transaction,
-    blockNumber: bigint
-  ): Promise<RevertDetails> {
-    try {
-      await GetPublicClient().call({
-        account: transaction.from,
-        to: transaction.to ?? undefined,
-        data: transaction.input,
-        gas: transaction.gas,
-        value: transaction.value,
-        blockNumber,
-      });
-      return {
-        errorName: null,
-        message: 'The transaction reverted',
-        detail: '',
-      };
-    } catch (error) {
-      // Only an execution revert says why; an RPC or transport error says
-      // nothing about the transaction, so the caller leaves it unsettled.
-      if (!IsExecutionRevert(error)) throw error;
-      return DecodeRevert(error);
-    }
   }
 
   private Pending(transactionHash: string): BroadcastResult {
@@ -1365,13 +1299,6 @@ export class Ethereum implements Settlement {
   }
 }
 
-function ToAddress(value: string): Address {
-  if (!isAddress(value)) {
-    throw new Error(`Invalid Ethereum address: ${value}`);
-  }
-  return getAddress(value);
-}
-
 function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
   const { chainId, usdc, payoutBatch } = GetChainConfig();
   if (!payoutBatch) {
@@ -1382,20 +1309,6 @@ function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
     );
   }
   return { usdc, payoutBatch };
-}
-
-function RelayerRequired(): AppError {
-  return new AppError(
-    'On-chain checkout needs CHECKOUT_RELAYER_KEY to relay payments',
-    501,
-    'not_supported'
-  );
-}
-
-function RequireRelayer(): Hex {
-  const key = GetCheckoutRelayerKey();
-  if (!key) throw RelayerRequired();
-  return key;
 }
 
 function AuthorizationNonce(nonce: string): Hex {
@@ -1412,40 +1325,6 @@ function CheckoutPending(hash: string | null): CheckoutPaymentVerification {
     amount_cents: 0,
     payer_address: null,
   };
-}
-
-/** Another transaction from the relayer took the nonce this one used. */
-function IsNonceConflict(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /nonce too low|replacement transaction underpriced/i.test(message);
-}
-
-/**
- * 502 for a node that could not answer; nothing was sent. What the node
- * said goes to the log only: provider text never reaches a client.
- */
-function NodeUnavailable(operation: string, error: unknown): AppError {
-  Logger.warn('An Ethereum node call failed', {
-    operation,
-    error: ErrorText(error),
-  });
-  return new AppError(
-    'The payment network is unavailable; try again',
-    502,
-    'blockchain_error'
-  );
-}
-
-async function NodeCall<T>(
-  operation: string,
-  call: () => Promise<T>
-): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw NodeUnavailable(operation, error);
-  }
 }
 
 /** Why a submitted transaction is not the built one, or null when it is. */
@@ -1479,98 +1358,4 @@ function DescribeMismatch(
     return `nonce ${actual.nonce} does not match the built nonce ${built.nonce}`;
   }
   return null;
-}
-
-function CeilDiv(value: bigint, divisor: bigint): bigint {
-  return (value + divisor - 1n) / divisor;
-}
-
-/**
- * Fees for a replacement at the same nonce: at least 1.125x the replaced
- * transaction's fees (nodes require a bump of 10 %) or the current fees,
- * whichever is higher.
- */
-export function ReplacementFees(
-  fees: Fees,
-  replacing?: PayoutBuildOptions['replacing']
-): Fees {
-  if (!replacing) return fees;
-  const Bump = (current: bigint, previous: string | null) => {
-    if (!previous) return current;
-    const floor = CeilDiv(BigInt(previous) * 9n, 8n);
-    return current > floor ? current : floor;
-  };
-  const maxPriorityFeePerGas = Bump(
-    fees.maxPriorityFeePerGas,
-    replacing.maxPriorityFeePerGas
-  );
-  const maxFeePerGas = Bump(fees.maxFeePerGas, replacing.maxFeePerGas);
-  return {
-    maxFeePerGas:
-      maxFeePerGas > maxPriorityFeePerGas ? maxFeePerGas : maxPriorityFeePerGas,
-    maxPriorityFeePerGas,
-  };
-}
-
-function ErrorText(error: unknown): string {
-  if (error instanceof BaseError) {
-    return [error.shortMessage, error.details].filter(Boolean).join(': ');
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
-function IsExecutionRevert(error: unknown): boolean {
-  return (
-    error instanceof BaseError &&
-    !!error.walk(
-      (cause) =>
-        cause instanceof ExecutionRevertedError ||
-        cause instanceof RawContractError
-    )
-  );
-}
-
-interface RevertDetails {
-  /** Custom error or `Error`/`Panic` name, when the revert data decodes */
-  errorName: string | null;
-  /**
-   * The reason decoded from the revert data with our ABIs, or a generic
-   * text; safe to show to clients
-   */
-  message: string;
-  /** What the node said, for logs and failure-code mapping only */
-  detail: string;
-}
-
-/** The decoded revert: Error(string) reason or a PayoutBatch error name. */
-function DecodeRevert(error: unknown): RevertDetails {
-  if (error instanceof BaseError) {
-    const cause = error.walk() as { data?: Hex | { data?: Hex } } | null;
-    const data =
-      typeof cause?.data === 'object' ? cause.data?.data : cause?.data;
-    if (data && isHex(data) && data.length > 2) {
-      try {
-        // viem also decodes the built-in Error(string) and Panic(uint256).
-        const decoded = decodeErrorResult({
-          abi: PAYOUT_BATCH_ABI,
-          data,
-        }) as { errorName: string; args?: readonly unknown[] };
-        return {
-          errorName: decoded.errorName,
-          message:
-            decoded.errorName === 'Error'
-              ? String(decoded.args?.[0])
-              : decoded.errorName,
-          detail: ErrorText(error),
-        };
-      } catch {
-        // Not an error this ABI knows; only the node's text is left.
-      }
-    }
-  }
-  return {
-    errorName: null,
-    message: 'The transaction reverted',
-    detail: ErrorText(error),
-  };
 }
