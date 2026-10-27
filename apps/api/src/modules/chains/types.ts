@@ -188,13 +188,91 @@ export interface CheckoutPaymentVerification {
   failure_reason?: string;
 }
 
-/** Result of verifying an on-chain subscribe transaction */
+/**
+ * What a subscriber signs at checkout: our EIP-712 `Subscribe`, plus a USDC
+ * permit for the Subscriptions contract when the allowance is too low.
+ * Nothing on the simulated rail.
+ */
+export interface PreparedSubscribe {
+  /** True when the subscriber must also sign `permit_typed_data` */
+  needs_permit: boolean;
+  /** The USDC permit; null when not needed */
+  permit_typed_data: Eip712TypedData | null;
+  /** The contract's `Subscribe` message; null on the simulated rail */
+  subscribe_typed_data: Eip712TypedData | null;
+  /** Unix time after which both signatures are refused; null if simulated */
+  deadline: number | null;
+  /**
+   * Upper bound of the gas the relayer pays, in atomic units of
+   * `fee_currency`
+   */
+  estimated_fee: string;
+  fee_currency: 'eth' | 'none';
+  chain_id: number | null;
+}
+
+/** A signed subscribe for the relayer to submit. */
+export interface SubscribeRelay {
+  planKey: string;
+  subscriber: string;
+  /** The USDC permit signature, when the subscriber signed one */
+  permitSignature: string | null;
+  subscribeSignature: string;
+  /** The `deadline` both signatures were made with */
+  deadline: number;
+}
+
+/** Hooks around relaying a subscribe. */
+export type RelaySubscribeOptions = Omit<RelayCheckoutOptions, 'createdAt'>;
+
+/** Result of verifying an on-chain subscribe */
 export interface CheckoutSubscribeVerification {
-  verified: boolean;
-  /** Subscriber wallet that signed the subscribe transaction */
+  /**
+   * `verified`: the subscription exists on-chain. `failed`: final; the
+   * transaction did not subscribe and no subscription exists. `pending`:
+   * not settled yet. `not_found`: the node does not know the transaction
+   * and no subscription exists, so waiting cannot help.
+   */
+  status: 'verified' | 'failed' | 'pending' | 'not_found';
+  /**
+   * The transaction that subscribed; null when the subscription exists but
+   * this transaction did not create it
+   */
+  transaction_hash: string | null;
+  /** The subscriber wallet */
   subscriber_address: string | null;
-  /** On-chain subscription id created by the subscribe transaction */
+  /** The on-chain subscription id */
   subscription_onchain_id: string | null;
   /** Reason verification failed, if it did */
   failure_reason?: string;
 }
+
+/** One period's collection from a subscriber. */
+export interface SubscriptionCollectParams {
+  subscriptionOnchainId: string;
+  subscriberWallet: string;
+  planKey: string;
+  amountCents: number;
+}
+
+export interface SubscriptionCollection {
+  /** The collecting transaction; null when nothing was sent */
+  transaction_hash: string | null;
+  /** True when this period was already collected (`NotDueYet`) */
+  alreadyCollected: boolean;
+}
+
+/** On-chain state of a subscription. */
+export type OnchainSubscriptionStatus =
+  | 'none'
+  | 'active'
+  | 'paused'
+  | 'canceled';
+
+/**
+ * Error type of a collection that the subscriber's allowance to the
+ * Subscriptions contract cannot cover; it needs a new permit.
+ */
+export const COLLECTION_FAILED_ALLOWANCE = 'collection_failed_allowance';
+/** Error type of a collection refused because it is paused on-chain. */
+export const PAUSED_ON_CHAIN = 'paused_on_chain';

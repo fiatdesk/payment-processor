@@ -26,12 +26,18 @@ import type {
   ConfirmedBlock,
   CheckoutSubscribeVerification,
   IncomingDeposit,
+  OnchainSubscriptionStatus,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
   PreparedAuthorization,
+  PreparedSubscribe,
   RailDescription,
   RelayCheckoutOptions,
+  RelaySubscribeOptions,
+  SubscribeRelay,
+  SubscriptionCollectParams,
+  SubscriptionCollection,
   TransferRecipient,
   UnsignedPayoutBatch,
   UnsignedTransaction,
@@ -154,35 +160,72 @@ export interface Settlement {
     expected: CheckoutPaymentExpectation,
     options?: { timeoutMs?: number }
   ): Promise<CheckoutPaymentVerification>;
+  /** The wallet that owns subscription plans and collects (the puller). */
   GetPlanOwnerAddress(): string;
+  /**
+   * Registers the recurring price's plan (`createPlan`) and returns its
+   * plan key; an existing plan with the same terms is returned as it is.
+   */
   CreateSubscriptionPlan(
     priceId: string,
-    periodHours: number,
+    periodSeconds: number,
     amountCents: number,
     destination: string,
     puller: string
   ): Promise<string>;
-  BuildSubscribeTransaction(
+  /**
+   * What the subscriber signs to subscribe to the plan: the `Subscribe`
+   * message, and a USDC permit when their allowance to the Subscriptions
+   * contract is below the bounded permit value. Valid until `expiresAt` at
+   * most.
+   */
+  BuildSubscribeAuthorization(
     subscriber: string,
-    priceId: string,
-    planId: string,
-    options?: { relayed?: boolean }
-  ): Promise<UnsignedTransaction>;
+    planKey: string,
+    expiresAt: number
+  ): Promise<PreparedSubscribe>;
+  /**
+   * Submits the signed subscribe (with its permit, if any) and returns the
+   * transaction hash; `options.onSigned` sees the hash before the network
+   * does. Returns the pending hash while the node still knows it, or null
+   * when the subscriber is already subscribed, without sending anything.
+   */
+  RelaySubscribe(
+    relay: SubscribeRelay,
+    options: RelaySubscribeOptions
+  ): Promise<string | null>;
+  /** The subscription id when the wallet is subscribed (active or paused). */
   FindExistingSubscription(
-    planId: string,
+    planKey: string,
     subscriber: string
   ): Promise<string | null>;
+  /**
+   * Waits up to `timeoutMs` for the subscribe transaction to confirm, then
+   * checks the subscription exists. With no hash it only looks for the
+   * subscription.
+   */
   VerifySubscribeTransaction(
-    transactionHash: string,
-    expected: { planId: string; subscriberWallet: string }
+    transactionHash: string | null,
+    expected: { planKey: string; subscriberWallet: string },
+    options?: { timeoutMs?: number }
   ): Promise<CheckoutSubscribeVerification>;
-  CollectSubscriptionPayment(params: {
-    subscriberWallet: string;
-    planId: string;
-    subscriptionId: string;
-    amountCents: number;
-    destinationWallet?: string;
-  }): Promise<{ transaction_hash: string; alreadyCollected: boolean }>;
+  /**
+   * Collects one period. `alreadyCollected` when this period was already
+   * collected. Throws `paused_on_chain` when the subscription is paused
+   * on-chain and `collection_failed_allowance` when the allowance cannot
+   * cover the amount.
+   */
+  CollectSubscriptionPayment(
+    params: SubscriptionCollectParams
+  ): Promise<SubscriptionCollection>;
+  GetSubscriptionStatus(
+    subscriptionOnchainId: string
+  ): Promise<OnchainSubscriptionStatus>;
+  /**
+   * Cancels the subscription on-chain as the plan owner; null when it is
+   * not active or paused there, so nothing was sent.
+   */
+  CancelSubscription(subscriptionOnchainId: string): Promise<string | null>;
 }
 
 const SIM_SIG_PREFIX = 'sim_sig:';
@@ -290,44 +333,80 @@ export class SimulatedSettlement implements Settlement {
     return signature;
   }
 
-  async BuildSubscribeTransaction(
-    _subscriber: string,
-    _priceId: string,
-    _planId: string,
-    _options?: { relayed?: boolean }
-  ): Promise<UnsignedTransaction> {
-    return DummyUnsignedTransaction();
+  async BuildSubscribeAuthorization(): Promise<PreparedSubscribe> {
+    return {
+      needs_permit: false,
+      permit_typed_data: null,
+      subscribe_typed_data: null,
+      deadline: null,
+      estimated_fee: '0',
+      fee_currency: 'none',
+      chain_id: null,
+    };
+  }
+
+  /** The simulated wallet's `sim_sig:` reference stands for the transaction. */
+  async RelaySubscribe(
+    relay: SubscribeRelay,
+    options: RelaySubscribeOptions
+  ): Promise<string | null> {
+    if (!PayerFromSimulatedSignature(relay.subscribeSignature)) {
+      throw new AppError(
+        'subscribe_signature must be a simulated wallet signature in test mode',
+        400,
+        'invalid_request_error'
+      );
+    }
+    if (options.pendingHash) return options.pendingHash;
+    await options.onSigned(relay.subscribeSignature);
+    return relay.subscribeSignature;
   }
 
   async FindExistingSubscription(
-    _planId: string,
+    _planKey: string,
     _subscriber: string
   ): Promise<string | null> {
     return null;
   }
 
   async VerifySubscribeTransaction(
-    _transactionHash: string,
-    expected: { planId: string; subscriberWallet: string }
+    transactionHash: string | null,
+    expected: { planKey: string; subscriberWallet: string }
   ): Promise<CheckoutSubscribeVerification> {
+    if (!transactionHash || !PayerFromSimulatedSignature(transactionHash)) {
+      return {
+        status: transactionHash ? 'failed' : 'pending',
+        transaction_hash: transactionHash,
+        subscriber_address: null,
+        subscription_onchain_id: null,
+        ...(transactionHash
+          ? { failure_reason: 'Invalid simulated subscription' }
+          : {}),
+      };
+    }
     return {
-      verified: true,
+      status: 'verified',
+      transaction_hash: transactionHash,
       subscriber_address: expected.subscriberWallet,
-      subscription_onchain_id: `sim_sub_${expected.planId}_${expected.subscriberWallet}`,
+      subscription_onchain_id: `sim_sub_${expected.planKey}_${expected.subscriberWallet}`,
     };
   }
 
-  async CollectSubscriptionPayment(params: {
-    subscriberWallet: string;
-    planId: string;
-    subscriptionId: string;
-    amountCents: number;
-    destinationWallet?: string;
-  }): Promise<{ transaction_hash: string; alreadyCollected: boolean }> {
+  async CollectSubscriptionPayment(
+    params: SubscriptionCollectParams
+  ): Promise<SubscriptionCollection> {
     return {
       transaction_hash: `sim_collect:${params.subscriberWallet}`,
       alreadyCollected: false,
     };
+  }
+
+  async GetSubscriptionStatus(): Promise<OnchainSubscriptionStatus> {
+    return 'active';
+  }
+
+  async CancelSubscription(): Promise<string | null> {
+    return null;
   }
 
   async VerifyCheckoutPayment(
@@ -362,7 +441,7 @@ export class SimulatedSettlement implements Settlement {
 
   async CreateSubscriptionPlan(
     priceId: string,
-    _periodHours: number,
+    _periodSeconds: number,
     _amountCents: number,
     _destination: string,
     _puller: string

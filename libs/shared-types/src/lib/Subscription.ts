@@ -233,6 +233,14 @@ export interface Subscription {
   subscription_onchain_id: string | null;
 
   /**
+   * True while the on-chain subscription is paused. Zoneless then sets
+   * `pause_collection` itself and lifts it when the subscription resumes
+   * on-chain; a `pause_collection` you set is never lifted this way.
+   * @zoneless_extension
+   */
+  paused_on_chain: boolean;
+
+  /**
    * Unix timestamp until which this subscription is claimed by a billing runner.
    * Used to prevent duplicate cycle invoices across multiple API instances.
    * @zoneless_extension

@@ -21,6 +21,7 @@ import type { PriceModule } from './Price';
 import { BalanceModule } from './Balance';
 import { BalanceTransactionModule } from './BalanceTransaction';
 import { GetSettlement, type Settlement } from './chains/Settlement';
+import { COLLECTION_FAILED_ALLOWANCE, PAUSED_ON_CHAIN } from './chains/types';
 import { GenerateId } from '../utils/IdGenerator';
 import {
   BalanceTransaction as BalanceTransactionType,
@@ -83,15 +84,25 @@ const RETRY_DELAYS_SECONDS = [
 ];
 
 /**
- * When the chain rejects because this period's allowance is already used, the
- * next billing run should be allowed to retry immediately (period may have
- * rolled). A multi-minute backoff made manual catch-up look permanently stuck
- * on `skipped`.
+ * When the chain says this period was already collected, the next billing
+ * run may retry at once (the period may have rolled). A multi-minute backoff
+ * made manual catch-up look permanently stuck on `skipped`.
  */
 const PERIOD_ALLOWANCE_RETRY_SECONDS = 0;
 
-const PERIOD_ALLOWANCE_ALREADY_COLLECTED =
-  /period allowance already collected|exceeds period limit/i;
+/** Error type of a collection whose on-chain period was already collected. */
+const PERIOD_ALREADY_COLLECTED = 'period_already_collected';
+
+/**
+ * Collection errors recorded as `metadata.last_payment_error_code`; the
+ * billing runner acts on them. Neither a collected period nor an on-chain
+ * pause is a payment decline, so neither uses up a retry.
+ */
+const COLLECTION_ERROR_CODES = new Set([
+  PERIOD_ALREADY_COLLECTED,
+  PAUSED_ON_CHAIN,
+  COLLECTION_FAILED_ALLOWANCE,
+]);
 
 export class InvoiceModule {
   private readonly db: Database;
@@ -631,12 +642,18 @@ export class InvoiceModule {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const code =
+        error instanceof AppError && COLLECTION_ERROR_CODES.has(error.type)
+          ? error.type
+          : null;
       Logger.warn('Invoice payment failed', {
         invoiceId: previous.id,
         error: message,
+        code,
       });
 
-      if (this.paymentIntentModule) {
+      // A pause on-chain is not a payment attempt the customer failed.
+      if (this.paymentIntentModule && code !== PAUSED_ON_CHAIN) {
         try {
           await this.paymentIntentModule.MarkPaymentFailed(paymentIntentId, {
             advice_code: null,
@@ -658,7 +675,7 @@ export class InvoiceModule {
         }
       }
 
-      return this.RecordInvoicePaymentFailure(previous, message);
+      return this.RecordInvoicePaymentFailure(previous, message, code);
     }
   }
 
@@ -1582,41 +1599,76 @@ export class InvoiceModule {
     return invoice;
   }
 
+  /**
+   * Record a failed collection. `code` is a collection error the billing
+   * runner acts on (see COLLECTION_ERROR_CODES): a collected period or an
+   * on-chain pause keeps the retry budget and is retried on the next run;
+   * an exhausted allowance is a decline that also emits
+   * `subscription.allowance_exhausted`.
+   */
   private async RecordInvoicePaymentFailure(
     previous: InvoiceType,
-    message: string
+    message: string,
+    code: string | null = null
   ): Promise<InvoiceType> {
     const now = Now();
-    const isPeriodAllowance = PERIOD_ALLOWANCE_ALREADY_COLLECTED.test(message);
-    // Period-limit waits are not payment declines — don't burn retry budget.
-    const attemptCount = isPeriodAllowance
+    const isWait =
+      code === PERIOD_ALREADY_COLLECTED || code === PAUSED_ON_CHAIN;
+    const attemptCount = isWait
       ? previous.attempt_count
       : previous.attempt_count + 1;
-    const nextPaymentAttempt = isPeriodAllowance
+    const nextPaymentAttempt = isWait
       ? now + PERIOD_ALLOWANCE_RETRY_SECONDS
       : this.ComputeNextPaymentAttempt(attemptCount, now);
+    const metadata: Record<string, string> = {
+      ...(previous.metadata ?? {}),
+      last_payment_error: message.slice(0, 500),
+    };
+    if (code) metadata['last_payment_error_code'] = code;
+    else delete metadata['last_payment_error_code'];
 
     await this.db.Update<InvoiceType>('Invoices', previous.id, {
       attempted: true,
       attempt_count: attemptCount,
       next_payment_attempt: nextPaymentAttempt,
-      metadata: {
-        ...(previous.metadata ?? {}),
-        last_payment_error: message.slice(0, 500),
-      },
+      metadata,
     });
 
     const invoice = await this.RequireInvoice(previous.id);
 
-    if (this.eventService) {
+    if (this.eventService && code !== PAUSED_ON_CHAIN) {
       await this.eventService.Emit(
         'invoice.payment_failed',
         invoice.platform_account,
         invoice
       );
     }
+    if (code === COLLECTION_FAILED_ALLOWANCE) {
+      await this.EmitAllowanceExhausted(invoice);
+    }
 
     return invoice;
+  }
+
+  /**
+   * `subscription.allowance_exhausted`: the subscriber must sign a new USDC
+   * permit before the subscription can be collected again.
+   */
+  private async EmitAllowanceExhausted(invoice: InvoiceType): Promise<void> {
+    const subscriptionId = ExpandableId(
+      invoice.parent?.subscription_details?.subscription
+    );
+    if (!this.eventService || !subscriptionId) return;
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    if (!subscription) return;
+    await this.eventService.Emit(
+      'subscription.allowance_exhausted',
+      subscription.platform_account,
+      subscription
+    );
   }
 
   ComputeNextPaymentAttempt(attemptCount: number, now: number): number | null {
@@ -1699,24 +1751,28 @@ export class InvoiceModule {
 
     const amountCents = invoice.amount_due;
     const collection = await this.settlement.CollectSubscriptionPayment({
+      subscriptionOnchainId: subscription.subscription_onchain_id,
+      planKey: price.subscription_plan_id,
       subscriberWallet,
-      planId: price.subscription_plan_id,
-      subscriptionId: subscription.subscription_onchain_id,
       amountCents,
     });
 
-    // On-chain plans allow one pull per periodHours. Skipped Stripe cycles do
-    // not stack — if we already pulled this on-chain period, no USDC moves.
-    // Treating that as success was marking invoices paid / advancing periods
-    // with no wallet debit.
-    if (collection.alreadyCollected) {
+    // The contract allows one charge per period on a grid anchored at
+    // subscribe time. A late charge collects the current period only and
+    // moves to the next grid point, so cycles the billing runner missed are
+    // skipped on-chain (the runner voids their invoices) and never stack.
+    // `alreadyCollected` means this period was already charged: no USDC
+    // moved, so the invoice must not be marked paid.
+    if (collection.alreadyCollected || !collection.transaction_hash) {
       Logger.warn('On-chain subscription period already collected', {
         invoiceId: invoice.id,
         subscriptionId,
         amountCents,
       });
-      throw new Error(
-        'On-chain subscription period allowance already collected; wait for the next billing period before collecting again'
+      throw new AppError(
+        'This on-chain subscription period is already collected; wait for the next billing period before collecting again',
+        409,
+        PERIOD_ALREADY_COLLECTED
       );
     }
 

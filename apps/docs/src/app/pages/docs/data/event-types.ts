@@ -583,6 +583,16 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
     description: 'Occurs whenever a price is deleted.',
   },
 
+  // Subscription events (Zoneless extension)
+  {
+    name: 'subscription.allowance_exhausted',
+    resource: 'subscription',
+    objectType: 'Subscription',
+    objectHref: '#subscriptions-object',
+    description:
+      "<strong>Zoneless extension:</strong> Occurs whenever a billing period cannot be collected because the customer's USDC allowance to the Subscriptions contract is too low. The subscription becomes <code>past_due</code> until the customer signs a new permit.",
+  },
+
   // Top-up events
   {
     name: 'topup.created',

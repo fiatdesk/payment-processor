@@ -90,7 +90,7 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<code>SUBSCRIPTION_OPERATOR_KEY</code>: <code>0x</code> private key (64 hex characters) that owns on-chain subscription plans and collects payments. Required for recurring prices.',
+              text: '<code>SUBSCRIPTION_OPERATOR_KEY</code>: <code>0x</code> private key (64 hex characters) that owns the on-chain plan of every recurring price and collects its payments. It sends one <code>createPlan</code> per recurring price, one <code>charge</code> per subscription each billing period, and a <code>cancel</code> when you cancel an on-chain subscription, and pays their gas, so keep ETH on it (estimated: about 185,000 gas per plan and up to about 110,000 per charge). Subscribing is relayed and paid by <code>CHECKOUT_RELAYER_KEY</code>. Required for recurring prices.',
               html: true,
             },
             {

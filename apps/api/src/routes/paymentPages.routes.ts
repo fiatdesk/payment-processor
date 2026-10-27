@@ -122,8 +122,10 @@ router.get(
 /**
  * POST /v1/payment_pages/:urlSlug/prepare
  * Prepare what the customer signs. Payment mode returns an EIP-3009 USDC
- * authorization as EIP-712 typed data (the API relays it and pays the gas);
- * subscription mode returns a subscribe transaction.
+ * authorization as EIP-712 typed data; subscription mode returns, in
+ * `subscription`, the Subscriptions contract's `Subscribe` typed data and,
+ * when `needs_permit`, a USDC permit to sign first. The API relays either
+ * and pays the gas.
  */
 router.post(
   '/:urlSlug/prepare',
@@ -171,9 +173,15 @@ router.post(
  * when the authorization was used but is not confirmed yet); retry with
  * `{ signature }` or with that `{ transaction_hash }`. A 409
  * `payment_resubmit_required` means the network does not know the relayed
- * transaction: confirm again with `{ signature }`. Subscription mode verifies
- * the subscribe transaction, creates the off-chain Subscription and collects
- * the first period (unless trialing).
+ * transaction: confirm again with `{ signature }`. Subscription mode takes
+ * `{ subscribe_signature, permit_signature?, deadline }` (or, on retry, the
+ * `{ transaction_hash }`) with the same pending and resubmit answers,
+ * creates the off-chain Subscription and collects the first period (unless
+ * trialing). A 409 `subscription_authorization_stale` means the signatures
+ * can no longer be used (another subscribe or cancel used the nonce, or the
+ * deadline passed): prepare again and sign the new messages.
+ * `{ already_subscribed: true }` completes from the wallet's existing
+ * on-chain subscription.
  */
 router.post(
   '/:urlSlug/confirm',
@@ -181,6 +189,9 @@ router.post(
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const {
       signature,
+      permit_signature: permitSignature,
+      subscribe_signature: subscribeSignature,
+      deadline,
       transaction_hash: transactionHash,
       already_subscribed: alreadySubscribed,
       subscription_onchain_id: subscriptionOnchainId,
@@ -190,6 +201,9 @@ router.post(
       req.params.urlSlug,
       {
         signature,
+        permit_signature: permitSignature,
+        subscribe_signature: subscribeSignature,
+        deadline,
         transaction_hash: transactionHash,
         already_subscribed: alreadySubscribed,
         subscription_onchain_id: subscriptionOnchainId,

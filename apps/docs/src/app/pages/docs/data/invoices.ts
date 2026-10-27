@@ -270,7 +270,7 @@ const PAYMENT_SETTINGS_CHILDREN: Attribute[] = [
     description:
       'The list of payment method types to provide when collecting payment for the invoice. If not set, Zoneless attempts to determine the types to use automatically.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      { value: 'crypto', description: 'USDC wallet payments on Ethereum.' },
     ],
     enumNote:
       '<strong>Difference from Stripe:</strong> Zoneless only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
@@ -2277,7 +2277,7 @@ export const INVOICES_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Invoice object',
   description:
-    'Invoices are statements of amounts owed by a customer. They are generated one-off, or periodically from a subscription. They contain invoice items and proration adjustments that may be caused by subscription upgrades or downgrades. Invoices settle in USDC on Solana. If your invoice is configured for automatic collection, Zoneless finalizes the invoice and attempts payment after webhooks are delivered. If configured for send_invoice, Zoneless emails the customer with a link to the hosted invoice page. Any customer credit balance is applied before determining the amount due.',
+    'Invoices are statements of amounts owed by a customer. They are generated one-off, or periodically from a subscription. They contain invoice items and proration adjustments that may be caused by subscription upgrades or downgrades. Invoices settle in USDC on Ethereum. If your invoice is configured for automatic collection, Zoneless finalizes the invoice and attempts payment after webhooks are delivered. If configured for send_invoice, Zoneless emails the customer with a link to the hosted invoice page. Any customer credit balance is applied before determining the amount due.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices',
   endpoints: BuildEndpointSummaries(INVOICES_SUBSECTION, [
     { method: 'POST', path: '/v1/invoices', pageId: 'create' },
@@ -3256,12 +3256,19 @@ export const INVOICES_PAY_PAGE: DocPage = {
   id: 'pay',
   title: 'Pay an invoice',
   description:
-    'Zoneless automatically creates and then attempts to collect payment on invoices for customers on subscriptions according to your billing settings. However, if you’d like to attempt payment on an invoice outside of the normal collection schedule, you can do so with this endpoint. Collection settles in USDC on Solana.',
+    'Zoneless automatically creates and then attempts to collect payment on invoices for customers on subscriptions according to your billing settings. However, if you’d like to attempt payment on an invoice outside of the normal collection schedule, you can do so with this endpoint. Collection settles in USDC on Ethereum, with one charge on the customer’s on-chain subscription per billing period.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices/pay',
   endpoints: [{ method: 'POST', path: '/v1/invoices/:id/pay' }],
   sections: [
     {
       left: [
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: 'A failed collection stays <code>open</code> and records <code>metadata.last_payment_error</code>, plus <code>metadata.last_payment_error_code</code> for these cases: <code>period_already_collected</code> (this billing period was already charged on-chain; wait for the next billing period, no retry is used up), <code>paused_on_chain</code> (the subscription is paused on-chain; not a payment failure) and <code>collection_failed_allowance</code> (the customer’s USDC allowance to the Subscriptions contract does not cover the amount; Zoneless emits <code>subscription.allowance_exhausted</code>).',
+          html: true,
+        },
         { type: 'heading', level: 2, text: 'Parameters' },
         {
           type: 'attributes',

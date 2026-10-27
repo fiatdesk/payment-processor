@@ -1343,3 +1343,110 @@ contracts/README.md
 contracts/src/Subscriptions.sol
 contracts/test/Subscriptions.t.sol
 ```
+
+## Task 14: Subscriptions on the `Subscriptions` contract
+
+The API now runs recurring prices, hosted subscription checkout and the billing runner on `Subscriptions.sol`. The simulated rail keeps every flow working without a chain.
+
+- **Pure helpers** (`chains/SubscriptionAuthorization.ts`):
+  - `PlanIdFromPriceId(priceId)` is `keccak256` of the UTF-8 price id.
+  - `PlanKeyFor` and `SubscriptionIdFor` are `keccak256(abi.encode(...))`, as in the contract.
+  - `BuildPermitTypedData` builds the USDC EIP-2612 `Permit`. `BuildSubscribeTypedData` builds the contract's `Subscribe` (domain `Subscriptions`/`1`, with the plan's token, amount and period).
+  - `PermitValue` is `amount × max(12, ceil(365 days / periodSeconds))`. Permits are never unlimited.
+  - `SubscribeDeadline` is `min(session.expires_at, now + 1800)`.
+  - `FindSubscribedEvent` checks a receipt.
+- **Plans:**
+  - Creating a recurring price sends `createPlan` from `SUBSCRIPTION_OPERATOR_KEY`. That key owns the plan and is its puller; the platform wallet is its destination.
+  - The period is the interval in hours × 3600 seconds.
+  - `subscription_plan_id` stores the plan key.
+  - A plan already on-chain with the same terms (a retry) is returned without sending; one with other terms is refused.
+- **Checkout prepare (subscription mode):**
+  - The response has `subscription: { plan_id, needs_permit, permit_typed_data, subscribe_typed_data, deadline, already_subscribed, subscription_onchain_id }`. `already_subscribed` and `subscription_onchain_id` are also kept at the top level for the current web checkout.
+  - The Subscribe nonce is read just before the typed data is built.
+  - `needs_permit` is true while the wallet's USDC allowance to the Subscriptions contract is below the permit value.
+  - `relayed` is true on-chain. The old unsigned subscribe transaction (`BuildSubscribeTransaction`, `unsigned_transaction`, `nonce`, `to`) is gone.
+- **Checkout confirm (subscription mode):**
+  - Takes `{ subscribe_signature, permit_signature?, deadline }`, or on retry `{ transaction_hash }`.
+  - The relay works like checkout payments. `CHECKOUT_RELAYER_KEY` sends `subscribeWithPermit` or `subscribeWithAuthorization` with the plan's terms read from the chain. The hash is recorded on the session (compare-and-set) before sending, and is cleared when the network refuses it or verification fails.
+  - Sends share one in-process lock per sending address, so the relayer and the operator never race themselves even when they are the same key.
+  - The call is simulated first.
+    - A stale or expired signature is a 409 `subscription_authorization_stale`: prepare again and sign again. This covers a nonce used by another subscribe, or by any cancel of the subscriber.
+    - A permit the token refuses is the same 409.
+    - Another subscribe that landed first sends nothing.
+    - With no permit, an allowance below the first payment is a 400.
+  - A subscribe still confirming is a 409 `payment_pending` with its hash. An unknown recorded hash is a 409 `payment_resubmit_required`.
+  - Verification passes on the receipt's `Subscribed` log, or on the subscription existing at the confirmed block. When another transaction created it, the session records `onchain:<subId>`.
+  - Side effects (first-period collect, customer, Subscription) wait for the same single settlement claim as payments.
+  - An on-chain subscription that another live Subscription already bills is refused (on-chain only).
+  - `already_subscribed` now reads the subscription from the chain and refuses a client-sent id that is not the wallet's.
+  - A first-period collect that fails without a typed error returns a fixed 400; provider text stays in the log.
+  - A first period that an earlier, crashed attempt already collected is recorded as paid.
+- **Collect** (`charge(subId, amount)` from the operator key):
+  - `subscriptions(subId).status` is read first. `Paused` fails with `paused_on_chain`; `Canceled` or unknown is a billing failure.
+  - A charge revert maps as follows:
+    - `NotDueYet` gives `alreadyCollected: true` (nothing is sent);
+    - `NotActive` gives `paused_on_chain`;
+    - a transfer the token refuses gives a 402 `collection_failed_allowance` when the allowance is below the amount, else `insufficient_funds`;
+    - anything else is an error with the decoded name only.
+  - The charge waits up to 60 s for `ETH_CONFIRMATIONS`.
+- **Invoices:**
+  - The collect error is stored in `metadata.last_payment_error_code`:
+    - `period_already_collected`: the error says to wait for the next billing period, and no retry is used up;
+    - `paused_on_chain`: no retry is used up, and no `invoice.payment_failed` or failed PaymentIntent;
+    - `collection_failed_allowance`: a normal failed attempt (the subscription goes `past_due`) plus a new `subscription.allowance_exhausted` event with the Subscription.
+  - The `Invoice.ts` collect comment describes the anchored skip.
+- **Billing runner:**
+  - A subscription is charged at most once per run.
+  - Invoices of cycles that ended before the run are created and voided, not collected, before the current cycle is charged. A run voids up to 12 per subscription; later runs void the rest first. `SubscriptionModule.NextCycleEnd` and `SkipMissedCycle` support this.
+  - `paused_on_chain` sets `pause_collection` and the new `paused_on_chain` flag.
+  - Each later run reads the chain status. Once the subscription is active again, the runner lifts its own pause and collects in the same run. A pause the merchant set is never lifted.
+- **Cancel:** canceling a Subscription with a `subscription_onchain_id` (immediately or at period end) also sends `cancel(subId)` from the operator key. This is best effort and logged.
+- **Docs:** cover the plan key and the operator key's gas (labelled estimates from the forge gas report), the bounded permit, revoking the allowance, the on-chain cancel, missed-cycle voiding, on-chain pauses, the new error codes and the new event.
+- **Tests:**
+  - Pure-helper spec, including the typed-data digest against the contract's typehash and domain.
+  - Module specs for prepare, confirm, invoices, the billing runner, cancel, prices and the simulated rail.
+  - Mocked-RPC specs for error mapping and provider text.
+  - An Anvil suite: plan, then permit and subscribe relay, then verify, then charge, then `alreadyCollected`, then the next period after `evm_increaseTime`. It also covers a subscribe without a permit, a pause and resume, a cancel that makes a signature stale, and an exhausted allowance.
+
+Added:
+
+```
+apps/api/src/__tests__/SubscriptionAuthorization.spec.ts
+apps/api/src/__tests__/anvil/Subscriptions.anvil.spec.ts
+apps/api/src/modules/chains/SubscriptionAuthorization.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/Invoice.spec.ts
+apps/api/src/__tests__/Price.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/Subscription.spec.ts
+apps/api/src/__tests__/SubscriptionBilling.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/BillingMonitor.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/Price.ts
+apps/api/src/modules/Subscription.ts
+apps/api/src/modules/SubscriptionBilling.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/docs/src/app/pages/docs/data/billing.ts
+apps/docs/src/app/pages/docs/data/environment-variables.ts
+apps/docs/src/app/pages/docs/data/event-types.ts
+apps/docs/src/app/pages/docs/data/invoices.ts
+apps/docs/src/app/pages/docs/data/prices.ts
+apps/docs/src/app/pages/docs/data/subscriptions.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.spec.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
+libs/shared-types/src/lib/CheckoutSession.ts
+libs/shared-types/src/lib/Event.ts
+libs/shared-types/src/lib/Subscription.ts
+```

@@ -770,10 +770,38 @@ export interface CheckoutTransferAuthorization {
 }
 
 /**
+ * What a subscriber signs in subscription mode. Sign `permit_typed_data`
+ * (when `needs_permit`) and `subscribe_typed_data` with
+ * `eth_signTypedData_v4`, then confirm with both signatures and `deadline`;
+ * the API relays them in one transaction and pays its gas.
+ */
+export interface CheckoutSubscribeAuthorization {
+  /** The on-chain plan key of the recurring price (`subscription_plan_id`) */
+  plan_id: string;
+  /**
+   * True when the wallet's USDC allowance to the Subscriptions contract is
+   * below the bounded permit value, so the USDC permit must be signed too
+   */
+  needs_permit: boolean;
+  /** USDC permit for the Subscriptions contract; null when not needed */
+  permit_typed_data: Eip712TypedData | null;
+  /** The Subscriptions contract's `Subscribe` message (plan and its terms) */
+  subscribe_typed_data: Eip712TypedData | null;
+  /** Unix time both signatures are valid until; send it back on confirm */
+  deadline: number | null;
+  /**
+   * True when the wallet is already subscribed on-chain (a prior attempt
+   * landed but its confirm failed); confirm without signing.
+   */
+  already_subscribed: boolean;
+  subscription_onchain_id: string | null;
+}
+
+/**
  * Returned by `POST /v1/payment_pages/:urlSlug/prepare`. Payment mode
- * returns the authorization to sign (`typed_data`), which the API relays and
- * pays the gas for; subscription mode returns an unsigned subscribe
- * transaction.
+ * returns the authorization to sign (`typed_data`); subscription mode
+ * returns the messages to sign in `subscription`. The API relays either and
+ * pays the gas.
  */
 export interface CheckoutPaymentTransaction {
   object: 'checkout.payment_transaction';
@@ -791,14 +819,10 @@ export interface CheckoutPaymentTransaction {
   estimated_fee: string;
   fee_currency: string;
   chain_id: number | null;
-  /** Subscription mode: the unsigned subscribe transaction. */
-  unsigned_transaction?: string;
-  nonce?: number | null;
-  to?: string | null;
-  /**
-   * True when the wallet is already subscribed on-chain (e.g. a prior attempt
-   * landed but checkout confirm failed); confirm without signing.
-   */
+  /** Subscription mode: what the subscriber signs. */
+  subscription?: CheckoutSubscribeAuthorization;
+  /** Subscription mode: same as `subscription.already_subscribed`. */
   already_subscribed?: boolean;
+  /** Subscription mode: same as `subscription.subscription_onchain_id`. */
   subscription_onchain_id?: string;
 }

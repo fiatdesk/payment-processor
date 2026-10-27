@@ -28,6 +28,7 @@ import {
   SessionNonce,
 } from './CheckoutAuthorization';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
+import { SUBSCRIPTIONS_ABI } from './abi/Subscriptions';
 import { USDC_ABI } from './abi/Usdc';
 import { CHAIN_CONTRACTS } from './contracts';
 import { ComputeBatchId, EncodeDisperseCall } from './PayoutEncoding';
@@ -46,6 +47,7 @@ const CHAIN_ENV_KEYS = [
   'SUBSCRIPTIONS_ADDRESS',
   'SANCTIONS_ORACLE_ADDRESS',
   'CHECKOUT_RELAYER_KEY',
+  'SUBSCRIPTION_OPERATOR_KEY',
 ] as const;
 
 const ANVIL_USDC: Hex = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
@@ -1727,6 +1729,183 @@ describe('Ethereum rail', () => {
           statusCode: 400,
         });
         expect(client.getTransactionReceipt).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('subscriptions (mocked RPC)', () => {
+    /** Anvil accounts #3 (relayer) and #4 (operator); public test keys. */
+    const RELAYER_KEY: Hex =
+      '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6';
+    const OPERATOR_KEY: Hex =
+      '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a';
+    const SUBSCRIPTIONS: Hex = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+    const SUBSCRIBER = privateKeyToAccount(OTHER_KEY).address;
+    const PLAN_KEY: Hex = `0x${'a1'.repeat(32)}`;
+    const SUB_ID: Hex = `0x${'5b'.repeat(32)}`;
+    const client = {
+      readContract: jest.fn(),
+      estimateGas: jest.fn(),
+    };
+    const relay = {
+      planKey: PLAN_KEY,
+      subscriber: SUBSCRIBER,
+      permitSignature: null,
+      subscribeSignature: `0x${'ab'.repeat(65)}`,
+      deadline: 1_700_001_800,
+    };
+    const collect = {
+      subscriptionOnchainId: SUB_ID,
+      planKey: PLAN_KEY,
+      subscriberWallet: SUBSCRIBER,
+      amountCents: 2000,
+    };
+
+    function Env(overrides: Record<string, string> = {}) {
+      SetChainEnv({
+        LIVEMODE: 'false',
+        SETTLEMENT_RAIL: 'onchain',
+        ETH_CHAIN_ID: '31337',
+        ETH_CONFIRMATIONS: '1',
+        USDC_ADDRESS: ANVIL_USDC,
+        SUBSCRIPTIONS_ADDRESS: SUBSCRIPTIONS,
+        CHECKOUT_RELAYER_KEY: RELAYER_KEY,
+        SUBSCRIPTION_OPERATOR_KEY: OPERATOR_KEY,
+        ...overrides,
+      });
+    }
+
+    /** On-chain status of SUB_ID: 1 is Active. */
+    let status: number;
+
+    beforeEach(() => {
+      Env();
+      status = 1;
+      for (const method of Object.values(client)) method.mockReset();
+      jest.spyOn(Chain, 'GetPublicClient').mockReturnValue({
+        ...client,
+        pollingInterval: 1,
+      } as unknown as PublicClient);
+      client.readContract.mockImplementation(
+        async ({ functionName }: { functionName: string }) => {
+          switch (functionName) {
+            case 'decimals':
+              return 6;
+            case 'plans':
+              return [
+                OTHER_ADDRESS,
+                OTHER_ADDRESS,
+                PLATFORM,
+                ANVIL_USDC,
+                20_000_000n,
+                2_592_000n,
+                true,
+              ];
+            case 'subscriptions':
+              return [PLAN_KEY, SUBSCRIBER, 1_700_000_000n, status, 0];
+            default:
+              return 10n ** 12n;
+          }
+        }
+      );
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    function Revert(error: 'InvalidSignature' | 'NotDueYet'): BaseError {
+      return new BaseError(`execution reverted (${PROVIDER_SECRET})`, {
+        cause: new RawContractError({
+          data: encodeErrorResult({
+            abi: SUBSCRIPTIONS_ABI,
+            errorName: error,
+          }),
+        }),
+      });
+    }
+
+    it('names the operator key as the plan owner', () => {
+      expect(new Ethereum().GetPlanOwnerAddress()).toBe(
+        privateKeyToAccount(OPERATOR_KEY).address
+      );
+    });
+
+    it('is not supported without SUBSCRIPTION_OPERATOR_KEY or SUBSCRIPTIONS_ADDRESS', async () => {
+      Env({ SUBSCRIPTION_OPERATOR_KEY: '' });
+      expect(() => new Ethereum().GetPlanOwnerAddress()).toThrow(
+        expect.objectContaining({ statusCode: 501, type: 'not_supported' })
+      );
+
+      Env({ SUBSCRIPTIONS_ADDRESS: '' });
+      await expect(
+        new Ethereum().CollectSubscriptionPayment(collect)
+      ).rejects.toMatchObject({
+        statusCode: 501,
+        type: 'not_supported',
+        message: 'Subscriptions need SUBSCRIPTIONS_ADDRESS on chain 31337',
+      });
+    });
+
+    it('asks for new signatures when the subscribe signature is stale', async () => {
+      status = 0;
+      client.estimateGas.mockRejectedValue(Revert('InvalidSignature'));
+
+      await expect(
+        new Ethereum().RelaySubscribe(relay, { onSigned: jest.fn() })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'subscription_authorization_stale',
+        details: { code: 'subscription_authorization_stale' },
+      });
+    });
+
+    it('maps NotDueYet to an already collected period without sending', async () => {
+      client.estimateGas.mockRejectedValue(Revert('NotDueYet'));
+
+      await expect(
+        new Ethereum().CollectSubscriptionPayment(collect)
+      ).resolves.toEqual({ transaction_hash: null, alreadyCollected: true });
+    });
+
+    describe('keeps provider text out of client errors', () => {
+      async function ClientError(call: Promise<unknown>): Promise<AppError> {
+        const error = await call.catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(AppError);
+        expect(JSON.stringify(error)).not.toContain(PROVIDER_SECRET);
+        expect((error as AppError).message).not.toContain(PROVIDER_SECRET);
+        return error as AppError;
+      }
+
+      it('when the node cannot be read', async () => {
+        client.readContract.mockRejectedValue(ProviderHttpError());
+
+        await expect(
+          ClientError(new Ethereum().CollectSubscriptionPayment(collect))
+        ).resolves.toMatchObject({
+          statusCode: 502,
+          message: 'The payment network is unavailable; try again',
+        });
+        await expect(
+          ClientError(
+            new Ethereum().RelaySubscribe(relay, { onSigned: jest.fn() })
+          )
+        ).resolves.toMatchObject({ statusCode: 502 });
+      });
+
+      it('when a charge revert does not decode', async () => {
+        client.estimateGas.mockRejectedValue(
+          new BaseError(`execution reverted (${PROVIDER_SECRET})`, {
+            cause: new RawContractError({ data: '0xdeadbeef' }),
+          })
+        );
+
+        await expect(
+          ClientError(new Ethereum().CollectSubscriptionPayment(collect))
+        ).resolves.toMatchObject({
+          statusCode: 400,
+          message: 'The subscription payment was refused on-chain',
+        });
       });
     });
   });

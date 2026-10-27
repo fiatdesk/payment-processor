@@ -3,7 +3,11 @@
  *
  * Finds due subscriptions, claims them atomically, creates cycle invoices (or
  * retries open invoices), collects via Invoice → PaymentIntent → chain, then
- * advances periods or marks past_due / unpaid.
+ * advances periods or marks past_due / unpaid. Each subscription is charged
+ * at most once per run. The Subscriptions contract collects one charge per
+ * period on a fixed grid and skips periods nobody charged, so cycles this
+ * runner missed are voided instead of collected. A pause on-chain becomes
+ * `pause_collection`, lifted again when the chain resumes.
  *
  * Safe for multi-instance deployments (Cloud Run) via billing_lock_until claims.
  *
@@ -20,6 +24,8 @@ import { ProductModule } from './Product';
 import { InvoiceItemModule } from './InvoiceItem';
 import { PaymentIntentModule } from './PaymentIntent';
 import { ChargeModule } from './Charge';
+import { GetSettlement, type Settlement } from './chains/Settlement';
+import { PAUSED_ON_CHAIN } from './chains/types';
 import {
   Invoice as InvoiceType,
   QueryOperators,
@@ -32,6 +38,8 @@ import { ExpandableId } from './Util';
 
 const DEFAULT_BATCH_SIZE = 25;
 const BILLING_LOCK_SECONDS = 5 * 60;
+/** Missed cycles voided per subscription per run; later runs continue. */
+const MAX_MISSED_CYCLES_PER_RUN = 12;
 
 type QueryParam = {
   key: string;
@@ -92,15 +100,18 @@ export class SubscriptionBillingModule {
   private readonly db: Database;
   private readonly subscriptionModule: SubscriptionModule;
   private readonly invoiceModule: InvoiceModule;
+  private readonly settlement: Settlement;
 
   constructor(
     db: Database,
     subscriptionModule: SubscriptionModule,
-    invoiceModule: InvoiceModule
+    invoiceModule: InvoiceModule,
+    settlement?: Settlement
   ) {
     this.db = db;
     this.subscriptionModule = subscriptionModule;
     this.invoiceModule = invoiceModule;
+    this.settlement = settlement || GetSettlement();
   }
 
   /**
@@ -202,12 +213,13 @@ export class SubscriptionBillingModule {
     result.processed += 1;
 
     try {
-      if (!this.CanAutoCollect(claimed)) {
+      const subscription = await this.LiftChainPause(claimed);
+      if (!this.CanAutoCollect(subscription)) {
         result.skipped += 1;
         await this.subscriptionModule.ReleaseBillingLock(subscriptionId);
         return;
       }
-      await work(claimed);
+      await work(subscription);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.failed += 1;
@@ -218,6 +230,30 @@ export class SubscriptionBillingModule {
         await this.subscriptionModule.ReleaseBillingLock(subscriptionId);
       }
     }
+  }
+
+  /**
+   * A pause set because the subscription was paused on-chain lasts until the
+   * chain says it is active again. It is then lifted and collection goes on
+   * in this run: a period that came due during the pause is collectible
+   * right after the resume. A pause the merchant set is left alone.
+   */
+  private async LiftChainPause(
+    subscription: SubscriptionType
+  ): Promise<SubscriptionType> {
+    const onchainId = subscription.subscription_onchain_id;
+    if (!subscription.paused_on_chain || !onchainId) return subscription;
+    try {
+      const status = await this.settlement.GetSubscriptionStatus(onchainId);
+      if (status !== 'active') return subscription;
+    } catch (error) {
+      Logger.warn('Could not read an on-chain pause; keeping it', {
+        subscriptionId: subscription.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return subscription;
+    }
+    return this.subscriptionModule.ResumeCollectionFromChain(subscription.id);
   }
 
   private CanAutoCollect(subscription: SubscriptionType): boolean {
@@ -301,12 +337,56 @@ export class SubscriptionBillingModule {
       return;
     }
 
+    const current = await this.VoidMissedCycles(claimed, now);
+    if (!current) {
+      result.skipped += 1;
+      await this.subscriptionModule.ReleaseBillingLock(claimed.id);
+      return;
+    }
+
     const invoice = await this.subscriptionModule.CreateCycleInvoice(
-      claimed.platform_account,
-      claimed.id,
+      current.platform_account,
+      current.id,
       { finalize: true, collect: true }
     );
-    await this.HandleInvoiceOutcome(claimed, invoice, result);
+    await this.HandleInvoiceOutcome(current, invoice, result);
+  }
+
+  /**
+   * Voids the invoices of cycles that ended before now (the runner was not
+   * running while they were due). A charge now collects the current period
+   * only, so collecting those invoices would bill periods the contract
+   * skipped. Returns the subscription at its current cycle, or null when
+   * more than MAX_MISSED_CYCLES_PER_RUN remain, which later runs void
+   * before anything is charged.
+   */
+  private async VoidMissedCycles(
+    subscription: SubscriptionType,
+    now: number
+  ): Promise<SubscriptionType | null> {
+    let current = subscription;
+    for (let voided = 0; ; voided++) {
+      if ((await this.subscriptionModule.NextCycleEnd(current)) > now) {
+        return current;
+      }
+      if (voided >= MAX_MISSED_CYCLES_PER_RUN) return null;
+      const missed = await this.subscriptionModule.CreateCycleInvoice(
+        current.platform_account,
+        current.id,
+        { finalize: true, collect: false }
+      );
+      if (missed.status === 'open') {
+        await this.invoiceModule.VoidInvoice(missed.id);
+      }
+      Logger.info('Voided the invoice of a missed billing cycle', {
+        subscriptionId: current.id,
+        invoiceId: missed.id,
+      });
+      current = await this.subscriptionModule.SkipMissedCycle(
+        current.id,
+        missed.id
+      );
+    }
   }
 
   private async FindRetryInvoices(
@@ -406,6 +486,17 @@ export class SubscriptionBillingModule {
         invoice.id
       );
       result.succeeded += 1;
+      return;
+    }
+
+    // Not a billing failure: the chain decides, and resuming there resumes
+    // collection on a later run.
+    if (
+      invoice.status === 'open' &&
+      invoice.metadata?.['last_payment_error_code'] === PAUSED_ON_CHAIN
+    ) {
+      await this.subscriptionModule.PauseCollectionOnChain(subscription.id);
+      result.skipped += 1;
       return;
     }
 

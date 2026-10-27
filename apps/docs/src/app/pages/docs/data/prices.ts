@@ -43,7 +43,7 @@ const PRICES_OBJECT_JSON = `{
   "type": "recurring",
   "unit_amount": 1000,
   "unit_amount_decimal": "1000",
-  "subscription_plan_id": "5tGp2Kq9...plan456"
+  "subscription_plan_id": "0x3f9a6c1e8b2d4f7a0c5e9b1d3a6f8c2e4b7d9a1c3e5f7b9d2a4c6e8f0b1d3a5c"
 }`;
 
 const PRICES_ATTRIBUTES: Attribute[] = [
@@ -474,7 +474,7 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'On-chain subscription plan id for this recurring price. Set when the API creates the plan; <code>null</code> for one-time prices.',
+      'The plan key of this recurring price on the Subscriptions contract (32 bytes as <code>0x</code> hex). Creating a recurring price registers the plan from <code>SUBSCRIPTION_OPERATOR_KEY</code>, which owns it and collects each period: the price’s amount at most once per billing period of <code>interval</code> × <code>interval_count</code>, paid to the platform wallet. The plan’s amount and period never change. <code>null</code> for one-time prices.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },

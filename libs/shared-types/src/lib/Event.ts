@@ -137,6 +137,9 @@ export const EVENT_TYPES = [
   'price.updated',
   'price.deleted',
 
+  // Subscription events (Zoneless extension)
+  'subscription.allowance_exhausted',
+
   // Top-up events
   'topup.created',
   'topup.canceled',

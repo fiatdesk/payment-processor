@@ -12,6 +12,11 @@ import {
   GetFixedTimestamp,
 } from './Setup';
 import { CreateMockSettlement } from './mocks/Settlement';
+import {
+  COLLECTION_FAILED_ALLOWANCE,
+  PAUSED_ON_CHAIN,
+} from '../modules/chains/types';
+import { AppError } from '../utils/AppError';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -703,137 +708,229 @@ describe('InvoiceModule', () => {
       expect(result.status).toBe('paid');
     });
 
-    it('should not mark paid when on-chain period was already collected', async () => {
-      const existing = DraftInvoice({
-        status: 'open',
-        amount_due: 1099,
-        amount_remaining: 1099,
-        parent: {
-          type: 'subscription_details',
-          subscription_details: {
-            subscription: 'sub_z_1',
-            metadata: null,
-            subscription_proration_date: null,
-          },
-          quote_details: null,
-        },
-        payments: {
-          object: 'list',
-          data: [
-            {
-              id: 'inpay_z_1',
-              object: 'invoice_payment',
-              amount_paid: null,
-              amount_requested: 1099,
-              created: GetFixedTimestamp(),
-              currency: 'usdc',
-              invoice: 'in_z_test001',
-              is_default: true,
-              livemode: false,
-              payment: {
-                charge: null,
-                payment_intent: 'pi_z_1',
-                payment_record: null,
-                type: 'payment_intent',
-              },
-              status: 'open',
-              status_transitions: { canceled_at: null, paid_at: null },
-              platform_account: PLATFORM,
+    describe('automatic collection from an on-chain subscription', () => {
+      const SUBSCRIBER = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+      let invoiceState: Invoice;
+      let settlement: ReturnType<typeof CreateMockSettlement>;
+      let paymentIntentModule: {
+        MarkSucceeded: jest.Mock;
+        MarkPaymentFailed: jest.Mock;
+      };
+      let chargeModule: {
+        CreateFromPaymentAttempt: jest.Mock;
+        AttachBalanceTransaction: jest.Mock;
+      };
+      const subscription = {
+        id: 'sub_z_1',
+        object: 'subscription',
+        platform_account: PLATFORM,
+        subscription_onchain_id: 'SubOnchain_1',
+        default_payment_method: SUBSCRIBER,
+        metadata: {},
+      };
+
+      beforeEach(() => {
+        invoiceState = DraftInvoice({
+          status: 'open',
+          amount_due: 1099,
+          amount_remaining: 1099,
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: 'sub_z_1',
+              metadata: null,
+              subscription_proration_date: null,
             },
-          ],
-          has_more: false,
-          total_count: 1,
-          url: '/v1/invoices/in_z_test001/payments',
-        },
+            quote_details: null,
+          },
+          payments: {
+            object: 'list',
+            data: [
+              {
+                id: 'inpay_z_1',
+                object: 'invoice_payment',
+                amount_paid: null,
+                amount_requested: 1099,
+                created: GetFixedTimestamp(),
+                currency: 'usdc',
+                invoice: 'in_z_test001',
+                is_default: true,
+                livemode: false,
+                payment: {
+                  charge: null,
+                  payment_intent: 'pi_z_1',
+                  payment_record: null,
+                  type: 'payment_intent',
+                },
+                status: 'open',
+                status_transitions: { canceled_at: null, paid_at: null },
+                platform_account: PLATFORM,
+              },
+            ],
+            has_more: false,
+            total_count: 1,
+            url: '/v1/invoices/in_z_test001/payments',
+          },
+        });
+
+        paymentIntentModule = {
+          MarkSucceeded: jest.fn(),
+          MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
+        };
+        chargeModule = {
+          CreateFromPaymentAttempt: jest.fn(),
+          AttachBalanceTransaction: jest.fn(),
+        };
+        settlement = CreateMockSettlement();
+
+        module = new InvoiceModule(
+          mockDb,
+          eventService,
+          customerModule,
+          invoiceItemModule,
+          paymentIntentModule as never,
+          chargeModule as never,
+          undefined,
+          settlement
+        );
+
+        mockDb.Get = jest
+          .fn()
+          .mockImplementation(async (collection: string) => {
+            if (collection === 'Invoices') return invoiceState;
+            if (collection === 'Subscriptions') return subscription;
+            if (collection === 'Prices') {
+              return {
+                id: 'price_z_1',
+                platform_account: PLATFORM,
+                subscription_plan_id: 'PlanKey_1',
+              };
+            }
+            return null;
+          }) as typeof mockDb.Get;
+
+        mockDb.Find = jest.fn().mockResolvedValue([
+          {
+            id: 'si_z_1',
+            subscription: 'sub_z_1',
+            price: 'price_z_1',
+          },
+        ]) as typeof mockDb.Find;
+
+        mockDb.Update = jest
+          .fn()
+          .mockImplementation(
+            async (
+              _collection: string,
+              _id: string,
+              updates: Partial<Invoice>
+            ) => {
+              invoiceState = { ...invoiceState, ...updates };
+              return invoiceState;
+            }
+          ) as typeof mockDb.Update;
       });
 
-      let invoiceState: Invoice = existing;
+      function EmittedTypes(): string[] {
+        return eventService.Emit.mock.calls.map(([type]) => type);
+      }
 
-      const paymentIntentModule = {
-        MarkSucceeded: jest.fn(),
-        MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
-      };
-      const chargeModule = {
-        CreateFromPaymentAttempt: jest.fn(),
-        AttachBalanceTransaction: jest.fn(),
-      };
-      const settlement = CreateMockSettlement();
-      settlement.CollectSubscriptionPayment.mockResolvedValue({
-        transaction_hash: 'already_collected',
-        alreadyCollected: true,
+      it('collects the subscription by its on-chain id and plan key', async () => {
+        await module.PayInvoice(invoiceState.id, {});
+
+        expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
+          subscriptionOnchainId: 'SubOnchain_1',
+          planKey: 'PlanKey_1',
+          subscriberWallet: SUBSCRIBER,
+          amountCents: 1099,
+        });
       });
 
-      module = new InvoiceModule(
-        mockDb,
-        eventService,
-        customerModule,
-        invoiceItemModule,
-        paymentIntentModule as never,
-        chargeModule as never,
-        undefined,
-        settlement
-      );
+      it('should not mark paid when on-chain period was already collected', async () => {
+        settlement.CollectSubscriptionPayment.mockResolvedValue({
+          transaction_hash: null,
+          alreadyCollected: true,
+        });
 
-      mockDb.Get = jest.fn().mockImplementation(async (collection: string) => {
-        if (collection === 'Invoices') return invoiceState;
-        if (collection === 'Subscriptions') {
-          return {
-            id: 'sub_z_1',
-            platform_account: PLATFORM,
-            subscription_onchain_id: 'SubPda_1',
-            default_payment_method:
-              '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-            metadata: {},
-          };
-        }
-        if (collection === 'Prices') {
-          return {
-            id: 'price_z_1',
-            platform_account: PLATFORM,
-            subscription_plan_id: 'PlanPda_1',
-          };
-        }
-        return null;
-      }) as typeof mockDb.Get;
+        const result = await module.PayInvoice(invoiceState.id, {});
 
-      mockDb.Find = jest.fn().mockResolvedValue([
-        {
-          id: 'si_z_1',
-          subscription: 'sub_z_1',
-          price: 'price_z_1',
-        },
-      ]) as typeof mockDb.Find;
-
-      mockDb.Update = jest
-        .fn()
-        .mockImplementation(
-          async (
-            _collection: string,
-            _id: string,
-            updates: Partial<Invoice>
-          ) => {
-            invoiceState = { ...invoiceState, ...updates };
-            return invoiceState;
-          }
-        ) as typeof mockDb.Update;
-
-      const result = await module.PayInvoice(existing.id, {});
-
-      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
-        subscriberWallet: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-        planId: 'PlanPda_1',
-        subscriptionId: 'SubPda_1',
-        amountCents: existing.amount_due,
+        expect(chargeModule.CreateFromPaymentAttempt).not.toHaveBeenCalled();
+        expect(paymentIntentModule.MarkSucceeded).not.toHaveBeenCalled();
+        expect(result.status).not.toBe('paid');
+        expect(result.attempted).toBe(true);
+        // Waiting for the next period is not a decline: no retry is used up.
+        expect(result.attempt_count).toBe(0);
+        expect(result.next_payment_attempt).toBe(GetFixedTimestamp());
+        expect(result.metadata?.['last_payment_error']).toContain(
+          'wait for the next billing period'
+        );
+        expect(EmittedTypes()).toContain('invoice.payment_failed');
       });
-      expect(chargeModule.CreateFromPaymentAttempt).not.toHaveBeenCalled();
-      expect(paymentIntentModule.MarkSucceeded).not.toHaveBeenCalled();
-      expect(result.status).not.toBe('paid');
-      expect(result.attempted).toBe(true);
-      expect(eventService.Emit).toHaveBeenCalledWith(
-        'invoice.payment_failed',
-        PLATFORM,
-        expect.anything()
-      );
+
+      it('fails the attempt and reports an exhausted allowance', async () => {
+        settlement.CollectSubscriptionPayment.mockRejectedValue(
+          new AppError(
+            "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit",
+            402,
+            COLLECTION_FAILED_ALLOWANCE
+          )
+        );
+
+        const result = await module.PayInvoice(invoiceState.id, {});
+
+        expect(result.status).toBe('open');
+        expect(result.attempt_count).toBe(1);
+        expect(result.metadata?.['last_payment_error_code']).toBe(
+          COLLECTION_FAILED_ALLOWANCE
+        );
+        expect(paymentIntentModule.MarkPaymentFailed).toHaveBeenCalled();
+        expect(EmittedTypes()).toEqual(
+          expect.arrayContaining([
+            'invoice.payment_failed',
+            'subscription.allowance_exhausted',
+          ])
+        );
+        expect(eventService.Emit).toHaveBeenCalledWith(
+          'subscription.allowance_exhausted',
+          PLATFORM,
+          subscription
+        );
+      });
+
+      it('records a pause on-chain without a failed attempt', async () => {
+        settlement.CollectSubscriptionPayment.mockRejectedValue(
+          new AppError(
+            'The subscription is paused on-chain',
+            409,
+            PAUSED_ON_CHAIN
+          )
+        );
+
+        const result = await module.PayInvoice(invoiceState.id, {});
+
+        expect(result.status).toBe('open');
+        expect(result.attempt_count).toBe(0);
+        expect(result.metadata?.['last_payment_error_code']).toBe(
+          PAUSED_ON_CHAIN
+        );
+        expect(paymentIntentModule.MarkPaymentFailed).not.toHaveBeenCalled();
+        expect(EmittedTypes()).not.toContain('invoice.payment_failed');
+      });
+
+      it('clears the error code of an earlier attempt when another error follows', async () => {
+        invoiceState = {
+          ...invoiceState,
+          metadata: { last_payment_error_code: PAUSED_ON_CHAIN },
+        };
+        settlement.CollectSubscriptionPayment.mockRejectedValue(
+          new Error('node unavailable')
+        );
+
+        const result = await module.PayInvoice(invoiceState.id, {});
+
+        expect(result.attempt_count).toBe(1);
+        expect(result.metadata).not.toHaveProperty('last_payment_error_code');
+      });
     });
   });
 

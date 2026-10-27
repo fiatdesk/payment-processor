@@ -22,7 +22,7 @@ export const SUBSCRIPTIONS_SUBSECTION: DocSubSection = {
 // ============================================
 
 const HOUR_INTERVAL_NOTE =
-  "<strong>Zoneless extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short Solana subscription periods.";
+  "<strong>Zoneless extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short subscription periods.";
 
 const RECURRING_INTERVAL_ENUM: Attribute['enumValues'] = [
   { value: 'hour', description: 'Billed every hour.' },
@@ -215,7 +215,7 @@ const PAYMENT_SETTINGS_CHILDREN: Attribute[] = [
     description:
       'The list of payment method types to provide to every invoice created by the subscription.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      { value: 'crypto', description: 'USDC wallet payments on Ethereum.' },
     ],
     enumNote:
       '<strong>Difference from Stripe:</strong> Zoneless only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
@@ -702,7 +702,8 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   },
   "trial_start": null,
   "platform_account": "acct_z_Platform123abc",
-  "subscription_onchain_id": "7xK9Nv3F...abc123",
+  "subscription_onchain_id": "0x8e2b4d6f1a3c5e7b9d0f2a4c6e8b1d3f5a7c9e0b2d4f6a8c1e3b5d7f9a0c2e4b",
+  "paused_on_chain": false,
   "billing_lock_until": null
 }`;
 
@@ -1602,7 +1603,15 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'On-chain subscription id for this subscription. Set when the customer completes hosted checkout subscribe.',
+      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period, plus a USDC permit for a bounded allowance (at least 12 periods and at least a year) when theirs is lower; Zoneless relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'paused_on_chain',
+    type: 'boolean',
+    description:
+      'True while the subscription is paused on-chain (by the customer or the plan owner). Zoneless then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain; a <code>pause_collection</code> you set is never lifted this way.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
@@ -2988,6 +2997,13 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
   sections: [
     {
       left: [
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also cancels it on the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. This is best effort: if the transaction fails, the cancellation still stands and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull.',
+          html: true,
+        },
         { type: 'heading', level: 2, text: 'Parameters' },
         {
           type: 'attributes',

@@ -23,7 +23,7 @@ const BILLING_RUN_OBJECT_JSON = `{
   "errors": [
     {
       "subscription": "sub_z_1NGQwV2eZvKYlo2CjrVqXzAb",
-      "error": "Insufficient USDC allowance for subscription delegation"
+      "error": "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit"
     }
   ]
 }`;
@@ -142,18 +142,28 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: "These endpoints are specific to Zoneless and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Solana.",
+          text: "These endpoints are specific to Zoneless and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Ethereum.",
         },
         {
           type: 'callout',
           variant: 'info',
           title: 'How billing works: ',
-          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>Zoneless Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects via Solana subscription delegation.',
+          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>Zoneless Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects each one with a <code>charge</code> on the Subscriptions contract, sent from <code>SUBSCRIPTION_OPERATOR_KEY</code>.',
           html: true,
         },
         {
           type: 'paragraph',
           text: 'Automatic collection only runs for subscriptions that have a <code>subscription_onchain_id</code>, use <code>collection_method=charge_automatically</code>, are not paused, and are in <code>active</code>, <code>past_due</code>, or (after trial end) <code>trialing</code>.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'The contract allows one charge per billing period, on a fixed schedule that starts when the customer subscribes. A run charges each subscription at most once. When billing runs late, the charge collects the current period only: invoices for periods that ended without a run are voided, not collected (up to 12 per subscription per run; later runs void the rest before charging).',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'The chain decides whether a subscription can be charged. A subscription paused on-chain gets <code>pause_collection</code> and <code>paused_on_chain=true</code>, and is collected on the first run after it resumes on-chain; a period that came due during the pause is collected right away. When the subscriber’s USDC allowance to the Subscriptions contract cannot cover a period, the invoice payment fails with <code>metadata.last_payment_error_code=collection_failed_allowance</code>, the subscription becomes <code>past_due</code>, and Zoneless emits <code>subscription.allowance_exhausted</code>: the subscriber must sign a new permit. Revoking the allowance stops every pull.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

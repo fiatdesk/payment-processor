@@ -1,10 +1,11 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
- * The on-chain Ethereum rail (mainnet, Sepolia or Anvil). Rail description,
+ * The on-chain Ethereum rail (mainnet, Sepolia or Anvil): rail description,
  * explorer links, address checks, balance reads, deposit detection from USDC
- * `Transfer` logs, batch payouts through the PayoutBatch contract and hosted
- * checkout through relayed EIP-3009 authorizations work; subscriptions
- * reject with `not_supported` until they are implemented.
+ * `Transfer` logs, batch payouts through the PayoutBatch contract, hosted
+ * checkout through relayed EIP-3009 authorizations, and subscriptions on the
+ * Subscriptions contract (plans and charges from SUBSCRIPTION_OPERATOR_KEY,
+ * relayed subscribes from CHECKOUT_RELAYER_KEY).
  *
  * @module chains/Ethereum
  */
@@ -29,6 +30,8 @@ import {
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
   WaitForTransactionReceiptTimeoutError,
+  zeroAddress,
+  type Abi,
   type Address,
   type Block,
   type Hex,
@@ -50,8 +53,10 @@ import {
   GetCheckoutRelayerKey,
   GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
+  RequireSubscriptionOperatorKey,
 } from '../AppConfig';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
+import { SUBSCRIPTIONS_ABI } from './abi/Subscriptions';
 import { USDC_ABI } from './abi/Usdc';
 import {
   GetChainConfig,
@@ -73,22 +78,41 @@ import {
   ParsePayoutReceipt,
 } from './PayoutEncoding';
 import type { Settlement } from './Settlement';
-import type {
-  BroadcastResult,
-  CheckoutPaymentExpectation,
-  CheckoutPaymentVerification,
-  CheckoutSubscribeVerification,
-  ConfirmedBlock,
-  IncomingDeposit,
-  PayoutBuildOptions,
-  PayoutTransactionExpectation,
-  PayoutTransactionMatch,
-  PreparedAuthorization,
-  RailDescription,
-  RelayCheckoutOptions,
-  TransferRecipient,
-  UnsignedPayoutBatch,
-  UnsignedTransaction,
+import {
+  BuildPermitTypedData,
+  BuildSubscribeTypedData,
+  BuildSubscriptionsDomain,
+  FindSubscribedEvent,
+  PermitValue,
+  PlanIdFromPriceId,
+  PlanKeyFor,
+  SubscribeDeadline,
+  SubscriptionIdFor,
+  type PlanTerms,
+} from './SubscriptionAuthorization';
+import {
+  COLLECTION_FAILED_ALLOWANCE,
+  PAUSED_ON_CHAIN,
+  type BroadcastResult,
+  type CheckoutPaymentExpectation,
+  type CheckoutPaymentVerification,
+  type CheckoutSubscribeVerification,
+  type ConfirmedBlock,
+  type IncomingDeposit,
+  type OnchainSubscriptionStatus,
+  type PayoutBuildOptions,
+  type PayoutTransactionExpectation,
+  type PayoutTransactionMatch,
+  type PreparedAuthorization,
+  type PreparedSubscribe,
+  type RailDescription,
+  type RelayCheckoutOptions,
+  type RelaySubscribeOptions,
+  type SubscribeRelay,
+  type SubscriptionCollectParams,
+  type SubscriptionCollection,
+  type TransferRecipient,
+  type UnsignedPayoutBatch,
 } from './types';
 
 const USDC_DECIMALS = 6;
@@ -109,6 +133,15 @@ const AUTHORIZATION_USED_EVENT = getAbiItem({
 const BLOCK_TIMESTAMP_CACHE_SIZE = 256;
 /** Gas of one USDC `transferWithAuthorization`, for the quoted relay fee. */
 const RELAY_GAS_ESTIMATE = 100_000n;
+/** Gas of one relayed `subscribeWithPermit`, for the quoted relay fee. */
+const SUBSCRIBE_GAS_ESTIMATE = 200_000n;
+/** The contract's `Status` enum, by value. */
+const SUBSCRIPTION_STATUSES: readonly OnchainSubscriptionStatus[] = [
+  'none',
+  'active',
+  'paused',
+  'canceled',
+];
 /** Sends of one relay, re-signed when another sender took the nonce. */
 const RELAY_SEND_ATTEMPTS = 3;
 /** Blocks per `getLogs` call when looking for a used authorization. */
@@ -120,6 +153,23 @@ const AUTHORIZATION_LOG_MARGIN = 256n;
 interface Fees {
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
+}
+
+/** `plans(planKey)` of the Subscriptions contract. */
+interface OnchainPlan {
+  owner: Address;
+  puller: Address;
+  destination: Address;
+  terms: PlanTerms;
+  active: boolean;
+}
+
+/** `subscriptions(subId)` of the Subscriptions contract. */
+interface OnchainSubscription {
+  planKey: Hex;
+  subscriber: Address;
+  nextChargeAt: bigint;
+  status: OnchainSubscriptionStatus;
 }
 
 /** 501 error for a rail capability that does not exist yet. */
@@ -176,8 +226,9 @@ export class Ethereum implements Settlement {
     return Number(formatUnits(balance, USDC_DECIMALS));
   }
 
+  /** SUBSCRIPTION_OPERATOR_KEY's address: owner and puller of every plan. */
   GetPlanOwnerAddress(): string {
-    throw NotSupported('GetPlanOwnerAddress');
+    return RequireOperator().address;
   }
 
   async GetLatestBlockNumber(): Promise<bigint> {
@@ -756,7 +807,7 @@ export class Ethereum implements Settlement {
     if (earlier || used) return earlier;
 
     const gas = await this.EstimateRelayGas(relayer.address, usdc, data);
-    return WithKeyedLock(`relayer:${relayer.address}`, () =>
+    return WithKeyedLock(SenderLock(relayer.address), () =>
       this.SendRelay(relayer, usdc, data, gas, options.onSigned)
     );
   }
@@ -873,27 +924,661 @@ export class Ethereum implements Settlement {
     }
   }
 
-  async CreateSubscriptionPlan(): Promise<string> {
-    throw NotSupported('CreateSubscriptionPlan');
+  /**
+   * `createPlan` from SUBSCRIPTION_OPERATOR_KEY, which owns the plan and is
+   * the plan's puller here. The plan id is keccak256 of the price id, so a
+   * plan already on-chain with the same terms (a retry) is returned as it
+   * is; one with other terms is refused.
+   */
+  async CreateSubscriptionPlan(
+    priceId: string,
+    periodSeconds: number,
+    amountCents: number,
+    destination: string,
+    puller: string
+  ): Promise<string> {
+    const operator = RequireOperator();
+    const { usdc } = GetChainConfig();
+    const subscriptions = SubscriptionsAddress();
+    if (!Number.isInteger(periodSeconds) || periodSeconds <= 0) {
+      throw new AppError(
+        'A subscription period must be a positive whole number of seconds',
+        400,
+        'invalid_request_error'
+      );
+    }
+    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
+    const planId = PlanIdFromPriceId(priceId);
+    const planKey = PlanKeyFor(operator.address, planId);
+    const terms: PlanTerms = {
+      token: usdc,
+      amount: PositiveTokenUnits(amountCents),
+      periodSeconds: BigInt(periodSeconds),
+    };
+
+    const existing = await NodeCall('plan read', () => this.ReadPlan(planKey));
+    if (existing) {
+      if (!SameTerms(existing.terms, terms)) {
+        throw new AppError(
+          `On-chain plan ${planKey} for price ${priceId} has other terms`,
+          409,
+          'invalid_request_error'
+        );
+      }
+      return planKey;
+    }
+
+    const data = encodeFunctionData({
+      abi: SUBSCRIPTIONS_ABI,
+      functionName: 'createPlan',
+      args: [
+        planId,
+        usdc,
+        terms.amount,
+        terms.periodSeconds,
+        ToAddress(destination),
+        ToAddress(puller),
+      ],
+    });
+    const simulated = await this.SimulateSubscriptionsCall(
+      operator.address,
+      data
+    );
+    if ('revert' in simulated) {
+      throw SubscriptionsCallRefused('plan', simulated.revert);
+    }
+    const { hash, receipt } = await this.SendAndConfirm(
+      operator,
+      subscriptions,
+      data,
+      simulated.gas,
+      'subscription plan'
+    );
+    if (receipt.status !== 'success') {
+      throw SubscriptionsCallRefused(
+        'plan',
+        await this.ReplayRevert(hash, receipt.blockNumber)
+      );
+    }
+    Logger.info('Created an on-chain subscription plan', {
+      priceId,
+      planKey,
+      transactionHash: hash,
+    });
+    return planKey;
   }
 
-  async BuildSubscribeTransaction(): Promise<UnsignedTransaction> {
-    throw NotSupported('BuildSubscribeTransaction');
+  /**
+   * The `Subscribe` to sign (the subscriber's nonce is read just before it
+   * is built) and, when the subscriber's USDC allowance to the
+   * Subscriptions contract is below the bounded permit value, the USDC
+   * permit for that value. Both are valid for 30 minutes of chain time and
+   * never after `expiresAt`. The relayer pays the gas.
+   */
+  async BuildSubscribeAuthorization(
+    subscriber: string,
+    planKey: string,
+    expiresAt: number
+  ): Promise<PreparedSubscribe> {
+    if (!IsCheckoutRelayed()) throw RelayerRequired();
+    const { chainId, usdc } = GetChainConfig();
+    const subscriptions = SubscriptionsAddress();
+    const owner = ToAddress(subscriber);
+    const key = Bytes32(planKey, 'subscription_plan_id');
+    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
+
+    const client = GetPublicClient();
+    const [plan, block, allowance, permitNonce, subscribeNonce] =
+      await NodeCall('subscribe reads', () =>
+        Promise.all([
+          this.ReadPlan(key),
+          client.getBlock({ blockTag: 'latest' }),
+          client.readContract({
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'allowance',
+            args: [owner, subscriptions],
+          }),
+          client.readContract({
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'nonces',
+            args: [owner],
+          }),
+          client.readContract({
+            address: subscriptions,
+            abi: SUBSCRIPTIONS_ABI,
+            functionName: 'nonces',
+            args: [owner],
+          }),
+        ])
+      );
+    const terms = OpenPlanTerms(plan, usdc);
+    const deadline = SubscribeDeadline(expiresAt, Number(block.timestamp));
+    const permitValue = PermitValue(terms);
+    const needsPermit = allowance < permitValue;
+    const [usdcDomain, fees] = await NodeCall('USDC domain and fees', () =>
+      Promise.all([this.GetUsdcDomain(), this.CurrentFees()])
+    );
+    return {
+      needs_permit: needsPermit,
+      permit_typed_data: needsPermit
+        ? BuildPermitTypedData(usdcDomain, {
+            owner,
+            spender: subscriptions,
+            value: permitValue,
+            nonce: permitNonce,
+            deadline,
+          })
+        : null,
+      subscribe_typed_data: BuildSubscribeTypedData(
+        BuildSubscriptionsDomain(chainId, subscriptions),
+        {
+          planKey: key,
+          subscriber: owner,
+          terms,
+          nonce: subscribeNonce,
+          deadline,
+        }
+      ),
+      deadline,
+      estimated_fee: (SUBSCRIBE_GAS_ESTIMATE * fees.maxFeePerGas).toString(),
+      fee_currency: 'eth',
+      chain_id: chainId,
+    };
   }
 
-  async FindExistingSubscription(): Promise<string | null> {
-    throw NotSupported('FindExistingSubscription');
+  /**
+   * `subscribeWithPermit` (with a permit signature) or
+   * `subscribeWithAuthorization` from CHECKOUT_RELAYER_KEY, with the plan's
+   * terms read from the chain. Nothing is sent when the subscriber is
+   * already subscribed or the recorded relay is still known to the node.
+   * The call is simulated first: a stale or expired signature is a 409
+   * `subscription_authorization_stale` (prepare again and sign the new
+   * request); other reverts are a 400. Sends share the relayer's lock and
+   * nonce handling with checkout relays.
+   */
+  async RelaySubscribe(
+    relay: SubscribeRelay,
+    options: RelaySubscribeOptions
+  ): Promise<string | null> {
+    const relayer = privateKeyToAccount(RequireRelayer());
+    const { usdc } = GetChainConfig();
+    const subscriptions = SubscriptionsAddress();
+    const subscriber = ToAddress(relay.subscriber);
+    const planKey = Bytes32(relay.planKey, 'subscription_plan_id');
+    const signature = SignatureBytes(relay.subscribeSignature);
+    const permit = relay.permitSignature
+      ? SplitSignature(relay.permitSignature)
+      : null;
+    const subId = SubscriptionIdFor(planKey, subscriber);
+
+    const client = GetPublicClient();
+    const [plan, subscription, allowance] = await NodeCall(
+      'subscribe relay reads',
+      () =>
+        Promise.all([
+          this.ReadPlan(planKey),
+          this.ReadSubscription(subId),
+          client.readContract({
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'allowance',
+            args: [subscriber, subscriptions],
+          }),
+        ])
+    );
+    const subscribed = IsSubscribed(subscription);
+    if (options.pendingHash) {
+      if (subscribed) return options.pendingHash;
+      if ((await this.IsKnownTransaction(options.pendingHash)) !== false) {
+        return options.pendingHash;
+      }
+    }
+    if (subscribed) return null;
+
+    const terms = OpenPlanTerms(plan, usdc);
+    if (!permit && allowance < terms.amount) {
+      throw new AppError(
+        "permit_signature is required: the wallet's USDC allowance does not cover the first payment",
+        400,
+        'invalid_request_error'
+      );
+    }
+    const deadline = BigInt(relay.deadline);
+    const data = permit
+      ? encodeFunctionData({
+          abi: SUBSCRIPTIONS_ABI,
+          functionName: 'subscribeWithPermit',
+          args: [
+            planKey,
+            subscriber,
+            terms,
+            PermitValue(terms),
+            deadline,
+            permit.v,
+            permit.r,
+            permit.s,
+            deadline,
+            signature,
+          ],
+        })
+      : encodeFunctionData({
+          abi: SUBSCRIPTIONS_ABI,
+          functionName: 'subscribeWithAuthorization',
+          args: [planKey, subscriber, terms, deadline, signature],
+        });
+
+    const simulated = await this.SimulateSubscriptionsCall(
+      relayer.address,
+      data
+    );
+    if ('revert' in simulated) {
+      // Someone else submitted it first; verification finds the result.
+      if (simulated.revert.errorName === 'AlreadySubscribed') return null;
+      throw SubscribeRefused(simulated.revert, !!permit);
+    }
+    return WithKeyedLock(SenderLock(relayer.address), () =>
+      this.SendRelay(
+        relayer,
+        subscriptions,
+        data,
+        simulated.gas,
+        options.onSigned,
+        'The network did not accept the subscription'
+      )
+    );
   }
 
-  async VerifySubscribeTransaction(): Promise<CheckoutSubscribeVerification> {
-    throw NotSupported('VerifySubscribeTransaction');
+  async FindExistingSubscription(
+    planKey: string,
+    subscriber: string
+  ): Promise<string | null> {
+    const subId = SubscriptionIdFor(
+      Bytes32(planKey, 'subscription_plan_id'),
+      ToAddress(subscriber)
+    );
+    const subscription = await NodeCall('subscription read', () =>
+      this.ReadSubscription(subId)
+    );
+    return IsSubscribed(subscription) ? subId : null;
   }
 
-  async CollectSubscriptionPayment(): Promise<{
-    transaction_hash: string;
-    alreadyCollected: boolean;
-  }> {
-    throw NotSupported('CollectSubscriptionPayment');
+  /**
+   * Waits up to `timeoutMs` until the transaction is ETH_CONFIRMATIONS deep,
+   * then reads at that confirmed block. Verified when the receipt has the
+   * `Subscribed` log, or when the subscription exists anyway (another
+   * transaction, such as a copy of the relay, subscribed first). An RPC
+   * error leaves the result `pending`.
+   */
+  async VerifySubscribeTransaction(
+    transactionHash: string | null,
+    expected: { planKey: string; subscriberWallet: string },
+    options: { timeoutMs?: number } = {}
+  ): Promise<CheckoutSubscribeVerification> {
+    if (transactionHash !== null && !IsTransactionHash(transactionHash)) {
+      throw new AppError(
+        'transaction_hash must be 0x followed by 64 hex characters',
+        400,
+        'invalid_request_error'
+      );
+    }
+    const hash = transactionHash
+      ? (transactionHash.toLowerCase() as Hex)
+      : null;
+    const subscriptions = SubscriptionsAddress();
+    const subscriber = ToAddress(expected.subscriberWallet);
+    const planKey = Bytes32(expected.planKey, 'subscription_plan_id');
+    const subId = SubscriptionIdFor(planKey, subscriber);
+    const Result = (
+      status: CheckoutSubscribeVerification['status'],
+      transaction: string | null,
+      failureReason?: string
+    ): CheckoutSubscribeVerification => ({
+      status,
+      transaction_hash: transaction,
+      subscriber_address: status === 'verified' ? subscriber : null,
+      subscription_onchain_id: status === 'verified' ? subId : null,
+      ...(failureReason ? { failure_reason: failureReason } : {}),
+    });
+    const Exists = async (blockNumber?: bigint) =>
+      IsSubscribed(await this.ReadSubscription(subId, blockNumber));
+
+    try {
+      // A transaction the node has never seen will not confirm by waiting.
+      const known = hash === null ? null : await this.IsKnownTransaction(hash);
+      if (hash && known === false && !(await Exists())) {
+        return Result('not_found', hash);
+      }
+      const mined =
+        hash !== null &&
+        known !== false &&
+        (await this.WaitForCheckoutReceipt(
+          hash,
+          options.timeoutMs ?? GetCheckoutConfirmTimeoutMs()
+        ));
+      const confirmed = await this.GetConfirmedBlock();
+      const receipt = hash && mined ? await this.GetReceiptOrNull(hash) : null;
+      if (receipt && receipt.blockNumber > BigInt(confirmed.number)) {
+        return Result('pending', hash);
+      }
+      if (
+        receipt &&
+        FindSubscribedEvent(receipt, { subscriptions, planKey, subscriber }) ===
+          subId
+      ) {
+        return Result('verified', hash);
+      }
+      if (await Exists(BigInt(confirmed.number))) {
+        return Result('verified', null);
+      }
+      return receipt
+        ? Result(
+            'failed',
+            hash,
+            'The subscribe transaction did not create the subscription'
+          )
+        : Result('pending', hash);
+    } catch (error) {
+      // Only a node or transport error means "try again later".
+      if (!(error instanceof BaseError)) {
+        Logger.error('Subscribe verification failed', error, {
+          transactionHash: hash,
+        });
+        throw error;
+      }
+      Logger.warn('Subscribe verification could not read the chain', {
+        transactionHash: hash,
+        error: ErrorText(error),
+      });
+      return Result('pending', hash);
+    }
+  }
+
+  /**
+   * `charge(subId, amount)` from SUBSCRIPTION_OPERATOR_KEY, after reading
+   * the subscription's on-chain status (the chain decides whether it is
+   * paused). `NotDueYet` means this period was already collected; a
+   * `NotActive` revert means it was paused meanwhile. A transfer the token
+   * refuses is `collection_failed_allowance` when the allowance to the
+   * Subscriptions contract is below the amount.
+   */
+  async CollectSubscriptionPayment(
+    params: SubscriptionCollectParams
+  ): Promise<SubscriptionCollection> {
+    const operator = RequireOperator();
+    const { usdc } = GetChainConfig();
+    const subscriptions = SubscriptionsAddress();
+    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
+    const subId = Bytes32(
+      params.subscriptionOnchainId,
+      'subscription_onchain_id'
+    );
+    const amount = PositiveTokenUnits(params.amountCents);
+
+    const subscription = await NodeCall('subscription read', () =>
+      this.ReadSubscription(subId)
+    );
+    if (subscription.status === 'paused') throw PausedOnChain();
+    if (subscription.status !== 'active') {
+      throw new AppError(
+        subscription.status === 'canceled'
+          ? 'The subscriber canceled this subscription on-chain'
+          : 'This subscription does not exist on-chain',
+        400,
+        'invalid_request_error'
+      );
+    }
+    if (subscription.planKey.toLowerCase() !== params.planKey.toLowerCase()) {
+      throw new Error(
+        `On-chain subscription ${subId} belongs to plan ${subscription.planKey}, not ${params.planKey}`
+      );
+    }
+
+    const data = encodeFunctionData({
+      abi: SUBSCRIPTIONS_ABI,
+      functionName: 'charge',
+      args: [subId, amount],
+    });
+    const simulated = await this.SimulateSubscriptionsCall(
+      operator.address,
+      data
+    );
+    if ('revert' in simulated) {
+      return this.ChargeRefused(simulated.revert, subscription, amount);
+    }
+    const { hash, receipt } = await this.SendAndConfirm(
+      operator,
+      subscriptions,
+      data,
+      simulated.gas,
+      'subscription payment'
+    );
+    if (receipt.status !== 'success') {
+      return this.ChargeRefused(
+        await this.ReplayRevert(hash, receipt.blockNumber),
+        subscription,
+        amount
+      );
+    }
+    return { transaction_hash: hash, alreadyCollected: false };
+  }
+
+  async GetSubscriptionStatus(
+    subscriptionOnchainId: string
+  ): Promise<OnchainSubscriptionStatus> {
+    const subId = Bytes32(subscriptionOnchainId, 'subscription_onchain_id');
+    const subscription = await NodeCall('subscription read', () =>
+      this.ReadSubscription(subId)
+    );
+    return subscription.status;
+  }
+
+  /** `cancel(subId)` from SUBSCRIPTION_OPERATOR_KEY, the plan owner. */
+  async CancelSubscription(
+    subscriptionOnchainId: string
+  ): Promise<string | null> {
+    const operator = RequireOperator();
+    const subscriptions = SubscriptionsAddress();
+    const subId = Bytes32(subscriptionOnchainId, 'subscription_onchain_id');
+    const subscription = await NodeCall('subscription read', () =>
+      this.ReadSubscription(subId)
+    );
+    if (!IsSubscribed(subscription)) return null;
+
+    const data = encodeFunctionData({
+      abi: SUBSCRIPTIONS_ABI,
+      functionName: 'cancel',
+      args: [subId],
+    });
+    const simulated = await this.SimulateSubscriptionsCall(
+      operator.address,
+      data
+    );
+    if ('revert' in simulated) {
+      throw SubscriptionsCallRefused('cancel', simulated.revert);
+    }
+    const { hash, receipt } = await this.SendAndConfirm(
+      operator,
+      subscriptions,
+      data,
+      simulated.gas,
+      'subscription cancel'
+    );
+    if (receipt.status !== 'success') {
+      throw SubscriptionsCallRefused(
+        'cancel',
+        await this.ReplayRevert(hash, receipt.blockNumber)
+      );
+    }
+    return hash;
+  }
+
+  private async ReadPlan(planKey: Hex): Promise<OnchainPlan | null> {
+    const [owner, puller, destination, token, amount, periodSeconds, active] =
+      await GetPublicClient().readContract({
+        address: SubscriptionsAddress(),
+        abi: SUBSCRIPTIONS_ABI,
+        functionName: 'plans',
+        args: [planKey],
+      });
+    if (owner === zeroAddress) return null;
+    return {
+      owner,
+      puller,
+      destination,
+      terms: { token, amount, periodSeconds },
+      active,
+    };
+  }
+
+  private async ReadSubscription(
+    subId: Hex,
+    blockNumber?: bigint
+  ): Promise<OnchainSubscription> {
+    const [planKey, subscriber, nextChargeAt, status] =
+      await GetPublicClient().readContract({
+        address: SubscriptionsAddress(),
+        abi: SUBSCRIPTIONS_ABI,
+        functionName: 'subscriptions',
+        args: [subId],
+        blockNumber,
+      });
+    return {
+      planKey,
+      subscriber,
+      nextChargeAt,
+      status: SUBSCRIPTION_STATUSES[status] ?? 'none',
+    };
+  }
+
+  /**
+   * Estimates a Subscriptions call: the gas (with a 20 % margin), or the
+   * decoded revert. Any other failure is a 502 with the node's text logged.
+   */
+  private async SimulateSubscriptionsCall(
+    from: Address,
+    data: Hex
+  ): Promise<{ gas: bigint } | { revert: RevertDetails }> {
+    try {
+      const estimate = await GetPublicClient().estimateGas({
+        account: from,
+        to: SubscriptionsAddress(),
+        data,
+      });
+      return { gas: CeilDiv(estimate * 6n, 5n) };
+    } catch (error) {
+      if (!IsExecutionRevert(error)) {
+        throw NodeUnavailable('estimateGas', error);
+      }
+      return { revert: DecodeRevert(error, SUBSCRIPTIONS_ABI) };
+    }
+  }
+
+  /**
+   * Signs and sends from `account` under its lock, then waits up to 60 s
+   * for ETH_CONFIRMATIONS. A transaction still unconfirmed is a 502.
+   */
+  private async SendAndConfirm(
+    account: PrivateKeyAccount,
+    to: Address,
+    data: Hex,
+    gas: bigint,
+    label: string
+  ): Promise<{ hash: Hex; receipt: TransactionReceipt }> {
+    const hash = (await WithKeyedLock(SenderLock(account.address), () =>
+      this.SendRelay(
+        account,
+        to,
+        data,
+        gas,
+        async () => undefined,
+        `The network did not accept the ${label}`
+      )
+    )) as Hex;
+    try {
+      const receipt = await GetPublicClient().waitForTransactionReceipt({
+        hash,
+        confirmations: GetChainConfig().confirmations,
+        timeout: WAIT_TIMEOUT_MS,
+      });
+      return { hash, receipt };
+    } catch (error) {
+      Logger.warn('A sent transaction did not confirm in time', {
+        label,
+        transactionHash: hash,
+        error: ErrorText(error),
+      });
+      throw new AppError(
+        `The ${label} transaction ${hash} is not confirmed yet`,
+        502,
+        'blockchain_error'
+      );
+    }
+  }
+
+  /** Why a mined Subscriptions call reverted, replayed at its block. */
+  private async ReplayRevert(
+    hash: Hex,
+    blockNumber: bigint
+  ): Promise<RevertDetails> {
+    const transaction = await NodeCall('transaction read', () =>
+      GetPublicClient().getTransaction({ hash })
+    );
+    return NodeCall('revert replay', () =>
+      this.RevertReason(transaction, blockNumber, SUBSCRIPTIONS_ABI)
+    );
+  }
+
+  /**
+   * Maps a refused `charge`: `NotDueYet` is this period already collected,
+   * `NotActive` a pause, and a transfer the token refused is classified
+   * from the subscriber's allowance and balance.
+   */
+  private async ChargeRefused(
+    revert: RevertDetails,
+    subscription: OnchainSubscription,
+    amount: bigint
+  ): Promise<SubscriptionCollection> {
+    if (revert.errorName === 'NotDueYet') {
+      return { transaction_hash: null, alreadyCollected: true };
+    }
+    if (revert.errorName === 'NotActive') throw PausedOnChain();
+    if (!IsSubscriptionsError(revert.errorName)) {
+      const { usdc } = GetChainConfig();
+      const client = GetPublicClient();
+      const [allowance, balance] = await NodeCall('subscriber USDC reads', () =>
+        Promise.all([
+          client.readContract({
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'allowance',
+            args: [subscription.subscriber, SubscriptionsAddress()],
+          }),
+          client.readContract({
+            address: usdc,
+            abi: USDC_ABI,
+            functionName: 'balanceOf',
+            args: [subscription.subscriber],
+          }),
+        ])
+      );
+      if (allowance < amount) {
+        throw new AppError(
+          "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit",
+          402,
+          COLLECTION_FAILED_ALLOWANCE
+        );
+      }
+      if (balance < amount) {
+        throw new AppError(
+          "The subscriber's wallet does not hold enough USDC for this payment",
+          402,
+          'insufficient_funds'
+        );
+      }
+    }
+    throw SubscriptionsCallRefused('payment', revert);
   }
 
   private async BuildUnsignedTransaction(
@@ -998,14 +1683,16 @@ export class Ethereum implements Settlement {
   /**
    * Signs, hands the hash to `onSigned`, then sends. Accepted when the node
    * takes it, already holds it, or knows the hash after an error; a nonce
-   * conflict re-signs at the next pending nonce; anything else throws.
+   * conflict re-signs at the next pending nonce; anything else throws
+   * `refused`. Callers hold the sender's lock.
    */
   private async SendRelay(
     relayer: PrivateKeyAccount,
     to: Address,
     data: Hex,
     gas: bigint,
-    onSigned: RelayCheckoutOptions['onSigned']
+    onSigned: RelayCheckoutOptions['onSigned'],
+    refused = 'The network did not accept the payment'
   ): Promise<string> {
     const client = GetPublicClient();
     const { chainId } = GetChainConfig();
@@ -1049,15 +1736,11 @@ export class Ethereum implements Settlement {
           });
           continue;
         }
-        Logger.warn('The network refused a checkout relay', {
+        Logger.warn('The network refused a relayed transaction', {
           transactionHash: hash,
           error: ErrorText(error),
         });
-        throw new AppError(
-          'The network did not accept the payment',
-          400,
-          'blockchain_error'
-        );
+        throw new AppError(refused, 400, 'blockchain_error');
       }
     }
   }
@@ -1316,7 +1999,8 @@ export class Ethereum implements Settlement {
   /** Replays a reverted call at its block to read the revert reason. */
   private async RevertReason(
     transaction: Transaction,
-    blockNumber: bigint
+    blockNumber: bigint,
+    abi: Abi = PAYOUT_BATCH_ABI
   ): Promise<RevertDetails> {
     try {
       await GetPublicClient().call({
@@ -1336,7 +2020,7 @@ export class Ethereum implements Settlement {
       // Only an execution revert says why; an RPC or transport error says
       // nothing about the transaction, so the caller leaves it unsettled.
       if (!IsExecutionRevert(error)) throw error;
-      return DecodeRevert(error);
+      return DecodeRevert(error, abi);
     }
   }
 
@@ -1384,6 +2068,18 @@ function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
   return { usdc, payoutBatch };
 }
 
+function SubscriptionsAddress(): Address {
+  const { chainId, subscriptions } = GetChainConfig();
+  if (!subscriptions) {
+    throw new AppError(
+      `Subscriptions need SUBSCRIPTIONS_ADDRESS on chain ${chainId}`,
+      501,
+      'not_supported'
+    );
+  }
+  return subscriptions;
+}
+
 function RelayerRequired(): AppError {
   return new AppError(
     'On-chain checkout needs CHECKOUT_RELAYER_KEY to relay payments',
@@ -1396,6 +2092,188 @@ function RequireRelayer(): Hex {
   const key = GetCheckoutRelayerKey();
   if (!key) throw RelayerRequired();
   return key;
+}
+
+/** The SUBSCRIPTION_OPERATOR_KEY account; a 501 when it is not set. */
+function RequireOperator(): PrivateKeyAccount {
+  let key: Hex;
+  try {
+    key = RequireSubscriptionOperatorKey();
+  } catch {
+    throw new AppError(
+      'Recurring prices need SUBSCRIPTION_OPERATOR_KEY to own their on-chain plans',
+      501,
+      'not_supported'
+    );
+  }
+  return privateKeyToAccount(key);
+}
+
+/** One lock per sending address, so one key never races itself. */
+function SenderLock(address: Address): string {
+  return `sender:${address}`;
+}
+
+/** A plan key or subscription id: `0x` and 64 hex characters. */
+function Bytes32(value: string, field: string): Hex {
+  if (!isHex(value) || value.length !== 66) {
+    throw new AppError(
+      `${field} must be 0x followed by 64 hex characters`,
+      400,
+      'invalid_request_error'
+    );
+  }
+  return value.toLowerCase() as Hex;
+}
+
+/** A subscribe signature: any non-empty bytes (contract wallets vary). */
+function SignatureBytes(signature: string): Hex {
+  if (!isHex(signature) || signature.length < 4 || signature.length % 2) {
+    throw new AppError(
+      'subscribe_signature must be 0x followed by hex bytes',
+      400,
+      'invalid_request_error'
+    );
+  }
+  return signature;
+}
+
+function PositiveTokenUnits(amountCents: number): bigint {
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new AppError(
+      'A subscription amount must be a positive whole number of cents',
+      400,
+      'invalid_request_error'
+    );
+  }
+  return CentsToTokenUnits(amountCents);
+}
+
+function SameTerms(a: PlanTerms, b: PlanTerms): boolean {
+  return (
+    SameAddress(a.token, b.token) &&
+    a.amount === b.amount &&
+    a.periodSeconds === b.periodSeconds
+  );
+}
+
+/** The terms of a plan that takes subscribers in USDC; else a 400. */
+function OpenPlanTerms(plan: OnchainPlan | null, usdc: Address): PlanTerms {
+  if (!plan?.active) {
+    throw new AppError(
+      'This subscription plan does not accept new subscribers on-chain',
+      400,
+      'invalid_request_error'
+    );
+  }
+  if (!SameAddress(plan.terms.token, usdc)) {
+    throw new AppError(
+      'This subscription plan does not charge USDC',
+      400,
+      'invalid_request_error'
+    );
+  }
+  return { ...plan.terms, token: getAddress(plan.terms.token) };
+}
+
+function IsSubscribed(subscription: OnchainSubscription): boolean {
+  return subscription.status === 'active' || subscription.status === 'paused';
+}
+
+function PausedOnChain(): AppError {
+  return new AppError(
+    'The subscription is paused on-chain',
+    409,
+    PAUSED_ON_CHAIN
+  );
+}
+
+/**
+ * The Subscriptions contract's own errors. The ABI's other errors
+ * (SafeERC20FailedOperation, Nonces and EIP-712 errors) come from the
+ * libraries it uses.
+ */
+const SUBSCRIPTIONS_ERRORS: ReadonlySet<string> = new Set([
+  'AlreadySubscribed',
+  'AmountExceedsPlan',
+  'ExpiredSignature',
+  'InvalidAmount',
+  'InvalidPeriod',
+  'InvalidSignature',
+  'NotActive',
+  'NotDueYet',
+  'NotPaused',
+  'PlanExists',
+  'PlanInactive',
+  'TermsMismatch',
+  'Unauthorized',
+  'ZeroAddress',
+]);
+
+/** True for a custom error of the Subscriptions contract itself. */
+function IsSubscriptionsError(errorName: string | null): boolean {
+  return errorName !== null && SUBSCRIPTIONS_ERRORS.has(errorName);
+}
+
+/**
+ * Why a relayed subscribe would revert. A used nonce (another subscribe or
+ * a cancel by the subscriber or any plan owner), an expired deadline or a
+ * permit the token refuses all mean the signatures are stale: a 409 that
+ * asks for a new prepare and new signatures. Only decoded reasons from our
+ * ABI reach the client; the node's text is logged.
+ */
+function SubscribeRefused(
+  revert: RevertDetails,
+  withPermit: boolean
+): AppError {
+  Logger.warn('A relayed subscribe would revert', { error: revert.detail });
+  const permitRefused = withPermit && !IsSubscriptionsError(revert.errorName);
+  if (
+    permitRefused ||
+    revert.errorName === 'InvalidSignature' ||
+    revert.errorName === 'ExpiredSignature'
+  ) {
+    return new AppError(
+      permitRefused
+        ? 'The USDC permit can no longer be used. Prepare the subscription again and sign the new request.'
+        : 'The subscription signature can no longer be used. Prepare the subscription again and sign the new request.',
+      409,
+      'subscription_authorization_stale',
+      { code: 'subscription_authorization_stale' }
+    );
+  }
+  if (revert.errorName === 'PlanInactive') {
+    return new AppError(
+      'This subscription plan does not accept new subscribers on-chain',
+      400,
+      'invalid_request_error'
+    );
+  }
+  return new AppError(
+    revert.errorName
+      ? `The subscription cannot be relayed: ${revert.message}`
+      : 'The subscription cannot be relayed',
+    400,
+    'invalid_request_error'
+  );
+}
+
+/** A refused operator call to the Subscriptions contract. */
+function SubscriptionsCallRefused(
+  label: string,
+  revert: RevertDetails
+): AppError {
+  Logger.warn('A Subscriptions call was refused', {
+    label,
+    error: revert.detail,
+  });
+  return new AppError(
+    revert.errorName
+      ? `The subscription ${label} was refused on-chain: ${revert.message}`
+      : `The subscription ${label} was refused on-chain`,
+    400,
+    'blockchain_error'
+  );
 }
 
 function AuthorizationNonce(nonce: string): Hex {
@@ -1542,8 +2420,14 @@ interface RevertDetails {
   detail: string;
 }
 
-/** The decoded revert: Error(string) reason or a PayoutBatch error name. */
-function DecodeRevert(error: unknown): RevertDetails {
+/**
+ * The decoded revert: Error(string) reason or an error name from `abi`
+ * (PayoutBatch's by default).
+ */
+function DecodeRevert(
+  error: unknown,
+  abi: Abi = PAYOUT_BATCH_ABI
+): RevertDetails {
   if (error instanceof BaseError) {
     const cause = error.walk() as { data?: Hex | { data?: Hex } } | null;
     const data =
@@ -1551,10 +2435,10 @@ function DecodeRevert(error: unknown): RevertDetails {
     if (data && isHex(data) && data.length > 2) {
       try {
         // viem also decodes the built-in Error(string) and Panic(uint256).
-        const decoded = decodeErrorResult({
-          abi: PAYOUT_BATCH_ABI,
-          data,
-        }) as { errorName: string; args?: readonly unknown[] };
+        const decoded = decodeErrorResult({ abi, data }) as {
+          errorName: string;
+          args?: readonly unknown[];
+        };
         return {
           errorName: decoded.errorName,
           message:

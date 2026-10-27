@@ -20,13 +20,16 @@ import { ExtractChangedFields } from './Event';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';
+import { GetSettlement, type Settlement } from './chains/Settlement';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
+import { Logger } from '../utils/Logger';
 import {
   Customer as CustomerType,
   Invoice as InvoiceType,
   Price as PriceType,
   QueryOperators,
+  RecurringInterval,
   Subscription as SubscriptionType,
   SubscriptionItem as SubscriptionItemType,
   SubscriptionItemList,
@@ -71,19 +74,22 @@ export class SubscriptionModule {
   private readonly invoiceModule: InvoiceModule | null;
   private readonly listHelper: ListHelper<SubscriptionType>;
   private readonly itemsListHelper: ListHelper<SubscriptionItemType>;
+  private readonly settlement: Settlement;
 
   constructor(
     db: Database,
     eventService?: EventService,
     customerModule?: CustomerModule,
     priceModule?: PriceModule,
-    invoiceModule?: InvoiceModule
+    invoiceModule?: InvoiceModule,
+    settlement?: Settlement
   ) {
     this.db = db;
     this.eventService = eventService || null;
     this.customerModule = customerModule || null;
     this.priceModule = priceModule || null;
     this.invoiceModule = invoiceModule || null;
+    this.settlement = settlement || GetSettlement();
     this.listHelper = new ListHelper<SubscriptionType>(db, {
       collection: 'Subscriptions',
       orderByField: 'created',
@@ -489,9 +495,9 @@ export class SubscriptionModule {
   }
 
   /**
-   * Cancel a subscription immediately.
-   * Off-chain stop-collect: billing will no longer pull; the on-chain
-   * subscription is left in place until a later customer-signed revoke.
+   * Cancel a subscription immediately. Billing stops pulling at once; an
+   * on-chain subscription is also canceled from the plan owner's key, best
+   * effort (a failure is logged and the cancel stands).
    * Emits `customer.subscription.deleted`.
    */
   async CancelSubscription(
@@ -548,6 +554,7 @@ export class SubscriptionModule {
     };
 
     await this.db.Update<SubscriptionType>('Subscriptions', id, updatePayload);
+    await this.CancelOnChain(previous);
 
     const subscription = await this.GetSubscription(id);
     if (!subscription) {
@@ -603,6 +610,7 @@ export class SubscriptionModule {
     };
 
     await this.db.Update<SubscriptionType>('Subscriptions', id, updatePayload);
+    await this.CancelOnChain(previous);
 
     const subscription = await this.GetSubscription(id);
     if (!subscription) {
@@ -1067,6 +1075,7 @@ export class SubscriptionModule {
       trial_start: timing.trialStart,
       platform_account: platformAccountId,
       subscription_onchain_id: null,
+      paused_on_chain: false,
       billing_lock_until: null,
     };
   }
@@ -1694,33 +1703,128 @@ export class SubscriptionModule {
     latestInvoiceId?: string
   ): Promise<SubscriptionType> {
     const subscription = await this.RequireSubscription(subscriptionId);
+    return this.UpdateSubscriptionBillingState(subscription, {
+      status: 'active',
+      latestInvoiceId,
+      items: await this.AdvanceItems(subscription),
+    });
+  }
 
+  /**
+   * When the next cycle invoice's period would end: the soonest item's
+   * current period end plus its interval. A billing runner that sees this
+   * in the past missed that cycle.
+   */
+  async NextCycleEnd(subscription: SubscriptionType): Promise<number> {
+    const ends = await Promise.all(
+      subscription.items.data.map(async (item) =>
+        AddRecurringInterval(
+          item.current_period_end,
+          ...(await this.ItemInterval(subscription.platform_account, item))
+        )
+      )
+    );
+    return Math.min(...ends);
+  }
+
+  /**
+   * Move past a cycle the billing runner missed, whose invoice was voided:
+   * one period on, with the status and the billing lock unchanged. The
+   * contract skips missed periods too, so nothing is collected for it.
+   */
+  async SkipMissedCycle(
+    subscriptionId: string,
+    voidedInvoiceId: string
+  ): Promise<SubscriptionType> {
+    const previous = await this.RequireSubscription(subscriptionId);
+    return this.PatchSubscription(previous, {
+      items: await this.AdvanceItems(previous),
+      latest_invoice: voidedInvoiceId,
+    });
+  }
+
+  /**
+   * The subscription is paused on-chain, where collection is decided: set
+   * `pause_collection` and release the billing lock. Only a pause set here
+   * is lifted when the chain resumes.
+   */
+  async PauseCollectionOnChain(
+    subscriptionId: string
+  ): Promise<SubscriptionType> {
+    const previous = await this.RequireSubscription(subscriptionId);
+    return this.PatchSubscription(previous, {
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      paused_on_chain: true,
+      billing_lock_until: null,
+    });
+  }
+
+  /** Lifts the pause the chain set; the billing lock is kept. */
+  async ResumeCollectionFromChain(
+    subscriptionId: string
+  ): Promise<SubscriptionType> {
+    const previous = await this.RequireSubscription(subscriptionId);
+    return this.PatchSubscription(previous, {
+      pause_collection: null,
+      paused_on_chain: false,
+    });
+  }
+
+  /**
+   * Moves every item one interval on and returns the refreshed list, which
+   * the caller stores on the subscription document so direct reads do not
+   * show the create-time periods forever.
+   */
+  private async AdvanceItems(
+    subscription: SubscriptionType
+  ): Promise<SubscriptionType['items']> {
     for (const item of subscription.items.data) {
-      const price = await this.ResolvePrice(subscription.platform_account, {
-        price: typeof item.price === 'string' ? item.price : item.price.id,
-      } as CreateItemInput);
       const periodStart = item.current_period_end;
       const periodEnd = AddRecurringInterval(
         periodStart,
-        price.recurring?.interval ?? 'month',
-        price.recurring?.interval_count ?? 1
+        ...(await this.ItemInterval(subscription.platform_account, item))
       );
       await this.db.Update<SubscriptionItemType>('SubscriptionItems', item.id, {
         current_period_start: periodStart,
         current_period_end: periodEnd,
       });
     }
+    return this.LoadItemsList(subscription.id);
+  }
 
-    // Keep the denormalized items snapshot on the subscription document in
-    // sync — mongo explorers (and any direct reads) otherwise show the
-    // create-time periods forever even though SubscriptionItems advanced.
-    const refreshedItems = await this.LoadItemsList(subscriptionId);
+  private async ItemInterval(
+    platformAccountId: string,
+    item: SubscriptionItemType
+  ): Promise<[RecurringInterval, number]> {
+    const price = await this.ResolvePrice(platformAccountId, {
+      price: typeof item.price === 'string' ? item.price : item.price.id,
+    } as CreateItemInput);
+    return [
+      price.recurring?.interval ?? 'month',
+      price.recurring?.interval_count ?? 1,
+    ];
+  }
 
-    return this.UpdateSubscriptionBillingState(subscription, {
-      status: 'active',
-      latestInvoiceId,
-      items: refreshedItems,
-    });
+  /**
+   * Cancels the on-chain subscription from the plan owner, best effort: a
+   * failure is logged, and billing has already stopped off-chain.
+   */
+  private async CancelOnChain(subscription: SubscriptionType): Promise<void> {
+    if (!subscription.subscription_onchain_id) return;
+    try {
+      const transactionHash = await this.settlement.CancelSubscription(
+        subscription.subscription_onchain_id
+      );
+      Logger.info('Canceled the on-chain subscription', {
+        subscriptionId: subscription.id,
+        transactionHash,
+      });
+    } catch (error) {
+      Logger.error('Could not cancel the on-chain subscription', error, {
+        subscriptionId: subscription.id,
+        subscriptionOnchainId: subscription.subscription_onchain_id,
+      });
+    }
   }
 
   /**
@@ -1769,7 +1873,14 @@ export class SubscriptionModule {
     if (options.items) {
       updatePayload.items = options.items;
     }
+    return this.PatchSubscription(previous, updatePayload);
+  }
 
+  /** Updates the subscription and emits `customer.subscription.updated`. */
+  private async PatchSubscription(
+    previous: SubscriptionType,
+    updatePayload: Partial<SubscriptionType>
+  ): Promise<SubscriptionType> {
     await this.db.Update<SubscriptionType>(
       'Subscriptions',
       previous.id,
