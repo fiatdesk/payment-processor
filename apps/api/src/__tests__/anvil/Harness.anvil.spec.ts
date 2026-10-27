@@ -1,5 +1,5 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
-import { parseUnits } from 'viem';
+import { keccak256, parseUnits, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { GetAppConfig } from '../../modules/AppConfig';
 import { PAYOUT_BATCH_ABI } from '../../modules/chains/abi/PayoutBatch';
@@ -81,7 +81,7 @@ describe('Anvil harness', () => {
     expect(PAYOUT_BATCH_ABI).toEqual(ReadArtifact('PayoutBatch').abi);
   });
 
-  it('deploys Subscriptions with its EIP-712 domain', async () => {
+  it('deploys Subscriptions with its EIP-712 domain and Subscribe type', async () => {
     const { publicClient, addresses, chainId } = Context();
 
     const code = await publicClient.getCode({
@@ -107,6 +107,19 @@ describe('Anvil harness', () => {
       domainChainId: BigInt(chainId),
       verifyingContract: addresses.subscriptions,
     });
+    await expect(
+      publicClient.readContract({
+        address: addresses.subscriptions,
+        abi: SUBSCRIPTIONS_ABI,
+        functionName: 'SUBSCRIBE_TYPEHASH',
+      })
+    ).resolves.toBe(
+      keccak256(
+        toHex(
+          'Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)'
+        )
+      )
+    );
   });
 
   it('keeps SUBSCRIPTIONS_ABI in sync with the forge artifact', () => {

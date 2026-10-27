@@ -335,6 +335,28 @@ export const SUBSCRIPTIONS_ABI = [
         internalType: 'address',
       },
       {
+        name: 'terms',
+        type: 'tuple',
+        internalType: 'struct Subscriptions.Terms',
+        components: [
+          {
+            name: 'token',
+            type: 'address',
+            internalType: 'contract IERC20',
+          },
+          {
+            name: 'amount',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'periodSeconds',
+            type: 'uint64',
+            internalType: 'uint64',
+          },
+        ],
+      },
+      {
         name: 'deadline',
         type: 'uint256',
         internalType: 'uint256',
@@ -367,6 +389,28 @@ export const SUBSCRIPTIONS_ABI = [
         name: 'subscriber',
         type: 'address',
         internalType: 'address',
+      },
+      {
+        name: 'terms',
+        type: 'tuple',
+        internalType: 'struct Subscriptions.Terms',
+        components: [
+          {
+            name: 'token',
+            type: 'address',
+            internalType: 'contract IERC20',
+          },
+          {
+            name: 'amount',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'periodSeconds',
+            type: 'uint64',
+            internalType: 'uint64',
+          },
+        ],
       },
       {
         name: 'permitValue',
@@ -443,6 +487,11 @@ export const SUBSCRIPTIONS_ABI = [
         name: 'status',
         type: 'uint8',
         internalType: 'enum Subscriptions.Status',
+      },
+      {
+        name: 'pausedBy',
+        type: 'uint8',
+        internalType: 'enum Subscriptions.PausedBy',
       },
     ],
     stateMutability: 'view',
@@ -793,6 +842,11 @@ export const SUBSCRIPTIONS_ABI = [
         internalType: 'string',
       },
     ],
+  },
+  {
+    type: 'error',
+    name: 'TermsMismatch',
+    inputs: [],
   },
   {
     type: 'error',

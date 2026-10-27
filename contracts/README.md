@@ -2,13 +2,14 @@
 
 Solidity contracts for the Ethereum settlement rail, built with [Foundry](https://book.getfoundry.sh/) (`solc 0.8.28`, EVM `cancun`, optimizer 200 runs).
 
-| Path                      | What it is                                                                                                                                                                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/PayoutBatch.sol`     | Pays up to 200 recipients from the caller's own token balance in one all-or-nothing transaction and emits `BatchPaid`. Each payer can pay a batch id once (`paid(payer, batchId)`), and never after the batch's `deadline` (`BatchExpired`). No admin, non-upgradeable, no ETH handling. The platform wallet approves it once. |
-| `src/Subscriptions.sol`   | Recurring pulls from a subscriber's standing allowance. A plan owner registers a plan (token, amount, period, destination, puller); its puller may then take at most the plan amount once per period from each subscriber. No admin, no pause switch, non-upgradeable, no ETH handling. See [Subscriptions](#subscriptions).   |
-| `test/mocks/MockUSDC.sol` | **Test only.** A FiatTokenV2 stand-in for Anvil: 6 decimals, EIP-2612 `permit`, EIP-3009 `transferWithAuthorization` / `receiveWithAuthorization`, `AuthorizationUsed`, and an open `mint` / `blacklist` hook. Never deploy it to a public network.                                                                            |
-| `script/`                 | Deployment scripts (`forge script`).                                                                                                                                                                                                                                                                                           |
-| `lib/`                    | `forge-std` v1.9.4 and `openzeppelin-contracts` v5.1.0 as git submodules.                                                                                                                                                                                                                                                      |
+| Path                            | What it is                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/PayoutBatch.sol`           | Pays up to 200 recipients from the caller's own token balance in one all-or-nothing transaction and emits `BatchPaid`. Each payer can pay a batch id once (`paid(payer, batchId)`), and never after the batch's `deadline` (`BatchExpired`). No admin, non-upgradeable, no ETH handling. The platform wallet approves it once.      |
+| `src/Subscriptions.sol`         | Recurring pulls from a subscriber's bounded allowance. A plan owner registers a plan (token, amount, period, destination, puller); its puller may then take at most the plan amount once per billing period from each subscriber. No admin, no pause switch, non-upgradeable, no ETH handling. See [Subscriptions](#subscriptions). |
+| `test/mocks/MockUSDC.sol`       | **Test only.** A FiatTokenV2 stand-in for Anvil: 6 decimals, EIP-2612 `permit`, EIP-3009 `transferWithAuthorization` / `receiveWithAuthorization`, `AuthorizationUsed`, and an open `mint` / `blacklist` hook. Never deploy it to a public network.                                                                                 |
+| `test/mocks/Mock1271Wallet.sol` | **Test only.** A contract wallet that accepts, through EIP-1271, exactly its one signer key's signatures.                                                                                                                                                                                                                           |
+| `script/`                       | Deployment scripts (`forge script`).                                                                                                                                                                                                                                                                                                |
+| `lib/`                          | `forge-std` v1.9.4 and `openzeppelin-contracts` v5.1.0 as git submodules.                                                                                                                                                                                                                                                           |
 
 ## Setup
 
@@ -56,9 +57,51 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
 
 ## Subscriptions
 
-- **Plans.** `createPlan(planId, token, amount, periodSeconds, destination, puller)` registers a plan owned by the caller under `planKey = keccak256(abi.encode(owner, planId))`. The period is 1 second to 10 years (`MAX_PERIOD_SECONDS`). The token, amount and period never change, and a plan key cannot be registered twice (`PlanExists`). The owner can change the destination (`setPlanDestination`) and the puller (`setPlanPuller`), and can stop new subscriptions for good (`deactivatePlan`); existing subscriptions keep billing. The API uses the subscription operator key as both owner and puller, and the platform wallet as the destination.
-- **Subscribing.** A subscription's id is `subId = keccak256(abi.encode(planKey, subscriber))`, and `subscriptions(subId)` returns its plan key, subscriber, next due time and status (`None`, `Active`, `Paused`, `Canceled`). A wallet subscribes itself with `subscribe(planKey)`, paying the gas. A relayer can subscribe it with `subscribeWithAuthorization`, carrying the subscriber's EIP-712 signature over `Subscribe(bytes32 planKey,address subscriber,uint256 nonce,uint256 deadline)`, where `nonce = nonces(subscriber)`. The domain is name `Subscriptions`, version `1`, the chain id and the contract address (`eip712Domain()`). `subscribeWithPermit` first applies the subscriber's EIP-2612 `permit` for this contract on the plan's token, so a first-time subscriber needs no ETH. If someone submits that permit first, the subscribe still goes through. Signatures must come from an externally owned account; a contract wallet calls `subscribe` itself. A subscriber who cancels may subscribe again, which starts a new schedule.
-- **Charging.** Only the plan's puller can `charge(subId, amount)`. The first period is due at subscribe time. Each charge needs `block.timestamp >= nextChargeAt` (else `NotDueYet`) and `0 < amount <= plan.amount` (else `InvalidAmount` / `AmountExceedsPlan`), and moves `nextChargeAt` forward by exactly one period. Periods the puller skipped can still be collected later, one charge per elapsed period, so over N started periods no subscriber pays more than N times the plan amount.
-- **Pause, resume, cancel.** The subscriber or the plan owner can `pause`, `resume` and `cancel`. `resume` sets the next charge one full period from now, so the paused time is never charged.
-- **Allowances.** First-time subscribers permit `type(uint256).max`. The per-period cap in `charge` is the enforced limit, not the allowance. A subscriber stops all pulls by cancelling, or by revoking the allowance (`approve(subscriptions, 0)`), after which every `charge` reverts.
+- **Plans.**
+  - `createPlan(planId, token, amount, periodSeconds, destination, puller)` registers a plan owned by the caller under `planKey = keccak256(abi.encode(owner, planId))`.
+  - The period is 1 second to 10 years (`MAX_PERIOD_SECONDS`).
+  - The token must be a standard ERC-20. Fee-on-transfer tokens are not supported: the destination would receive less than `Charged` reports.
+  - The token, amount and period never change, and a plan key cannot be registered twice (`PlanExists`).
+  - The owner can change the destination (`setPlanDestination`) and the puller (`setPlanPuller`), and can stop new subscriptions for good (`deactivatePlan`). Existing subscriptions keep billing.
+  - The API uses the subscription operator key as both owner and puller, and the platform wallet as the destination.
+- **Subscribing.**
+  - A subscription's id is `subId = keccak256(abi.encode(planKey, subscriber))`.
+  - `subscriptions(subId)` returns its plan key, subscriber, next due time, status (`None`, `Active`, `Paused`, `Canceled`) and who paused it (`PausedBy`: `None`, `Subscriber`, `Owner`).
+  - A wallet subscribes itself with `subscribe(planKey)`, paying the gas.
+  - A relayer can subscribe it with `subscribeWithAuthorization(planKey, subscriber, terms, deadline, sig)`.
+    - `sig` is the subscriber's EIP-712 signature over `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)`.
+    - `nonce` is `nonces(subscriber)`, read right before signing.
+    - The domain is name `Subscriptions`, version `1`, the chain id and the contract address (`eip712Domain()`).
+    - `terms` is the struct `(token, amount, periodSeconds)` and must equal the plan's, else `TermsMismatch`. It is one struct because twelve separate arguments would not decode without the IR pipeline.
+    - The wallet prompt therefore shows the token, amount and period being agreed to.
+    - The deadline is inclusive, and short deadlines are expected.
+  - `subscribeWithPermit` first applies the subscriber's EIP-2612 `permit` for this contract on the plan's token, so a first-time subscriber needs no ETH. If someone submits that permit first, the subscribe still goes through.
+  - Signatures are checked with OpenZeppelin `SignatureChecker`: ECDSA for externally owned accounts, EIP-1271 for contract wallets. A contract wallet whose token has no EIP-1271 `permit` calls `approve` and then `subscribe` itself.
+  - `subscribe` and `cancel` both use up the subscriber's nonce. Once a subscription is cancelled, no `Subscribe` signature handed out earlier can bring it back.
+  - A subscriber who cancels may subscribe again, which starts a new schedule.
+- **Charging.**
+  - Only the plan's puller can `charge(subId, amount)`.
+  - Billing periods follow a fixed grid from the subscribe time, and the first period is due at once.
+  - A charge moves `nextChargeAt` to the first grid point after the charge. A period the puller missed is skipped, never collected later, so no subscriber is charged more than once per billing period.
+  - Checks run in this order:
+    1. `Unauthorized`: not the puller, or an unknown subscription.
+    2. `NotActive`: paused or cancelled.
+    3. `InvalidAmount` (zero) or `AmountExceedsPlan` (above the plan amount).
+    4. `NotDueYet`.
+  - Only `NotDueYet` means the current period has already been collected.
+- **Pause, resume, cancel.**
+  - The subscriber or the plan owner can `pause` and `cancel`.
+  - `resume` is open to the plan owner for any pause, but to the subscriber only for a pause they set. If the owner paused, the subscriber can still cancel or revoke the allowance.
+  - Pausing never moves the billing grid:
+    - a pause that ends before the next due time changes nothing;
+    - if the current period has not been charged when the subscription resumes, it is due at once;
+    - periods that passed entirely while paused are skipped.
+- **Allowances.**
+  - The contract expects a bounded allowance. The API permits `amount × max(12, ceil(365 days / periodSeconds))`, at least 12 periods and at least a year of service, and asks for a new permit when it runs out.
+  - The per-period cap is enforced by `charge`, and the allowance caps the total. So a `Subscribe` signature obtained by phishing can spend at most the victim's remaining allowance to this contract.
+  - A subscriber stops all pulls by cancelling, or by revoking the allowance (`approve(subscriptions, 0)`), after which every `charge` reverts.
+- **USDC blacklist.**
+  - If Circle blacklists a subscriber, `charge` reverts for that subscription, and the schedule is left as it was.
+  - If it blacklists the destination, every `charge` on the plan reverts until the operator rotates the destination with `setPlanDestination`.
+  - If it blacklists the `Subscriptions` contract itself, every pull stops, and the only fix is a redeploy and re-subscribe.
 - **Governance.** No owner, no pause switch, no upgrade path. A bug means deploying a new contract and subscribing again.
