@@ -79,6 +79,14 @@ export class WalletService {
   readonly discoveryComplete: WritableSignal<boolean> = signal(false);
   /** The wallet is the `window.ethereum` fallback, not an announced one. */
   private usingInjectedFallback = false;
+  /**
+   * A `Connect()` has started on the current wallet, so it is not swapped
+   * until `Disconnect()` or the next `Connect()`: the account and the
+   * requests that follow must come from one provider.
+   */
+  private connectStarted = false;
+  /** A late announcement held back while the fallback is in use. */
+  private heldAnnouncement: Eip6963ProviderDetail | null = null;
 
   constructor() {
     if (typeof window === 'undefined') {
@@ -119,6 +127,8 @@ export class WalletService {
 
   /** Requests account access and returns the checksummed address. */
   async Connect(): Promise<Address> {
+    this.UseHeldAnnouncement();
+    this.connectStarted = true;
     const [address] = await (await this.Client()).requestAddresses();
     if (!address) throw new Error('The wallet did not return an account');
     const checksummed = getAddress(address);
@@ -128,6 +138,8 @@ export class WalletService {
 
   Disconnect(): void {
     this.account.set(null);
+    this.connectStarted = false;
+    this.UseHeldAnnouncement();
   }
 
   GetAddress(): string {
@@ -270,14 +282,29 @@ export class WalletService {
 
   /**
    * The first well-formed EIP-6963 announcement wins. One that arrives after
-   * the `window.ethereum` fallback replaces it until an account connects.
+   * the `window.ethereum` fallback replaces it, unless a `Connect()` has
+   * started: then it is held until `Disconnect()` or the next `Connect()`.
    */
   private OnAnnouncement(detail: unknown): void {
     const announced = ParseAnnouncement(detail);
     if (!announced) return;
-    if (this.wallet() && !(this.usingInjectedFallback && !this.account())) {
+    if (this.wallet() && !this.usingInjectedFallback) return;
+    if (this.wallet() && (this.connectStarted || this.account())) {
+      this.heldAnnouncement ??= announced;
       return;
     }
+    this.UseAnnounced(announced);
+  }
+
+  private UseHeldAnnouncement(): void {
+    const announced = this.heldAnnouncement;
+    if (!announced) return;
+    this.heldAnnouncement = null;
+    this.account.set(null);
+    this.UseAnnounced(announced);
+  }
+
+  private UseAnnounced(announced: Eip6963ProviderDetail): void {
     this.wallet.set(announced);
     this.usingInjectedFallback = false;
     this.discoveryComplete.set(true);

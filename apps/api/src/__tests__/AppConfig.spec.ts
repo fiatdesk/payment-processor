@@ -167,19 +167,23 @@ describe('AppConfig', () => {
       expect(GetCheckoutConfirmTimeoutMs()).toBe(90_000);
     });
 
-    it.each(['1000', '45000', '300000'])('accepts %s ms', (value) => {
+    it.each(['1000', '45000', '110000'])('accepts %s ms', (value) => {
       process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = value;
 
       expect(GetCheckoutConfirmTimeoutMs()).toBe(Number(value));
     });
 
-    it.each(['999', '300001', '1.5', 'soon'])('rejects %s', (value) => {
-      process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = value;
+    // The web's confirm request gives up at 120 s, so the wait stays below it.
+    it.each(['999', '110001', '300000', '1.5', 'soon'])(
+      'rejects %s',
+      (value) => {
+        process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = value;
 
-      expect(() => GetCheckoutConfirmTimeoutMs()).toThrow(
-        'CHECKOUT_CONFIRM_TIMEOUT_MS must be an integer from 1000 to 300000'
-      );
-    });
+        expect(() => GetCheckoutConfirmTimeoutMs()).toThrow(
+          'CHECKOUT_CONFIRM_TIMEOUT_MS must be an integer from 1000 to 110000'
+        );
+      }
+    );
 
     it('fails at boot on a bad timeout', () => {
       process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = '0';
