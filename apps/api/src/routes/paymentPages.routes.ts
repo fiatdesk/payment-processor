@@ -164,11 +164,16 @@ router.post(
 /**
  * POST /v1/payment_pages/:urlSlug/confirm
  * Payment mode: `{ signature }` relays the signed authorization, waits for
- * confirmations and completes the session; while it is still confirming the
- * response is a 409 `payment_pending` with the `transaction_hash` to retry
- * with (`{ transaction_hash }`). Subscription mode verifies the subscribe
- * transaction, creates the off-chain Subscription and collects the first
- * period (unless trialing).
+ * confirmations and completes the session. Retrying with the same
+ * `{ signature }` is always safe: it never pays twice and reuses the relay
+ * already sent. While the payment confirms the response is a 409 with
+ * `code: 'payment_pending'` and the `transaction_hash` (which may be null,
+ * when the authorization was used but is not confirmed yet); retry with
+ * `{ signature }` or with that `{ transaction_hash }`. A 409
+ * `payment_resubmit_required` means the network does not know the relayed
+ * transaction: confirm again with `{ signature }`. Subscription mode verifies
+ * the subscribe transaction, creates the off-chain Subscription and collects
+ * the first period (unless trialing).
  */
 router.post(
   '/:urlSlug/confirm',

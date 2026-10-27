@@ -129,9 +129,12 @@ export interface PreparedAuthorization {
   method: 'eip3009_transfer' | 'simulated';
   typed_data: Eip712TypedData | null;
   authorization: CheckoutTransferAuthorization | null;
-  /** Gas the relayer is expected to pay, in atomic units of `fee_currency` */
+  /**
+   * Upper bound of the gas the relayer pays, in atomic units of
+   * `fee_currency`
+   */
   estimated_fee: string;
-  fee_currency: string;
+  fee_currency: 'eth' | 'none';
   chain_id: number | null;
 }
 
@@ -139,6 +142,11 @@ export interface PreparedAuthorization {
 export interface RelayCheckoutOptions {
   /** A relay already recorded for the session; reused while the node knows it */
   pendingHash?: string | null;
+  /**
+   * Unix time the session was created: where the search for an earlier
+   * payment under the session's authorization starts
+   */
+  createdAt: number;
   /**
    * Runs with the hash of each signed relay transaction before it is sent.
    * A throw cancels the send.
@@ -162,9 +170,11 @@ export interface CheckoutPaymentVerification {
   /**
    * `verified`: the session is paid. `failed`: final; the transaction does
    * not pay the session. `pending`: not settled yet (not mined, not
-   * confirmed, or the node did not answer).
+   * confirmed, or the node did not answer). `not_found`: the node does not
+   * know the transaction and the session's authorization is unused, so
+   * waiting cannot help.
    */
-  status: 'verified' | 'failed' | 'pending';
+  status: 'verified' | 'failed' | 'pending' | 'not_found';
   /**
    * The transaction the result is about. It differs from the one checked
    * when another transaction used the session's authorization first.

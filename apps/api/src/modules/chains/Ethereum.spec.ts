@@ -7,6 +7,7 @@ import {
   encodeEventTopics,
   keccak256,
   HttpRequestError,
+  RpcRequestError,
   parseTransaction,
   RawContractError,
   recoverTransactionAddress,
@@ -56,6 +57,20 @@ const OTHER_KEY: Hex =
   '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
 const PLATFORM = privateKeyToAccount(PLATFORM_KEY).address;
 const RECIPIENT = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+/** Stands for provider text (keys, plans, URLs) that must never reach a client. */
+const PROVIDER_SECRET = 'project-key-SECRET-1234';
+const ProviderHttpError = () =>
+  new HttpRequestError({
+    url: 'http://127.0.0.1:8545',
+    status: 429,
+    details: `rate limited for ${PROVIDER_SECRET}`,
+  });
+const ProviderRpcError = () =>
+  new RpcRequestError({
+    body: {},
+    error: { code: -32000, message: `quota exceeded for ${PROVIDER_SECRET}` },
+    url: 'http://127.0.0.1:8545',
+  });
 const OTHER_ADDRESS = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
 
 const batchId = ComputeBatchId(['po_z_1']);
@@ -222,7 +237,7 @@ describe('Ethereum rail', () => {
             expiresAt: 1_700_086_400,
           }),
           `0x${'ab'.repeat(65)}`,
-          { onSigned: jest.fn() }
+          { createdAt: 1_700_000_000, onSigned: jest.fn() }
         )
       ).rejects.toMatchObject(notSupported);
     });
@@ -493,6 +508,29 @@ describe('Ethereum rail', () => {
       );
     });
 
+    it('stores a generic failure message for a revert that does not decode', async () => {
+      client.getTransaction.mockResolvedValue({
+        from: PLATFORM,
+        to: PAYOUT_BATCH,
+        input: built.data,
+        gas: 90_000n,
+        value: 0n,
+      });
+      client.call.mockRejectedValue(
+        new BaseError(`execution reverted (${PROVIDER_SECRET})`, {
+          cause: new RawContractError({ data: '0xdeadbeef' }),
+        })
+      );
+
+      await expect(Status(Receipt({ status: 'reverted' }))).resolves.toEqual({
+        transaction_hash: HASH,
+        status: 'failed',
+        viewer_url: '',
+        failure_code: 'blockchain_error',
+        failure_message: 'The transaction reverted',
+      });
+    });
+
     it('settles a BatchAlreadyPaid revert as paid by the transaction that paid it', async () => {
       client.getTransaction.mockResolvedValue({ input: built.data });
       client.call.mockRejectedValue(ALREADY_PAID);
@@ -750,6 +788,13 @@ describe('Ethereum rail', () => {
           Broadcast(new Error('insufficient funds for gas * price + value'))
         ).rejects.toMatchObject({ statusCode: 400, type: 'blockchain_error' });
       });
+
+      it('keeps provider text out of the client error', async () => {
+        await expect(Broadcast(ProviderRpcError())).rejects.toMatchObject({
+          statusCode: 400,
+          message: 'The network did not accept the transaction',
+        });
+      });
     });
   });
 
@@ -982,6 +1027,7 @@ describe('Ethereum rail', () => {
       client.getTransactionReceipt.mockRejectedValue(
         new TransactionReceiptNotFoundError({ hash: HASH })
       );
+      client.getLogs.mockResolvedValue([]);
       ethereum = new Ethereum();
       signature = await privateKeyToAccount(OTHER_KEY).signTypedData(
         BuildTransferAuthorizationTypedData(
@@ -1009,6 +1055,7 @@ describe('Ethereum rail', () => {
         signature,
         {
           ...options,
+          createdAt: 1_700_000_000,
           onSigned: async (hash) => {
             signed.push(hash);
           },
@@ -1021,6 +1068,61 @@ describe('Ethereum rail', () => {
       return client.sendRawTransaction.mock.calls.map(
         ([{ serializedTransaction }]) => serializedTransaction
       );
+    }
+
+    function AuthorizationLog(
+      transactionHash: Hex,
+      logIndex: number,
+      nonce: Hex = NONCE,
+      authorizer: Hex = BUYER
+    ): Log {
+      return {
+        address: ANVIL_USDC,
+        topics: encodeEventTopics({
+          abi: USDC_ABI,
+          eventName: 'AuthorizationUsed',
+          args: { authorizer, nonce },
+        }) as Log['topics'],
+        data: '0x',
+        blockHash: null,
+        blockNumber: 10n,
+        logIndex,
+        transactionHash,
+        transactionIndex: 0,
+        removed: false,
+        args: { authorizer, nonce },
+      } as Log;
+    }
+
+    function TransferLog(to: Hex, logIndex: number, from: Hex = BUYER): Log {
+      return {
+        address: ANVIL_USDC,
+        topics: encodeEventTopics({
+          abi: USDC_ABI,
+          eventName: 'Transfer',
+          args: { from, to },
+        }) as Log['topics'],
+        data: encodeAbiParameters([{ type: 'uint256' }], [12_340_000n]),
+        blockHash: null,
+        blockNumber: 10n,
+        logIndex,
+        transactionHash: HASH,
+        transactionIndex: 0,
+        removed: false,
+      } as Log;
+    }
+
+    function PaymentReceipt(
+      transactionHash: Hex,
+      overrides: Record<string, unknown> = {}
+    ) {
+      return {
+        transactionHash,
+        status: 'success',
+        blockNumber: 10n,
+        logs: [AuthorizationLog(transactionHash, 3), TransferLog(MERCHANT, 4)],
+        ...overrides,
+      };
     }
 
     describe('RelayCheckoutAuthorization', () => {
@@ -1036,6 +1138,7 @@ describe('Ethereum rail', () => {
           authorization,
           signature,
           {
+            createdAt: 1_700_000_000,
             onSigned: async (signedHash) => {
               order.push(`signed:${signedHash}`);
             },
@@ -1155,7 +1258,7 @@ describe('Ethereum rail', () => {
           ethereum.RelayCheckoutAuthorization(
             authorization,
             'sim_sig:cs_z_1:0x1111111111111111111111111111111111111111',
-            { onSigned: jest.fn() }
+            { createdAt: 1_700_000_000, onSigned: jest.fn() }
           )
         ).rejects.toMatchObject({ statusCode: 400 });
         expect(client.readContract).not.toHaveBeenCalled();
@@ -1220,6 +1323,7 @@ describe('Ethereum rail', () => {
         await Promise.all([
           Relay().result,
           ethereum.RelayCheckoutAuthorization(other, signature, {
+            createdAt: 1_700_000_000,
             onSigned: async () => undefined,
           }),
         ]);
@@ -1230,70 +1334,166 @@ describe('Ethereum rail', () => {
       });
     });
 
+    describe('RelayCheckoutAuthorization guards', () => {
+      const OTHER_PAYER: Hex = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
+
+      it('sends nothing when another wallet already paid the merchant under the session nonce', async () => {
+        client.getLogs.mockResolvedValue([
+          AuthorizationLog(FIRST_HASH, 3, NONCE, OTHER_PAYER),
+        ]);
+        client.getTransactionReceipt.mockResolvedValue(
+          PaymentReceipt(FIRST_HASH, {
+            logs: [
+              AuthorizationLog(FIRST_HASH, 3, NONCE, OTHER_PAYER),
+              TransferLog(MERCHANT, 4, OTHER_PAYER),
+            ],
+          })
+        );
+
+        const { result, signed } = Relay();
+
+        await expect(result).resolves.toBe(FIRST_HASH);
+        expect(signed).toEqual([]);
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+        // Any authorizer: only the indexed nonce filters the search, up to
+        // the latest block.
+        expect(client.getLogs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            args: { authorizer: undefined, nonce: NONCE },
+            toBlock: 12n,
+          })
+        );
+      });
+
+      it('still relays when an earlier use of the nonce paid someone else', async () => {
+        client.getLogs.mockResolvedValue([
+          AuthorizationLog(FIRST_HASH, 3, NONCE, OTHER_PAYER),
+        ]);
+        client.getTransactionReceipt.mockResolvedValue(
+          PaymentReceipt(FIRST_HASH, {
+            logs: [
+              AuthorizationLog(FIRST_HASH, 3, NONCE, OTHER_PAYER),
+              TransferLog(OTHER_ADDRESS, 4, OTHER_PAYER),
+            ],
+          })
+        );
+
+        const { result, signed } = Relay();
+
+        const hash = await result;
+        expect(signed).toEqual([hash]);
+        expect(client.sendRawTransaction).toHaveBeenCalledTimes(1);
+      });
+
+      it("returns the payment of the payer's used authorization instead of null", async () => {
+        client.readContract.mockResolvedValue(true);
+        client.getLogs.mockResolvedValue([AuthorizationLog(FIRST_HASH, 3)]);
+        client.getTransactionReceipt.mockResolvedValue(
+          PaymentReceipt(FIRST_HASH)
+        );
+
+        await expect(Relay().result).resolves.toBe(FIRST_HASH);
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+      });
+
+      it('re-signs after "replacement transaction underpriced"', async () => {
+        client.getTransactionCount
+          .mockResolvedValueOnce(7)
+          .mockResolvedValueOnce(8);
+        client.sendRawTransaction
+          .mockRejectedValueOnce(
+            new Error('replacement transaction underpriced')
+          )
+          .mockResolvedValueOnce(HASH);
+
+        const { result, signed } = Relay();
+        const hash = await result;
+
+        expect(signed).toHaveLength(2);
+        expect(hash).toBe(signed[1]);
+        expect(parseTransaction(SentTransactions()[1]).nonce).toBe(8);
+      });
+
+      it('gives up after three nonce conflicts', async () => {
+        client.sendRawTransaction.mockRejectedValue(new Error('nonce too low'));
+
+        const { result, signed } = Relay();
+
+        await expect(result).rejects.toMatchObject({
+          statusCode: 400,
+          type: 'blockchain_error',
+        });
+        expect(client.sendRawTransaction).toHaveBeenCalledTimes(3);
+        expect(signed).toHaveLength(3);
+      });
+
+      it('reuses the recorded relay when the node cannot say whether it knows it', async () => {
+        client.getTransaction.mockRejectedValue(ProviderHttpError());
+
+        const { result, signed } = Relay({ pendingHash: FIRST_HASH });
+
+        await expect(result).resolves.toBe(FIRST_HASH);
+        expect(signed).toEqual([]);
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+      });
+
+      describe('keeps provider text out of client errors', () => {
+        async function ClientError(): Promise<AppError> {
+          const error = await Relay().result.catch((caught: unknown) => caught);
+          expect(error).toBeInstanceOf(AppError);
+          expect((error as AppError).message).not.toContain(PROVIDER_SECRET);
+          return error as AppError;
+        }
+
+        it('when the node cannot be read', async () => {
+          client.readContract.mockRejectedValue(ProviderHttpError());
+
+          await expect(ClientError()).resolves.toMatchObject({
+            statusCode: 502,
+            message: 'The payment network is unavailable; try again',
+          });
+        });
+
+        it('when the gas estimate fails without a revert', async () => {
+          client.estimateGas.mockRejectedValue(ProviderHttpError());
+
+          await expect(ClientError()).resolves.toMatchObject({
+            statusCode: 502,
+            message: 'The payment network is unavailable; try again',
+          });
+        });
+
+        it('when a revert does not decode', async () => {
+          client.estimateGas.mockRejectedValue(
+            new BaseError(`execution reverted (${PROVIDER_SECRET})`, {
+              cause: new RawContractError({ data: '0xdeadbeef' }),
+            })
+          );
+
+          await expect(ClientError()).resolves.toMatchObject({
+            statusCode: 400,
+            message: 'The USDC authorization cannot be relayed',
+          });
+        });
+
+        it('when the network refuses the relay', async () => {
+          client.sendRawTransaction.mockRejectedValue(ProviderRpcError());
+
+          await expect(ClientError()).resolves.toMatchObject({
+            statusCode: 400,
+            message: 'The network did not accept the payment',
+          });
+        });
+      });
+    });
+
     describe('VerifyCheckoutPayment', () => {
-      function AuthorizationLog(
-        transactionHash: Hex,
-        logIndex: number,
-        nonce: Hex = NONCE
-      ): Log {
-        return {
-          address: ANVIL_USDC,
-          topics: encodeEventTopics({
-            abi: USDC_ABI,
-            eventName: 'AuthorizationUsed',
-            args: { authorizer: BUYER, nonce },
-          }) as Log['topics'],
-          data: '0x',
-          blockHash: null,
-          blockNumber: 10n,
-          logIndex,
-          transactionHash,
-          transactionIndex: 0,
-          removed: false,
-          args: { authorizer: BUYER, nonce },
-        } as Log;
-      }
-
-      function TransferLog(to: Hex, logIndex: number): Log {
-        return {
-          address: ANVIL_USDC,
-          topics: encodeEventTopics({
-            abi: USDC_ABI,
-            eventName: 'Transfer',
-            args: { from: BUYER, to },
-          }) as Log['topics'],
-          data: encodeAbiParameters([{ type: 'uint256' }], [12_340_000n]),
-          blockHash: null,
-          blockNumber: 10n,
-          logIndex,
-          transactionHash: HASH,
-          transactionIndex: 0,
-          removed: false,
-        } as Log;
-      }
-
-      function PaymentReceipt(
-        transactionHash: Hex,
-        overrides: Record<string, unknown> = {}
-      ) {
-        return {
-          transactionHash,
-          status: 'success',
-          blockNumber: 10n,
-          logs: [
-            AuthorizationLog(transactionHash, 3),
-            TransferLog(MERCHANT, 4),
-          ],
-          ...overrides,
-        };
-      }
-
       const Verify = (hash: string | null = HASH) =>
         ethereum.VerifyCheckoutPayment(hash, expectation, { timeoutMs: 30 });
 
       beforeEach(() => {
+        client.getTransaction.mockResolvedValue({ hash: HASH });
         client.getTransactionReceipt.mockResolvedValue(PaymentReceipt(HASH));
-        client.getLogs.mockResolvedValue([]);
       });
 
       it('verifies a confirmed receipt that pays the session', async () => {
@@ -1479,6 +1679,47 @@ describe('Ethereum rail', () => {
           [1_001n, 3_000n],
           [744n, 1_000n],
         ]);
+      });
+
+      it('answers not_found at once for a hash the node does not know while the authorization is unused', async () => {
+        client.getTransaction.mockRejectedValue(
+          new TransactionNotFoundError({ hash: HASH })
+        );
+
+        await expect(Verify()).resolves.toMatchObject({
+          status: 'not_found',
+          transaction_hash: HASH,
+        });
+        expect(client.getTransactionReceipt).not.toHaveBeenCalled();
+        expect(client.readContract).toHaveBeenCalledWith(
+          expect.objectContaining({
+            functionName: 'authorizationState',
+            blockNumber: undefined,
+          })
+        );
+      });
+
+      it('looks for the payment when the node does not know the hash but the authorization is used', async () => {
+        client.getTransaction.mockRejectedValue(
+          new TransactionNotFoundError({ hash: HASH })
+        );
+        client.readContract.mockResolvedValue(true);
+        client.getLogs.mockResolvedValue([AuthorizationLog(FIRST_HASH, 3)]);
+        client.getTransactionReceipt.mockResolvedValue(
+          PaymentReceipt(FIRST_HASH)
+        );
+
+        await expect(Verify()).resolves.toMatchObject({
+          status: 'verified',
+          transaction_hash: FIRST_HASH,
+        });
+      });
+
+      it('rethrows an error that does not come from the node', async () => {
+        const bug = new TypeError('cannot read properties of undefined');
+        client.getTransactionReceipt.mockRejectedValue(bug);
+
+        await expect(Verify()).rejects.toBe(bug);
       });
 
       it('rejects a malformed transaction_hash with a 400', async () => {

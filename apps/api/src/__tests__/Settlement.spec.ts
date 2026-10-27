@@ -136,6 +136,7 @@ describe('SimulatedSettlement', () => {
 
       await expect(
         settlement.RelayCheckoutAuthorization(authorization, signature, {
+          createdAt: 1_700_000_000,
           onSigned,
         })
       ).resolves.toBe(signature);
@@ -149,7 +150,11 @@ describe('SimulatedSettlement', () => {
         settlement.RelayCheckoutAuthorization(
           authorization,
           SimulatedSignature('cs_z_1', PAYER),
-          { pendingHash: 'sim_sig:cs_z_1:recorded', onSigned }
+          {
+            pendingHash: 'sim_sig:cs_z_1:recorded',
+            createdAt: 1_700_000_000,
+            onSigned,
+          }
         )
       ).resolves.toBe('sim_sig:cs_z_1:recorded');
       expect(onSigned).not.toHaveBeenCalled();
@@ -160,7 +165,7 @@ describe('SimulatedSettlement', () => {
         settlement.RelayCheckoutAuthorization(
           authorization,
           `0x${'ab'.repeat(65)}`,
-          { onSigned: jest.fn() }
+          { createdAt: 1_700_000_000, onSigned: jest.fn() }
         )
       ).rejects.toMatchObject({
         statusCode: 400,

@@ -1055,3 +1055,94 @@ apps/docs/src/app/pages/docs/data/payment-links.ts
 libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
 libs/shared-types/src/lib/CheckoutSession.ts
 ```
+
+### Task 11 fix round 1: one record per payment, no provider text, recoverable retries
+
+- **No provider text in client errors** (SEC-1):
+  - Node and RPC failures on the checkout relay are a 502 "The payment network is unavailable; try again".
+  - A refused relay is a 400 "The network did not accept the payment".
+  - A revert that does not decode is "The USDC authorization cannot be relayed". A decoded contract reason, such as `FiatTokenV2: …` or an ABI error name, is still shown.
+  - The payout broadcast, payout gas estimate and payout receipt failure message follow the same rule.
+  - The node's text goes to the server log only. `DecodeRevert` keeps it in an internal `detail`, which also feeds the `account_frozen` mapping.
+  - A refused relay stores the fixed message in `last_payment_error`.
+- **One record per verified payment:**
+  - Every confirm that verified the payment (one per API process) races for one claim on the session (`ClaimPaymentSettlement`: `payment_details.settling_since` and `settling_transaction`) before any side effect.
+  - Only the winner creates the Charge, emits `charge.succeeded` and `payment_intent.succeeded`, completes the session and credits the ledger.
+  - The others wait, polling up to 10 s, and return the same completed session, or a 409 `payment_pending` while the winner is still working.
+  - A claim older than 60 s, left by a confirm that crashed, is taken over, and that confirm's succeeded Charge is reused. A winner that fails releases the claim.
+- **Prepare cannot clobber a relay:**
+  - The prepare write (`RecordPreparedPayment`) only applies while no payment transaction is recorded. The first prepare writes `payment_details` whole; later ones set only `payer_wallet`, `relayed` and `merchant_wallet`.
+  - A prepare that loses this condition answers the in-flight 409.
+- **No second payment from another wallet:**
+  - Before relaying, the rail searches `AuthorizationUsed` logs by the indexed session nonce only (any authorizer), from just before the session's creation up to `latest`.
+  - A transaction found there that pays the recorded merchant ≥ the amount due is returned, and nothing is sent. Uses of the nonce that paid someone else are ignored, so a third party cannot block the session.
+  - The module records a payment found this way as the session's transaction.
+- **Retries:**
+  - `VerifyCheckoutPayment` answers `not_found` at once when the node does not know the hash and the authorization is unused at `latest`. It no longer long-polls.
+  - On a `{ transaction_hash }` retry, a recorded relay then gets a 409 `payment_resubmit_required` (send the signature again), and a hash no relay recorded gets a 400 without failing the PaymentIntent or creating a Charge.
+  - A foreign hash that fails verification is also a plain 400.
+  - The route documents that a 409 may carry `transaction_hash: null` and that retrying with `{ signature }` is always safe.
+- **Verification catch-all:** only viem errors (node or transport) become `pending`. Anything else is logged at error level and rethrown as a 500.
+- **Merchant wallet:**
+  - The authorization's `to` is recorded at prepare as `payment_details.merchant_wallet` (documented on the Checkout Session page).
+  - Confirm rebuilds and verifies against it. Sessions prepared before this field existed use the current default wallet.
+- **Shared helpers:** `TRANSACTION_HASH_PATTERN`, `IsTransactionHash` and `SameAddress` live in `@zoneless/shared-types` (`ChainValues.ts`). The rail, the checkout module, the confirm and payout schemas and the test double all use them.
+- **Accuracy:**
+  - `estimated_fee` is documented as an upper bound, and `PreparedAuthorization.fee_currency` is `'eth' | 'none'`.
+  - The `CHECKOUT_CONFIRM_TIMEOUT_MS` ceiling comment now names the reverse proxy as the practical limit.
+  - `.env.example`, `.env.production.example` and the environment-variables docs say a proxy must allow the wait plus a margin.
+- **Comment only:** a refused relay creates no failed Charge (nothing reached the chain), unlike a failed verification.
+- **Tests:**
+  - Module:
+    - Provider text is never stored on the PaymentIntent.
+    - Two processes verifying one payment record one Charge and one of each event, and both succeed.
+    - A crashed claim is taken over with its Charge reused.
+    - A held claim answers `payment_pending` (fake timers).
+    - The claim loop stops when the session closes.
+    - Prepare is refused once a relay is recorded mid-prepare.
+    - A found payment is recorded and completes.
+    - Verification uses the recorded merchant wallet.
+    - `payment_resubmit_required`, the fail-fast 400s, and no side effects for a foreign hash.
+  - Rail:
+    - The any-wallet search sends nothing for a paying use and still relays past a non-paying one.
+    - A used authorization returns its payment.
+    - "replacement transaction underpriced" re-signs; the 3-attempt cap; an unknown-to-node pending hash is reused on an RPC error.
+    - Provider text is kept out of every client error (node read, gas estimate, undecodable revert, refused send, payout broadcast, payout receipt).
+    - `not_found`, the search when the node does not know the hash, and the rethrow of non-node errors.
+  - `VerifyCheckoutReceipt` fails closed on removed logs and on a Transfer before its `AuthorizationUsed`.
+  - `CheckoutSession` filter shapes for the new compare-and-sets.
+  - Anvil: wallet A's payment lands while the API recorded it as refused; wallet B (no USDC) then confirms, nothing is sent, and the session completes on A's payment.
+
+Added:
+
+```
+libs/shared-types/src/lib/ChainValues.ts
+```
+
+Modified:
+
+```
+.env.example
+.env.production.example
+CHANGES.md
+apps/api/src/__tests__/CheckoutAuthorization.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/CheckoutSession.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/anvil/Checkout.anvil.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/CheckoutSession.ts
+apps/api/src/modules/chains/CheckoutAuthorization.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/docs/src/app/pages/docs/data/checkout-sessions.ts
+apps/docs/src/app/pages/docs/data/environment-variables.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
+libs/shared-schemas/src/lib/PayoutSchema.ts
+libs/shared-types/src/lib/CheckoutSession.ts
+libs/shared-types/src/lib/index.ts
+```

@@ -123,13 +123,15 @@ describe('Checkout on Anvil', () => {
 
   async function Relay(
     authorization: CheckoutTransferAuthorization,
-    signature: Hex
+    signature: Hex,
+    createdAt: number
   ): Promise<{ hash: string | null; signed: string[] }> {
     const signed: string[] = [];
     const hash = await ethereum.RelayCheckoutAuthorization(
       authorization,
       signature,
       {
+        createdAt,
         onSigned: async (transactionHash) => {
           signed.push(transactionHash);
         },
@@ -184,7 +186,11 @@ describe('Checkout on Anvil', () => {
       BalanceOf(buyer),
     ]);
 
-    const { hash, signed } = await Relay(authorization, signature);
+    const { hash, signed } = await Relay(
+      authorization,
+      signature,
+      expected.createdAt
+    );
     if (!hash) throw new Error('Nothing was relayed');
 
     expect(signed).toEqual([hash]);
@@ -208,15 +214,19 @@ describe('Checkout on Anvil', () => {
   it('does not relay a used authorization again; a second relay reverts on the used nonce', async () => {
     const { publicClient, accounts, addresses } = Context();
     const { authorization, signature, expected } = await SignedPayment(500);
-    const { hash: first } = await Relay(authorization, signature);
+    const { hash: first } = await Relay(
+      authorization,
+      signature,
+      expected.createdAt
+    );
     if (!first) throw new Error('Nothing was relayed');
     await Context().Mine(1);
     const nonceBefore = await RelayerNonce();
 
-    await expect(Relay(authorization, signature)).resolves.toEqual({
-      hash: null,
-      signed: [],
-    });
+    // The rail answers with the payment that used it and sends nothing.
+    await expect(
+      Relay(authorization, signature, expected.createdAt)
+    ).resolves.toEqual({ hash: first, signed: [] });
     expect(await RelayerNonce()).toBe(nonceBefore);
 
     // Submitted anyway, the same authorization reverts.
@@ -260,7 +270,7 @@ describe('Checkout on Anvil', () => {
       attacker
     );
 
-    const { hash } = await Relay(authorization, signature);
+    const { hash } = await Relay(authorization, signature, expected.createdAt);
     await Context().Mine(1);
 
     await expect(
@@ -276,11 +286,11 @@ describe('Checkout on Anvil', () => {
 
   it('refuses to relay a signature with a tampered recipient and sends nothing', async () => {
     const attacker = privateKeyToAccount(generatePrivateKey()).address;
-    const { authorization, signature } = await SignedPayment(800);
+    const { authorization, signature, expected } = await SignedPayment(800);
     const nonceBefore = await RelayerNonce();
 
     await expect(
-      Relay({ ...authorization, to: attacker }, signature)
+      Relay({ ...authorization, to: attacker }, signature, expected.createdAt)
     ).rejects.toMatchObject({
       statusCode: 400,
       message: expect.stringMatching(/FiatTokenV2: invalid signature/),
@@ -301,10 +311,9 @@ describe('Checkout on Anvil', () => {
     await publicClient.waitForTransactionReceipt({ hash: frontRun });
     await Context().Mine(1);
 
-    await expect(Relay(authorization, signature)).resolves.toEqual({
-      hash: null,
-      signed: [],
-    });
+    await expect(
+      Relay(authorization, signature, expected.createdAt)
+    ).resolves.toEqual({ hash: frontRun, signed: [] });
     await expect(
       ethereum.VerifyCheckoutPayment(null, expected, TIMEOUT)
     ).resolves.toEqual({
@@ -315,76 +324,92 @@ describe('Checkout on Anvil', () => {
     });
   });
 
-  it('completes a hosted checkout: payment_pending while confirming, then a retry with the hash', async () => {
-    const previousTimeout = process.env.CHECKOUT_CONFIRM_TIMEOUT_MS;
+  /** The checkout module on MemoryDatabase, with one open session. */
+  function HostedCheckout(amountCents: number) {
+    const memory = new MemoryDatabase();
+    const db = memory.AsDatabase();
+    const eventService = {
+      Emit: jest.fn().mockResolvedValue(undefined),
+    } as unknown as EventService;
+    const productModule = new ProductModule(db);
+    const paymentIntents = new PaymentIntentModule(db, eventService);
+    const checkoutSessions = new CheckoutSessionModule(
+      db,
+      eventService,
+      undefined,
+      productModule,
+      undefined,
+      paymentIntents
+    );
+    const wallets = {
+      GetDefaultWallet: jest.fn(async () => ({
+        id: 'wa_z_merchant',
+        wallet_address: merchant,
+        network: 'ethereum',
+        currency: 'usdc',
+      })),
+    } as unknown as ExternalWalletModule;
+    const module = new CheckoutPaymentModule(
+      db,
+      checkoutSessions,
+      wallets,
+      productModule,
+      paymentIntents,
+      new ChargeModule(db, eventService),
+      undefined,
+      ethereum
+    );
+    const intent = paymentIntents.PaymentIntentObject('acct_z_platform', {
+      amount: amountCents,
+      currency: 'usdc',
+    });
+    memory.Seed('PaymentIntents', { ...intent });
+    const session: CheckoutSession = {
+      ...checkoutSessions.CheckoutSessionObject(
+        'acct_z_platform',
+        { mode: 'payment', success_url: 'https://example.com/success' },
+        [
+          {
+            id: 'li_z_anvil',
+            object: 'item',
+            amount_discount: 0,
+            amount_subtotal: amountCents,
+            amount_tax: 0,
+            amount_total: amountCents,
+            currency: 'usdc',
+            description: 'Anvil checkout',
+            discounts: null,
+            metadata: {},
+            price: null,
+            quantity: 1,
+            taxes: null,
+          },
+        ]
+      ),
+      payment_intent: intent.id,
+    };
+    memory.Seed('CheckoutSessions', { ...session });
+    return { memory, module, session, intent };
+  }
+
+  /** Runs `test` with a short CHECKOUT_CONFIRM_TIMEOUT_MS. */
+  async function WithConfirmTimeout(test: () => Promise<void>): Promise<void> {
+    const previous = process.env.CHECKOUT_CONFIRM_TIMEOUT_MS;
     process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = '1000';
     try {
-      const memory = new MemoryDatabase();
-      const db = memory.AsDatabase();
-      const eventService = {
-        Emit: jest.fn().mockResolvedValue(undefined),
-      } as unknown as EventService;
-      const productModule = new ProductModule(db);
-      const paymentIntents = new PaymentIntentModule(db, eventService);
-      const checkoutSessions = new CheckoutSessionModule(
-        db,
-        eventService,
-        undefined,
-        productModule,
-        undefined,
-        paymentIntents
-      );
-      const wallets = {
-        GetDefaultWallet: jest.fn(async () => ({
-          id: 'wa_z_merchant',
-          wallet_address: merchant,
-          network: 'ethereum',
-          currency: 'usdc',
-        })),
-      } as unknown as ExternalWalletModule;
-      const module = new CheckoutPaymentModule(
-        db,
-        checkoutSessions,
-        wallets,
-        productModule,
-        paymentIntents,
-        new ChargeModule(db, eventService),
-        undefined,
-        ethereum
-      );
-      const intent = paymentIntents.PaymentIntentObject('acct_z_platform', {
-        amount: 1500,
-        currency: 'usdc',
-      });
-      memory.Seed('PaymentIntents', { ...intent });
-      const session: CheckoutSession = {
-        ...checkoutSessions.CheckoutSessionObject(
-          'acct_z_platform',
-          {
-            mode: 'payment',
-            success_url: 'https://example.com/success',
-          },
-          [
-            {
-              id: 'li_z_anvil',
-              object: 'item',
-              amount_discount: 0,
-              amount_subtotal: 1500,
-              amount_tax: 0,
-              amount_total: 1500,
-              currency: 'usdc',
-              description: 'Anvil checkout',
-              discounts: null,
-              metadata: {},
-              price: null,
-              quantity: 1,
-              taxes: null,
-            },
-          ]
-        ),
-        payment_intent: intent.id,
-      };
-      memory.Seed('CheckoutSessions', { ...session });
+      await test();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CHECKOUT_CONFIRM_TIMEOUT_MS;
+      } else {
+        process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = previous;
+      }
+    }
+  }
+
+  it('completes a hosted checkout: payment_pending while confirming, then a retry with the hash', async () => {
+    await WithConfirmTimeout(async () => {
+      const { memory, module, session, intent } = HostedCheckout(1500);
       const merchantBefore = await BalanceOf(merchant);
 
       const prepared = await module.PreparePayment(session.url_slug, buyer, {
@@ -434,12 +459,61 @@ describe('Checkout on Anvil', () => {
         { type: 'payment', amount: 1500, metadata: { blockchain_tx: hash } },
       ]);
       expect(await BalanceOf(merchant)).toBe(merchantBefore + 15_000_000n);
-    } finally {
-      if (previousTimeout === undefined) {
-        delete process.env.CHECKOUT_CONFIRM_TIMEOUT_MS;
-      } else {
-        process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = previousTimeout;
-      }
-    }
+    });
+  });
+
+  it('settles on an earlier payment instead of letting a second wallet pay the session again', async () => {
+    await WithConfirmTimeout(async () => {
+      const { memory, module, session, intent } = HostedCheckout(1600);
+      const merchantBefore = await BalanceOf(merchant);
+
+      // Wallet A (the buyer) pays, but its relay was recorded as refused (an
+      // ambiguous send error): no hash is kept and the attempt is failed.
+      const preparedA = await module.PreparePayment(session.url_slug, buyer, {
+        email: 'buyer@example.com',
+      });
+      if (!preparedA.authorization) throw new Error('No authorization');
+      const paidByA = await ethereum.RelayCheckoutAuthorization(
+        preparedA.authorization,
+        await Sign(preparedA.typed_data ?? null),
+        { createdAt: session.created, onSigned: async () => undefined }
+      );
+      await Context().Mine(1);
+      memory.Seed('PaymentIntents', {
+        ...memory.Doc<PaymentIntent>('PaymentIntents', intent.id),
+        status: 'requires_payment_method',
+      });
+      expect(
+        memory.Doc<CheckoutSession>('CheckoutSessions', session.id)
+          .payment_details?.transaction_hash
+      ).toBeNull();
+
+      // Wallet B (no USDC at all) then pays the same session.
+      const walletB = privateKeyToAccount(generatePrivateKey());
+      const preparedB = await module.PreparePayment(
+        session.url_slug,
+        walletB.address,
+        { email: 'buyer@example.com' }
+      );
+      const signatureB = await walletB.signTypedData(
+        preparedB.typed_data as unknown as TypedDataDefinition
+      );
+      const nonceBefore = await RelayerNonce();
+
+      const completed = await module.ConfirmPayment(session.url_slug, {
+        signature: signatureB,
+      });
+
+      expect(completed).toMatchObject({
+        status: 'complete',
+        payment_details: { transaction_hash: paidByA, payer_wallet: buyer },
+      });
+      expect(await RelayerNonce()).toBe(nonceBefore);
+      expect(await BalanceOf(walletB.address)).toBe(0n);
+      expect(await BalanceOf(merchant)).toBe(merchantBefore + 16_000_000n);
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toMatchObject([{ amount: 1600, metadata: { blockchain_tx: paidByA } }]);
+    });
   });
 });

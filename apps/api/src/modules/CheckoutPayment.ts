@@ -49,6 +49,7 @@ import {
   CheckoutPaymentTransaction,
   CheckoutSession,
   ExternalWallet,
+  IsTransactionHash,
   Price,
   Product,
 } from '@zoneless/shared-types';
@@ -66,7 +67,17 @@ type PreparedSubscribe = UnsignedTransaction &
     'already_subscribed' | 'subscription_onchain_id'
   >;
 
-/** 409 while the payment waits for confirmations; retry with the hash. */
+/** How long a confirm waits for another one recording the same payment. */
+const SETTLEMENT_WAIT_MS = 10_000;
+const SETTLEMENT_POLL_MS = 200;
+/** Stored as the failed attempt when the network refuses a relay. */
+const RELAY_REFUSED_MESSAGE = 'The network did not accept the payment';
+
+/**
+ * 409 while the payment waits for confirmations. `transaction_hash` may be
+ * null (the authorization was used but is not confirmed yet); retrying with
+ * `{ signature }` is always safe.
+ */
 function PaymentPending(
   transactionHash: string | null,
   message = 'The payment is waiting for network confirmations. Confirm again with this transaction_hash.'
@@ -77,11 +88,23 @@ function PaymentPending(
   });
 }
 
+/**
+ * 409 when the recorded transaction is unknown to the network and the
+ * authorization is unused: waiting cannot help, so the client sends the
+ * signature again (which relays it again).
+ */
+function ResubmitRequired(transactionHash: string): AppError {
+  return new AppError(
+    'The network does not know this payment transaction. Confirm again with the signature.',
+    409,
+    'payment_resubmit_required',
+    { code: 'payment_resubmit_required', transaction_hash: transactionHash }
+  );
+}
+
 /** Lowercases an Ethereum hash; simulated references pass through. */
 function NormalizeTransactionHash(value?: string): string | undefined {
-  return value && /^0x[0-9a-fA-F]{64}$/.test(value)
-    ? value.toLowerCase()
-    : value;
+  return value && IsTransactionHash(value) ? value.toLowerCase() : value;
 }
 
 /** Convert a stored nullable address into CreateCustomer address input. */
@@ -327,26 +350,27 @@ export class CheckoutPaymentModule {
       amountTotal: session.amount_total,
     });
 
+    // A confirming relay pays the merchant wallet recorded when it was
+    // prepared, even if the default wallet changed since.
+    const merchant =
+      (inFlight && session.payment_details?.merchant_wallet) ||
+      merchantWallet.wallet_address;
     const prepared =
       session.mode === 'subscription'
         ? {
             relayed: false,
             ...(await this.PrepareSubscribeTransaction(session, payerWallet)),
           }
-        : await this.PrepareAuthorization(
-            session,
-            payerWallet,
-            merchantWallet.wallet_address
-          );
+        : await this.PrepareAuthorization(session, payerWallet, merchant);
 
     // Re-preparing during a relay returns the same authorization to sign
     // again and leaves the confirming PaymentIntent as it is.
     if (!inFlight) {
-      await this.MarkPaymentIntentRequiresConfirmation(
-        session,
-        payerWallet,
-        prepared.relayed
-      );
+      await this.MarkPaymentIntentRequiresConfirmation(session, {
+        payer_wallet: payerWallet,
+        relayed: prepared.relayed,
+        merchant_wallet: merchant,
+      });
     }
 
     return {
@@ -354,7 +378,7 @@ export class CheckoutPaymentModule {
       checkout_session: session.id,
       amount_total: session.amount_total!,
       currency: session.currency,
-      merchant_wallet_address: merchantWallet.wallet_address,
+      merchant_wallet_address: merchant,
       ...prepared,
     };
   }
@@ -526,9 +550,12 @@ export class CheckoutPaymentModule {
       );
     }
     const amountDue = this.AmountDue(session);
-    const merchantWallet = await this.ResolveMerchantWallet(
-      session.platform_account
-    );
+    // The wallet the authorization pays was recorded at prepare; sessions
+    // prepared before that was recorded use the current default wallet.
+    const merchantWallet =
+      session.payment_details?.merchant_wallet ??
+      (await this.ResolveMerchantWallet(session.platform_account))
+        .wallet_address;
     const recorded = session.payment_details?.transaction_hash ?? null;
 
     let transactionHash: string | null;
@@ -545,7 +572,7 @@ export class CheckoutPaymentModule {
       if (!recorded) this.AssertSessionNotExpired(session);
       transactionHash = await this.RelayPayment(session, {
         amountDue,
-        merchantWallet: merchantWallet.wallet_address,
+        merchantWallet,
         payerWallet,
         signature: input.signature,
         recorded,
@@ -569,7 +596,7 @@ export class CheckoutPaymentModule {
     const verification = await this.settlement.VerifyCheckoutPayment(
       transactionHash,
       {
-        merchantWalletAddress: merchantWallet.wallet_address,
+        merchantWalletAddress: merchantWallet,
         amountInCents: amountDue,
         checkoutSessionId: session.id,
         payerAddress: payerWallet,
@@ -579,18 +606,38 @@ export class CheckoutPaymentModule {
     );
 
     const paidBy = verification.transaction_hash ?? transactionHash;
-    if (verification.status === 'pending' || !paidBy) {
+    if (verification.status === 'not_found' && !input.signature) {
+      // Fail fast: the network has never seen this transaction.
+      if (recorded) throw ResubmitRequired(recorded);
+      throw new AppError(
+        'transaction_hash is not a transaction the network knows',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    if (
+      verification.status === 'pending' ||
+      verification.status === 'not_found' ||
+      !paidBy
+    ) {
       throw PaymentPending(paidBy);
     }
     if (paidBy !== transactionHash) {
       await this.AssertTransactionUnused(session, paidBy);
     }
 
-    // Stripe order: processing → charge.* → payment_intent.succeeded /
-    // payment_failed → checkout.session.completed.
-    await this.MarkPaymentIntentProcessing(session);
-
     if (verification.status === 'failed') {
+      // A hash the customer sent that no relay of this session recorded is
+      // not a payment attempt for it: reject it without failing anything.
+      if (!input.signature && !recorded) {
+        throw new AppError(
+          verification.failure_reason || 'Payment verification failed',
+          ERRORS.INVALID_REQUEST.status,
+          ERRORS.INVALID_REQUEST.type
+        );
+      }
+      // Stripe order: processing → charge.failed → payment_failed.
+      await this.MarkPaymentIntentProcessing(session);
       return this.FailOneTimePayment(session, verification, {
         amountDue,
         paidBy,
@@ -598,12 +645,114 @@ export class CheckoutPaymentModule {
       });
     }
 
-    const charge = await this.CreateCheckoutCharge(session, {
-      amount: verification.amount_cents,
-      transactionHash: paidBy,
-      payerAddress: verification.payer_address,
-      outcome: 'succeeded',
+    return this.SettleVerifiedPayment(session, verification, {
+      paidBy,
+      merchantWallet,
     });
+  }
+
+  /**
+   * Record a verified payment exactly once. Every confirm that verified it
+   * (one per API process, say) races for a single claim on the session
+   * before any side effect; the winner creates the Charge, emits the events
+   * and credits the ledger, and the others wait for it and return its
+   * completed session.
+   */
+  private async SettleVerifiedPayment(
+    session: CheckoutSession,
+    verification: CheckoutPaymentVerification,
+    payment: { paidBy: string; merchantWallet: string }
+  ): Promise<CheckoutSession> {
+    const finished = await this.ClaimSettlement(session, payment.paidBy);
+    if (finished) return finished;
+    try {
+      return await this.CompleteVerifiedPayment(session, verification, payment);
+    } catch (error) {
+      try {
+        await this.checkoutSessionModule.ReleasePaymentSettlement(
+          session.id,
+          payment.paidBy
+        );
+      } catch (releaseError) {
+        Logger.error(
+          'Could not release a checkout settlement claim',
+          releaseError,
+          {
+            checkoutSessionId: session.id,
+          }
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Null once this confirm holds the settlement claim; the completed session
+   * when another confirm recorded the payment meanwhile. A claim that is not
+   * released in time answers `payment_pending`.
+   */
+  private async ClaimSettlement(
+    session: CheckoutSession,
+    paidBy: string
+  ): Promise<CheckoutSession | null> {
+    const deadline = Date.now() + SETTLEMENT_WAIT_MS;
+    for (;;) {
+      if (
+        await this.checkoutSessionModule.ClaimPaymentSettlement(
+          session.id,
+          paidBy
+        )
+      ) {
+        return null;
+      }
+      const latest = await this.checkoutSessionModule.GetCheckoutSession(
+        session.id
+      );
+      if (latest?.status === 'complete') {
+        return this.SanitizeCheckoutSession(latest);
+      }
+      if (latest?.status !== 'open') {
+        throw new AppError(
+          'This Checkout Session is no longer accepting payments',
+          ERRORS.INVALID_REQUEST.status,
+          ERRORS.INVALID_REQUEST.type
+        );
+      }
+      if (Date.now() >= deadline) {
+        throw PaymentPending(
+          paidBy,
+          'Another confirmation is recording this payment. Confirm again shortly.'
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, SETTLEMENT_POLL_MS));
+    }
+  }
+
+  /** The side effects of a verified payment, in Stripe's order. */
+  private async CompleteVerifiedPayment(
+    claimed: CheckoutSession,
+    verification: CheckoutPaymentVerification,
+    payment: { paidBy: string; merchantWallet: string }
+  ): Promise<CheckoutSession> {
+    const { paidBy } = payment;
+    // Read again: a confirm that crashed after the claim may have created
+    // the customer or the Charge already.
+    const session =
+      (await this.checkoutSessionModule.GetCheckoutSession(claimed.id)) ??
+      claimed;
+
+    // Stripe order: processing → charge.succeeded → payment_intent.succeeded
+    // → checkout.session.completed.
+    await this.MarkPaymentIntentProcessing(session);
+
+    const charge =
+      (await this.FindSucceededCharge(session, paidBy)) ??
+      (await this.CreateCheckoutCharge(session, {
+        amount: verification.amount_cents,
+        transactionHash: paidBy,
+        payerAddress: verification.payer_address,
+        outcome: 'succeeded',
+      }));
 
     await this.MarkPaymentIntentSucceeded(session, {
       amountReceived: verification.amount_cents,
@@ -622,6 +771,7 @@ export class CheckoutPaymentModule {
         transaction_hash: paidBy,
         payer_wallet: verification.payer_address,
         relayed: session.payment_details?.relayed ?? false,
+        merchant_wallet: payment.merchantWallet,
       });
 
     if (completedSession.payment_link && this.paymentLinkModule) {
@@ -651,6 +801,24 @@ export class CheckoutPaymentModule {
     });
 
     return this.SanitizeCheckoutSession(completedSession);
+  }
+
+  /** The succeeded Charge a crashed confirm already created for `paidBy`. */
+  private async FindSucceededCharge(
+    session: CheckoutSession,
+    transactionHash: string
+  ): Promise<Charge | null> {
+    if (!session.payment_intent || !this.chargeModule) return null;
+    const charges = await this.db.Find2Custom<Charge>(
+      'Charges',
+      'payment_intent',
+      '==',
+      session.payment_intent,
+      'payment_method_details.crypto.transaction_hash',
+      '==',
+      transactionHash
+    );
+    return charges.find((charge) => charge.status === 'succeeded') ?? null;
   }
 
   /**
@@ -696,8 +864,10 @@ export class CheckoutPaymentModule {
    * Relay the customer's signed authorization. Its hash is recorded on the
    * session, and the PaymentIntent marked processing, before the network
    * sees it. When the network refuses it, both are reverted so the customer
-   * can try again. Returns null when the authorization was already used
-   * on-chain (verification then finds that transaction).
+   * can try again. Returns the payment the rail found instead of relaying
+   * (an earlier one under the session's nonce), or null when the
+   * authorization is used but its payment not found yet (verification then
+   * looks for it).
    */
   private async RelayPayment(
     session: CheckoutSession,
@@ -720,11 +890,12 @@ export class CheckoutPaymentModule {
     let current = recorded;
     let recordedHere: string | null = null;
     try {
-      return await this.settlement.RelayCheckoutAuthorization(
+      const hash = await this.settlement.RelayCheckoutAuthorization(
         authorization,
         signature,
         {
           pendingHash: recorded,
+          createdAt: session.created,
           onSigned: async (hash) => {
             await this.MarkPaymentIntentProcessing(session);
             const claimed =
@@ -746,23 +917,39 @@ export class CheckoutPaymentModule {
           },
         }
       );
+      // A payment the rail found instead of relaying is recorded too, so
+      // retries by hash and prepare see it.
+      if (hash && hash !== current) {
+        await this.checkoutSessionModule.SetPaymentTransactionHash(
+          session.id,
+          hash,
+          current
+        );
+      }
+      return hash;
     } catch (error) {
       if (recordedHere) await this.RevertRelay(session, recordedHere, error);
       throw error;
     }
   }
 
-  /** The relay was signed and recorded but the network did not accept it. */
+  /**
+   * The relay was signed and recorded but the network did not accept it.
+   * The PaymentIntent returns to `requires_payment_method` with a fixed
+   * message (what the node said is logged, never stored). Unlike a failed
+   * verification, no failed Charge is created: nothing reached the chain,
+   * as with a Stripe payment declined before it is attempted.
+   */
   private async RevertRelay(
     session: CheckoutSession,
     transactionHash: string,
     error: unknown
   ): Promise<void> {
-    const message = error instanceof Error ? error.message : String(error);
     Logger.warn('Checkout relay was not accepted; reverting', {
       checkoutSessionId: session.id,
+      paymentIntentId: session.payment_intent,
       transactionHash,
-      error: message,
+      error: error instanceof Error ? error.message : String(error),
     });
     try {
       await this.checkoutSessionModule.SetPaymentTransactionHash(
@@ -770,15 +957,11 @@ export class CheckoutPaymentModule {
         null,
         transactionHash
       );
-      await this.MarkPaymentIntentFailed(session, message);
+      await this.MarkPaymentIntentFailed(session, RELAY_REFUSED_MESSAGE);
     } catch (revertError) {
-      Logger.error('Could not revert a checkout relay', {
+      Logger.error('Could not revert a checkout relay', revertError, {
         checkoutSessionId: session.id,
         transactionHash,
-        error:
-          revertError instanceof Error
-            ? revertError.message
-            : String(revertError),
       });
     }
   }
@@ -1445,19 +1628,27 @@ export class CheckoutPaymentModule {
 
   private async MarkPaymentIntentRequiresConfirmation(
     session: CheckoutSession,
-    payerWallet: string,
-    relayed: boolean
+    details: { payer_wallet: string; relayed: boolean; merchant_wallet: string }
   ): Promise<void> {
-    // Persist the payer wallet on the open session: confirm rebuilds the
-    // signed authorization from it, and subscription confirm resolves the
-    // subscriber from it without relying on a PaymentIntent.
-    await this.db.Update<CheckoutSession>('CheckoutSessions', session.id, {
-      payment_details: {
-        transaction_hash: session.payment_details?.transaction_hash ?? null,
-        payer_wallet: payerWallet,
-        relayed,
-      },
-    });
+    // Persist the payer and merchant wallets on the open session: confirm
+    // rebuilds the signed authorization from them, and subscription confirm
+    // resolves the subscriber without relying on a PaymentIntent. Never
+    // while a relay is recorded (a confirm may have recorded one since this
+    // prepare read the session).
+    if (
+      !(await this.checkoutSessionModule.RecordPreparedPayment(
+        session.id,
+        details
+      ))
+    ) {
+      const latest = await this.checkoutSessionModule.GetCheckoutSession(
+        session.id
+      );
+      throw PaymentPending(
+        latest?.payment_details?.transaction_hash ?? null,
+        'A payment is confirming for this Checkout Session'
+      );
+    }
 
     if (!session.payment_intent || !this.paymentIntentModule) return;
 
@@ -1466,7 +1657,7 @@ export class CheckoutPaymentModule {
     // collected (Stripe: attach PM → requires_confirmation).
     await this.paymentIntentModule.MarkRequiresConfirmation(
       session.payment_intent,
-      { paymentMethod: payerWallet }
+      { paymentMethod: details.payer_wallet }
     );
   }
 

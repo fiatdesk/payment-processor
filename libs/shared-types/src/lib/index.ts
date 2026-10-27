@@ -1,6 +1,7 @@
 // Re-export all types from individual files
 export * from './Account';
 export * from './AccountLink';
+export * from './ChainValues';
 export * from './CheckoutSession';
 export * from './Config';
 export * from './Customer';

@@ -4,7 +4,10 @@
  * stand in for the on-chain Ethereum rail (Sepolia).
  */
 
-import type { CheckoutTransferAuthorization } from '@zoneless/shared-types';
+import {
+  IsTransactionHash,
+  type CheckoutTransferAuthorization,
+} from '@zoneless/shared-types';
 import {
   BuildTransferAuthorization,
   BuildTransferAuthorizationTypedData,
@@ -50,7 +53,7 @@ export const MOCK_CONFIRMED_TIME = MOCK_BUILD_TIME + 100;
 
 /** A hash passes through (lowercased); anything else stands for a raw tx. */
 export function MockTransactionHash(signedOrHash: string): string {
-  return /^0x[0-9a-fA-F]{64}$/.test(signedOrHash)
+  return IsTransactionHash(signedOrHash)
     ? signedOrHash.toLowerCase()
     : `0xhash_of_${signedOrHash}`;
 }

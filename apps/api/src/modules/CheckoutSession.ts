@@ -37,6 +37,17 @@ import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 
 const DEFAULT_EXPIRY_SECONDS = 24 * 60 * 60; // Sessions expire after 24 hours by default
+/**
+ * How long a claim to record a verified payment holds. Recording takes well
+ * under a second; an older claim belongs to a confirm that crashed.
+ */
+const SETTLEMENT_LEASE_SECONDS = 60;
+
+/** Fields a confirm sets on `payment_details` while it records a payment. */
+interface SettlementClaim {
+  settling_since?: number | null;
+  settling_transaction?: string | null;
+}
 
 type LineItemInput = NonNullable<
   CreateCheckoutSessionInput['line_items']
@@ -662,6 +673,7 @@ export class CheckoutSessionModule {
       transaction_hash: string;
       payer_wallet: string | null;
       relayed?: boolean;
+      merchant_wallet?: string | null;
     },
     options?: {
       subscription?: string | null;
@@ -875,6 +887,102 @@ export class CheckoutSessionModule {
       'CheckoutSessions',
       id,
       updatePayload
+    );
+  }
+
+  /**
+   * Record who prepares the payment of an open session: the payer wallet,
+   * whether the payment is relayed and the merchant wallet it pays. Only
+   * while no payment transaction is recorded, so a prepare can never replace
+   * the payer of, or erase, a relay that is already confirming. Returns false
+   * when a transaction is recorded.
+   */
+  async RecordPreparedPayment(
+    id: string,
+    details: {
+      payer_wallet: string;
+      relayed: boolean;
+      merchant_wallet: string;
+    }
+  ): Promise<boolean> {
+    // A session starts without payment details; the first prepare writes
+    // them whole, later ones update fields of the existing object.
+    const created = await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, status: 'open', payment_details: null },
+      { payment_details: { transaction_hash: null, ...details } }
+    );
+    if (created) return true;
+    const updated = await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, status: 'open', 'payment_details.transaction_hash': null },
+      {
+        'payment_details.payer_wallet': details.payer_wallet,
+        'payment_details.relayed': details.relayed,
+        'payment_details.merchant_wallet': details.merchant_wallet,
+      }
+    );
+    return updated !== null;
+  }
+
+  /**
+   * Claim the right to record a verified payment on an open session, so
+   * that one confirm creates the Charge, emits the events and credits the
+   * ledger even when several API processes verify the payment at once. A
+   * claim older than SETTLEMENT_LEASE_SECONDS is taken over. Returns false
+   * while another claim holds.
+   */
+  async ClaimPaymentSettlement(
+    id: string,
+    transactionHash: string
+  ): Promise<boolean> {
+    const now = Now();
+    const claim = {
+      'payment_details.settling_since': now,
+      'payment_details.settling_transaction': transactionHash,
+    };
+    const claimed = await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, status: 'open', 'payment_details.settling_since': null },
+      claim
+    );
+    if (claimed) return true;
+
+    const session = await this.GetCheckoutSession(id);
+    const since = (session?.payment_details as SettlementClaim | null)
+      ?.settling_since;
+    if (
+      session?.status !== 'open' ||
+      typeof since !== 'number' ||
+      since > now - SETTLEMENT_LEASE_SECONDS
+    ) {
+      return false;
+    }
+    const takenOver =
+      await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+        'CheckoutSessions',
+        { id, status: 'open', 'payment_details.settling_since': since },
+        claim
+      );
+    return takenOver !== null;
+  }
+
+  /** Drop this confirm's settlement claim after it failed to finish. */
+  async ReleasePaymentSettlement(
+    id: string,
+    transactionHash: string
+  ): Promise<void> {
+    await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      {
+        id,
+        status: 'open',
+        'payment_details.settling_transaction': transactionHash,
+      },
+      {
+        'payment_details.settling_since': null,
+        'payment_details.settling_transaction': null,
+      }
     );
   }
 

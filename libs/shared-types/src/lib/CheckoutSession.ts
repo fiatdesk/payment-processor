@@ -481,6 +481,11 @@ export interface CheckoutSession {
      * on-chain, so the customer paid no gas.
      */
     relayed?: boolean;
+    /**
+     * The merchant wallet the customer's authorization pays, recorded at
+     * prepare. Confirm verifies the payment against it.
+     */
+    merchant_wallet?: string | null;
   } | null;
 
   /**
@@ -782,7 +787,7 @@ export interface CheckoutPaymentTransaction {
   method?: 'eip3009_transfer' | 'simulated';
   typed_data?: Eip712TypedData | null;
   authorization?: CheckoutTransferAuthorization | null;
-  /** Gas the relayer is expected to pay, in atomic units of `fee_currency` */
+  /** Upper bound of the gas the relayer pays, in atomic units of `fee_currency` */
   estimated_fee: string;
   fee_currency: string;
   chain_id: number | null;

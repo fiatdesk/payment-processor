@@ -64,7 +64,10 @@ const MAX_PAYOUT_DEADLINE_SECONDS = 86400;
 /** How long checkout confirm waits for a payment to confirm (milliseconds). */
 const DEFAULT_CHECKOUT_CONFIRM_TIMEOUT_MS = 90_000;
 const MIN_CHECKOUT_CONFIRM_TIMEOUT_MS = 1_000;
-/** Node's default request timeout; a longer wait would be cut off. */
+/**
+ * A sanity ceiling. The practical limit is the reverse proxy's response
+ * timeout (often 60 s), which must allow this wait plus a margin.
+ */
 const MAX_CHECKOUT_CONFIRM_TIMEOUT_MS = 300_000;
 
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;

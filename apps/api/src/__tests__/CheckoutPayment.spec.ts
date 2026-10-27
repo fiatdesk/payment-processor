@@ -21,6 +21,7 @@ import type {
   UnsignedTransaction,
 } from '../modules/chains/types';
 import { AppError } from '../utils/AppError';
+import { WithKeyedLock } from '../utils/KeyedLock';
 import {
   BalanceTransaction,
   Charge,
@@ -64,6 +65,12 @@ jest.mock('../modules/AppConfig', () => ({
   GetCheckoutConfirmTimeoutMs: jest.fn(() => 90_000),
 }));
 // Charges read the network from the module-level rail.
+// Real per-session locking by default; a test can bypass it to act as
+// several API processes.
+jest.mock('../utils/KeyedLock', () => {
+  const actual = jest.requireActual('../utils/KeyedLock');
+  return { WithKeyedLock: jest.fn(actual.WithKeyedLock) };
+});
 jest.mock('../modules/chains/Settlement', () => ({
   ...jest.requireActual('../modules/chains/Settlement'),
   GetSettlement: jest.fn(() =>
@@ -227,6 +234,10 @@ describe('CheckoutPaymentModule', () => {
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
     };
+    // The prepare write is conditional on no relay being recorded.
+    mockDb.FindOneAndUpdateByFilter = jest
+      .fn()
+      .mockResolvedValue({ id: 'cs_z_updated' });
 
     module = new CheckoutPaymentModule(
       mockDb,
@@ -361,14 +372,15 @@ describe('CheckoutPaymentModule', () => {
         fee_currency: 'eth',
         chain_id: 11155111,
       });
-      expect(mockDb.Update).toHaveBeenCalledWith(
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'CheckoutSessions',
-        session.id,
+        { id: session.id, status: 'open', payment_details: null },
         {
           payment_details: {
             transaction_hash: null,
             payer_wallet: PAYER_WALLET,
             relayed: true,
+            merchant_wallet: MERCHANT_WALLET,
           },
         }
       );
@@ -399,14 +411,15 @@ describe('CheckoutPaymentModule', () => {
         session.id,
         session.expires_at
       );
-      expect(mockDb.Update).toHaveBeenCalledWith(
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'CheckoutSessions',
-        session.id,
+        { id: session.id, status: 'open', payment_details: null },
         {
           payment_details: {
             transaction_hash: null,
             payer_wallet: PAYER_WALLET,
             relayed: true,
+            merchant_wallet: MERCHANT_WALLET,
           },
         }
       );
@@ -551,11 +564,12 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
   let module: CheckoutPaymentModule;
   let session: CheckoutSession;
 
-  const wallets = {
-    GetDefaultWallet: jest.fn(async () => merchantWallet),
-  } as unknown as ExternalWalletModule;
+  let wallets: ExternalWalletModule;
 
   beforeEach(() => {
+    wallets = {
+      GetDefaultWallet: jest.fn(async () => merchantWallet),
+    } as unknown as ExternalWalletModule;
     jest.clearAllMocks();
     ResetIdCounter();
     memory = new MemoryDatabase();
@@ -908,7 +922,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     expect(Intent()).toMatchObject({
       status: 'requires_payment_method',
       last_payment_error: expect.objectContaining({
-        message: expect.stringMatching(/insufficient funds/),
+        message: 'The network did not accept the payment',
       }),
     });
     expect(events).toEqual([
@@ -1063,6 +1077,318 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     expect(memory.All<BalanceTransaction>('BalanceTransactions')).toHaveLength(
       1
     );
+  });
+
+  it('never stores provider error text on the PaymentIntent', async () => {
+    settlement.RelayCheckoutAuthorization.mockImplementationOnce(
+      async (_authorization, _signature, options) => {
+        await options.onSigned(MOCK_RELAY_HASH);
+        throw new Error('RPC error: quota exceeded for key sk_provider_secret');
+      }
+    );
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toThrow();
+
+    expect(Intent().last_payment_error?.message).toBe(
+      'The network did not accept the payment'
+    );
+    expect(JSON.stringify(Intent())).not.toContain('sk_provider_secret');
+  });
+
+  it('records a payment the rail found instead of relaying, then completes with it', async () => {
+    settlement.RelayCheckoutAuthorization.mockResolvedValue(OTHER_HASH);
+    let recordedAtWait: string | null | undefined;
+    settlement.VerifyCheckoutPayment.mockImplementation(async (hash) => {
+      recordedAtWait = Session().payment_details?.transaction_hash;
+      return Verified(hash);
+    });
+
+    const result = await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
+      expect.anything(),
+      SIGNATURE,
+      expect.objectContaining({ createdAt: session.created })
+    );
+    expect(recordedAtWait).toBe(OTHER_HASH);
+    expect(result.payment_details?.transaction_hash).toBe(OTHER_HASH);
+  });
+
+  it('verifies against the merchant wallet recorded at prepare, not the current default', async () => {
+    const NEW_DEFAULT = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+    Seed({ payment_details: null });
+    await module.PreparePayment(SLUG, PAYER_WALLET, {
+      email: 'buyer@example.com',
+    });
+    expect(Session().payment_details).toMatchObject({
+      payer_wallet: PAYER_WALLET,
+      merchant_wallet: MERCHANT_WALLET,
+    });
+    jest
+      .mocked(wallets.GetDefaultWallet)
+      .mockResolvedValue({ ...merchantWallet, wallet_address: NEW_DEFAULT });
+
+    const result = await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({ to: MERCHANT_WALLET }),
+      SIGNATURE,
+      expect.anything()
+    );
+    expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+      MOCK_RELAY_HASH,
+      expect.objectContaining({ merchantWalletAddress: MERCHANT_WALLET }),
+      expect.anything()
+    );
+    expect(result.payment_details?.merchant_wallet).toBe(MERCHANT_WALLET);
+  });
+
+  describe('when the network does not know the transaction', () => {
+    const NotFound = (hash: string): CheckoutPaymentVerification => ({
+      ...Pending(hash),
+      status: 'not_found',
+    });
+
+    it('asks for the signature again for a recorded relay, keeping its state', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+      settlement.VerifyCheckoutPayment.mockResolvedValue(
+        NotFound(MOCK_RELAY_HASH)
+      );
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_resubmit_required',
+        details: {
+          code: 'payment_resubmit_required',
+          transaction_hash: MOCK_RELAY_HASH,
+        },
+      });
+      expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
+      expect(Intent().status).toBe('processing');
+      ExpectNothingCompleted();
+    });
+
+    it('rejects at once a hash no relay recorded, failing nothing', async () => {
+      settlement.VerifyCheckoutPayment.mockResolvedValue(NotFound(OTHER_HASH));
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'transaction_hash is not a transaction the network knows',
+      });
+      expect(Intent().status).toBe('requires_confirmation');
+      ExpectNothingCompleted();
+      expect(events).toEqual([]);
+    });
+
+    it('keeps waiting for a relay it just sent', async () => {
+      settlement.VerifyCheckoutPayment.mockResolvedValue(
+        NotFound(MOCK_RELAY_HASH)
+      );
+
+      await expect(
+        module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+      ).rejects.toMatchObject({ statusCode: 409, type: 'payment_pending' });
+    });
+  });
+
+  it('rejects a foreign transaction_hash that does not pay the session without failing the PaymentIntent', async () => {
+    settlement.VerifyCheckoutPayment.mockResolvedValue({
+      status: 'failed',
+      transaction_hash: OTHER_HASH,
+      amount_cents: 0,
+      payer_address: null,
+      failure_reason:
+        "The transaction does not use this Checkout Session's authorization",
+    });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(Intent().status).toBe('requires_confirmation');
+    ExpectNothingCompleted();
+    expect(events).toEqual([]);
+  });
+
+  describe('across API processes', () => {
+    const actualLock: typeof WithKeyedLock =
+      jest.requireActual('../utils/KeyedLock').WithKeyedLock;
+
+    beforeEach(() => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+    });
+
+    afterEach(() => {
+      jest.mocked(WithKeyedLock).mockImplementation(actualLock);
+      jest.useRealTimers();
+    });
+
+    function WithoutProcessLock(): void {
+      jest
+        .mocked(WithKeyedLock)
+        .mockImplementation(((_key: string, task: () => Promise<unknown>) =>
+          task()) as typeof WithKeyedLock);
+    }
+
+    it('records a payment two processes verified once, and both confirms succeed', async () => {
+      WithoutProcessLock();
+      // Both verifications finish together, as two long-polls on one hash do.
+      settlement.VerifyCheckoutPayment.mockImplementation(async (hash) => {
+        await new Promise((resolve) => setImmediate(resolve));
+        return Verified(hash);
+      });
+
+      const results = await Promise.all([
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH }),
+        Module(settlement).ConfirmPayment(SLUG, {
+          transaction_hash: MOCK_RELAY_HASH,
+        }),
+      ]);
+
+      expect(results.map((result) => result.status)).toEqual([
+        'complete',
+        'complete',
+      ]);
+      expect(results[1]).toEqual(results[0]);
+      expect(memory.All<Charge>('Charges')).toHaveLength(1);
+      for (const event of [
+        'charge.succeeded',
+        'payment_intent.succeeded',
+        'checkout.session.completed',
+      ]) {
+        expect(events.filter((type) => type === event)).toHaveLength(1);
+      }
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it('takes over the claim of a confirm that crashed and reuses its Charge', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          settling_since: GetFixedTimestamp() - 120,
+          settling_transaction: MOCK_RELAY_HASH,
+        } as CheckoutSession['payment_details'],
+      });
+      memory.Seed('Charges', {
+        id: 'ch_z_crashed',
+        object: 'charge',
+        status: 'succeeded',
+        payment_intent: 'pi_z_1',
+        platform_account: 'acct_z_platform',
+        payment_method_details: {
+          type: 'crypto',
+          crypto: { transaction_hash: MOCK_RELAY_HASH },
+        },
+      });
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+      ).resolves.toMatchObject({ status: 'complete' });
+
+      expect(memory.All<Charge>('Charges')).toHaveLength(1);
+      expect(Intent()).toMatchObject({
+        status: 'succeeded',
+        latest_charge: 'ch_z_crashed',
+      });
+      expect(events).not.toContain('charge.succeeded');
+    });
+
+    it('stops waiting for another claim once the session is no longer open', async () => {
+      jest
+        .spyOn(checkoutSessionModule, 'ClaimPaymentSettlement')
+        .mockImplementationOnce(async () => {
+          // The merchant expires the session while another process records.
+          Seed({ status: 'expired' });
+          return false;
+        });
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'This Checkout Session is no longer accepting payments',
+      });
+      expect(memory.All<Charge>('Charges')).toEqual([]);
+    });
+
+    it('answers payment_pending while another process holds the claim', async () => {
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          settling_since: GetFixedTimestamp(),
+          settling_transaction: MOCK_RELAY_HASH,
+        } as CheckoutSession['payment_details'],
+      });
+
+      const outcome = module
+        .ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+        .catch((error: unknown) => error);
+      await jest.advanceTimersByTimeAsync(11_000);
+
+      await expect(outcome).resolves.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+      });
+      ExpectNothingCompleted();
+    });
+  });
+
+  it('prepare never replaces a relay recorded after it read the session', async () => {
+    const build = settlement.BuildCheckoutPaymentAuthorization;
+    const original = build.getMockImplementation();
+    build.mockImplementationOnce(async (...args) => {
+      // A confirm records its relay while this prepare is building.
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+        },
+      });
+      if (!original) throw new Error('No mock implementation');
+      return original(...args);
+    });
+
+    await expect(
+      module.PreparePayment(SLUG, MERCHANT_WALLET, {
+        email: 'buyer@example.com',
+      })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      type: 'payment_pending',
+      details: { transaction_hash: MOCK_RELAY_HASH },
+    });
+    expect(Session().payment_details).toMatchObject({
+      transaction_hash: MOCK_RELAY_HASH,
+      payer_wallet: PAYER_WALLET,
+    });
+    expect(Intent().status).toBe('requires_confirmation');
   });
 
   it('answers payment_pending when another process claimed the relay first', async () => {

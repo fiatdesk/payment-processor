@@ -868,6 +868,100 @@ describe('CheckoutSessionModule', () => {
     });
   });
 
+  describe('RecordPreparedPayment', () => {
+    const details = {
+      payer_wallet: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+      relayed: true,
+      merchant_wallet: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    };
+
+    it('writes the payment details whole on a session without them', async () => {
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValue({ id: 'cs_z_1' });
+
+      await expect(
+        module.RecordPreparedPayment('cs_z_1', details)
+      ).resolves.toBe(true);
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
+        'CheckoutSessions',
+        { id: 'cs_z_1', status: 'open', payment_details: null },
+        { payment_details: { transaction_hash: null, ...details } }
+      );
+    });
+
+    it('updates fields only while no payment transaction is recorded', async () => {
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        module.RecordPreparedPayment('cs_z_1', details)
+      ).resolves.toBe(false);
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenLastCalledWith(
+        'CheckoutSessions',
+        {
+          id: 'cs_z_1',
+          status: 'open',
+          'payment_details.transaction_hash': null,
+        },
+        {
+          'payment_details.payer_wallet': details.payer_wallet,
+          'payment_details.relayed': true,
+          'payment_details.merchant_wallet': details.merchant_wallet,
+        }
+      );
+    });
+  });
+
+  describe('ClaimPaymentSettlement', () => {
+    const NOW = 1700000000;
+
+    it('claims an unclaimed open session', async () => {
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValue({ id: 'cs_z_1' });
+
+      await expect(
+        module.ClaimPaymentSettlement('cs_z_1', '0xabc')
+      ).resolves.toBe(true);
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
+        'CheckoutSessions',
+        {
+          id: 'cs_z_1',
+          status: 'open',
+          'payment_details.settling_since': null,
+        },
+        {
+          'payment_details.settling_since': NOW,
+          'payment_details.settling_transaction': '0xabc',
+        }
+      );
+    });
+
+    it.each([
+      ['a fresh claim', NOW - 59, false],
+      ['a claim past its 60 s lease', NOW - 61, true],
+    ])('against %s answers %s', async (_label, since, taken) => {
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'cs_z_1' });
+      mockDb.Get = jest.fn().mockResolvedValue({
+        ...BuildOpenSession(),
+        payment_details: { settling_since: since },
+      });
+
+      await expect(
+        module.ClaimPaymentSettlement('cs_z_1', '0xabc')
+      ).resolves.toBe(taken);
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledTimes(
+        taken ? 2 : 1
+      );
+    });
+  });
+
   describe('GetCheckoutSessionByTransactionHash', () => {
     it('should look up sessions by payment_details.transaction_hash', async () => {
       const completedSession = {

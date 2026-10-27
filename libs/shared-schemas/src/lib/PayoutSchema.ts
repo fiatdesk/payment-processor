@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TRANSACTION_HASH_PATTERN } from '@zoneless/shared-types';
 
 /**
  * Schema for creating a payout.
@@ -166,7 +167,7 @@ export const BroadcastPayoutsBatchSchema = z
     /** Hash of a transaction the platform wallet already broadcast */
     transaction_hash: z
       .string()
-      .regex(/^0x[0-9a-fA-F]{64}$/, 'Transaction hash must be 0x + 64 hex')
+      .regex(TRANSACTION_HASH_PATTERN, 'Transaction hash must be 0x + 64 hex')
       .optional(),
 
     /**

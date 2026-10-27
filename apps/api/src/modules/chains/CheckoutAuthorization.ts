@@ -18,9 +18,10 @@ import {
   type Hex,
   type TransactionReceipt,
 } from 'viem';
-import type {
-  CheckoutTransferAuthorization,
-  Eip712TypedData,
+import {
+  SameAddress,
+  type CheckoutTransferAuthorization,
+  type Eip712TypedData,
 } from '@zoneless/shared-types';
 import { AppError } from '../../utils/AppError';
 import { USDC_ABI } from './abi/Usdc';
@@ -128,10 +129,11 @@ export function SplitSignature(signature: string): {
 
 /**
  * Verified when the receipt succeeded and USDC emitted
- * `AuthorizationUsed(authorizer, keccak256(session.id))` immediately
- * followed by the `Transfer(authorizer, merchant, value ≥ amount due)` of the
- * same call. A transfer to the merchant that no session authorization made
- * does not count.
+ * `AuthorizationUsed(authorizer, nonce)` (the session's nonce,
+ * `SessionNonce(session.id)`) immediately followed by the
+ * `Transfer(authorizer, merchant, value ≥ amount due)` of the same call. A
+ * transfer to the merchant that no session authorization made does not
+ * count, and logs in any other order fail.
  */
 export function VerifyCheckoutReceipt(
   receipt: TransactionReceipt,
@@ -139,13 +141,13 @@ export function VerifyCheckoutReceipt(
     usdc: string;
     merchant: string;
     amountCents: number;
-    sessionId: string;
+    nonce: Hex;
   }
 ): CheckoutReceiptVerification {
   if (receipt.status !== 'success') {
     return Failed('The payment transaction reverted');
   }
-  const nonce = SessionNonce(expected.sessionId);
+  const nonce = expected.nonce.toLowerCase();
   const logs = parseEventLogs({
     abi: USDC_ABI,
     logs: receipt.logs.filter(
@@ -223,8 +225,4 @@ function InvalidSignature(): AppError {
     400,
     'invalid_request_error'
   );
-}
-
-function SameAddress(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
 }

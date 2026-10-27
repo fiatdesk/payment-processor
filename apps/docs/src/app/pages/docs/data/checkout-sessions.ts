@@ -1271,6 +1271,13 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         description:
           'Whether the customer paid by signing a USDC authorization that the API submitted on-chain, paying the gas. The customer needs no ETH.',
       },
+      {
+        name: 'merchant_wallet',
+        type: 'string',
+        nullable: true,
+        description:
+          "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. The payment is verified against it even if the default wallet changes meanwhile.",
+      },
     ],
   },
 ];

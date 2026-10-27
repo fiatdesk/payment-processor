@@ -94,7 +94,7 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<code>CHECKOUT_CONFIRM_TIMEOUT_MS</code>: How long Checkout confirmation waits for confirmations before returning <code>payment_pending</code>. Defaults to <code>90000</code>.',
+              text: '<code>CHECKOUT_CONFIRM_TIMEOUT_MS</code>: How long Checkout confirmation waits for confirmations before returning <code>payment_pending</code>. Defaults to <code>90000</code>. A reverse proxy in front of the API must allow responses this slow plus a margin (many default to 60 seconds); otherwise lower the value. Clients retry confirmation either way.',
               html: true,
             },
           ],

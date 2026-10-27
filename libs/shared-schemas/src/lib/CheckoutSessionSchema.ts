@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TRANSACTION_HASH_PATTERN } from '@zoneless/shared-types';
 import { EthereumAddressSchema } from './AddressSchema';
 import { ExpandableSchema } from './ExpandableSchema';
 import { RecurringIntervalSchema } from './PriceSchema';
@@ -816,7 +817,10 @@ export const ConfirmCheckoutPaymentSchema = z
       .union([
         z
           .string()
-          .regex(/^0x[0-9a-fA-F]{64}$/, 'Transaction hash must be 0x + 64 hex'),
+          .regex(
+            TRANSACTION_HASH_PATTERN,
+            'Transaction hash must be 0x + 64 hex'
+          ),
         SimulatedPaymentSchema,
       ])
       .optional(),

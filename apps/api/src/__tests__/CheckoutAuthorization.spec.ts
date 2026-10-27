@@ -40,7 +40,7 @@ const EXPECTED = {
   usdc: USDC,
   merchant: MERCHANT,
   amountCents: 1234,
-  sessionId: SESSION,
+  nonce: SessionNonce(SESSION),
 };
 
 describe('CheckoutAuthorization', () => {
@@ -327,6 +327,28 @@ describe('CheckoutAuthorization', () => {
           EXPECTED
         )
       ).toMatchObject({ status: 'failed' });
+    });
+
+    it('fails closed on removed (reorged) logs', () => {
+      const logs = [AuthorizationUsed(), Transfer(MERCHANT, 12_340_000n)].map(
+        (log) => ({ ...log, removed: true })
+      );
+
+      expect(VerifyCheckoutReceipt(Receipt(logs), EXPECTED)).toMatchObject({
+        status: 'failed',
+      });
+    });
+
+    it('fails closed when the transfer comes before the authorization', () => {
+      const transfer = Transfer(MERCHANT, 12_340_000n);
+      const authorization = AuthorizationUsed();
+
+      expect(
+        VerifyCheckoutReceipt(Receipt([transfer, authorization]), EXPECTED)
+      ).toMatchObject({
+        status: 'failed',
+        failure_reason: 'No USDC transfer was made by the authorization',
+      });
     });
 
     it('rejects a reverted transaction', () => {
