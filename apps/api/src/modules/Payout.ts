@@ -975,11 +975,12 @@ export class PayoutModule {
       ...batch.transaction_hashes,
       ...(batch.reported_hashes ?? []),
     ]) {
-      const status = await this.settlement.GetTransactionStatus(
+      const status = await this.ReadTransactionStatus(
+        batch,
         hash,
-        expected,
         confirmed.number
       );
+      if (!status) continue;
       if (status.status === 'paid' && paidOnChain) {
         await this.SettleBatchPaid(batch, status);
         return 'paid';
@@ -1013,27 +1014,55 @@ export class PayoutModule {
     return 'failed';
   }
 
+  /**
+   * A receipt only locates the paying hash and labels the outcome; paid()
+   * and the expiry proof decide. An unreadable receipt (a replay a pruned
+   * node cannot serve, say) is skipped so they are still evaluated.
+   */
+  private async ReadTransactionStatus(
+    batch: PayoutBatch,
+    transactionHash: string,
+    confirmedBlock: number
+  ): Promise<BroadcastResult | null> {
+    try {
+      return await this.settlement.GetTransactionStatus(
+        transactionHash,
+        this.Expectation(batch),
+        confirmedBlock
+      );
+    } catch (error) {
+      Logger.warn(
+        'Payout transaction status unavailable; reconciling without it',
+        {
+          payoutBatch: batch.id,
+          transactionHash,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return null;
+    }
+  }
+
   /** Approvals move no payouts and have no deadline. */
   private async ReconcileApproval(
     batch: PayoutBatch,
     confirmed: ConfirmedBlock
   ): Promise<'paid' | 'failed' | 'pending'> {
-    const expected = this.Expectation(batch);
     const confirmedNonce = await this.settlement.GetAccountNonce(
       batch.wallet_address,
       confirmed.number
     );
     for (const hash of batch.transaction_hashes) {
-      const status = await this.settlement.GetTransactionStatus(
+      const status = await this.ReadTransactionStatus(
+        batch,
         hash,
-        expected,
         confirmed.number
       );
-      if (status.status === 'paid') {
+      if (status?.status === 'paid') {
         await this.SettleBatchPaid(batch, status);
         return 'paid';
       }
-      if (status.status === 'failed') {
+      if (status?.status === 'failed') {
         await this.SettleBatchFailed(
           batch,
           'failed',
@@ -1064,12 +1093,16 @@ export class PayoutModule {
    * pending; a broadcast or reverted batch's are refunded.
    */
   private async ReleaseExpiredBatch(batch: PayoutBatch): Promise<void> {
+    // Judged expired on these deadlines: a re-price that added one since
+    // makes the release miss and leaves the batch holding its payouts.
+    const judged = { deadlines: batch.deadlines ?? [] };
     if (batch.status === 'built') {
       await this.SettleBatchFailed(
         batch,
         'replaced',
         'blockchain_error',
-        'The payout batch expired before it was sent'
+        'The payout batch expired before it was sent',
+        judged
       );
       return;
     }
@@ -1084,7 +1117,8 @@ export class PayoutModule {
       batch,
       batch.status === 'reverted' ? 'failed' : 'replaced',
       failure.code,
-      failure.message
+      failure.message,
+      judged
     );
   }
 
@@ -1543,41 +1577,55 @@ export class PayoutModule {
     );
   }
 
-  /** Refunds in_transit payouts; payouts of a built batch never left pending. */
+  /**
+   * Ends a batch without payment. A broadcast or reverted batch refunds its
+   * in-transit payouts; a built batch's payouts go back to pending. The batch
+   * move and every refund or release commit together, so a crash or failed
+   * write leaves all of them for the next reconcile, and events go out after
+   * the commit.
+   */
   private async SettleBatchFailed(
     batch: PayoutBatch,
     status: 'failed' | 'replaced',
     failureCode: PayoutFailureCode,
-    failureMessage: string
+    failureMessage: string,
+    judged?: { deadlines: number[] }
   ): Promise<PayoutBatch> {
-    if (batch.status === 'broadcast' || batch.status === 'reverted') {
-      // The batch moves first, from its own status: a stale copy (say,
-      // during a concurrent restore) fails here and refunds nothing.
-      const settled = await this.payoutBatchStore.Transition(
-        batch,
-        [batch.status],
-        { status }
-      );
-      for (const payoutId of batch.payouts) {
-        await this.MarkPayoutFailed(
+    const refund = batch.status === 'broadcast' || batch.status === 'reverted';
+    const { settled, failed } = await this.db.RunTransaction(
+      async (session: ClientSession) => {
+        // From the batch's own status (and the judged deadlines, for a
+        // release): a stale copy fails here and changes nothing.
+        const settled = await this.payoutBatchStore.Transition(
           batch,
-          payoutId,
-          failureCode,
-          failureMessage
+          [batch.status],
+          { status },
+          { session, ...(judged && { match: { deadlines: judged.deadlines } }) }
         );
+        const failed: PayoutType[] = [];
+        if (refund) {
+          for (const payoutId of batch.payouts) {
+            const payout = await this.FailPayout(
+              batch,
+              payoutId,
+              failureCode,
+              failureMessage,
+              session
+            );
+            if (payout) failed.push(payout);
+          }
+        } else {
+          await this.ReleasePayouts(batch, session);
+        }
+        return { settled, failed };
       }
-      return settled;
+    );
+    if (this.eventService) {
+      for (const payout of failed) {
+        await this.eventService.Emit('payout.failed', payout.account, payout);
+      }
     }
-    return this.db.RunTransaction(async (session: ClientSession) => {
-      const settled = await this.payoutBatchStore.Transition(
-        batch,
-        [batch.status],
-        { status },
-        { session }
-      );
-      await this.ReleasePayouts(batch, session);
-      return settled;
-    });
+    return settled;
   }
 
   private async BroadcastResponse(
@@ -1654,6 +1702,8 @@ export class PayoutModule {
           {
             status: 'paid',
             payout_batch: batch.id,
+            failure_code: null,
+            failure_message: null,
             arrival_date: Now(),
             'metadata.network': response.network,
             'metadata.gas_fee': response.gas_fee,
@@ -1713,49 +1763,40 @@ export class PayoutModule {
   }
 
   /**
-   * Mark an in-transit payout as failed, refund the balance, and emit the
-   * payout.failed event. A payout that is not in transit is skipped, so a
-   * repeated settlement never refunds twice.
+   * Marks an in-transit payout of `batch` failed and refunds its balance,
+   * inside the caller's transaction. A payout that is not in transit for
+   * this batch is skipped (null), so a repeated settlement never refunds twice.
    */
-  private async MarkPayoutFailed(
+  private async FailPayout(
     batch: PayoutBatch,
     payoutId: string,
     failureCode: PayoutFailureCode,
-    failureMessage: string
-  ): Promise<void> {
-    const payout = await this.db.RunTransaction(
-      async (session: ClientSession) => {
-        const updated = await this.db.FindOneAndUpdateByFilter<PayoutType>(
-          'Payouts',
-          { id: payoutId, status: 'in_transit', payout_batch: batch.id },
-          {
-            status: 'failed',
-            failure_code: failureCode,
-            failure_message: failureMessage,
-          },
-          session
-        );
-        if (!updated) return null;
-
-        if (updated.balance_transaction) {
-          await this.db.Update(
-            'BalanceTransactions',
-            updated.balance_transaction,
-            { status: 'failed' },
-            session
-          );
-        }
-
-        await this.RefundPayoutBalance(updated, session);
-        return updated;
-      }
+    failureMessage: string,
+    session: ClientSession
+  ): Promise<PayoutType | null> {
+    const updated = await this.db.FindOneAndUpdateByFilter<PayoutType>(
+      'Payouts',
+      { id: payoutId, status: 'in_transit', payout_batch: batch.id },
+      {
+        status: 'failed',
+        failure_code: failureCode,
+        failure_message: failureMessage,
+      },
+      session
     );
-    if (!payout) return;
+    if (!updated) return null;
 
-    // Emit payout.failed event
-    if (this.eventService) {
-      await this.eventService.Emit('payout.failed', payout.account, payout);
+    if (updated.balance_transaction) {
+      await this.db.Update(
+        'BalanceTransactions',
+        updated.balance_transaction,
+        { status: 'failed' },
+        session
+      );
     }
+
+    await this.RefundPayoutBalance(updated, session);
+    return updated;
   }
 
   /**

@@ -480,8 +480,34 @@ describe('Ethereum rail', () => {
         status: 'paid',
         transaction_hash: OTHER_HASH,
       });
+      // The verdict reads the confirmed block, never the receipt's (50).
       expect(client.readContract).toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: 'paid', blockNumber: 50n })
+        expect.objectContaining({
+          functionName: 'paid',
+          blockNumber: BigInt(CONFIRMED),
+        })
+      );
+    });
+
+    it('reads paid() at a fresh confirmed block for a BatchAlreadyPaid revert seen at broadcast', async () => {
+      client.waitForTransactionReceipt.mockResolvedValue(
+        Receipt({ status: 'reverted' })
+      );
+      client.getTransaction.mockResolvedValue({ input: built.data });
+      client.call.mockRejectedValue(ALREADY_PAID);
+      client.getBlockNumber.mockResolvedValue(80n);
+      client.getBlock.mockResolvedValue({ number: 79n, timestamp: 9_000n });
+      client.readContract.mockResolvedValue(true);
+      client.getLogs.mockResolvedValue([BatchPaidLog()]);
+
+      await expect(
+        ethereum.WaitForReceipt(HASH, expected)
+      ).resolves.toMatchObject({
+        status: 'paid',
+        transaction_hash: OTHER_HASH,
+      });
+      expect(client.readContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: 'paid', blockNumber: 79n })
       );
     });
 

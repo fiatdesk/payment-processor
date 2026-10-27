@@ -20,6 +20,7 @@ import {
   MockReceipt,
 } from './mocks/Settlement';
 import { Logger } from '../utils/Logger';
+import { BaseError, UnknownNodeError } from 'viem';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -1611,6 +1612,160 @@ describe('PayoutModule payout batches', () => {
         release_after: MOCK_BUILD_TIME + 624,
       });
       expect(Batches()[0].deadlines).toEqual([MOCK_BUILD_TIME + 600]);
+    });
+  });
+
+  describe('reconcile robustness (fix round 3)', () => {
+    async function BroadcastPendingBatch(): Promise<void> {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('pending', '0xhash_of_signed_tx')
+      );
+      await BroadcastSigned();
+    }
+
+    const PrunedNode = () =>
+      new UnknownNodeError({ cause: new BaseError('missing trie node') });
+
+    it('still releases and refunds after expiry when a receipt cannot be read', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('failed', '0xhash_of_signed_tx', {
+          failure_code: 'account_frozen',
+          failure_message: 'Blacklistable: account is blacklisted',
+        })
+      );
+      await BroadcastSigned();
+      settlement.GetTransactionStatus.mockRejectedValue(PrunedNode());
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+      expect(Batches()[0].status).toBe('reverted');
+      expect(AvailableBalance()).toBe(0);
+
+      Expire();
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ failed: 1 });
+      expect(Batches()[0].status).toBe('failed');
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+        status: 'failed',
+        failure_code: 'account_frozen',
+      });
+      expect(AvailableBalance()).toBe(3000);
+    });
+
+    it('frees the wallet lock of a hash-mode batch whose receipt cannot be read once it expires', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('pending', WALLET_HASH)
+      );
+      await BroadcastHash();
+      settlement.GetTransactionStatus.mockRejectedValue(PrunedNode());
+      Expire();
+
+      await expect(Build(['po_z_3'])).resolves.toMatchObject({
+        payout_batch: 'pob_z_test002',
+      });
+      expect(Batches()[0].status).toBe('replaced');
+    });
+
+    it('settles paid from paid() when a receipt cannot be read', async () => {
+      await BroadcastPendingBatch();
+      settlement.GetTransactionStatus.mockRejectedValue(PrunedNode());
+      settlement.IsBatchPaid.mockResolvedValue(true);
+      settlement.FindBatchPayment.mockResolvedValue(
+        MockReceipt('paid', SPEED_UP_HASH)
+      );
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'paid' });
+    });
+
+    it('completes a refund that failed midway on the next reconcile, refunding once', async () => {
+      await BroadcastPendingBatch();
+      Expire();
+      const update = memory.Update.bind(memory);
+      let balanceWrites = 0;
+      const spy = jest
+        .spyOn(memory, 'Update')
+        .mockImplementation(async (collection, id, data) => {
+          if (collection === 'Balances' && ++balanceWrites === 2) {
+            throw new Error('WriteConflict');
+          }
+          return update(collection, id, data);
+        });
+
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ pending: 1 });
+      // Nothing half-done: the batch and both payouts rolled back together.
+      expect(Batches()[0].status).toBe('broadcast');
+      expect(Statuses()).toMatchObject({
+        po_z_1: 'in_transit',
+        po_z_2: 'in_transit',
+      });
+      expect(AvailableBalance()).toBe(0);
+
+      spy.mockRestore();
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(Batches()[0].status).toBe('replaced');
+      expect(Statuses()).toMatchObject({ po_z_1: 'failed', po_z_2: 'failed' });
+      expect(AvailableBalance()).toBe(3000);
+    });
+
+    it('does not release a batch whose deadlines changed after reconcile read it', async () => {
+      await Build();
+      const stale = Batches()[0];
+      // A same-set re-price lands after reconcile read the batch.
+      await module.BuildPayoutsBatch('acct_z_platform', {
+        payouts: IDS.slice(0, 2),
+        replace: true,
+        deadline_seconds: 3600,
+      });
+      const store = (
+        module as unknown as {
+          payoutBatchStore: { ListOutstanding: () => Promise<PayoutBatch[]> };
+        }
+      ).payoutBatchStore;
+      jest.spyOn(store, 'ListOutstanding').mockResolvedValueOnce([stale]);
+      Expire(DEADLINE);
+
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ pending: 1 });
+
+      expect(Batches()[0]).toMatchObject({
+        status: 'built',
+        deadlines: [DEADLINE, MOCK_BUILD_TIME + 3600],
+      });
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
+        stale.id
+      );
+    });
+
+    it('clears the recorded failure when a reverted batch turns out paid', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('failed', '0xhash_of_signed_tx', {
+          failure_code: 'account_frozen',
+          failure_message: 'Blacklistable: account is blacklisted',
+        })
+      );
+      await BroadcastSigned();
+      settlement.IsBatchPaid.mockResolvedValue(true);
+      settlement.FindBatchPayment.mockResolvedValue(
+        MockReceipt('paid', SPEED_UP_HASH)
+      );
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+        status: 'paid',
+        failure_code: null,
+        failure_message: null,
+      });
     });
   });
 

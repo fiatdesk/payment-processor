@@ -676,3 +676,31 @@ libs/shared-schemas/src/lib/PayoutSchema.ts
 libs/shared-types/src/lib/Payout.ts
 sdks/node/src/generated/Inputs.ts
 ```
+
+### Task 8 fix round 3: reconcile robustness
+
+- **Unreadable receipts no longer block reconcile.** Reconcile reads every tracked or reported hash through `ReadTransactionStatus`, which logs and skips an unreadable receipt. A replay a pruned node cannot serve (`missing trie node`) or an out-of-gas replay therefore never stops the `paid()` verdict or the expiry proof: a reverted batch is still refunded once expired, and a hash-mode batch still frees the wallet lock.
+- **`BatchAlreadyPaid` uses the confirmed block.** A `BatchAlreadyPaid` revert reads `paid()` (and the log) at the confirmed block — reconcile's, or a fresh one at broadcast — never at the receipt's old block.
+- **Refunds and releases are atomic.** Ending a batch without payment moves the batch (from its own status) and refunds or releases every payout in one DB transaction, emitting `payout.failed` after the commit. A crash or a failed write mid-way rolls everything back for the next reconcile, which completes the refunds exactly once (`FailPayout` replaces `MarkPayoutFailed`).
+- **Releases are pinned to their deadlines.** The release's compare-and-set also requires the `deadlines` the batch was judged expired on, so a same-set re-price that added a deadline since makes it a no-op.
+- **Paid payouts drop stale failures.** A payout marked `paid` clears any `failure_code`/`failure_message` recorded while its batch was `reverted`.
+- **New specs:**
+  - an unreadable receipt, still released and refunded after expiry;
+  - a hash-mode batch freeing its lock;
+  - a refund interrupted midway, completed once;
+  - a re-price racing a release;
+  - simulated-rail recovery of a batch a crash left in `broadcast`, by broadcasting it again.
+- **Dev databases.** Dev databases created before commit `5111a46` should drop the `PayoutBatches` collection: batches recorded before deadlines existed hold their payouts permanently (they could still be mined).
+
+Modified in fix round 3:
+
+```
+CHANGES.md
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/mocks/MemoryDatabase.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/PayoutBatchStore.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+```

@@ -428,7 +428,7 @@ export class Ethereum implements Settlement {
     if (receipt.blockNumber > BigInt(confirmedBlock)) {
       return this.Pending(transactionHash);
     }
-    return this.SettleReceipt(receipt, expected);
+    return this.SettleReceipt(receipt, expected, confirmedBlock);
   }
 
   /**
@@ -670,7 +670,8 @@ export class Ethereum implements Settlement {
    */
   private async SettleReceipt(
     receipt: TransactionReceipt,
-    expected: PayoutTransactionExpectation
+    expected: PayoutTransactionExpectation,
+    confirmedBlock?: number
   ): Promise<BroadcastResult> {
     const hash = receipt.transactionHash.toLowerCase();
     const built = parseTransaction(expected.unsignedTransaction as Hex);
@@ -718,10 +719,13 @@ export class Ethereum implements Settlement {
     }
     const revert = await this.RevertReason(transaction, receipt.blockNumber);
     if (revert.errorName === 'BatchAlreadyPaid') {
-      // Another transaction paid this batch first: never a failure.
-      const blockNumber = Number(receipt.blockNumber);
+      // Another transaction paid this batch first: never a failure. The
+      // verdict is paid() at the confirmed block, not at the receipt's block
+      // (whose state a pruned node may no longer hold).
+      const blockNumber =
+        confirmedBlock ?? (await this.GetConfirmedBlock()).number;
       if (!(await this.IsBatchPaid(expected, blockNumber))) {
-        return Unsettled('BatchAlreadyPaid without a paid batch');
+        return Unsettled('BatchAlreadyPaid but the batch is not paid yet');
       }
       return (
         (await this.FindBatchPayment(expected, blockNumber)) ??

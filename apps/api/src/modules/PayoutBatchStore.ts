@@ -249,6 +249,8 @@ export class PayoutBatchStore {
     options: {
       addTransactionHash?: string;
       addReportedHash?: string;
+      /** Further fields the batch must still hold (an expected snapshot) */
+      match?: Record<string, unknown>;
       session?: ClientSession;
     } = {}
   ): Promise<PayoutBatch> {
@@ -265,6 +267,7 @@ export class PayoutBatchStore {
     const updated = await this.db.FindOneAndUpdateByFilter<PayoutBatch>(
       COLLECTION,
       {
+        ...options.match,
         id: batch.id,
         platform_account: batch.platform_account,
         status: { $in: [...from] },

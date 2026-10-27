@@ -180,6 +180,10 @@ function Matches(doc: Doc, filter: Filter): boolean {
       if ('$ne' in condition) return !values.includes(condition.$ne);
       throw new Error(`Unsupported filter ${JSON.stringify(condition)}`);
     }
+    // An array condition matches the whole array exactly, as in Mongo.
+    if (Array.isArray(condition)) {
+      return JSON.stringify(value ?? null) === JSON.stringify(condition);
+    }
     return values.some((v) => (v ?? null) === (condition ?? null));
   });
 }

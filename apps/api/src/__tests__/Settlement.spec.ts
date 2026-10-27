@@ -301,6 +301,36 @@ describe('simulated rail payout batches', () => {
     module = new PayoutModule(memory.AsDatabase());
   });
 
+  it('recovers a batch a crash left in broadcast by broadcasting it again', async () => {
+    const built = await module.BuildPayoutsBatch('acct_z_platform', {
+      payouts: ['po_z_1'],
+    });
+    // The crash came after persisting the broadcast, before settling it.
+    const [batch] = memory.All<{ id: string }>('PayoutBatches');
+    memory.Seed('PayoutBatches', {
+      ...batch,
+      status: 'broadcast',
+      broadcast_mode: 'signed_transaction',
+      transaction_hash: `sim_sig_payout:${built.batch_id}`,
+      transaction_hashes: [`sim_sig_payout:${built.batch_id}`],
+    });
+    memory.Seed('Payouts', {
+      ...memory.Doc<Record<string, unknown>>('Payouts', 'po_z_1'),
+      status: 'in_transit',
+    });
+
+    await expect(
+      module.BroadcastPayoutsBatch('acct_z_platform', {
+        signed_transaction: built.unsigned_transaction,
+        payouts: ['po_z_1'],
+      })
+    ).resolves.toMatchObject({ status: 'paid' });
+    expect(memory.Doc('Payouts', 'po_z_1')).toMatchObject({ status: 'paid' });
+    expect(memory.Doc('PayoutBatches', batch.id)).toMatchObject({
+      status: 'paid',
+    });
+  });
+
   it('holds the wallet lock from build until broadcast', async () => {
     const built = await module.BuildPayoutsBatch('acct_z_platform', {
       payouts: ['po_z_1'],
