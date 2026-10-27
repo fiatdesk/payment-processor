@@ -1055,3 +1055,56 @@ apps/docs/src/app/pages/docs/data/payment-links.ts
 libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
 libs/shared-types/src/lib/CheckoutSession.ts
 ```
+
+## Task 13: `Subscriptions` contract for allowance-based recurring pulls
+
+`contracts/src/Subscriptions.sol` replaces the `@solana/subscriptions` program. It is a plan registry plus pulls from each subscriber's standing USDC allowance, at most the plan amount once per period. The API does not use it yet; Task 14 wires plans, subscribes and charges to it.
+
+- **Plans:**
+  - `createPlan(planId, token, amount, periodSeconds, destination, puller)` stores a plan under `planKey = keccak256(abi.encode(msg.sender, planId))`.
+  - The period must be greater than 0 and at most 10 years (`MAX_PERIOD_SECONDS`), else `InvalidPeriod`. A zero amount is `InvalidAmount`.
+  - A plan's token, amount and period never change, and a plan key cannot be registered twice (`PlanExists`). A `Subscribe` signature over a plan key therefore commits to those terms.
+  - The owner can call `setPlanDestination`, `setPlanPuller` and `deactivatePlan`. Deactivation is permanent and only blocks new subscribes; existing subscriptions keep billing.
+  - Zero token, destination or puller addresses are refused (`ZeroAddress`).
+- **Subscribing:**
+  - `subscribe(planKey)`: the caller subscribes itself and pays the gas.
+  - `subscribeWithAuthorization(planKey, subscriber, deadline, sig)`: relayed with an EIP-712 `Subscribe(bytes32 planKey,address subscriber,uint256 nonce,uint256 deadline)` signature. The domain is name `Subscriptions`, version `1`. The nonce is `nonces(subscriber)` and is used up by the call, and the deadline is inclusive.
+  - `subscribeWithPermit(…)`: applies the subscriber's EIP-2612 `permit` on the plan's token, then subscribes the same way. If that permit fails but the allowance it grants is already in place (someone submitted it first), the subscribe goes on; otherwise the token's revert reason is re-thrown.
+  - `subId = keccak256(abi.encode(planKey, subscriber))`.
+  - The first period is due at subscribe time. An `Active` or `Paused` subscription cannot subscribe again (`AlreadySubscribed`). A `Canceled` one can, which starts a fresh schedule.
+- **Charging:**
+  - Only the plan's puller may call `charge(subId, amount)`.
+  - It requires an `Active` subscription, `0 < amount <= plan.amount` (`InvalidAmount` / `AmountExceedsPlan`) and `block.timestamp >= nextChargeAt` (`NotDueYet`).
+  - It moves `nextChargeAt` forward by exactly one period, then `safeTransferFrom(subscriber, destination, amount)`.
+  - Missed periods can be collected later, one charge per elapsed period.
+- **Pause, resume, cancel:** the subscriber or the plan owner can call them. `pause` needs `Active`. `resume` needs `Paused` (`NotPaused`) and sets `nextChargeAt = now + period`. `cancel` needs `Active` or `Paused`.
+- **Events and errors:** `PlanCreated`, `Subscribed`, `Charged`, `Canceled`, `Paused` and `Resumed` as in plan §4.6, plus `PlanDestinationSet`, `PlanPullerSet` and `PlanDeactivated`, so destination and puller changes can be monitored. The errors are those of §4.6 plus `PlanExists`, `NotPaused` and `ZeroAddress`.
+- **Governance:** no owner, no pause switch, non-upgradeable, never holds tokens or ETH. It is built on OpenZeppelin `EIP712`, `Nonces`, `ECDSA`, `SafeERC20` and `IERC20Permit` (used directly, so there is no local interface file). `contracts/README.md` documents the ids, the signing domain, the arrears rule and how revoking the allowance stops pulls. An external audit is required before any mainnet deployment.
+- `script/DeploySubscriptions.s.sol` deploys it with the signer given on the command line, like `DeployPayoutBatch.s.sol`.
+- `SUBSCRIPTIONS_ABI` (`apps/api/src/modules/chains/abi/Subscriptions.ts`) is the contract ABI. A harness test fails if it drifts from the forge artifact.
+- **Anvil harness:** `StartAnvil()` now also deploys `Subscriptions` with account #0. It sets `SUBSCRIPTIONS_ADDRESS`, and `AnvilContext.addresses.subscriptions` is always an address. `Harness.anvil.spec.ts` checks the deployment, its EIP-712 domain, the ABI sync and the chain config's `subscriptions` address.
+- **Tests:** `contracts/test/Subscriptions.t.sol` has 52 unit and fuzz tests and 3 invariants. They cover:
+  - plan creation, key derivation, validation and owner-only changes;
+  - subscribe, the relayed authorization (deadline, wrong signer, malformed signature, binding to plan and deadline, no replay after cancel), and the permit path (relayed, front-run permit, bad permit, rollback on a bad `Subscribe` signature);
+  - the charge schedule (due at once, `NotDueYet`, exact period steps, arrears, amount limits, puller only, revoked allowance, failed transfer);
+  - cancel, pause and resume, including their state rules;
+  - `testFuzzChargeSchedule(uint64 period, uint8 cycles)`;
+  - a handler-based invariant suite. Over N billing periods started while a subscription was active, total charged ≤ N × amount and charge count ≤ N, the destination receives exactly what was charged, and only the puller charges.
+
+Added:
+
+```
+apps/api/src/modules/chains/abi/Subscriptions.ts
+contracts/script/DeploySubscriptions.s.sol
+contracts/src/Subscriptions.sol
+contracts/test/Subscriptions.t.sol
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/anvil/Anvil.ts
+apps/api/src/__tests__/anvil/Harness.anvil.spec.ts
+contracts/README.md
+```

@@ -3,6 +3,7 @@ import { parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { GetAppConfig } from '../../modules/AppConfig';
 import { PAYOUT_BATCH_ABI } from '../../modules/chains/abi/PayoutBatch';
+import { SUBSCRIPTIONS_ABI } from '../../modules/chains/abi/Subscriptions';
 import { USDC_ABI } from '../../modules/chains/abi/Usdc';
 import { GetChainConfig } from '../../modules/chains/Chain';
 import { Ethereum } from '../../modules/chains/Ethereum';
@@ -80,6 +81,38 @@ describe('Anvil harness', () => {
     expect(PAYOUT_BATCH_ABI).toEqual(ReadArtifact('PayoutBatch').abi);
   });
 
+  it('deploys Subscriptions with its EIP-712 domain', async () => {
+    const { publicClient, addresses, chainId } = Context();
+
+    const code = await publicClient.getCode({
+      address: addresses.subscriptions,
+    });
+    expect(code?.length ?? 0).toBeGreaterThan(2);
+    await expect(
+      publicClient.readContract({
+        address: addresses.subscriptions,
+        abi: SUBSCRIPTIONS_ABI,
+        functionName: 'MAX_PERIOD_SECONDS',
+      })
+    ).resolves.toBe(315_360_000n);
+    const [, name, version, domainChainId, verifyingContract] =
+      await publicClient.readContract({
+        address: addresses.subscriptions,
+        abi: SUBSCRIPTIONS_ABI,
+        functionName: 'eip712Domain',
+      });
+    expect({ name, version, domainChainId, verifyingContract }).toEqual({
+      name: 'Subscriptions',
+      version: '1',
+      domainChainId: BigInt(chainId),
+      verifyingContract: addresses.subscriptions,
+    });
+  });
+
+  it('keeps SUBSCRIPTIONS_ABI in sync with the forge artifact', () => {
+    expect(SUBSCRIPTIONS_ABI).toEqual(ReadArtifact('Subscriptions').abi);
+  });
+
   it('points the Ethereum rail at the local chain', async () => {
     const { addresses, accounts } = Context();
 
@@ -93,7 +126,7 @@ describe('Anvil harness', () => {
       confirmations: 1,
       usdc: addresses.usdc,
       payoutBatch: addresses.payoutBatch,
-      subscriptions: null,
+      subscriptions: addresses.subscriptions,
     });
     await expect(
       new Ethereum().GetUSDCBalance(
