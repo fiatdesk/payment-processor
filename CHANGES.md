@@ -732,10 +732,10 @@ The Node SDK and the dashboard now drive the Ethereum payout API from Task 8. Bo
 
   The class and `PAYOUT_BATCH_ERROR_CODES` are exported. The README gains a payouts section covering the private key, the allowance step, gas, pending results and same-set `replace`.
 
-- **Public config (A3).**
+- **Public config.**
   - `PublicConfig` gains `network`, `chain_id` and `explorer_url_base`. They come from the rail's `Describe()` and the chain explorer table, through `PublicRailConfig()`. The base is empty on Anvil and on the simulated rail.
   - The web's duplicate `EtherscanUrl`, which linked Anvil to Sepolia, is removed. `ConfigService.GetExplorerUrl()` replaces it in the payment intent and balance views.
-- **Wallet (A1, A2).** `WalletService.SendTransaction({ from, to, data, value?, chainId })`:
+- **Wallet.** `WalletService.SendTransaction({ from, to, data, value?, chainId })`:
 
   - Right before sending, it re-reads the active account (`eth_accounts`) and checks `getChainId()`.
   - It then passes a chain object, so viem checks the chain once more.
@@ -749,7 +749,7 @@ The Node SDK and the dashboard now drive the Ethereum payout API from Task 8. Bo
   New helpers: `ReadBuiltTransaction` (checked target and calldata) and `IsUserRejectedError`.
 
 - **Dashboard payout modal.** The on-chain flow takes two clicks:
-  1. "Review payout" creates the payout and builds it with `deadline_seconds: 300`. That is the A6 value, which replaces A5's 600.
+  1. "Review payout" creates the payout and builds it with `deadline_seconds: 300`, so a build that is never signed releases its payout within minutes.
   2. "Sign and pay out" signs and broadcasts.
 - **Approval.** An approval build adds an "Approve USDC" step first, and the payout is then built for its own confirmation.
 - **Wallet path.** `EnsureChain(config.chain_id)` → `SendTransaction` → broadcast `{ transaction_hash }`.
@@ -768,9 +768,10 @@ The Node SDK and the dashboard now drive the Ethereum payout API from Task 8. Bo
 - **Fee display.** Open decision 16 is resolved as ETH-only display; a Chainlink-backed USD estimate is a follow-up after Task 18 verifies the Chainlink ETH/USD feed addresses. The fee rows leave a slot for that USD line.
   - Follow-up: Chainlink ETH/USD feed addresses to be verified in Task 18.
   - The gas guide is plain text until Task 16 adds the gas page.
-- **Unclear outcomes.** These are a `pending` broadcast, a broadcast error such as `transaction_not_found` or a timeout, and a wallet error other than a user rejection. Each leads to "Submitted, waiting for confirmations.", whose only action is Reconcile.
-  - Reconcile then reads the payout. It closes on `paid`, reports `failed`, and returns to review once the batch released the payout.
-  - A user rejection lets the user sign the same build again.
+- **Unclear outcomes.** Each leads to the submitted step, whose only action is Reconcile:
+  - A `pending` broadcast, or a broadcast error such as `transaction_not_found` or a timeout, shows "Submitted, waiting for confirmations.".
+  - A wallet error after the prompt shows "The wallet did not confirm whether it sent the transaction…". This excludes a user rejection and a `WalletNotReadyError` (wrong account or chain, nothing sent): those keep the review step, so the user can sign the same build again.
+  - Reconcile then reads the payout. It closes on `paid`, reports `failed`, and returns to details, for a fresh build, once the batch released the payout.
 - **Batch conflicts.** `payout_batch_in_progress` on build offers Reconcile and "Replace outstanding batch" (`replace: true`). `payout_batch_in_flight` and `payout_batch_already_paid` offer Reconcile.
 - **Simulated rail.** It keeps its one-click flow (`sim_tx`).
 - **Web plumbing.**
@@ -812,6 +813,44 @@ libs/shared-types/src/lib/Config.ts
 libs/shared-types/src/lib/Payout.ts
 sdks/node/README.md
 sdks/node/src/HttpClient.ts
+sdks/node/src/__tests__/Payouts.spec.ts
+sdks/node/src/index.ts
+sdks/node/src/resources/Payouts.ts
+```
+
+### Task 9 fix round 1: broadcast timeouts and recovery coverage
+
+- **SDK broadcast timeouts.**
+  - Requests take a per-request `timeout` (`RequestExtraOptions.timeout`). `HttpClient.GetTimeout()` exposes the client default.
+  - `payouts.broadcast()` waits at least 90 s for a signed transaction and 150 s for a transaction hash, or the client `timeout` if that is longer. An explicit `options.timeout` overrides both.
+  - The API can wait 60 s for confirmations, plus 60 s for a hash to appear. The SDK's 30 s default used to abort first, with a raw `TimeoutError` instead of a `pending` result.
+  - A broadcast that still gets no answer throws `ZonelessPayoutBatchError` with `code: 'broadcast_timeout'` (`statusCode: 0`), telling the caller to `reconcile()` and not sign again. Nothing is retried.
+  - The client-level `timeout` is documented in the README and the `ZonelessConfig` JSDoc.
+- **SDK `processAll`.** When a later batch throws, the error carries `results` (`ProcessAllError`): the batches processed before it.
+- **Wallet.** viem's own chain check (`ChainMismatchError`, raised before the request) now surfaces as `WalletNotReadyError`, because nothing was sent. `SignedTransactionHash()` hashes a signed transaction locally.
+- **Dashboard.** The private-key path shows the signed transaction's `keccak256` hash before the broadcast, so the operator can look it up on the explorer if the broadcast fails.
+- **Specs.** New specs cover the recovery branches:
+  - reconcile after a pending broadcast: released → details, failed, not settled;
+  - a pending approval still holding the wallet;
+  - the closed signing window;
+  - `WalletNotReadyError` keeping the review step;
+  - the local hash.
+- **Docs.** The build snippet signs the approval in its branch and the payout after the rebuild.
+- **This changelog.** Task 9's notes no longer cite internal addendum labels, and they now describe the wallet-error notice and the return to details correctly.
+
+Modified in fix round 1:
+
+```
+CHANGES.md
+apps/docs/src/app/pages/docs/data/payouts.ts
+apps/web/src/app/core/services/wallet-viem.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.spec.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.ts
+sdks/node/README.md
+sdks/node/src/HttpClient.ts
+sdks/node/src/__tests__/HttpClient.spec.ts
 sdks/node/src/__tests__/Payouts.spec.ts
 sdks/node/src/index.ts
 sdks/node/src/resources/Payouts.ts

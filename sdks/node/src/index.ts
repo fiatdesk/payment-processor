@@ -25,7 +25,11 @@ import { WebhookEndpoints } from './resources/WebhookEndpoints';
 import { Webhooks } from './resources/Webhooks';
 
 export interface ZonelessConfig {
-  /** Request timeout in milliseconds (default: 30000) */
+  /**
+   * Request timeout in milliseconds (default: 30000). Payout broadcasts wait
+   * for confirmations, so they use at least 90 s (150 s for a reported hash);
+   * any request can set its own `timeout` in its options.
+   */
   timeout?: number;
 }
 
@@ -201,6 +205,7 @@ export {
 export type { PayoutBatchErrorCode, RequestExtraOptions } from './HttpClient';
 export type {
   EnsureAllowanceOptions,
+  ProcessAllError,
   ProcessAllOptions,
   ProcessBatchOptions,
   SignPayoutOptions,

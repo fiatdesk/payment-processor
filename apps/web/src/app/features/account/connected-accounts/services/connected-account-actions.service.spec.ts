@@ -2,6 +2,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { Injector } from '@angular/core';
 import {
+  keccak256,
   parseTransaction,
   recoverTransactionAddress,
   serializeTransaction,
@@ -137,6 +138,18 @@ function FakeWallet(
       }
     }),
   };
+}
+
+/** Wallet whose active account changes to another one after connecting. */
+function SwitchedAccountWallet(): Eip1193Provider & { request: jest.Mock } {
+  const wallet = FakeWallet();
+  const connected = wallet.request.getMockImplementation();
+  wallet.request.mockImplementation(async (args: { method: string }) =>
+    args.method === 'eth_accounts'
+      ? ['0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266']
+      : connected?.(args)
+  );
+  return wallet;
 }
 
 function Sent(provider: {
@@ -432,6 +445,146 @@ describe('ConnectedAccountActionsService payouts', () => {
       expect(service.payoutOpen()).toBe(false);
     });
 
+    it('keeps the review step when the wallet account changed before sending', async () => {
+      provider = SwitchedAccountWallet();
+      Create(provider);
+      await OpenReadyPayout();
+      await service.ConnectPayoutWallet();
+      payoutService.BuildPayoutsBatch.mockResolvedValue(PayoutBuild());
+
+      await service.ConfirmPayout();
+      await service.ConfirmPayout();
+
+      expect(service.payoutStep()).toBe('review');
+      expect(service.payoutError()).toMatch(
+        /active account is not the platform wallet/
+      );
+      expect(Sent(provider)).toEqual([]);
+      expect(payoutService.BroadcastPayoutsBatch).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing once the signing window has closed', async () => {
+      payoutService.BuildPayoutsBatch.mockResolvedValue({
+        ...PayoutBuild(),
+        deadline: Math.floor(Date.now() / 1000) - 1,
+      });
+
+      await service.ConfirmPayout();
+      await service.ConfirmPayout();
+
+      expect(service.payoutStep()).toBe('submitted');
+      expect(service.payoutNotice()).toMatch(/^The signing window closed at /);
+      expect(Sent(provider)).toEqual([]);
+      expect(payoutService.BroadcastPayoutsBatch).not.toHaveBeenCalled();
+    });
+
+    describe('reconcile after a pending broadcast', () => {
+      beforeEach(async () => {
+        payoutService.BuildPayoutsBatch.mockResolvedValue(PayoutBuild());
+        payoutService.BroadcastPayoutsBatch.mockResolvedValue(
+          Broadcast({ status: 'pending' })
+        );
+        payoutService.Reconcile.mockResolvedValue({
+          object: 'payout_reconcile',
+          reconciled: 1,
+          paid: 0,
+          failed: 0,
+          pending: 1,
+        });
+        await service.ConfirmPayout();
+        await service.ConfirmPayout();
+        expect(service.payoutStep()).toBe('submitted');
+      });
+
+      it('returns to details for a fresh build once the batch released the payout', async () => {
+        payoutService.GetPayout.mockResolvedValue({
+          id: 'po_z_1',
+          status: 'pending',
+          payout_batch: null,
+        });
+
+        await service.ConfirmPayout();
+
+        expect(service.payoutStep()).toBe('details');
+        expect(service.payoutBuildResult()).toBeNull();
+        expect(service.payoutNotice()).toMatch(/not sent and is pending again/);
+
+        await service.ConfirmPayout();
+
+        expect(payoutService.BuildPayoutsBatch).toHaveBeenCalledTimes(2);
+        expect(service.payoutStep()).toBe('review');
+        expect(Sent(provider)).toHaveLength(1);
+      });
+
+      it('reports a failed payout', async () => {
+        payoutService.GetPayout.mockResolvedValue({
+          id: 'po_z_1',
+          status: 'failed',
+          failure_message: 'Recipient is blacklisted',
+        });
+
+        await service.ConfirmPayout();
+
+        expect(service.payoutStep()).toBe('submitted');
+        expect(service.payoutError()).toBe(
+          "The payout failed: Recipient is blacklisted. Its amount was returned to the connected account's balance."
+        );
+      });
+
+      it('keeps waiting while the batch still holds the payout', async () => {
+        payoutService.GetPayout.mockResolvedValue({
+          id: 'po_z_1',
+          status: 'in_transit',
+          payout_batch: 'pob_z_1',
+        });
+
+        await service.ConfirmPayout();
+
+        expect(service.payoutStep()).toBe('submitted');
+        expect(service.payoutNotice()).toBe(
+          'Not settled yet. Reconcile again in a minute.'
+        );
+        expect(Sent(provider)).toHaveLength(1);
+        expect(payoutService.BroadcastPayoutsBatch).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('keeps waiting while a pending approval still holds the wallet', async () => {
+      payoutService.BuildPayoutsBatch.mockResolvedValueOnce(
+        ApprovalBuild()
+      ).mockRejectedValueOnce(
+        ApiFailure(
+          'Payout batch pob_z_approval is broadcast',
+          409,
+          'payout_batch_in_progress'
+        )
+      );
+      payoutService.BroadcastPayoutsBatch.mockResolvedValue(
+        Broadcast({ transaction_type: 'approval', status: 'pending' })
+      );
+      payoutService.Reconcile.mockResolvedValue({
+        object: 'payout_reconcile',
+        reconciled: 1,
+        paid: 0,
+        failed: 0,
+        pending: 1,
+      });
+
+      await service.ConfirmPayout();
+      await service.ConfirmPayout();
+      expect(service.payoutStep()).toBe('submitted');
+
+      await service.ConfirmPayout();
+
+      expect(service.payoutStep()).toBe('submitted');
+      expect(service.payoutRecovery()).toBe('none');
+      expect(service.payoutError()).toBe('');
+      expect(service.payoutNotice()).toBe(
+        'The approval is still waiting for confirmations. Reconcile again in a minute.'
+      );
+      expect(Sent(provider)).toHaveLength(1);
+    });
+
     it('does not cancel a payout its built batch holds when the modal closes', async () => {
       payoutService.BuildPayoutsBatch.mockResolvedValue(PayoutBuild());
 
@@ -471,6 +624,26 @@ describe('ConnectedAccountActionsService payouts', () => {
       );
       expect(service.payoutPrivateKey()).toBe('');
       expect(Sent(provider)).toEqual([]);
+    });
+
+    it('shows the locally computed hash when the broadcast fails', async () => {
+      await OpenReadyPayout();
+      service.SetPayoutSignerMethod('private_key');
+      service.SetPayoutPrivateKey(PRIVATE_KEY);
+      await service.ValidatePayoutPrivateKey();
+      payoutService.BuildPayoutsBatch.mockResolvedValue(PayoutBuild());
+      payoutService.BroadcastPayoutsBatch.mockRejectedValue(
+        new Error('Request timeout after 150000ms')
+      );
+
+      await service.ConfirmPayout();
+      await service.ConfirmPayout();
+
+      const signed = payoutService.BroadcastPayoutsBatch.mock.calls[0][0]
+        .signed_transaction as Hex;
+      expect(service.payoutStep()).toBe('submitted');
+      expect(service.payoutSubmittedHash()).toBe(keccak256(signed));
+      expect(service.payoutError()).toBe('Request timeout after 150000ms');
     });
 
     it('clears the key after the approval signature and asks for it again', async () => {

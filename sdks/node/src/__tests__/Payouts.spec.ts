@@ -102,7 +102,12 @@ async function SignerOf(signed: Hex): Promise<string> {
 describe('Payouts Resource', () => {
   const Get = jest.fn();
   const Post = jest.fn();
-  const payouts = new Payouts({ Get, Post } as unknown as HttpClient);
+  const GetTimeout = jest.fn(() => 30000);
+  const payouts = new Payouts({
+    Get,
+    Post,
+    GetTimeout,
+  } as unknown as HttpClient);
 
   /** Posts in order, without the request options. */
   const Posts = () => Post.mock.calls.map(([path, body]) => [path, body]);
@@ -110,6 +115,7 @@ describe('Payouts Resource', () => {
   beforeEach(() => {
     Get.mockReset();
     Post.mockReset();
+    GetTimeout.mockReturnValue(30000);
   });
 
   describe('processBatch', () => {
@@ -311,7 +317,8 @@ describe('Payouts Resource', () => {
       });
 
       for (const [, , options] of Post.mock.calls) {
-        expect(options).toEqual({ zonelessAccount: 'acct_1' });
+        expect(options).toMatchObject({ zonelessAccount: 'acct_1' });
+        expect(options).not.toHaveProperty('idempotencyKey');
       }
     });
 
@@ -361,6 +368,34 @@ describe('Payouts Resource', () => {
       ]);
       expect(results[1].has_more).toBe(true);
       expect(Post).toHaveBeenCalledTimes(4);
+    });
+
+    it('attaches the results so far when a later batch throws', async () => {
+      Get.mockResolvedValue({
+        object: 'list',
+        data: [{ id: 'po_z_1' }],
+        has_more: true,
+      });
+      const conflict = new ZonelessApiError({
+        type: 'payout_batch_in_progress',
+        message: 'Payout batch pob_z_9 is built',
+        statusCode: 409,
+      });
+      Post.mockResolvedValueOnce(Build())
+        .mockResolvedValueOnce(Broadcast({ transaction_hash: '0x01' }))
+        .mockRejectedValueOnce(conflict);
+
+      const error = await payouts
+        .processAll(PRIVATE_KEY, { delayBetweenBatchesMs: 0 })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ZonelessPayoutBatchError);
+      expect(error.code).toBe('payout_batch_in_progress');
+      expect(
+        error.results.map(
+          (r: { transaction_hash: string }) => r.transaction_hash
+        )
+      ).toEqual(['0x01']);
     });
 
     it('keeps a pending approval in the results', async () => {
@@ -446,6 +481,47 @@ describe('Payouts Resource', () => {
         name: 'ZonelessPayoutBatchError',
         code: 'transaction_not_found',
       });
+    });
+
+    it('waits at least 90 s for a signed transaction and 150 s for a hash', async () => {
+      Post.mockResolvedValue(Broadcast());
+
+      await payouts.broadcast({ signed_transaction: '0x02', payouts: [] });
+      await payouts.broadcast({
+        transaction_hash: `0x${'ab'.repeat(32)}`,
+        payouts: [],
+      });
+      GetTimeout.mockReturnValue(200000);
+      await payouts.broadcast({ signed_transaction: '0x02', payouts: [] });
+      await payouts.broadcast(
+        { signed_transaction: '0x02', payouts: [] },
+        { timeout: 100000 }
+      );
+
+      expect(Post.mock.calls.map(([, , options]) => options.timeout)).toEqual([
+        90000, 150000, 200000, 100000,
+      ]);
+    });
+
+    it('turns a broadcast timeout into broadcast_timeout without retrying', async () => {
+      Post.mockRejectedValue(
+        Object.assign(new Error('The operation was aborted due to timeout'), {
+          name: 'TimeoutError',
+        })
+      );
+
+      const error = await payouts
+        .broadcast({ signed_transaction: '0x02', payouts: ['po_z_1'] })
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(ZonelessPayoutBatchError);
+      expect(error).toMatchObject({
+        code: 'broadcast_timeout',
+        type: 'broadcast_timeout',
+        statusCode: 0,
+      });
+      expect(error.message).toMatch(/reconcile\(\)/);
+      expect(Post).toHaveBeenCalledTimes(1);
     });
 
     it('leaves other API errors untyped', async () => {

@@ -26,6 +26,17 @@ const SIMULATED_TRANSACTION = 'sim_tx';
 /** Most payouts one batch transaction pays (the API's limit). */
 const MAX_BATCH_PAYOUTS = 100;
 
+/** The API waits up to 60 s for confirmations of a signed transaction. */
+const SIGNED_BROADCAST_TIMEOUT_MS = 90000;
+/** A reported hash can take 60 s to appear, then 60 s to confirm. */
+const HASH_BROADCAST_TIMEOUT_MS = 150000;
+
+/**
+ * Thrown by `processAll()` when a batch fails: `results` holds the batches
+ * processed before it.
+ */
+export type ProcessAllError = Error & { results: ProcessPendingResult[] };
+
 export interface SignPayoutOptions {
   /** Platform wallet address the private key must belong to */
   expectedSigner?: string;
@@ -138,11 +149,17 @@ export class Payouts extends BaseResource {
    * `status` is `paid`, `failed`, or `pending` (not confirmed yet; the payouts
    * stay `in_transit` and settle through `reconcile()`).
    *
+   * The API waits for confirmations before it answers, so this request waits
+   * at least 90 s for a signed transaction and 150 s for a hash, or longer
+   * when the client `timeout` is longer. `options.timeout` overrides both.
+   *
    * @param params - The signed transaction or hash, and the payout IDs
    * @param options - Optional request options
    * @returns Broadcast result with the transaction hash and updated payouts
    * @throws ZonelessPayoutBatchError with `code` set, e.g.
-   *   `transaction_not_found` or `payout_batch_mismatch`
+   *   `transaction_not_found` or `payout_batch_mismatch`, or
+   *   `broadcast_timeout` when no answer arrived in time: the transaction may
+   *   still be mined, so call `reconcile()` later and never sign it again
    *
    * @example
    * ```typescript
@@ -159,13 +176,33 @@ export class Payouts extends BaseResource {
     params: BroadcastPayoutsBatchInput,
     options?: RequestExtraOptions
   ): Promise<PayoutBatchBroadcastResponse> {
-    return this.PayoutBatchCall(() =>
-      this.client.Post<PayoutBatchBroadcastResponse>(
-        '/payouts/broadcast',
-        params,
-        options
-      )
-    );
+    const timeout =
+      options?.timeout ??
+      Math.max(
+        this.client.GetTimeout(),
+        params.transaction_hash
+          ? HASH_BROADCAST_TIMEOUT_MS
+          : SIGNED_BROADCAST_TIMEOUT_MS
+      );
+    try {
+      return await this.PayoutBatchCall(() =>
+        this.client.Post<PayoutBatchBroadcastResponse>(
+          '/payouts/broadcast',
+          params,
+          { ...options, timeout }
+        )
+      );
+    } catch (error) {
+      if (!IsTimeout(error)) throw error;
+      throw new ZonelessPayoutBatchError({
+        type: 'broadcast_timeout',
+        code: 'broadcast_timeout',
+        message: `Broadcast got no answer within ${
+          timeout / 1000
+        } s. The transaction may still be mined: call payouts.reconcile() later, and do not sign these payouts again.`,
+        statusCode: 0,
+      });
+    }
   }
 
   /**
@@ -355,6 +392,8 @@ export class Payouts extends BaseResource {
    * @param privateKey - Your platform wallet's private key (`0x` + 64 hex)
    * @param options - `delayBetweenBatchesMs`, `expectedSigner` and request options
    * @returns Array of results, one per batch processed
+   * @throws The failing batch's error (see `processBatch`) as a
+   *   `ProcessAllError`: its `results` holds the batches processed before it
    *
    * @example
    * ```typescript
@@ -377,10 +416,17 @@ export class Payouts extends BaseResource {
     const delayMs = delayBetweenBatchesMs ?? 2000;
 
     for (;;) {
-      const result = await this.processBatch(privateKey, {
-        expectedSigner,
-        requestOptions,
-      });
+      let result: ProcessPendingResult;
+      try {
+        result = await this.processBatch(privateKey, {
+          expectedSigner,
+          requestOptions,
+        });
+      } catch (error) {
+        // Tell the caller which batches settled before this one failed.
+        if (error instanceof Error) Object.assign(error, { results });
+        throw error;
+      }
       if (result.transaction_hash) results.push(result);
 
       if (result.status !== 'paid') {
@@ -484,6 +530,12 @@ export class Payouts extends BaseResource {
 
     return query;
   }
+}
+
+/** `AbortSignal.timeout` rejects fetch with a `TimeoutError` (or `AbortError`). */
+function IsTimeout(error: unknown): boolean {
+  const name = (error as { name?: unknown } | null)?.name;
+  return name === 'TimeoutError' || name === 'AbortError';
 }
 
 function IsSameAddress(a: string, b: string): boolean {

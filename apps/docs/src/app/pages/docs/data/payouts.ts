@@ -1062,26 +1062,30 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
+const key = process.env.WALLET_PRIVATE_KEY;
+const payouts = ['po_z_1Nv0FGQ9RKHgCVdK', 'po_z_2Xw1GHR0SKIiDWeL'];
+
 // Build an unsigned transaction for multiple payouts
-const build = await zoneless.payouts.build({
-  payouts: [
-    'po_z_1Nv0FGQ9RKHgCVdK',
-    'po_z_2Xw1GHR0SKIiDWeL'
-  ]
-});
+let build = await zoneless.payouts.build({ payouts });
 
 if (build.transaction_type === 'approval') {
-  // Sign and broadcast the one-time approval with payouts: [],
-  // then build again (payouts.ensureAllowance() does both)
+  // One-time: sign and broadcast the approval, then build again.
+  // (payouts.ensureAllowance() does both.)
+  const approval = await zoneless.payouts.broadcast({
+    signed_transaction: await zoneless.payouts.sign(build, key),
+    payouts: [],
+  });
+  if (approval.status !== 'paid') {
+    throw new Error('Approval not confirmed yet; reconcile, then retry');
+  }
+  build = await zoneless.payouts.build({ payouts });
 }
 
-// Checks build.to and build.chain_id before signing locally
-const signedTransaction = await zoneless.payouts.sign(
-  build,
-  process.env.WALLET_PRIVATE_KEY
-);
 console.log(build.estimated_fee); // upper bound in wei
-console.log(build.total_amount); // 160000 cents`,
+console.log(build.total_amount); // 160000 cents
+
+// Sign the payout; sign() checks build.to and build.chain_id first
+const signedTransaction = await zoneless.payouts.sign(build, key);`,
             },
           ],
         },

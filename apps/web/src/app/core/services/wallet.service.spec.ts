@@ -2,6 +2,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 
 import {
+  keccak256,
   parseTransaction,
   recoverTransactionAddress,
   serializeTransaction,
@@ -12,6 +13,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import {
   Eip1193Provider,
   IsUserRejectedError,
+  WalletNotReadyError,
   WalletService,
 } from './wallet.service';
 
@@ -309,6 +311,29 @@ describe('WalletService', () => {
       );
     });
 
+    it("treats viem's chain check failing as not sent", async () => {
+      const provider = StatefulProvider({ chainId: 11155111 });
+      let reads = 0;
+      provider.request.mockImplementation(async ({ method }) => {
+        if (method === 'eth_accounts') return [ADDRESS];
+        // Our check sees Sepolia; the wallet switches before viem's own check.
+        if (method === 'eth_chainId') return reads++ === 0 ? '0xaa36a7' : '0x1';
+        return `0x${'cd'.repeat(32)}`;
+      });
+
+      const error = await Use(provider)
+        .SendTransaction(send)
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(WalletNotReadyError);
+      expect(error.message).toBe(
+        'The wallet switched networks before sending. Switch it back to chain 11155111 and try again.'
+      );
+      expect(Requests(provider)).not.toContainEqual(
+        expect.objectContaining({ method: 'eth_sendTransaction' })
+      );
+    });
+
     it('re-reads the active account and refuses one that changed', async () => {
       const provider = StatefulProvider({
         chainId: 11155111,
@@ -402,6 +427,18 @@ describe('WalletService', () => {
 
   describe('built transactions', () => {
     const service = new WalletService();
+
+    it('hashes a signed transaction the way the chain does', async () => {
+      const signed = await service.SignTransactionWithPrivateKey(
+        UnsignedPayout(),
+        PRIVATE_KEY,
+        { from: ADDRESS, to: PAYOUT_BATCH, chainId: 11155111 }
+      );
+
+      await expect(service.SignedTransactionHash(signed)).resolves.toBe(
+        keccak256(signed)
+      );
+    });
 
     it('reads the target and calldata of a built transaction', async () => {
       await expect(

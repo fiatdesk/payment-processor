@@ -42,6 +42,25 @@ describe('HttpClient', () => {
     });
   });
 
+  it('aborts after the client timeout unless a request sets its own', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ object: 'payout_reconcile' }),
+    });
+    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    const client = new HttpClient({
+      apiKey: 'sk_test_z_key',
+      baseUrl: 'https://api.example.com',
+      timeout: 45000,
+    });
+
+    await client.Post('/payouts/reconcile', {});
+    await client.Post('/payouts/broadcast', {}, { timeout: 150000 });
+
+    expect(timeout.mock.calls).toEqual([[45000], [150000]]);
+    expect(client.GetTimeout()).toBe(45000);
+  });
+
   it('throws ZonelessApiError for JSON error responses', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

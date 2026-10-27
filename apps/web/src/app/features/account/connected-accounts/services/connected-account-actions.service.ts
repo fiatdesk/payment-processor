@@ -821,10 +821,19 @@ export class ConnectedAccountActionsService {
         : await this.SignWithPrivateKey(build, expected);
     if (!submission) return;
 
-    await this.SubmitBatch(account, {
-      ...submission,
-      payouts: build.payouts.map((payout) => payout.id),
-    });
+    // Known before the broadcast, so the operator can look it up if the
+    // broadcast fails.
+    const hash =
+      'transaction_hash' in submission
+        ? submission.transaction_hash
+        : await this.walletService.SignedTransactionHash(
+            submission.signed_transaction
+          );
+    await this.SubmitBatch(
+      account,
+      { ...submission, payouts: build.payouts.map((payout) => payout.id) },
+      hash
+    );
   }
 
   /** Null when the wallet may have sent it: the modal then only reconciles. */
@@ -885,9 +894,10 @@ export class ConnectedAccountActionsService {
 
   private async SubmitBatch(
     account: Account,
-    submission: BroadcastPayoutsBatchInput
+    submission: BroadcastPayoutsBatchInput,
+    hash: string
   ): Promise<void> {
-    this.payoutSubmittedHash.set(submission.transaction_hash ?? '');
+    this.payoutSubmittedHash.set(hash);
     let result: PayoutBatchBroadcastResponse;
     try {
       result = await this.payoutService.BroadcastPayoutsBatch(submission);

@@ -17,6 +17,8 @@ export interface RequestOptions {
   idempotencyKey?: string;
   /** Connected account ID to act on behalf of (for platform operations) */
   zonelessAccount?: string;
+  /** Milliseconds before this request is aborted (default: the client timeout) */
+  timeout?: number;
 }
 
 /**
@@ -29,6 +31,11 @@ export interface RequestExtraOptions {
   idempotencyKey?: string;
   /** Connected account ID to act on behalf of (for platform operations) */
   zonelessAccount?: string;
+  /**
+   * Milliseconds before this request is aborted. Defaults to the client's
+   * `timeout`; payout broadcasts wait at least 90 s (150 s for a hash).
+   */
+  timeout?: number;
 }
 
 export interface ZonelessError {
@@ -69,6 +76,11 @@ export const PAYOUT_BATCH_ERROR_CODES = [
   'transaction_not_found',
   /** A wallet broadcast the batch; speed it up in the wallet instead */
   'use_wallet_speed_up',
+  /**
+   * Set by the SDK, not the API: broadcast got no answer in time (statusCode
+   * 0). The transaction may still be mined; reconcile later, never re-sign.
+   */
+  'broadcast_timeout',
   'account_frozen',
   'sanctioned_address',
   'insufficient_funds',
@@ -128,6 +140,11 @@ export class HttpClient {
   /**
    * Makes a request to the Zoneless API.
    */
+  /** Default request timeout in milliseconds. */
+  GetTimeout(): number {
+    return this.config.timeout;
+  }
+
   async Request<T>(options: RequestOptions): Promise<T> {
     const url = this.BuildUrl(options.path, options.query);
 
@@ -150,7 +167,7 @@ export class HttpClient {
     const fetchOptions: RequestInit = {
       method: options.method,
       headers,
-      signal: AbortSignal.timeout(this.config.timeout),
+      signal: AbortSignal.timeout(options.timeout ?? this.config.timeout),
     };
 
     if (options.body && options.method !== 'GET') {
@@ -205,6 +222,7 @@ export class HttpClient {
       query,
       headers: options?.headers,
       zonelessAccount: options?.zonelessAccount,
+      timeout: options?.timeout,
     });
   }
 
@@ -223,6 +241,7 @@ export class HttpClient {
       headers: options?.headers,
       idempotencyKey: options?.idempotencyKey,
       zonelessAccount: options?.zonelessAccount,
+      timeout: options?.timeout,
     });
   }
 
@@ -240,6 +259,7 @@ export class HttpClient {
       body,
       headers: options?.headers,
       zonelessAccount: options?.zonelessAccount,
+      timeout: options?.timeout,
     });
   }
 

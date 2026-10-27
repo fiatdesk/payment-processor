@@ -175,13 +175,31 @@ export class WalletService {
     this.account.set(account);
     AssertChain(await client.getChainId(), transaction.chainId);
 
-    return client.sendTransaction({
-      account,
-      chain: ChainWithId(transaction.chainId),
-      to: transaction.to,
-      data: transaction.data,
-      value: transaction.value ?? BigInt(0),
-    });
+    try {
+      return await client.sendTransaction({
+        account,
+        chain: ChainWithId(transaction.chainId),
+        to: transaction.to,
+        data: transaction.data,
+        value: transaction.value ?? BigInt(0),
+      });
+    } catch (error) {
+      // viem checks the chain once more before the request: nothing was sent.
+      if (
+        FindInErrorChain(error, (node) => node.name === 'ChainMismatchError')
+      ) {
+        throw new WalletNotReadyError(
+          `The wallet switched networks before sending. Switch it back to chain ${transaction.chainId} and try again.`
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** Hash of a signed serialized transaction, as the chain will report it. */
+  async SignedTransactionHash(signedTransaction: string): Promise<Hex> {
+    const { keccak256 } = await import('./wallet-viem');
+    return keccak256(signedTransaction as Hex);
   }
 
   /**
@@ -305,12 +323,12 @@ function ChainWithId(id: number): Chain {
 
 /** True when the user rejected the wallet request (EIP-1193 4001). */
 export function IsUserRejectedError(error: unknown): boolean {
-  return HasErrorCode(error, (node) => node.code === USER_REJECTED_CODE);
+  return FindInErrorChain(error, (node) => node.code === USER_REJECTED_CODE);
 }
 
 /** 4902, or MetaMask Mobile's -32603 wrapping it in `data.originalError`. */
 function IsUnrecognizedChainError(error: unknown): boolean {
-  return HasErrorCode(
+  return FindInErrorChain(
     error,
     (node) =>
       node.code === UNRECOGNIZED_CHAIN_CODE ||
@@ -320,13 +338,14 @@ function IsUnrecognizedChainError(error: unknown): boolean {
 }
 
 interface ErrorNode {
+  name?: unknown;
   code?: unknown;
   data?: { originalError?: { code?: unknown } };
   cause?: unknown;
 }
 
 /** Walks the `cause` chain viem builds around provider errors. */
-function HasErrorCode(
+function FindInErrorChain(
   error: unknown,
   matches: (node: ErrorNode) => boolean
 ): boolean {
