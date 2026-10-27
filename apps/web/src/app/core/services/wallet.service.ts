@@ -9,11 +9,14 @@ import type {
   TypedDataDefinition,
   WalletClient,
 } from 'viem';
-import { getAddress } from 'viem/utils';
+import { getAddress, isAddress } from 'viem/utils';
 
 /** The EIP-1193 surface the dashboard and checkout use. */
 export interface Eip1193Provider {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
+  /** EIP-1193 events such as `accountsChanged`; some providers have none. */
+  on?(event: string, listener: (...args: unknown[]) => void): void;
+  removeListener?(event: string, listener: (...args: unknown[]) => void): void;
 }
 
 /** EIP-6963 announcement payload. */
@@ -87,6 +90,17 @@ export class WalletService {
   private connectStarted = false;
   /** A late announcement held back while the fallback is in use. */
   private heldAnnouncement: Eip6963ProviderDetail | null = null;
+  /**
+   * After `Connect()`, the wallet's active account: an account switch in
+   * the wallet (or a lock, which reports none) updates `account()`.
+   */
+  private readonly OnAccountsChanged = (accounts: unknown): void => {
+    if (!this.connectStarted) return;
+    const [first] = Array.isArray(accounts) ? accounts : [];
+    this.account.set(
+      typeof first === 'string' && isAddress(first) ? getAddress(first) : null
+    );
+  };
 
   constructor() {
     if (typeof window === 'undefined') {
@@ -102,16 +116,18 @@ export class WalletService {
     setTimeout(() => {
       const injected = (window as { ethereum?: unknown }).ethereum;
       if (!this.wallet() && IsEip1193Provider(injected)) {
-        this.wallet.set({
-          info: {
-            uuid: 'injected',
-            name: 'Browser wallet',
-            icon: '',
-            rdns: '',
+        this.UseWallet(
+          {
+            info: {
+              uuid: 'injected',
+              name: 'Browser wallet',
+              icon: '',
+              rdns: '',
+            },
+            provider: injected,
           },
-          provider: injected,
-        });
-        this.usingInjectedFallback = true;
+          true
+        );
       }
       this.discoveryComplete.set(true);
     }, INJECTED_FALLBACK_DELAY_MS);
@@ -305,9 +321,19 @@ export class WalletService {
   }
 
   private UseAnnounced(announced: Eip6963ProviderDetail): void {
-    this.wallet.set(announced);
-    this.usingInjectedFallback = false;
+    this.UseWallet(announced, false);
     this.discoveryComplete.set(true);
+  }
+
+  /** Switches to `detail`, moving the `accountsChanged` listener with it. */
+  private UseWallet(detail: Eip6963ProviderDetail, fallback: boolean): void {
+    this.wallet()?.provider.removeListener?.(
+      'accountsChanged',
+      this.OnAccountsChanged
+    );
+    this.wallet.set(detail);
+    this.usingInjectedFallback = fallback;
+    detail.provider.on?.('accountsChanged', this.OnAccountsChanged);
   }
 
   private async Client(): Promise<WalletClient> {

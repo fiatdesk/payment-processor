@@ -69,6 +69,14 @@
   border-top: 1px solid $darkest-background-color;
 }
 
+.cancel-onchain-note {
+  margin: $spacing 0 0;
+  font-size: $font-size-small;
+  color: $text-color;
+  opacity: $dimmed-extra;
+  line-height: 1.5;
+}
+
 @media only screen and (max-width: 600px) {
   .cancel-row {
     grid-template-columns: 1fr;

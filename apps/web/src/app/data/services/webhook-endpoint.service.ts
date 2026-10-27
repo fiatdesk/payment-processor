@@ -53,6 +53,8 @@ const EVENT_TYPE_LABELS: Record<(typeof EVENT_TYPES)[number], string> = {
   'customer.created': 'Customer created',
   'customer.updated': 'Customer updated',
   'customer.deleted': 'Customer deleted',
+  'customer.subscription.allowance_exhausted':
+    'Customer subscription allowance exhausted',
   'customer.subscription.created': 'Customer subscription created',
   'customer.subscription.deleted': 'Customer subscription deleted',
   'customer.subscription.paused': 'Customer subscription paused',

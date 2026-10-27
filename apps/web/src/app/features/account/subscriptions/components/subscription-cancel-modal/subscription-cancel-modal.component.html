@@ -40,4 +40,11 @@
     </div>
   </div>
   <div class="cancel-divider"></div>
+  @if (subscription?.subscription_onchain_id) {
+  <p class="cancel-onchain-note">
+    Canceling also cancels this subscription on the Subscriptions contract, so
+    no further USDC is pulled. The customer can also stop every pull by
+    canceling on-chain or by revoking their USDC allowance to the contract.
+  </p>
+  }
 </app-modal>

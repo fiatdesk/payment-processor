@@ -20,6 +20,7 @@ import {
 } from '../../../../../shared';
 import { MetaService } from '../../../../../core';
 import { FormatIntervalLabel } from '../../util/price-display';
+import { FormatShortHex } from '../../../subscriptions/util/subscription-display';
 
 import { Subscription } from 'rxjs';
 
@@ -45,6 +46,7 @@ export class PriceDetailComponent {
   readonly priceActions = inject(PriceActionsService);
   readonly MetadataToArray = MetadataToArray;
   readonly FormatIntervalLabel = FormatIntervalLabel;
+  readonly FormatShortHex = FormatShortHex;
   private readonly metaService = inject(MetaService);
 
   loading: WritableSignal<boolean> = signal(false);
@@ -113,7 +115,6 @@ export class PriceDetailComponent {
     this.loading.set(true);
     try {
       this.price.set(await this.priceService.GetPrice(id));
-      console.log(this.price());
     } finally {
       this.loading.set(false);
     }

@@ -4,6 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import {
   CheckoutPaymentTransaction,
   CheckoutSession,
+  CheckoutSubscribeAuthorization,
   Eip712TypedData,
 } from '@zoneless/shared-types';
 
@@ -94,6 +95,208 @@ const SESSION = {
 
 const COMPLETED = { ...SESSION, status: 'complete' } as CheckoutSession;
 
+/** The Subscriptions contract (any checksummed address). */
+const SUBSCRIPTIONS = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+const PLAN_KEY = `0x${'5a'.repeat(32)}`;
+const PERMIT_SIGNATURE = `0x${'11'.repeat(65)}`;
+const SUBSCRIBE_SIGNATURE = `0x${'22'.repeat(65)}`;
+const DEADLINE = 1793106000;
+/** 3 Nov 2026, 12:00 UTC: the same calendar day in every test timezone. */
+const TRIAL_END = 1793707200;
+
+const DOMAIN_TYPE = [
+  { name: 'name', type: 'string' },
+  { name: 'version', type: 'string' },
+  { name: 'chainId', type: 'uint256' },
+  { name: 'verifyingContract', type: 'address' },
+];
+
+/**
+ * 10 USDC every 30 days with no trial, as `BuildSubscribeTypedData`
+ * prepares it: `firstChargeAt` is signed, and 0 means now.
+ */
+const SUBSCRIBE_TYPED_DATA: Eip712TypedData = {
+  domain: {
+    name: 'Subscriptions',
+    version: '1',
+    chainId: SEPOLIA,
+    verifyingContract: SUBSCRIPTIONS,
+  },
+  types: {
+    EIP712Domain: DOMAIN_TYPE,
+    Subscribe: [
+      { name: 'planKey', type: 'bytes32' },
+      { name: 'subscriber', type: 'address' },
+      { name: 'token', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'periodSeconds', type: 'uint64' },
+      { name: 'firstChargeAt', type: 'uint64' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+  },
+  primaryType: 'Subscribe',
+  message: {
+    planKey: PLAN_KEY,
+    subscriber: PAYER,
+    token: USDC,
+    amount: '10000000',
+    periodSeconds: '2592000',
+    firstChargeAt: '0',
+    nonce: '0',
+    deadline: DEADLINE,
+  },
+};
+
+/** The `Subscribe` with a first charge at `firstChargeAt` (a trial's end). */
+function WithFirstChargeAt(firstChargeAt: number): Eip712TypedData {
+  return {
+    ...SUBSCRIBE_TYPED_DATA,
+    message: {
+      ...SUBSCRIBE_TYPED_DATA.message,
+      firstChargeAt: String(firstChargeAt),
+    },
+  };
+}
+
+/** The `Subscribe` without the `firstChargeAt` field at all. */
+function WithoutFirstChargeAt(): Eip712TypedData {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { firstChargeAt: _dropped, ...message } = SUBSCRIBE_TYPED_DATA.message;
+  return {
+    ...SUBSCRIBE_TYPED_DATA,
+    types: {
+      ...SUBSCRIBE_TYPED_DATA.types,
+      Subscribe: SUBSCRIBE_TYPED_DATA.types['Subscribe'].filter(
+        (field) => field.name !== 'firstChargeAt'
+      ),
+    },
+    message,
+  };
+}
+
+/** Sets the allowance to 5 USDC already granted plus this plan's 130 USDC. */
+const PERMIT_TYPED_DATA: Eip712TypedData = {
+  domain: {
+    name: 'USDC',
+    version: '2',
+    chainId: SEPOLIA,
+    verifyingContract: USDC,
+  },
+  types: {
+    EIP712Domain: DOMAIN_TYPE,
+    Permit: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+  },
+  primaryType: 'Permit',
+  message: {
+    owner: PAYER,
+    spender: SUBSCRIPTIONS,
+    value: '135000000',
+    nonce: '0',
+    deadline: DEADLINE,
+  },
+};
+
+/** A first-time subscriber: the allowance is short, so a permit is needed. */
+const SUBSCRIBE_AUTHORIZATION: CheckoutSubscribeAuthorization = {
+  plan_id: PLAN_KEY,
+  needs_permit: true,
+  permit_typed_data: PERMIT_TYPED_DATA,
+  subscribe_typed_data: SUBSCRIBE_TYPED_DATA,
+  deadline: DEADLINE,
+  first_charge_at: 0,
+  already_subscribed: false,
+  subscription_onchain_id: null,
+};
+
+const SUBSCRIPTION_PREPARED: CheckoutPaymentTransaction = {
+  object: 'checkout.payment_transaction',
+  checkout_session: 'cs_test',
+  amount_total: 1000,
+  currency: 'usdc',
+  merchant_wallet_address: MERCHANT,
+  relayed: true,
+  estimated_fee: '3000000000000000',
+  fee_currency: 'eth',
+  chain_id: SEPOLIA,
+  already_subscribed: false,
+  subscription: SUBSCRIBE_AUTHORIZATION,
+};
+
+/** The prepared subscription with `changes` applied to its `subscription`. */
+function PreparedSubscription(
+  changes: Partial<CheckoutSubscribeAuthorization>
+): CheckoutPaymentTransaction {
+  return {
+    ...SUBSCRIPTION_PREPARED,
+    subscription: { ...SUBSCRIBE_AUTHORIZATION, ...changes },
+  };
+}
+
+const SUBSCRIPTION_SESSION = {
+  ...SESSION,
+  mode: 'subscription',
+  amount_total: 1000,
+  amount_subtotal: 1000,
+  merchant_wallet: {
+    wallet_address: MERCHANT,
+    network: 'ethereum',
+    currency: 'usdc',
+    token_address: USDC,
+  },
+  line_items: {
+    object: 'list',
+    data: [
+      {
+        id: 'li_1',
+        description: 'Pro plan',
+        quantity: 1,
+        amount_subtotal: 1000,
+        amount_total: 1000,
+        price: {
+          id: 'price_1',
+          object: 'price',
+          type: 'recurring',
+          unit_amount: 1000,
+          recurring: { interval: 'month', interval_count: 1 },
+          subscription_plan_id: PLAN_KEY,
+        },
+      },
+    ],
+  },
+} as unknown as CheckoutSession;
+
+const TRIAL_DAYS = 7;
+/** 27 Oct 2026, 12:00 UTC: a 7-day trial from here ends at `TRIAL_END`. */
+const TRIAL_NOW = TRIAL_END - TRIAL_DAYS * 86400;
+
+/** The subscription session, its price with a 7-day trial. */
+const TRIAL_SESSION = {
+  ...SUBSCRIPTION_SESSION,
+  line_items: {
+    object: 'list',
+    data: [
+      {
+        ...SUBSCRIPTION_SESSION.line_items?.data[0],
+        price: {
+          ...SUBSCRIPTION_SESSION.line_items?.data[0].price,
+          recurring: {
+            interval: 'month',
+            interval_count: 1,
+            trial_period_days: TRIAL_DAYS,
+          },
+        },
+      },
+    ],
+  },
+} as unknown as CheckoutSession;
+
 /** An error shaped like the ones `ApiService.Call` throws. */
 function ApiFailure(status: number, body: Record<string, unknown>): Error {
   return Object.assign(new Error(String(body['message'])), {
@@ -130,12 +333,18 @@ function ResubmitRequired(transactionHash: string): Error {
 type FakeWalletProvider = Eip1193Provider & {
   request: jest.Mock;
   chainId: number;
+  /** Fires an EIP-1193 event the way a wallet does. */
+  Emit(event: string, ...args: unknown[]): void;
 };
 
-/** A browser wallet on `chainId` holding `account`. */
+/**
+ * A browser wallet on `chainId` holding `account`. A permit and a
+ * `Subscribe` get their own signatures; anything else gets `SIGNATURE`.
+ */
 function FakeWallet(
   options: { chainId?: number; account?: string } = {}
 ): FakeWalletProvider {
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const wallet: FakeWalletProvider = {
     chainId: options.chainId ?? SEPOLIA,
     request: jest.fn(
@@ -151,13 +360,25 @@ function FakeWallet(
               (params as [{ chainId: string }])[0].chainId
             );
             return null;
-          case 'eth_signTypedData_v4':
+          case 'eth_signTypedData_v4': {
+            const { primaryType } = JSON.parse((params as [string, string])[1]);
+            if (primaryType === 'Permit') return PERMIT_SIGNATURE;
+            if (primaryType === 'Subscribe') return SUBSCRIBE_SIGNATURE;
             return SIGNATURE;
+          }
           default:
             throw new Error(`Unexpected method ${method}`);
         }
       }
     ),
+    on: (event: string, listener: (...args: unknown[]) => void) => {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)?.add(listener);
+    },
+    removeListener: (event: string, listener: (...args: unknown[]) => void) =>
+      listeners.get(event)?.delete(listener),
+    Emit: (event, ...args) =>
+      listeners.get(event)?.forEach((listener) => listener(...args)),
   };
   return wallet;
 }
@@ -170,28 +391,33 @@ function Calls(wallet: { request: jest.Mock }, method: string): unknown[] {
 }
 
 /** What the wallet is asked to sign: the typed data, addresses lowercased. */
-function SignedTypedData(wallet: { request: jest.Mock }): unknown {
-  const [request] = Calls(wallet, 'eth_signTypedData_v4') as {
+function SignedTypedData(wallet: { request: jest.Mock }, index = 0): unknown {
+  const request = Calls(wallet, 'eth_signTypedData_v4')[index] as {
     params: [string, string];
-  }[];
+  };
   return {
     account: request.params[0],
     typedData: JSON.parse(request.params[1]),
   };
 }
 
+/** `typedData` as viem sends it: every `address` field lowercased. */
 function Lowercased(typedData: Eip712TypedData): unknown {
+  const addressFields = typedData.types[typedData.primaryType]
+    .filter((field) => field.type === 'address')
+    .map((field) => field.name);
   return {
     ...typedData,
     domain: {
       ...typedData.domain,
       verifyingContract: typedData.domain.verifyingContract.toLowerCase(),
     },
-    message: {
-      ...typedData.message,
-      from: String(typedData.message['from']).toLowerCase(),
-      to: String(typedData.message['to']).toLowerCase(),
-    },
+    message: Object.fromEntries(
+      Object.entries(typedData.message).map(([name, value]) => [
+        name,
+        addressFields.includes(name) ? String(value).toLowerCase() : value,
+      ])
+    ),
   };
 }
 
@@ -218,13 +444,13 @@ describe('CheckoutComponent', () => {
   let routeSlug: string | null;
 
   /** Renders checkout for an open session once wallet discovery has run. */
-  function Render(): {
+  function Render(session: CheckoutSession = SESSION): {
     fixture: ComponentFixture<CheckoutComponent>;
     component: CheckoutComponent;
   } {
     const fixture = TestBed.createComponent(CheckoutComponent);
     const component = fixture.componentInstance;
-    component.checkoutSession.set(SESSION);
+    component.checkoutSession.set(session);
     component.loading.set(false);
     component.email = 'payer@example.com';
     fixture.detectChanges();
@@ -494,27 +720,652 @@ describe('CheckoutComponent', () => {
       expect(component.paymentPhase()).toBe('complete');
     });
 
-    it('confirms an existing on-chain subscription without signing', async () => {
+    it('does not sign once the wallet switches accounts after prepare', async () => {
       const { component } = Render();
-      checkoutSessionService.PreparePayment.mockResolvedValue({
-        ...PREPARED,
-        method: undefined,
-        typed_data: null,
-        already_subscribed: true,
-        subscription_onchain_id: `0x${'34'.repeat(32)}`,
+      checkoutSessionService.PreparePayment.mockImplementation(async () => {
+        wallet.Emit('accountsChanged', [OTHER_PAYER.toLowerCase()]);
+        return PREPARED;
       });
 
       await component.Pay();
 
       expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
-      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
-        SESSION.url_slug,
-        {
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'Your wallet switched accounts. Press Pay to start again.'
+      );
+    });
+  });
+
+  describe('on-chain subscriptions', () => {
+    const ONCHAIN_ID = `0x${'34'.repeat(32)}`;
+
+    beforeEach(() => {
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        SUBSCRIPTION_PREPARED
+      );
+      checkoutSessionService.ConfirmPayment.mockResolvedValue({
+        ...SUBSCRIPTION_SESSION,
+        status: 'complete',
+      });
+    });
+
+    it('signs the USDC permit, then the Subscribe, and confirms both with the deadline in one call', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(SignedTypedData(wallet, 0)).toEqual({
+        account: PAYER,
+        typedData: Lowercased(PERMIT_TYPED_DATA),
+      });
+      expect(SignedTypedData(wallet, 1)).toEqual({
+        account: PAYER,
+        typedData: Lowercased(SUBSCRIBE_TYPED_DATA),
+      });
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [
+          SESSION.url_slug,
+          {
+            permit_signature: PERMIT_SIGNATURE,
+            subscribe_signature: SUBSCRIBE_SIGNATURE,
+            deadline: DEADLINE,
+          },
+        ],
+      ]);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('signs only the Subscribe when the allowance already covers the plan', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({ needs_permit: false, permit_typed_data: null })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
+      expect(SignedTypedData(wallet)).toEqual({
+        account: PAYER,
+        typedData: Lowercased(SUBSCRIBE_TYPED_DATA),
+      });
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [
+          SESSION.url_slug,
+          { subscribe_signature: SUBSCRIBE_SIGNATURE, deadline: DEADLINE },
+        ],
+      ]);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('says first-time wallets approve twice', () => {
+      const { fixture } = Render(SUBSCRIPTION_SESSION);
+
+      expect(Text(fixture)).toContain('First-time wallets approve twice.');
+    });
+
+    describe('what the customer is shown while the wallet signs', () => {
+      /** The page text at the moment the wallet is asked to sign. */
+      async function TextWhileSigning(
+        prepared: CheckoutPaymentTransaction,
+        session: CheckoutSession = SUBSCRIPTION_SESSION
+      ): Promise<string[]> {
+        const { fixture, component } = Render(session);
+        checkoutSessionService.PreparePayment.mockResolvedValue(prepared);
+        const seen: string[] = [];
+        const sign = wallet.request.getMockImplementation();
+        wallet.request.mockImplementation(async (request) => {
+          if (request.method === 'eth_signTypedData_v4') {
+            seen.push(Text(fixture));
+          }
+          return sign?.(request);
+        });
+
+        await component.Pay();
+        return seen;
+      }
+
+      it('shows the amount, period and token, the allowance this plan adds and the total the permit sets', async () => {
+        const [text] = await TextWhileSigning(SUBSCRIPTION_PREPARED);
+
+        expect(text).toMatch(/Recurring charge\s*10\.00 USDC every month/);
+        expect(text).toMatch(/Token\s*USDC \(0x1c7D…7238\)/);
+        expect(text).toMatch(/Allowance added\s*130\.00 USDC \(13 charges\)/);
+        expect(text).toMatch(/Total allowance after signing\s*135\.00 USDC/);
+        expect(text).toContain('First charge today');
+      });
+
+      it('says the existing allowance covers the plan when no permit is needed', async () => {
+        const [text] = await TextWhileSigning(
+          PreparedSubscription({ needs_permit: false, permit_typed_data: null })
+        );
+
+        expect(text).toContain('10.00 USDC every month');
+        expect(text).toContain(
+          'Your USDC allowance already covers this subscription'
+        );
+        expect(text).not.toContain('Allowance added');
+      });
+
+      it('shows the first charge of a trial on the date firstChargeAt sets', async () => {
+        jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
+        const [text] = await TextWhileSigning(
+          PreparedSubscription({
+            subscribe_typed_data: WithFirstChargeAt(TRIAL_END),
+          }),
+          TRIAL_SESSION
+        );
+
+        expect(text).toContain('First charge on 3 Nov 2026.');
+        expect(text).not.toContain('First charge today');
+        expect(SignedTypedData(wallet, 1)).toEqual({
+          account: PAYER,
+          typedData: Lowercased(WithFirstChargeAt(TRIAL_END)),
+        });
+      });
+
+      it('reads a Subscribe without firstChargeAt as a first charge today', async () => {
+        const [text] = await TextWhileSigning(
+          PreparedSubscription({ subscribe_typed_data: WithoutFirstChargeAt() })
+        );
+
+        expect(text).toContain('First charge today');
+      });
+    });
+
+    describe('what a trial charges today', () => {
+      beforeEach(() => jest.useFakeTimers({ now: TRIAL_NOW * 1000 }));
+
+      it('shows nothing due today, the trial and an estimated first charge before signing', () => {
+        const { fixture } = Render(TRIAL_SESSION);
+
+        const text = Text(fixture);
+        expect(text).toMatch(/7-day free trial\s*US\$0\.00/);
+        expect(text).toMatch(
+          /First charge around 3 Nov 2026 \(estimated\)\s*US\$10\.00/
+        );
+        expect(text).toMatch(/Total due today\s*US\$0\.00/);
+      });
+
+      it('shows the signed first charge date once prepared', async () => {
+        // A first charge a day from now: inside the window, and not the
+        // date the trial length would give.
+        const firstChargeAt = TRIAL_NOW + 86400;
+        const { fixture, component } = Render(TRIAL_SESSION);
+        checkoutSessionService.PreparePayment.mockResolvedValue(
+          PreparedSubscription({
+            subscribe_typed_data: WithFirstChargeAt(firstChargeAt),
+          })
+        );
+        let text = '';
+        const sign = wallet.request.getMockImplementation();
+        wallet.request.mockImplementation(async (request) => {
+          if (request.method === 'eth_signTypedData_v4') text = Text(fixture);
+          return sign?.(request);
+        });
+
+        await component.Pay();
+
+        expect(text).toMatch(/First charge on 28 Oct 2026\s*US\$10\.00/);
+        expect(text).not.toContain('(estimated)');
+        expect(text).toMatch(/Total due today\s*US\$0\.00/);
+      });
+
+      it('shows the full amount due today without a trial', () => {
+        const { fixture } = Render(SUBSCRIPTION_SESSION);
+
+        const text = Text(fixture);
+        expect(text).toMatch(/Total due today\s*US\$10\.00/);
+        expect(text).not.toContain('free trial');
+        expect(text).not.toContain('First charge');
+      });
+    });
+
+    it.each([
+      ['a first charge without a trial', SUBSCRIPTION_SESSION, TRIAL_END],
+      ['a trial charging now', TRIAL_SESSION, 0],
+      ['a trial with no first charge', TRIAL_SESSION, undefined],
+      ['a trial charging in the past', TRIAL_SESSION, TRIAL_NOW - 1],
+      ['a trial charging right now', TRIAL_SESSION, TRIAL_NOW],
+      [
+        'a trial charging later than its length allows',
+        TRIAL_SESSION,
+        TRIAL_END + 3601,
+      ],
+      ['a trial with a non-numeric first charge', TRIAL_SESSION, 'soon'],
+    ])(
+      'does not sign %s',
+      async (
+        _label,
+        session: CheckoutSession,
+        firstChargeAt: number | string | undefined
+      ) => {
+        jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
+        const { component } = Render(session);
+        const subscribe =
+          firstChargeAt === undefined
+            ? WithoutFirstChargeAt()
+            : WithFirstChargeAt(firstChargeAt as number);
+        checkoutSessionService.PreparePayment.mockResolvedValue(
+          PreparedSubscription({ subscribe_typed_data: subscribe })
+        );
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+        expect(component.paymentError()).toBe(
+          'This subscription request is out of date. Reload the page and try again.'
+        );
+      }
+    );
+
+    it('signs a trial whose first charge is at the end of its allowed window', async () => {
+      jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
+      const { component } = Render(TRIAL_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({
+          subscribe_typed_data: WithFirstChargeAt(TRIAL_END + 3600),
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it.each([
+      [
+        'for another subscriber',
+        { subscribe: { subscriber: OTHER_PAYER } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'for another plan',
+        { subscribe: { planKey: `0x${'6b'.repeat(32)}` } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'for another amount',
+        { subscribe: { amount: '20000000' } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'for another period',
+        { subscribe: { periodSeconds: '604800' } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'for another token',
+        { subscribe: { token: MERCHANT } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'with another deadline',
+        { subscribe: { deadline: DEADLINE + 1 } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'whose permit is from another owner',
+        { permit: { owner: OTHER_PAYER } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'whose permit is for another spender',
+        { permit: { spender: MERCHANT } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+      [
+        'whose permit sets less than the plan adds',
+        { permit: { value: '129999999' } },
+        'This subscription request is out of date. Reload the page and try again.',
+      ],
+    ])(
+      'does not sign a subscription request %s',
+      async (
+        _label,
+        changes: {
+          subscribe?: Record<string, string | number>;
+          permit?: Record<string, string | number>;
+        },
+        message: string
+      ) => {
+        const { component } = Render(SUBSCRIPTION_SESSION);
+        checkoutSessionService.PreparePayment.mockResolvedValue(
+          PreparedSubscription({
+            subscribe_typed_data: {
+              ...SUBSCRIBE_TYPED_DATA,
+              message: {
+                ...SUBSCRIBE_TYPED_DATA.message,
+                ...changes.subscribe,
+              },
+            },
+            permit_typed_data: {
+              ...PERMIT_TYPED_DATA,
+              message: { ...PERMIT_TYPED_DATA.message, ...changes.permit },
+            },
+          })
+        );
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+        expect(component.paymentError()).toBe(message);
+        expect(component.paymentPhase()).toBe('idle');
+      }
+    );
+
+    it.each([
+      [
+        'a Subscribe for another chain',
+        PreparedSubscription({
+          subscribe_typed_data: {
+            ...SUBSCRIBE_TYPED_DATA,
+            domain: { ...SUBSCRIBE_TYPED_DATA.domain, chainId: 1 },
+          },
+        }),
+      ],
+      [
+        'a permit for another chain',
+        PreparedSubscription({
+          permit_typed_data: {
+            ...PERMIT_TYPED_DATA,
+            domain: { ...PERMIT_TYPED_DATA.domain, chainId: 1 },
+          },
+        }),
+      ],
+    ])('does not sign %s', async (_label, prepared) => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(prepared);
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'The subscription is for a different network than this checkout. Refresh the page and try again.'
+      );
+    });
+
+    it('does not sign a permit for a token the plan does not pull', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({
+          permit_typed_data: {
+            ...PERMIT_TYPED_DATA,
+            domain: {
+              ...PERMIT_TYPED_DATA.domain,
+              verifyingContract: MERCHANT,
+            },
+          },
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'This subscription request is out of date. Reload the page and try again.'
+      );
+    });
+
+    it("does not sign a prepare for another plan than the checkout price's", async () => {
+      const otherPlan = `0x${'6b'.repeat(32)}`;
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({
+          plan_id: otherPlan,
+          subscribe_typed_data: {
+            ...SUBSCRIBE_TYPED_DATA,
+            message: { ...SUBSCRIBE_TYPED_DATA.message, planKey: otherPlan },
+          },
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'This subscription request is out of date. Reload the page and try again.'
+      );
+    });
+
+    it('does not sign when a permit is needed but none was prepared', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({ permit_typed_data: null })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'This subscription request is out of date. Reload the page and try again.'
+      );
+    });
+
+    it('stops after a rejected permit without asking for the Subscribe', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      const sign = wallet.request.getMockImplementation();
+      wallet.request.mockImplementation(async (request) => {
+        if (request.method === 'eth_signTypedData_v4') {
+          throw Object.assign(new Error('User rejected the request.'), {
+            code: 4001,
+          });
+        }
+        return sign?.(request);
+      });
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'The request was rejected in your wallet.'
+      );
+      expect(component.subscribeTerms()).toBeNull();
+    });
+
+    it('retries a pending subscribe with the same signatures until it completes', async () => {
+      jest.useFakeTimers();
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH)
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(component.paymentPhase()).toBe('confirming');
+      expect(component.pendingTransactionHash()).toBe(HASH);
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+      await paying;
+
+      const signed = {
+        permit_signature: PERMIT_SIGNATURE,
+        subscribe_signature: SUBSCRIBE_SIGNATURE,
+        deadline: DEADLINE,
+      };
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, signed],
+        [SESSION.url_slug, signed],
+      ]);
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('words the confirm and its 5-minute stop as a subscription', async () => {
+      jest.useFakeTimers();
+      const { fixture, component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
+        PaymentPending(HASH, 'another_confirmation')
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(Text(fixture)).toContain(
+        'A subscription for this checkout is already being confirmed'
+      );
+      expect(component.BusyLabel()).toBe('Confirming subscription');
+
+      await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS + POLL_INTERVAL_MS);
+      await paying;
+
+      expect(component.paymentError()).toBe(
+        'Your subscription is still confirming. Keep this page open, then check again.'
+      );
+      expect(component.SubmitLabel()).toBe('Check subscription status');
+    });
+
+    it('signs nothing more once the wallet switches accounts after the permit', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      const sign = wallet.request.getMockImplementation();
+      wallet.request.mockImplementation(async (request) => {
+        const answer = await sign?.(request);
+        if (request.method === 'eth_signTypedData_v4') {
+          wallet.Emit('accountsChanged', [OTHER_PAYER.toLowerCase()]);
+        }
+        return answer;
+      });
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'Your wallet switched accounts. Press Subscribe to start again.'
+      );
+    });
+
+    it('asks for new signatures when the API says the signed ones went stale', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        ApiFailure(409, {
+          code: 'subscription_authorization_stale',
+          type: 'subscription_authorization_stale',
+          message:
+            'The subscription signature can no longer be used. Prepare the subscription again and sign the new request.',
+        })
+      );
+
+      await component.Pay();
+
+      expect(component.paymentError()).toBe(
+        'This subscription request expired before it was sent. Press Subscribe to sign a new one.'
+      );
+      expect(component.SubmitLabel()).toBe('Subscribe');
+
+      await component.Pay();
+
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(2);
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(4);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('explains a period that was already collected without this checkout, in fixed words', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
+        ApiFailure(409, {
+          code: 'period_already_collected',
+          type: 'period_already_collected',
+          message:
+            'This on-chain subscription period is already collected; this checkout did not pay it',
+        })
+      );
+
+      await component.Pay();
+
+      expect(component.paymentError()).toBe(
+        "This billing period was already charged to your wallet outside this checkout, so this checkout didn't start a subscription. Contact the merchant for help."
+      );
+      expect(component.paymentPhase()).toBe('idle');
+    });
+
+    it('explains a quantity an on-chain plan cannot collect, in fixed words', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockRejectedValue(
+        ApiFailure(400, {
+          code: 'onchain_plan_amount_exceeded',
+          type: 'invalid_request_error',
+          message:
+            'Subscription checkout takes quantity 1: an on-chain plan collects one price per period',
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'This subscription can only be bought with a quantity of 1. Contact the merchant for a new checkout link.'
+      );
+    });
+
+    describe('an existing on-chain subscription', () => {
+      const EXISTING = {
+        already_subscribed: true,
+        subscription_onchain_id: ONCHAIN_ID,
+      };
+
+      beforeEach(() =>
+        checkoutSessionService.PreparePayment.mockResolvedValue({
+          ...PreparedSubscription({
+            needs_permit: false,
+            permit_typed_data: null,
+            subscribe_typed_data: null,
+            deadline: null,
+            first_charge_at: null,
+            already_subscribed: true,
+            subscription_onchain_id: ONCHAIN_ID,
+          }),
+          estimated_fee: '0',
           already_subscribed: true,
-          subscription_onchain_id: `0x${'34'.repeat(32)}`,
+          subscription_onchain_id: ONCHAIN_ID,
+        })
+      );
+
+      it('is confirmed without signing', async () => {
+        const { component } = Render(SUBSCRIPTION_SESSION);
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+          [SESSION.url_slug, EXISTING],
+        ]);
+        expect(component.paymentPhase()).toBe('complete');
+      });
+
+      it.each([
+        ['its first charge is pending', PaymentPending(null)],
+        [
+          'a gateway 504',
+          Object.assign(new Error('API Call failed: Gateway Timeout'), {
+            status: 504,
+          }),
+        ],
+      ])(
+        'is confirmed again until it settles when %s',
+        async (_label, failure) => {
+          jest.useFakeTimers();
+          const { component } = Render(SUBSCRIPTION_SESSION);
+          checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(failure);
+
+          const paying = component.Pay();
+          await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+          await paying;
+
+          expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+            [SESSION.url_slug, EXISTING],
+            [SESSION.url_slug, EXISTING],
+          ]);
+          expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+          expect(component.paymentError()).toBeNull();
+          expect(component.paymentPhase()).toBe('complete');
         }
       );
-      expect(component.paymentPhase()).toBe('complete');
     });
   });
 
@@ -809,6 +1660,31 @@ describe('CheckoutComponent', () => {
       expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
     });
 
+    it('turns Pay back on when the wallet switches to the payer that must sign again', async () => {
+      const { fixture, component } = Render();
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
+        ResubmitRequired(HASH)
+      );
+      const payButton = (): HTMLButtonElement =>
+        fixture.nativeElement.querySelector('button.checkout-pay-button');
+
+      await component.Pay();
+      expect(component.blockedByWallet()).toBe(OTHER_PAYER);
+
+      // Another account that is still not the payer keeps Pay off.
+      wallet.Emit('accountsChanged', [MERCHANT.toLowerCase()]);
+      fixture.detectChanges();
+      expect(component.blockedByWallet()).toBe(OTHER_PAYER);
+      expect(payButton().disabled).toBe(true);
+
+      wallet.Emit('accountsChanged', [OTHER_PAYER.toLowerCase()]);
+      fixture.detectChanges();
+
+      expect(component.blockedByWallet()).toBeNull();
+      expect(component.paymentError()).toBeNull();
+      expect(payButton().disabled).toBe(false);
+    });
+
     it("signs here when the confirming payment is this wallet's own", async () => {
       // A prepare that raced this wallet's relay in another tab.
       checkoutSessionService.PreparePayment.mockRejectedValueOnce(
@@ -908,6 +1784,79 @@ describe('CheckoutComponent', () => {
 
       expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
       expect(component.paymentPhase()).toBe('idle');
+    });
+  });
+
+  describe('a subscription recorded before the page loaded', () => {
+    /** A relayed subscribe, recorded after the session's `expires_at`. */
+    const RECORDED = {
+      ...SUBSCRIPTION_SESSION,
+      expires_at: 1700000000,
+      payment_details: { transaction_hash: HASH, payer_wallet: PAYER },
+    } as CheckoutSession;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      routeSlug = SESSION.url_slug;
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue(
+        RECORDED
+      );
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        SUBSCRIPTION_PREPARED
+      );
+    });
+
+    async function Load(): Promise<CheckoutComponent> {
+      const fixture = TestBed.createComponent(CheckoutComponent);
+      fixture.detectChanges();
+      await jest.advanceTimersByTimeAsync(0);
+      return fixture.componentInstance;
+    }
+
+    it('confirms by its hash, even past expiry, without asking for signatures', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentPhase()).toBe('confirming');
+      expect(component.BusyLabel()).toBe('Confirming subscription');
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, { transaction_hash: HASH }],
+        [SESSION.url_slug, { transaction_hash: HASH }],
+      ]);
+      expect(checkoutSessionService.PreparePayment).not.toHaveBeenCalled();
+      expect(wallet.request).not.toHaveBeenCalled();
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('asks for both signatures again when the network lost the subscribe', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        ResubmitRequired(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentError()).toBe(
+        'The subscription from 0x3C44…93BC did not reach the network. Press Subscribe and sign it again with that wallet.'
+      );
+      expect(wallet.request).not.toHaveBeenCalled();
+
+      component.email = 'payer@example.com';
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenLastCalledWith(
+        SESSION.url_slug,
+        {
+          permit_signature: PERMIT_SIGNATURE,
+          subscribe_signature: SUBSCRIBE_SIGNATURE,
+          deadline: DEADLINE,
+        }
+      );
+      expect(component.paymentPhase()).toBe('complete');
     });
   });
 

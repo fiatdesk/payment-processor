@@ -11,7 +11,9 @@
         <span>{{ productName() }}</span>
       </h1>
       <app-status-chip [status]="s.status"></app-status-chip>
-      @if (cancelChipLabel(); as cancelLabel) {
+      @for (onchainStatus of onchainStatuses(); track onchainStatus) {
+      <app-status-chip [status]="onchainStatus"></app-status-chip>
+      } @if (cancelChipLabel(); as cancelLabel) {
       <div class="chip grey-chip cancels-chip">
         <span>{{ cancelLabel }}</span>
         <img src="assets/icons/clock.svg" alt="" />
@@ -78,7 +80,36 @@
 
 <div class="flex gap-extra-large view-panels">
   <div class="view-left-panel">
-    @if (isCancelingAtPeriodEnd() && cancelAt(); as cancelDate) {
+    @for (onchainStatus of onchainStatuses(); track onchainStatus) {
+    <div class="view-section">
+      <h2 class="section-title">
+        {{ SUBSCRIPTION_ONCHAIN_NOTICES[onchainStatus].title }}
+      </h2>
+      <p class="section-description mb">
+        {{ SUBSCRIPTION_ONCHAIN_NOTICES[onchainStatus].text }}
+      </p>
+      @if (onchainStatus === 'cancel_pending_on_chain' &&
+      s.cancel_pending_transaction_hash; as cancelHash) {
+      <div class="mb">
+        <div class="bolded mb-small">Cancel transaction</div>
+        @if (cancelTransactionUrl(); as cancelUrl) {
+        <a
+          class="link-highlight"
+          [href]="cancelUrl"
+          [title]="cancelHash"
+          target="_blank"
+          rel="noopener"
+          >{{ FormatShortHex(cancelHash) }}</a
+        >
+        } @else {
+        <span class="dimmed" [title]="cancelHash">{{
+          FormatShortHex(cancelHash)
+        }}</span>
+        }
+      </div>
+      }
+    </div>
+    } @if (isCancelingAtPeriodEnd() && cancelAt(); as cancelDate) {
     <div class="view-section">
       <h2 class="section-title">Cancellation details</h2>
       <div class="mb">
@@ -316,6 +347,24 @@
         <div class="dimmed">—</div>
         }
       </div>
+      @if (s.subscription_onchain_id; as onchainId) {
+      <div class="mb">
+        <div class="bolded mb-small">On-chain subscription</div>
+        <app-copy-text
+          [text]="onchainId"
+          [displayText]="FormatShortHex(onchainId)"
+        ></app-copy-text>
+        @if (subscriberExplorerUrl(); as explorerUrl) {
+        <a
+          class="link-highlight onchain-explorer-link"
+          [href]="explorerUrl"
+          target="_blank"
+          rel="noopener"
+          >Subscriber wallet on explorer</a
+        >
+        }
+      </div>
+      }
     </div>
 
     <!-- Metadata -->

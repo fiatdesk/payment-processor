@@ -33,6 +33,7 @@ const STATUS_CHIP_MAP: Record<string, ChipType> = {
   past_due: 'yellow',
   unpaid: 'yellow',
   open: 'yellow',
+  cancel_pending_on_chain: 'yellow',
 
   // Red - Failure/Restricted states
   declined: 'red',
@@ -43,6 +44,7 @@ const STATUS_CHIP_MAP: Record<string, ChipType> = {
   rejected: 'red',
   highest: 'red',
   uncollectible: 'red',
+  allowance_exhausted: 'red',
 
   // Blue - Info states
   draft: 'blue',
@@ -51,6 +53,7 @@ const STATUS_CHIP_MAP: Record<string, ChipType> = {
   in_review: 'blue',
   default: 'blue',
   paused: 'blue',
+  paused_on_chain: 'blue',
 
   // Orange - Warning states
   disputed: 'orange',
@@ -88,6 +91,9 @@ export class StatusChipComponent {
     const key = this.status.toLowerCase();
     const labels: Record<string, string> = {
       in_review: 'In review',
+      paused_on_chain: 'Paused on-chain',
+      cancel_pending_on_chain: 'Cancel pending on-chain',
+      allowance_exhausted: 'Allowance exhausted',
     };
     if (labels[key]) return labels[key];
 

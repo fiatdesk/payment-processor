@@ -188,3 +188,12 @@ export interface ApiError extends Error {
 export function GetApiErrorType(error: unknown): string | undefined {
   return error instanceof Error ? (error as ApiError).type : undefined;
 }
+
+/**
+ * The API error `code` of a failed `ApiService.Call` (e.g.
+ * `onchain_plan_amount_exceeded`), else its type.
+ */
+export function GetApiErrorCode(error: unknown): string | undefined {
+  const code = (error as ApiError | null)?.details?.['code'];
+  return typeof code === 'string' ? code : GetApiErrorType(error);
+}

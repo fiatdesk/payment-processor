@@ -205,6 +205,21 @@
         }
       </td>
     </tr>
+    @if (price.recurring) {
+    <tr>
+      <td class="dimmed-extra">On-chain plan</td>
+      <td>
+        @if (price.subscription_plan_id; as planId) {
+        <app-copy-text
+          [text]="planId"
+          [displayText]="FormatShortHex(planId)"
+        ></app-copy-text>
+        } @else {
+        <span class="dimmed">Not created yet</span>
+        }
+      </td>
+    </tr>
+    }
   </tbody>
 </table>
 <div class="mb-extra-large"></div>

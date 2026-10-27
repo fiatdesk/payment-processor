@@ -6,6 +6,7 @@
  * component only drives the wallet and decides what to tell the customer.
  */
 import { WritableSignal } from '@angular/core';
+import type { TypedDataDefinition } from 'viem';
 import {
   CheckoutPaymentTransaction,
   CheckoutSession,
@@ -14,8 +15,14 @@ import {
 } from '@zoneless/shared-types';
 
 import {
+  GetApiErrorCode,
+  IsUserRejectedError,
+  type WalletService,
+} from '../../../core';
+import {
   CheckoutPaymentConfirmation,
   CheckoutSessionService,
+  CheckoutSubscribeConfirmation,
   ReadConfirmRetry,
 } from '../../../data/services/checkout-session.service';
 
@@ -32,20 +39,44 @@ export const CONFIRM_POLL_TIMEOUT_MS = 5 * 60_000;
 
 export const CONFIRMING_MESSAGE =
   'Waiting for network confirmations. This can take a minute.';
-export const ALREADY_CONFIRMING_MESSAGE =
-  'A payment for this checkout is already being confirmed';
-const ATTEMPT_ENDED_MESSAGE =
-  'The other payment for this checkout did not go through. You can pay now.';
+export const ALREADY_CONFIRMING_MESSAGE = AlreadyConfirmingMessage(false);
 const OUT_OF_DATE_MESSAGE =
   'This payment request is out of date. Reload the page and try again.';
 /** USDC has 6 decimals: one cent is 10 000 base units. */
-const USDC_UNITS_PER_CENT = BigInt(10_000);
+export const USDC_UNITS_PER_CENT = BigInt(10_000);
+
+/**
+ * The words checkout uses for what the customer is doing: a payment and
+ * Pay, or (`isSubscription`) a subscription and Subscribe.
+ */
+export function CheckoutWords(isSubscription: boolean): {
+  noun: string;
+  action: string;
+  verb: string;
+} {
+  return isSubscription
+    ? { noun: 'subscription', action: 'Subscribe', verb: 'subscribe' }
+    : { noun: 'payment', action: 'Pay', verb: 'pay' };
+}
+
+/** "A payment (or subscription) for this checkout is already being confirmed" */
+export function AlreadyConfirmingMessage(isSubscription: boolean): string {
+  return `A ${
+    CheckoutWords(isSubscription).noun
+  } for this checkout is already being confirmed`;
+}
+
+function IsSubscriptionSession(session: CheckoutSession): boolean {
+  return session.mode === 'subscription';
+}
 
 /** The payment is still confirming when checkout stops polling. */
 export class StillConfirmingError extends Error {
-  constructor() {
+  constructor(isSubscription = false) {
     super(
-      'Your payment is still confirming. Keep this page open, then check again.'
+      `Your ${
+        CheckoutWords(isSubscription).noun
+      } is still confirming. Keep this page open, then check again.`
     );
   }
 }
@@ -56,9 +87,13 @@ export class StillConfirmingError extends Error {
  * recorded; only it can pay until the session expires.
  */
 export class SignatureRequiredError extends Error {
-  constructor(readonly payerWallet: string | null) {
+  constructor(
+    readonly payerWallet: string | null,
+    readonly isSubscription = false
+  ) {
+    const { noun, action } = CheckoutWords(isSubscription);
     super(
-      'The payment was not sent to the network. Press Pay to sign it again.'
+      `The ${noun} was not sent to the network. Press ${action} to sign it again.`
     );
   }
 }
@@ -75,13 +110,30 @@ export type CheckoutConfirmApi = Pick<
   'ConfirmPayment' | 'GetPublicCheckoutSession'
 >;
 
+/** Completes from the wallet's existing on-chain subscription. */
+export interface AlreadySubscribedConfirmation {
+  already_subscribed: true;
+  subscription_onchain_id?: string;
+}
+
+/**
+ * What confirm is retried with until it settles: a payment's signature, a
+ * subscription's signatures, or an existing on-chain subscription.
+ */
+export type SignedConfirmation =
+  | { signature: string }
+  | CheckoutSubscribeConfirmation
+  | AlreadySubscribedConfirmation;
+
 export class CheckoutPaymentConfirmer {
   /**
-   * The customer's signature of the session's authorization. Confirming
-   * again with it is always safe, so it is kept until the payment settles
-   * or fails.
+   * What the customer signed for the session. Confirming again with it is
+   * always safe, so it is kept until the payment settles or fails.
    */
-  private held: { checkoutSessionId: string; signature: string } | null = null;
+  private held: {
+    checkoutSessionId: string;
+    confirmation: SignedConfirmation;
+  } | null = null;
   private stopped = false;
 
   constructor(
@@ -89,13 +141,20 @@ export class CheckoutPaymentConfirmer {
     private readonly state: CheckoutPaymentState
   ) {}
 
-  Hold(session: CheckoutSession, signature: string): void {
-    this.held = { checkoutSessionId: session.id, signature };
+  /** Holds a payment's `signature`, or a subscription's confirm body. */
+  Hold(
+    session: CheckoutSession,
+    signed: string | Exclude<SignedConfirmation, { signature: string }>
+  ): void {
+    this.held = {
+      checkoutSessionId: session.id,
+      confirmation: typeof signed === 'string' ? { signature: signed } : signed,
+    };
   }
 
-  HeldSignature(session: CheckoutSession): string | null {
+  Held(session: CheckoutSession): SignedConfirmation | null {
     return this.held?.checkoutSessionId === session.id
-      ? this.held.signature
+      ? this.held.confirmation
       : null;
   }
 
@@ -104,7 +163,7 @@ export class CheckoutPaymentConfirmer {
    * held, or polling stopped with a reported transaction.
    */
   CanCheckAgain(session: CheckoutSession): boolean {
-    return !!this.HeldSignature(session) || !!this.state.transactionHash();
+    return !!this.Held(session) || !!this.state.transactionHash();
   }
 
   /** Forget the signature and the reported transaction. */
@@ -152,6 +211,7 @@ export class CheckoutPaymentConfirmer {
     knownTransactionHash: string | null = null
   ): Promise<CheckoutSession> {
     const deadline = Date.now() + CONFIRM_POLL_TIMEOUT_MS;
+    const isSubscription = IsSubscriptionSession(session);
     let transactionHash = knownTransactionHash;
 
     while (!this.stopped) {
@@ -164,7 +224,12 @@ export class CheckoutPaymentConfirmer {
         );
         if (latest.status === 'complete') return latest;
         transactionHash = latest.payment_details?.transaction_hash ?? null;
-        if (!transactionHash) throw new Error(ATTEMPT_ENDED_MESSAGE);
+        if (!transactionHash) {
+          const { noun, verb } = CheckoutWords(isSubscription);
+          throw new Error(
+            `The other ${noun} for this checkout did not go through. You can ${verb} now.`
+          );
+        }
         continue;
       }
       try {
@@ -176,29 +241,33 @@ export class CheckoutPaymentConfirmer {
         // (defensive) is simply sent again.
         if (
           retry.reason === 'payment_resubmit_required' &&
-          !('signature' in confirmation)
+          'transaction_hash' in confirmation
         ) {
           return this.RequireSignature(session);
         }
         transactionHash = retry.transactionHash ?? transactionHash;
         this.ShowConfirming(
           transactionHash,
-          retry.anotherConfirmation ? ALREADY_CONFIRMING_MESSAGE : undefined
+          retry.anotherConfirmation
+            ? AlreadyConfirmingMessage(isSubscription)
+            : undefined
         );
       }
-      if (Date.now() >= deadline) throw new StillConfirmingError();
+      if (Date.now() >= deadline) {
+        throw new StillConfirmingError(isSubscription);
+      }
       await Delay(CONFIRM_POLL_INTERVAL_MS);
     }
-    throw new StillConfirmingError();
+    throw new StillConfirmingError(isSubscription);
   }
 
-  /** The held signature, else the payment's hash, else nothing yet. */
+  /** What is held, else the payment's hash, else nothing yet. */
   private Confirmation(
     session: CheckoutSession,
     transactionHash: string | null
   ): CheckoutPaymentConfirmation | null {
-    const signature = this.HeldSignature(session);
-    if (signature) return { signature };
+    const held = this.Held(session);
+    if (held) return held;
     return transactionHash ? { transaction_hash: transactionHash } : null;
   }
 
@@ -209,9 +278,31 @@ export class CheckoutPaymentConfirmer {
     const latest = await this.api.GetPublicCheckoutSession(session.url_slug);
     if (latest.status === 'complete') return latest;
     throw new SignatureRequiredError(
-      latest.payment_details?.payer_wallet ?? null
+      latest.payment_details?.payer_wallet ?? null,
+      IsSubscriptionSession(session)
     );
   }
+}
+
+/**
+ * Signs `typedData` with the wallet, but only while its account is still
+ * `signer`, the wallet it was prepared for: a switched account would sign
+ * a message the API then refuses.
+ */
+export function SignAsPrepared(
+  wallet: Pick<WalletService, 'GetAddress' | 'SignTypedData'>,
+  typedData: Eip712TypedData,
+  signer: string,
+  isSubscription: boolean
+): Promise<string> {
+  if (!SameAddress(wallet.GetAddress(), signer)) {
+    throw new Error(
+      `Your wallet switched accounts. Press ${
+        CheckoutWords(isSubscription).action
+      } to start again.`
+    );
+  }
+  return wallet.SignTypedData(typedData as unknown as TypedDataDefinition);
 }
 
 function Delay(ms: number): Promise<void> {
@@ -254,4 +345,74 @@ export function RequireAuthorizationTypedData(
 /** `0xABCD…1234` */
 export function ShortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/** `0x12345678…90abcdef` */
+export function ShortHash(transactionHash: string): string {
+  return `${transactionHash.slice(0, 10)}…${transactionHash.slice(-8)}`;
+}
+
+/**
+ * Who must sign a lost payment again. Another connected wallet cannot pay
+ * the session until it expires: `blockedBy` is then the recorded payer.
+ */
+export function ReadSignatureRequired(
+  error: SignatureRequiredError,
+  connected: string | null
+): { message: string; blockedBy: string | null } {
+  const payer = error.payerWallet;
+  if (!payer) return { message: error.message, blockedBy: null };
+  const { noun, action } = CheckoutWords(error.isSubscription);
+  const lost = `The ${noun} from ${ShortAddress(
+    payer
+  )} did not reach the network.`;
+  if (connected && !SameAddress(connected, payer)) {
+    const blocked = error.isSubscription
+      ? "can't subscribe with this checkout"
+      : "can't pay this checkout";
+    return {
+      message: `${lost} Open this checkout with that wallet to sign it again. Another wallet ${blocked} until it expires.`,
+      blockedBy: payer,
+    };
+  }
+  return {
+    message: `${lost} Press ${action} and sign it again with that wallet.`,
+    blockedBy: null,
+  };
+}
+
+/** Fixed words for API error codes whose own message is not for customers. */
+const CHECKOUT_ERROR_MESSAGES = new Map<string, string>([
+  [
+    'period_already_collected',
+    "This billing period was already charged to your wallet outside this checkout, so this checkout didn't start a subscription. Contact the merchant for help.",
+  ],
+  [
+    'onchain_plan_amount_exceeded',
+    'This subscription can only be bought with a quantity of 1. Contact the merchant for a new checkout link.',
+  ],
+  [
+    'subscription_authorization_stale',
+    'This subscription request expired before it was sent. Press Subscribe to sign a new one.',
+  ],
+]);
+
+/** What to tell the customer about a failed payment or subscription. */
+export function CheckoutErrorMessage(
+  error: unknown,
+  isSubscription: boolean
+): string {
+  if (IsUserRejectedError(error)) {
+    return 'The request was rejected in your wallet.';
+  }
+  const fixed = CHECKOUT_ERROR_MESSAGES.get(GetApiErrorCode(error) ?? '');
+  if (fixed) return fixed;
+  // viem's errors carry a one-line summary next to their long message.
+  const shortMessage = (error as { shortMessage?: unknown } | null)
+    ?.shortMessage;
+  if (typeof shortMessage === 'string' && shortMessage) return shortMessage;
+  if (error instanceof Error && error.message) return error.message;
+  return isSubscription
+    ? 'Something went wrong starting your subscription. Please try again.'
+    : 'Something went wrong processing your payment. Please try again.';
 }

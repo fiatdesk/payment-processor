@@ -10,10 +10,15 @@ import {
 } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import type { Invoice, Subscription } from '@zoneless/shared-types';
+import {
+  IsTransactionHash,
+  type Invoice,
+  type Subscription,
+} from '@zoneless/shared-types';
 import { Subscription as RxSubscription } from 'rxjs';
-import { SubscriptionService } from '../../../../../data';
+import { ConfigService, SubscriptionService } from '../../../../../data';
 import { MetaService } from '../../../../../core';
+import { ValidateEthereumAddress } from '../../../../../utils/validation';
 import {
   CopyTextComponent,
   MoreInfoHoverComponent,
@@ -35,6 +40,7 @@ import { SubscriptionActionsHostComponent } from '../../components/subscription-
 import {
   FormatShortDate,
   FormatShortDateTime,
+  FormatShortHex,
   FormatSubscriptionAmount,
   FormatSubscriptionBillingMethod,
   FormatSubscriptionBillingMode,
@@ -52,8 +58,10 @@ import {
   GetSubscriptionCustomerId,
   GetSubscriptionItemProductId,
   GetSubscriptionItemsTotalCents,
+  GetSubscriptionOnchainStatuses,
   GetUpcomingInvoicePreview,
   IsSubscriptionCancelingAtPeriodEnd,
+  SUBSCRIPTION_ONCHAIN_NOTICES,
 } from '../../util/subscription-display';
 
 @Component({
@@ -78,6 +86,7 @@ export class SubscriptionDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly metaService = inject(MetaService);
+  private readonly configService = inject(ConfigService);
   readonly actions = inject(SubscriptionActionsService);
 
   readonly MetadataToArray = MetadataToArray;
@@ -92,7 +101,9 @@ export class SubscriptionDetailComponent implements OnInit, OnDestroy {
   readonly FormatSubscriptionAmount = FormatSubscriptionAmount;
   readonly FormatShortDate = FormatShortDate;
   readonly FormatShortDateTime = FormatShortDateTime;
+  readonly FormatShortHex = FormatShortHex;
   readonly GetSubscriptionItemProductId = GetSubscriptionItemProductId;
+  readonly SUBSCRIPTION_ONCHAIN_NOTICES = SUBSCRIPTION_ONCHAIN_NOTICES;
 
   subscription: WritableSignal<Subscription | null> = signal(null);
   loading: WritableSignal<boolean> = signal(false);
@@ -171,6 +182,28 @@ export class SubscriptionDetailComponent implements OnInit, OnDestroy {
     return this.subscription()?.items?.data ?? [];
   });
 
+  readonly onchainStatuses = computed(() => {
+    const sub = this.subscription();
+    return sub ? GetSubscriptionOnchainStatuses(sub) : [];
+  });
+
+  /**
+   * The subscriber's wallet on the explorer, where its USDC charges and its
+   * allowance to the Subscriptions contract show. The on-chain id is a
+   * contract key, which an explorer has no page for.
+   */
+  readonly subscriberExplorerUrl = computed(() => {
+    const wallet = this.subscription()?.default_payment_method;
+    if (!wallet || !ValidateEthereumAddress(wallet)) return '';
+    return this.configService.GetExplorerUrl('address', wallet);
+  });
+
+  readonly cancelTransactionUrl = computed(() => {
+    const hash = this.subscription()?.cancel_pending_transaction_hash;
+    if (!hash || !IsTransactionHash(hash)) return '';
+    return this.configService.GetExplorerUrl('tx', hash);
+  });
+
   private sub?: RxSubscription;
 
   subscriptionActions: PopupMenuAction[] = this.actions.GetMenuActions();
@@ -202,6 +235,7 @@ export class SubscriptionDetailComponent implements OnInit, OnDestroy {
         await this.subscriptionService.GetSubscription(id, [
           'customer',
           'items.data.price.product',
+          'latest_invoice',
         ])
       );
     } finally {
