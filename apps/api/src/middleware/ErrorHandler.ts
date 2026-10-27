@@ -28,6 +28,7 @@ export const ErrorHandler = (
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       error: {
+        ...err.details,
         message: err.message,
         type: err.type,
         // Include request ID for tracing in production

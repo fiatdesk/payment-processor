@@ -240,11 +240,11 @@ const CHARGE_OBJECT_JSON = `{
   "payment_method_details": {
     "type": "crypto",
     "crypto": {
-      "buyer_address": "8xK2Nv3FpQ7mR9sT1uVwXyZ4aBcDeFgH",
+      "buyer_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
       "fingerprint": null,
-      "network": "solana",
+      "network": "ethereum",
       "token_currency": "usdc",
-      "transaction_hash": "5xK9mNpQ2rStUvWxYzAbCdEfGhIjKlMnOpQr"
+      "transaction_hash": "0x7f3c9a1e5b2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
     }
   },
   "presentment_details": null,
@@ -329,11 +329,11 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
   "payment_method_details": {
     "type": "crypto",
     "crypto": {
-      "buyer_address": "8xK2Nv3FpQ7mR9sT1uVwXyZ4aBcDeFgH",
+      "buyer_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
       "fingerprint": null,
-      "network": "solana",
+      "network": "ethereum",
       "token_currency": "usdc",
-      "transaction_hash": "5xK9mNpQ2rStUvWxYzAbCdEfGhIjKlMnOpQr"
+      "transaction_hash": "0x7f3c9a1e5b2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
     }
   },
   "presentment_details": null,
@@ -418,7 +418,7 @@ const CHARGE_CAPTURE_RESPONSE_JSON = `{
     "crypto": {
       "buyer_address": null,
       "fingerprint": null,
-      "network": "solana",
+      "network": "ethereum",
       "token_currency": "usdc",
       "transaction_hash": null
     }
@@ -508,11 +508,11 @@ const LIST_CHARGES_RESPONSE_JSON = `{
       "payment_method_details": {
         "type": "crypto",
         "crypto": {
-          "buyer_address": "8xK2Nv3FpQ7mR9sT1uVwXyZ4aBcDeFgH",
+          "buyer_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
           "fingerprint": null,
-          "network": "solana",
+          "network": "ethereum",
           "token_currency": "usdc",
-          "transaction_hash": "5xK9mNpQ2rStUvWxYzAbCdEfGhIjKlMnOpQr"
+          "transaction_hash": "0x7f3c9a1e5b2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
         }
       },
       "presentment_details": null,
@@ -651,7 +651,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'The full statement descriptor after static and dynamic portions are combined. Retained for API compatibility; USDC transfers on Solana do not display bank statement descriptors.',
+      'The full statement descriptor after static and dynamic portions are combined. Retained for API compatibility; USDC transfers on Ethereum do not display bank statement descriptors.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Blockchain payments have no card network statement descriptor. This field is typically <code>null</code>.',
   },
@@ -1242,7 +1242,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'Text that appears as the statement descriptor for non-card charges. Retained for API compatibility; Solana USDC transfers do not display bank statement descriptors.',
+      'Text that appears as the statement descriptor for non-card charges. Retained for API compatibility; USDC transfers on Ethereum do not display bank statement descriptors.',
   },
   {
     name: 'statement_descriptor_suffix',
@@ -1342,7 +1342,7 @@ export const CHARGES_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Charges track a payment attempt settled in USDC. Prefer creating PaymentIntents and confirming them—confirmation creates the Charge used to record the wallet payment.',
+          text: 'Charges track a payment attempt settled in USDC on Ethereum. Prefer creating PaymentIntents and confirming them—confirmation creates the Charge that records the payment. In Checkout the customer signs an authorization and needs no ETH; the Charge carries the hash of the transaction that moved the USDC.',
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {

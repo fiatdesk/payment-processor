@@ -795,15 +795,19 @@ describe('CheckoutSessionModule', () => {
         .fn()
         .mockResolvedValueOnce(openSession)
         .mockResolvedValueOnce(completedSession);
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValue(completedSession);
 
       const result = await module.CompleteCheckoutSession(openSession.id, {
         transaction_hash: 'sig_abc',
         payer_wallet: 'payer_wallet_1',
       });
 
-      expect(mockDb.Update).toHaveBeenCalledWith(
+      // Conditional on `open`, so concurrent confirms complete it once.
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'CheckoutSessions',
-        openSession.id,
+        { id: openSession.id, status: 'open' },
         {
           status: 'complete',
           payment_status: 'paid',
@@ -820,6 +824,47 @@ describe('CheckoutSessionModule', () => {
         completedSession
       );
       expect(result).toEqual(completedSession);
+    });
+
+    it('should refuse a session another request already completed', async () => {
+      mockDb.Get = jest.fn().mockResolvedValue(BuildOpenSession());
+      mockDb.FindOneAndUpdateByFilter = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        module.CompleteCheckoutSession('cs_z_1', {
+          transaction_hash: 'sig_abc',
+          payer_wallet: 'payer_wallet_1',
+        })
+      ).rejects.toThrow(
+        'Only Checkout Sessions with an `open` status can be completed'
+      );
+      expect(eventService.Emit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('SetPaymentTransactionHash', () => {
+    it('should change the hash only while the open session still holds the expected one', async () => {
+      mockDb.FindOneAndUpdateByFilter = jest
+        .fn()
+        .mockResolvedValueOnce({ id: 'cs_z_1' })
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        module.SetPaymentTransactionHash('cs_z_1', '0xabc', null)
+      ).resolves.toBe(true);
+      await expect(
+        module.SetPaymentTransactionHash('cs_z_1', '0xdef', null)
+      ).resolves.toBe(false);
+      expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenNthCalledWith(
+        1,
+        'CheckoutSessions',
+        {
+          id: 'cs_z_1',
+          status: 'open',
+          'payment_details.transaction_hash': null,
+        },
+        { 'payment_details.transaction_hash': '0xabc' }
+      );
     });
   });
 

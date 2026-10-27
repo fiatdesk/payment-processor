@@ -783,3 +783,54 @@ export const PrepareCheckoutPaymentSchema = z.object({
 export type PrepareCheckoutPaymentInput = z.infer<
   typeof PrepareCheckoutPaymentSchema
 >;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Confirm Checkout Payment Schema (public payment_pages)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A simulated-rail payment reference (`sim_sig:{session}:{wallet}`). */
+const SimulatedPaymentSchema = z
+  .string()
+  .max(300)
+  .regex(/^sim_sig:/);
+
+/**
+ * Body for POST /v1/payment_pages/:urlSlug/confirm. Send the customer's
+ * EIP-712 `signature` of the prepared authorization, or, to retry while it
+ * confirms, the `transaction_hash` from the `payment_pending` error. The
+ * simulated rail also accepts its `sim_sig:` references in either field.
+ */
+export const ConfirmCheckoutPaymentSchema = z
+  .object({
+    /** 65-byte ECDSA signature of the prepared typed data, as 0x hex */
+    signature: z
+      .union([
+        z
+          .string()
+          .regex(/^0x[0-9a-fA-F]{130}$/, 'Signature must be 0x + 130 hex'),
+        SimulatedPaymentSchema,
+      ])
+      .optional(),
+    /** Hash of the relayed payment transaction */
+    transaction_hash: z
+      .union([
+        z
+          .string()
+          .regex(/^0x[0-9a-fA-F]{64}$/, 'Transaction hash must be 0x + 64 hex'),
+        SimulatedPaymentSchema,
+      ])
+      .optional(),
+    already_subscribed: z.boolean().optional(),
+    subscription_onchain_id: z.string().max(200).optional(),
+  })
+  .refine(
+    (data) =>
+      data.signature === undefined || data.transaction_hash === undefined,
+    {
+      message: 'Provide signature or transaction_hash, not both',
+      path: ['signature'],
+    }
+  );
+export type ConfirmCheckoutPaymentInput = z.infer<
+  typeof ConfirmCheckoutPaymentSchema
+>;

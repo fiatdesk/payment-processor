@@ -938,7 +938,7 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
     description:
       'Three-letter currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Solana rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'customer',
@@ -1149,7 +1149,7 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
     description:
       'The list of payment method types that this PaymentIntent is allowed to use. For Zoneless, this is typically <code>crypto</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Solana) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'receipt_email',
@@ -1190,7 +1190,7 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'Text retained for API compatibility as a statement descriptor. Solana USDC transfers do not display bank statement descriptors.',
+      'Text retained for API compatibility as a statement descriptor. USDC transfers on Ethereum do not display bank statement descriptors.',
   },
   {
     name: 'statement_descriptor_suffix',
@@ -1485,7 +1485,8 @@ export const PAYMENT_INTENTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'A PaymentIntent transitions through multiple statuses as the customer authorizes a USDC wallet payment on Solana. Successful confirmation creates at most one Charge.',
+          text: 'A PaymentIntent transitions through multiple statuses as the customer pays in USDC on Ethereum. The customer signs one authorization and needs no ETH; the API submits the payment and pays its gas. The PaymentIntent is <code>processing</code> from the moment the payment is submitted until it confirms on-chain. Successful confirmation creates at most one Charge.',
+          html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -1596,7 +1597,8 @@ const CREATE_PAYMENT_INTENT_PARAMETERS: Attribute[] = [
     enumValues: [
       {
         value: 'crypto',
-        description: 'USDC wallet payments on Solana.',
+        description:
+          'USDC on Ethereum. The customer signs an authorization and needs no ETH.',
       },
     ],
   },

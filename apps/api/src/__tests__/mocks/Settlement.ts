@@ -4,12 +4,21 @@
  * stand in for the on-chain Ethereum rail (Sepolia).
  */
 
+import type { CheckoutTransferAuthorization } from '@zoneless/shared-types';
+import {
+  BuildTransferAuthorization,
+  BuildTransferAuthorizationTypedData,
+  type UsdcDomain,
+} from '../../modules/chains/CheckoutAuthorization';
 import type { Settlement } from '../../modules/chains/Settlement';
 import type {
   BroadcastResult,
+  CheckoutPaymentVerification,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PreparedAuthorization,
+  RelayCheckoutOptions,
   TransferRecipient,
   UnsignedPayoutBatch,
   UnsignedTransaction,
@@ -20,6 +29,14 @@ export const MOCK_PLAN_OWNER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const MOCK_PAYER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 export const MOCK_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
 export const MOCK_PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+export const MOCK_USDC_DOMAIN: UsdcDomain = {
+  name: 'USDC',
+  version: '2',
+  chainId: 11155111,
+  verifyingContract: MOCK_USDC,
+};
+/** Hash the mock relay returns for a checkout authorization. */
+export const MOCK_RELAY_HASH = `0x${'c0'.repeat(32)}`;
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
 /** What GetConfirmedBlock returns: the block at `latest - ETH_CONFIRMATIONS`. */
@@ -156,17 +173,55 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     FindBatchPayment: jest.fn().mockResolvedValue(null),
     GetAccountNonce: jest.fn().mockResolvedValue(MOCK_PAYOUT_NONCE),
     IsBlacklisted: jest.fn().mockResolvedValue([]),
-    BuildCheckoutPaymentTransaction: jest
-      .fn()
-      .mockResolvedValue(MockUnsignedTransaction('0x02unsigned')),
-    ValidateAndBroadcastCheckoutTransaction: jest.fn().mockResolvedValue({
-      transaction_hash: 'checkout_sig',
-    }),
-    VerifyCheckoutPayment: jest.fn().mockResolvedValue({
-      verified: true,
+    BuildCheckoutPaymentAuthorization: jest.fn(
+      async (
+        payer: string,
+        merchant: string,
+        amountCents: number,
+        sessionId: string,
+        expiresAt: number
+      ): Promise<PreparedAuthorization> => {
+        const authorization = BuildTransferAuthorization({
+          payer,
+          merchant,
+          amountCents,
+          sessionId,
+          expiresAt,
+        });
+        return {
+          method: 'eip3009_transfer',
+          typed_data: BuildTransferAuthorizationTypedData(
+            MOCK_USDC_DOMAIN,
+            authorization
+          ),
+          authorization,
+          estimated_fee: '300000000000000',
+          fee_currency: 'eth',
+          chain_id: 11155111,
+        };
+      }
+    ),
+    // Records the relay before "sending" it, as the Ethereum rail does.
+    RelayCheckoutAuthorization: jest.fn(
+      async (
+        _authorization: CheckoutTransferAuthorization,
+        _signature: string,
+        options: RelayCheckoutOptions
+      ): Promise<string | null> => {
+        if (options.pendingHash) return options.pendingHash;
+        await options.onSigned(MOCK_RELAY_HASH);
+        return MOCK_RELAY_HASH;
+      }
+    ),
+    VerifyCheckoutPayment: jest.fn<
+      Promise<CheckoutPaymentVerification>,
+      Parameters<Settlement['VerifyCheckoutPayment']>
+    >(async (transactionHash) => ({
+      status: 'verified',
+      transaction_hash: transactionHash,
       amount_cents: 1000,
       payer_address: MOCK_PAYER,
-    }),
+    })),
     GetPlanOwnerAddress: jest.fn().mockReturnValue(MOCK_PLAN_OWNER),
     CreateSubscriptionPlan: jest.fn().mockResolvedValue('plan_onchain_test'),
     BuildSubscribeTransaction: jest

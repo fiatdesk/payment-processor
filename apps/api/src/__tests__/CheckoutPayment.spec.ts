@@ -1,17 +1,33 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { CheckoutPaymentModule } from '../modules/CheckoutPayment';
 import { CheckoutSessionModule } from '../modules/CheckoutSession';
 import { ChargeModule } from '../modules/Charge';
+import type { CustomerModule } from '../modules/Customer';
 import { Database } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
 import { PaymentIntentModule } from '../modules/PaymentIntent';
 import { ProductModule } from '../modules/Product';
-import type { Settlement } from '../modules/chains/Settlement';
-import type { UnsignedTransaction } from '../modules/chains/types';
+import type { SubscriptionModule } from '../modules/Subscription';
+import { NotSupported } from '../modules/chains/Ethereum';
+import { BuildTransferAuthorization } from '../modules/chains/CheckoutAuthorization';
 import {
+  SimulatedSettlement,
+  SimulatedSignature,
+  type Settlement,
+} from '../modules/chains/Settlement';
+import type {
+  CheckoutPaymentVerification,
+  UnsignedTransaction,
+} from '../modules/chains/types';
+import { AppError } from '../utils/AppError';
+import {
+  BalanceTransaction,
+  Charge,
   CheckoutSession,
   CheckoutSessionLineItem,
   ExternalWallet,
+  PaymentIntent,
   Price,
 } from '@zoneless/shared-types';
 import {
@@ -21,9 +37,11 @@ import {
   GetFixedTimestamp,
   ResetIdCounter,
 } from './Setup';
+import { MemoryDatabase } from './mocks/MemoryDatabase';
 import {
   CreateMockSettlement,
   MOCK_PAYER,
+  MOCK_RELAY_HASH,
   MOCK_USDC,
 } from './mocks/Settlement';
 
@@ -43,7 +61,7 @@ jest.mock('../modules/AppConfig', () => ({
     livemode: false,
     appSecret: 'test-secret',
   })),
-  IsCheckoutRelayed: jest.fn(() => false),
+  GetCheckoutConfirmTimeoutMs: jest.fn(() => 90_000),
 }));
 // Charges read the network from the module-level rail.
 jest.mock('../modules/chains/Settlement', () => ({
@@ -55,6 +73,8 @@ jest.mock('../modules/chains/Settlement', () => ({
 
 const PAYER_WALLET = MOCK_PAYER;
 const MERCHANT_WALLET = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+const SIGNATURE = `0x${'5a'.repeat(64)}1b`;
+const OTHER_HASH = `0x${'0b'.repeat(32)}`;
 
 function BuildPrice(overrides: Partial<Price> = {}): Price {
   return {
@@ -83,6 +103,20 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     subscription_plan_id: null,
     ...overrides,
   };
+}
+
+function RecurringPrice(): Price {
+  return BuildPrice({
+    type: 'recurring',
+    recurring: {
+      interval: 'month',
+      interval_count: 1,
+      meter: null,
+      trial_period_days: null,
+      usage_type: 'licensed',
+    },
+    subscription_plan_id: 'PlanId111',
+  });
 }
 
 function UnsignedTx(unsignedTransaction: string): UnsignedTransaction {
@@ -117,6 +151,42 @@ function BuildLineItem(
   };
 }
 
+const merchantWallet = {
+  id: 'ew_z_1',
+  object: 'wallet' as const,
+  account: 'acct_z_platform',
+  wallet_address: MERCHANT_WALLET,
+  network: 'ethereum',
+  currency: 'usdc',
+  default_for_currency: true,
+  status: 'verified' as const,
+  created: 1700000000,
+  metadata: {},
+  platform_account: 'acct_z_platform',
+} as unknown as ExternalWallet;
+
+function Verified(
+  transactionHash: string | null,
+  overrides: Partial<CheckoutPaymentVerification> = {}
+): CheckoutPaymentVerification {
+  return {
+    status: 'verified',
+    transaction_hash: transactionHash,
+    amount_cents: 1000,
+    payer_address: PAYER_WALLET,
+    ...overrides,
+  };
+}
+
+function Pending(transactionHash: string | null): CheckoutPaymentVerification {
+  return {
+    status: 'pending',
+    transaction_hash: transactionHash,
+    amount_cents: 0,
+    payer_address: null,
+  };
+}
+
 describe('CheckoutPaymentModule', () => {
   let module: CheckoutPaymentModule;
   let mockDb: jest.Mocked<Database>;
@@ -128,20 +198,6 @@ describe('CheckoutPaymentModule', () => {
   let mockExternalWalletModule: jest.Mocked<
     Pick<ExternalWalletModule, 'GetDefaultWallet'>
   >;
-
-  const merchantWallet = {
-    id: 'ew_z_1',
-    object: 'wallet' as const,
-    account: 'acct_z_platform',
-    wallet_address: MERCHANT_WALLET,
-    network: 'ethereum',
-    currency: 'usdc',
-    default_for_currency: true,
-    status: 'verified' as const,
-    created: 1700000000,
-    metadata: {},
-    platform_account: 'acct_z_platform',
-  } as unknown as ExternalWallet;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -164,15 +220,9 @@ describe('CheckoutPaymentModule', () => {
     );
 
     mockSettlement = CreateMockSettlement();
-    mockSettlement.BuildCheckoutPaymentTransaction.mockResolvedValue(
-      UnsignedTx('unsigned_tx_base64')
-    );
     mockSettlement.BuildSubscribeTransaction.mockResolvedValue(
       UnsignedTx('unsigned_subscribe_base64')
     );
-    mockSettlement.ValidateAndBroadcastCheckoutTransaction.mockResolvedValue({
-      transaction_hash: 'relay_sig',
-    });
 
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
@@ -241,7 +291,7 @@ describe('CheckoutPaymentModule', () => {
   });
 
   describe('PreparePayment', () => {
-    it('should build an unsigned tx and mark the PaymentIntent requires_confirmation', async () => {
+    it('should prepare a relayed USDC authorization and mark the PaymentIntent requires_confirmation', async () => {
       const session = BuildOpenSession();
       const paymentIntent = BuildPaymentIntent();
       const requiresConfirmation = {
@@ -269,10 +319,14 @@ describe('CheckoutPaymentModule', () => {
       );
 
       expect(
-        mockSettlement.BuildCheckoutPaymentTransaction
-      ).toHaveBeenCalledWith(PAYER_WALLET, MERCHANT_WALLET, 1000, session.id, {
-        relayed: false,
-      });
+        mockSettlement.BuildCheckoutPaymentAuthorization
+      ).toHaveBeenCalledWith(
+        PAYER_WALLET,
+        MERCHANT_WALLET,
+        1000,
+        session.id,
+        session.expires_at
+      );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.updated',
         'acct_z_platform',
@@ -283,21 +337,30 @@ describe('CheckoutPaymentModule', () => {
           }),
         })
       );
-      expect(result).toEqual(
-        expect.objectContaining({
-          object: 'checkout.payment_transaction',
-          checkout_session: session.id,
-          amount_total: 1000,
-          unsigned_transaction: 'unsigned_tx_base64',
-          estimated_fee: '5000',
-          fee_currency: 'eth',
-          chain_id: 11155111,
-          nonce: null,
-          to: null,
-          relayed: false,
-        })
-      );
-      expect(result).not.toHaveProperty('fee_sponsored');
+      const authorization = BuildTransferAuthorization({
+        payer: PAYER_WALLET,
+        merchant: MERCHANT_WALLET,
+        amountCents: 1000,
+        sessionId: session.id,
+        expiresAt: session.expires_at,
+      });
+      expect(result).toEqual({
+        object: 'checkout.payment_transaction',
+        checkout_session: session.id,
+        amount_total: 1000,
+        currency: 'usdc',
+        merchant_wallet_address: MERCHANT_WALLET,
+        relayed: true,
+        method: 'eip3009_transfer',
+        typed_data: expect.objectContaining({
+          primaryType: 'TransferWithAuthorization',
+          message: expect.objectContaining({ value: '10000000' }),
+        }),
+        authorization,
+        estimated_fee: '300000000000000',
+        fee_currency: 'eth',
+        chain_id: 11155111,
+      });
       expect(mockDb.Update).toHaveBeenCalledWith(
         'CheckoutSessions',
         session.id,
@@ -305,6 +368,7 @@ describe('CheckoutPaymentModule', () => {
           payment_details: {
             transaction_hash: null,
             payer_wallet: PAYER_WALLET,
+            relayed: true,
           },
         }
       );
@@ -327,10 +391,14 @@ describe('CheckoutPaymentModule', () => {
       );
 
       expect(
-        mockSettlement.BuildCheckoutPaymentTransaction
-      ).toHaveBeenCalledWith(PAYER_WALLET, MERCHANT_WALLET, 1000, session.id, {
-        relayed: false,
-      });
+        mockSettlement.BuildCheckoutPaymentAuthorization
+      ).toHaveBeenCalledWith(
+        PAYER_WALLET,
+        MERCHANT_WALLET,
+        1000,
+        session.id,
+        session.expires_at
+      );
       expect(mockDb.Update).toHaveBeenCalledWith(
         'CheckoutSessions',
         session.id,
@@ -338,6 +406,7 @@ describe('CheckoutPaymentModule', () => {
           payment_details: {
             transaction_hash: null,
             payer_wallet: PAYER_WALLET,
+            relayed: true,
           },
         }
       );
@@ -352,22 +421,40 @@ describe('CheckoutPaymentModule', () => {
         )
       ).rejects.toThrow('payer_wallet must be a valid Ethereum address');
       expect(
-        mockSettlement.BuildCheckoutPaymentTransaction
+        mockSettlement.BuildCheckoutPaymentAuthorization
       ).not.toHaveBeenCalled();
     });
 
+    it('should let a missing relayer key surface as not_supported', async () => {
+      const session = BuildOpenSession();
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
+        .mockResolvedValue(session);
+      jest
+        .spyOn(checkoutSessionModule, 'GetCheckoutSession')
+        .mockResolvedValue(session);
+      mockSettlement.BuildCheckoutPaymentAuthorization.mockRejectedValue(
+        new AppError(
+          'On-chain checkout needs CHECKOUT_RELAYER_KEY to relay payments',
+          501,
+          'not_supported'
+        )
+      );
+
+      await expect(
+        module.PreparePayment(session.url_slug, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        })
+      ).rejects.toMatchObject({ statusCode: 501, type: 'not_supported' });
+      expect(mockDb.Update).not.toHaveBeenCalledWith(
+        'PaymentIntents',
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
     it('should build a subscribe transaction for subscription mode', async () => {
-      const recurringPrice = BuildPrice({
-        type: 'recurring',
-        recurring: {
-          interval: 'month',
-          interval_count: 1,
-          meter: null,
-          trial_period_days: null,
-          usage_type: 'licensed',
-        },
-        subscription_plan_id: 'PlanId111',
-      });
+      const recurringPrice = RecurringPrice();
       const session = BuildOpenSession({
         mode: 'subscription',
         payment_intent: null,
@@ -396,34 +483,23 @@ describe('CheckoutPaymentModule', () => {
       expect(mockSettlement.BuildSubscribeTransaction).toHaveBeenCalledWith(
         PAYER_WALLET,
         recurringPrice.id,
-        'PlanId111',
-        { relayed: false }
+        'PlanId111'
       );
       expect(
-        mockSettlement.BuildCheckoutPaymentTransaction
+        mockSettlement.BuildCheckoutPaymentAuthorization
       ).not.toHaveBeenCalled();
       expect(result.unsigned_transaction).toBe('unsigned_subscribe_base64');
+      expect(result.relayed).toBe(false);
       expect(result).not.toHaveProperty('subscription_step');
     });
 
     it('should return the existing subscription_onchain_id when the wallet is already subscribed', async () => {
-      const recurringPrice = BuildPrice({
-        type: 'recurring',
-        recurring: {
-          interval: 'month',
-          interval_count: 1,
-          meter: null,
-          trial_period_days: null,
-          usage_type: 'licensed',
-        },
-        subscription_plan_id: 'PlanId111',
-      });
       const session = BuildOpenSession({
         mode: 'subscription',
         payment_intent: null,
         line_items: {
           object: 'list',
-          data: [BuildLineItem({ price: recurringPrice })],
+          data: [BuildLineItem({ price: RecurringPrice() })],
           has_more: false,
           url: '/v1/checkout/sessions/cs_z_1/line_items',
         },
@@ -460,198 +536,668 @@ describe('CheckoutPaymentModule', () => {
       });
     });
   });
+});
 
-  describe('ConfirmPayment', () => {
-    it('should relay signed transactions before completing the session', async () => {
-      const session = BuildOpenSession();
-      const requiresConfirmation = BuildPaymentIntent('requires_confirmation');
-      const processing = {
-        ...requiresConfirmation,
-        status: 'processing' as const,
-        next_action: null,
-      };
-      const succeeded = {
-        ...processing,
-        status: 'succeeded' as const,
-        amount_received: 1000,
-        latest_charge: 'ch_z_test001',
-      };
-      const completedSession = {
-        ...session,
-        status: 'complete' as const,
-        payment_status: 'paid' as const,
-        url: null,
-        payment_details: {
-          transaction_hash: 'sig_abc',
-          payer_wallet: PAYER_WALLET,
-        },
-      };
+/** Confirm flows against an in-memory database, so state is real. */
+describe('CheckoutPaymentModule.ConfirmPayment', () => {
+  const SLUG = 'slug_pay';
+  let memory: MemoryDatabase;
+  let checkoutSessionModule: CheckoutSessionModule;
+  let paymentIntentModule: PaymentIntentModule;
+  let chargeModule: ChargeModule;
+  let productModule: ProductModule;
+  let settlement: jest.Mocked<Settlement>;
+  let events: string[];
+  let module: CheckoutPaymentModule;
+  let session: CheckoutSession;
 
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
-        .mockResolvedValueOnce(session)
-        .mockResolvedValueOnce(session)
-        .mockResolvedValueOnce(completedSession);
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByTransactionHash')
-        .mockResolvedValue(null);
-      jest
-        .spyOn(checkoutSessionModule, 'CompleteCheckoutSession')
-        .mockResolvedValue(completedSession);
+  const wallets = {
+    GetDefaultWallet: jest.fn(async () => merchantWallet),
+  } as unknown as ExternalWalletModule;
 
-      mockDb.Get = jest
-        .fn()
-        // MarkProcessing: idempotency check + ApplyStatusTransition x2
-        .mockResolvedValueOnce(requiresConfirmation)
-        .mockResolvedValueOnce(requiresConfirmation)
-        .mockResolvedValueOnce(processing)
-        // CreateCheckoutCharge → GetPaymentIntent
-        .mockResolvedValueOnce(processing)
-        // MarkSucceeded: idempotency check + ApplyStatusTransition x2
-        .mockResolvedValueOnce(processing)
-        .mockResolvedValueOnce(processing)
-        .mockResolvedValueOnce(succeeded)
-        // AttachBalanceTransaction → RequireCharge
-        .mockResolvedValueOnce({
-          id: 'ch_z_test001',
-          object: 'charge',
-          balance_transaction: 'txn_z_test002',
-        });
-      mockDb.Find2Custom = jest.fn().mockResolvedValue([
-        {
-          id: 'txn_existing',
-          type: 'payment',
-          source: session.id,
-        },
-      ]);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    ResetIdCounter();
+    memory = new MemoryDatabase();
+    const db = memory.AsDatabase();
+    events = [];
+    const eventService = {
+      Emit: jest.fn(async (type: string) => {
+        events.push(type);
+      }),
+    } as unknown as EventService;
+    productModule = new ProductModule(db);
+    paymentIntentModule = new PaymentIntentModule(db, eventService);
+    chargeModule = new ChargeModule(db, eventService);
+    checkoutSessionModule = new CheckoutSessionModule(
+      db,
+      eventService,
+      undefined,
+      productModule,
+      undefined,
+      paymentIntentModule
+    );
+    settlement = CreateMockSettlement();
+    module = Module(settlement);
 
-      mockSettlement.VerifyCheckoutPayment.mockResolvedValue({
-        verified: true,
-        payer_address: PAYER_WALLET,
-        amount_cents: 1000,
-      });
-      mockSettlement.ValidateAndBroadcastCheckoutTransaction.mockResolvedValueOnce(
-        { transaction_hash: 'sig_abc' }
-      );
-
-      const result = await module.ConfirmPayment(session.url_slug, undefined, {
-        signed_transaction: 'signed_tx_base64',
-      });
-
-      expect(
-        mockSettlement.ValidateAndBroadcastCheckoutTransaction
-      ).toHaveBeenCalledWith('signed_tx_base64');
-      expect(eventService.Emit.mock.calls.map((call) => call[0])).toEqual([
-        'payment_intent.processing',
-        'charge.succeeded',
-        'payment_intent.succeeded',
-      ]);
-      expect(mockDb.Set).toHaveBeenCalledWith(
-        'Charges',
-        expect.stringMatching(/^ch_z_/),
-        expect.objectContaining({
-          object: 'charge',
-          payment_intent: 'pi_z_1',
-          status: 'succeeded',
-          payment_method_details: expect.objectContaining({
-            type: 'crypto',
-            crypto: expect.objectContaining({
-              buyer_address: PAYER_WALLET,
-              transaction_hash: 'sig_abc',
-              network: 'ethereum',
-              token_currency: 'usdc',
-            }),
-          }),
-        })
-      );
-      expect(mockDb.Update).toHaveBeenCalledWith(
-        'PaymentIntents',
-        'pi_z_1',
-        expect.objectContaining({
-          status: 'succeeded',
-          latest_charge: expect.stringMatching(/^ch_z_/),
-        })
-      );
-      expect(
-        checkoutSessionModule.CompleteCheckoutSession
-      ).toHaveBeenCalledWith(session.id, {
-        transaction_hash: 'sig_abc',
+    session = {
+      ...checkoutSessionModule.CheckoutSessionObject(
+        'acct_z_platform',
+        { mode: 'payment', success_url: 'https://example.com/success' },
+        [BuildLineItem()]
+      ),
+      id: 'cs_z_pay',
+      url_slug: SLUG,
+      payment_intent: 'pi_z_1',
+      payment_details: {
+        transaction_hash: null,
         payer_wallet: PAYER_WALLET,
-      });
-      expect(result.status).toBe('complete');
+        relayed: true,
+      },
+    };
+    memory.Seed('CheckoutSessions', { ...session });
+    memory.Seed('PaymentIntents', {
+      ...paymentIntentModule.PaymentIntentObject('acct_z_platform', {
+        amount: 1000,
+        currency: 'usdc',
+      }),
+      id: 'pi_z_1',
+      status: 'requires_confirmation',
+      payment_method: PAYER_WALLET,
+    });
+  });
+
+  function Module(
+    rail: Settlement,
+    extra: {
+      customerModule?: CustomerModule;
+      subscriptionModule?: SubscriptionModule;
+    } = {}
+  ): CheckoutPaymentModule {
+    return new CheckoutPaymentModule(
+      memory.AsDatabase(),
+      checkoutSessionModule,
+      wallets,
+      productModule,
+      paymentIntentModule,
+      chargeModule,
+      undefined,
+      rail,
+      extra.customerModule,
+      extra.subscriptionModule
+    );
+  }
+
+  function Session(id = 'cs_z_pay'): CheckoutSession {
+    return memory.Doc<CheckoutSession>('CheckoutSessions', id);
+  }
+
+  function Intent(): PaymentIntent {
+    return memory.Doc<PaymentIntent>('PaymentIntents', 'pi_z_1');
+  }
+
+  function Seed(overrides: Partial<CheckoutSession>): void {
+    memory.Seed('CheckoutSessions', { ...Session(), ...overrides });
+  }
+
+  function ExpectNothingCompleted(): void {
+    expect(Session()).toMatchObject({
+      status: 'open',
+      payment_status: 'unpaid',
+    });
+    expect(memory.All<Charge>('Charges')).toEqual([]);
+    expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([]);
+  }
+
+  it('relays the signature, records its hash and the processing PaymentIntent before waiting, then completes', async () => {
+    const seen: Record<string, unknown> = {};
+    settlement.RelayCheckoutAuthorization.mockImplementation(
+      async (_authorization, _signature, options) => {
+        await options.onSigned(MOCK_RELAY_HASH);
+        // What a crash right after sending would leave behind.
+        seen.atSend = {
+          hash: Session().payment_details?.transaction_hash,
+          intent: Intent().status,
+        };
+        return MOCK_RELAY_HASH;
+      }
+    );
+    settlement.VerifyCheckoutPayment.mockImplementation(async (hash) => {
+      seen.atWait = {
+        hash: Session().payment_details?.transaction_hash,
+        intent: Intent().status,
+      };
+      return Verified(hash);
     });
 
-    it('should emit charge.failed then payment_failed when on-chain verification fails', async () => {
-      const session = BuildOpenSession();
-      const requiresConfirmation = BuildPaymentIntent('requires_confirmation');
-      const processing = {
-        ...requiresConfirmation,
-        status: 'processing' as const,
-        next_action: null,
-      };
-      const failed = {
-        ...processing,
-        status: 'requires_payment_method' as const,
-        last_payment_error: {
-          message: 'Amount mismatch',
-          charge: 'ch_z_test001',
+    const result = await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
+      BuildTransferAuthorization({
+        payer: PAYER_WALLET,
+        merchant: MERCHANT_WALLET,
+        amountCents: 1000,
+        sessionId: 'cs_z_pay',
+        expiresAt: session.expires_at,
+      }),
+      SIGNATURE,
+      expect.objectContaining({ pendingHash: null })
+    );
+    expect(seen).toEqual({
+      atSend: { hash: MOCK_RELAY_HASH, intent: 'processing' },
+      atWait: { hash: MOCK_RELAY_HASH, intent: 'processing' },
+    });
+    expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+      MOCK_RELAY_HASH,
+      {
+        merchantWalletAddress: MERCHANT_WALLET,
+        amountInCents: 1000,
+        checkoutSessionId: 'cs_z_pay',
+        payerAddress: PAYER_WALLET,
+        createdAt: session.created,
+      },
+      { timeoutMs: 90_000 }
+    );
+    expect(result).toMatchObject({
+      status: 'complete',
+      payment_status: 'paid',
+      payment_details: {
+        transaction_hash: MOCK_RELAY_HASH,
+        payer_wallet: PAYER_WALLET,
+        relayed: true,
+      },
+    });
+    expect(Intent()).toMatchObject({
+      status: 'succeeded',
+      amount_received: 1000,
+    });
+    expect(events).toEqual([
+      'payment_intent.processing',
+      'charge.succeeded',
+      'payment_intent.succeeded',
+      'checkout.session.completed',
+    ]);
+    expect(memory.All<Charge>('Charges')).toEqual([
+      expect.objectContaining({
+        status: 'succeeded',
+        payment_method_details: expect.objectContaining({
+          crypto: expect.objectContaining({
+            transaction_hash: MOCK_RELAY_HASH,
+            buyer_address: PAYER_WALLET,
+          }),
+        }),
+      }),
+    ]);
+    expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([
+      expect.objectContaining({
+        type: 'payment',
+        amount: 1000,
+        source: 'cs_z_pay',
+        metadata: expect.objectContaining({ blockchain_tx: MOCK_RELAY_HASH }),
+      }),
+    ]);
+  });
+
+  it('returns payment_pending with the relayed hash when confirmations time out, keeping the hash', async () => {
+    settlement.VerifyCheckoutPayment.mockResolvedValue(
+      Pending(MOCK_RELAY_HASH)
+    );
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      type: 'payment_pending',
+      details: { code: 'payment_pending', transaction_hash: MOCK_RELAY_HASH },
+    });
+
+    expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
+    expect(Intent().status).toBe('processing');
+    ExpectNothingCompleted();
+  });
+
+  it('completes a retry with transaction_hash without relaying again', async () => {
+    settlement.VerifyCheckoutPayment.mockResolvedValueOnce(
+      Pending(MOCK_RELAY_HASH)
+    );
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({ type: 'payment_pending' });
+
+    const result = await module.ConfirmPayment(SLUG, {
+      transaction_hash: `0x${MOCK_RELAY_HASH.slice(2).toUpperCase()}`,
+    });
+
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledTimes(1);
+    expect(settlement.VerifyCheckoutPayment).toHaveBeenLastCalledWith(
+      MOCK_RELAY_HASH,
+      expect.objectContaining({ checkoutSessionId: 'cs_z_pay' }),
+      { timeoutMs: 90_000 }
+    );
+    expect(result).toMatchObject({
+      status: 'complete',
+      payment_details: { transaction_hash: MOCK_RELAY_HASH },
+    });
+    expect(memory.All<BalanceTransaction>('BalanceTransactions')).toHaveLength(
+      1
+    );
+  });
+
+  it('hands the recorded relay to the rail when the signature is sent again', async () => {
+    Seed({
+      payment_details: {
+        transaction_hash: MOCK_RELAY_HASH,
+        payer_wallet: PAYER_WALLET,
+        relayed: true,
+      },
+    });
+
+    await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
+      expect.anything(),
+      SIGNATURE,
+      expect.objectContaining({ pendingHash: MOCK_RELAY_HASH })
+    );
+    expect(Session()).toMatchObject({
+      status: 'complete',
+      payment_details: { transaction_hash: MOCK_RELAY_HASH },
+    });
+  });
+
+  it('rejects a transaction_hash that already paid another Checkout Session and completes nothing', async () => {
+    memory.Seed('CheckoutSessions', {
+      ...session,
+      id: 'cs_z_other',
+      url_slug: 'slug_other',
+      status: 'complete',
+      payment_status: 'paid',
+      payment_details: {
+        transaction_hash: OTHER_HASH,
+        payer_wallet: PAYER_WALLET,
+        relayed: true,
+      },
+    });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message:
+        'This transaction has already been used for another Checkout Session',
+    });
+
+    expect(settlement.VerifyCheckoutPayment).not.toHaveBeenCalled();
+    expect(Session().payment_details?.transaction_hash).toBeNull();
+    expect(Intent().status).toBe('requires_confirmation');
+    ExpectNothingCompleted();
+    expect(events).toEqual([]);
+  });
+
+  it('rejects a verified payment whose transaction already paid another Checkout Session', async () => {
+    memory.Seed('CheckoutSessions', {
+      ...session,
+      id: 'cs_z_other',
+      url_slug: 'slug_other',
+      status: 'complete',
+      payment_status: 'paid',
+      payment_details: {
+        transaction_hash: OTHER_HASH,
+        payer_wallet: PAYER_WALLET,
+      },
+    });
+    settlement.VerifyCheckoutPayment.mockResolvedValue(Verified(OTHER_HASH));
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toThrow(
+      'This transaction has already been used for another Checkout Session'
+    );
+    ExpectNothingCompleted();
+  });
+
+  it('leaves the PaymentIntent and session untouched when the relay is refused before sending', async () => {
+    settlement.RelayCheckoutAuthorization.mockRejectedValue(
+      new AppError(
+        'The USDC authorization cannot be relayed: FiatTokenV2: invalid signature',
+        400,
+        'invalid_request_error'
+      )
+    );
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringMatching(/invalid signature/),
+    });
+
+    expect(Intent().status).toBe('requires_confirmation');
+    expect(Session().payment_details?.transaction_hash).toBeNull();
+    expect(settlement.VerifyCheckoutPayment).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
+  it('propagates not_supported from the rail unwrapped', async () => {
+    const notSupported = NotSupported('RelayCheckoutAuthorization');
+    settlement.RelayCheckoutAuthorization.mockRejectedValue(notSupported);
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toBe(notSupported);
+    expect(Intent().status).toBe('requires_confirmation');
+  });
+
+  it('reverts the recorded relay when the network refuses it, so the customer can retry', async () => {
+    settlement.RelayCheckoutAuthorization.mockImplementationOnce(
+      async (_authorization, _signature, options) => {
+        await options.onSigned(MOCK_RELAY_HASH);
+        throw new AppError(
+          'The network did not accept the payment: insufficient funds for gas',
+          400,
+          'blockchain_error'
+        );
+      }
+    );
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({ statusCode: 400, type: 'blockchain_error' });
+
+    expect(Session().payment_details?.transaction_hash).toBeNull();
+    expect(Intent()).toMatchObject({
+      status: 'requires_payment_method',
+      last_payment_error: expect.objectContaining({
+        message: expect.stringMatching(/insufficient funds/),
+      }),
+    });
+    expect(events).toEqual([
+      'payment_intent.processing',
+      'payment_intent.payment_failed',
+    ]);
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).resolves.toMatchObject({ status: 'complete' });
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenLastCalledWith(
+      expect.anything(),
+      SIGNATURE,
+      expect.objectContaining({ pendingHash: null })
+    );
+  });
+
+  it('refuses a transaction_hash other than the relayed one', async () => {
+    Seed({
+      payment_details: {
+        transaction_hash: MOCK_RELAY_HASH,
+        payer_wallet: PAYER_WALLET,
+        relayed: true,
+      },
+    });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+    ).rejects.toThrow(
+      'transaction_hash is not the payment relayed for this Checkout Session'
+    );
+    expect(settlement.VerifyCheckoutPayment).not.toHaveBeenCalled();
+    expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
+  });
+
+  it('fails the attempt and clears the relay when verification fails', async () => {
+    settlement.VerifyCheckoutPayment.mockResolvedValue({
+      status: 'failed',
+      transaction_hash: MOCK_RELAY_HASH,
+      amount_cents: 0,
+      payer_address: PAYER_WALLET,
+      failure_reason:
+        'The authorized transfer does not pay the merchant wallet',
+    });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'The authorized transfer does not pay the merchant wallet',
+    });
+
+    expect(events).toEqual([
+      'payment_intent.processing',
+      'charge.failed',
+      'payment_intent.payment_failed',
+    ]);
+    expect(memory.All<Charge>('Charges')).toEqual([
+      expect.objectContaining({ status: 'failed', paid: false }),
+    ]);
+    expect(Intent()).toMatchObject({
+      status: 'requires_payment_method',
+      last_payment_error: expect.objectContaining({
+        message: 'The authorized transfer does not pay the merchant wallet',
+      }),
+    });
+    expect(Session()).toMatchObject({
+      status: 'open',
+      payment_details: { transaction_hash: null },
+    });
+  });
+
+  it('completes with the transaction that used the authorization first', async () => {
+    settlement.VerifyCheckoutPayment.mockResolvedValue(Verified(OTHER_HASH));
+
+    const result = await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+
+    expect(result.payment_details?.transaction_hash).toBe(OTHER_HASH);
+    expect(memory.All<Charge>('Charges')).toEqual([
+      expect.objectContaining({
+        payment_method_details: expect.objectContaining({
+          crypto: expect.objectContaining({ transaction_hash: OTHER_HASH }),
+        }),
+      }),
+    ]);
+  });
+
+  it('verifies by authorization when the rail reports it already used', async () => {
+    settlement.RelayCheckoutAuthorization.mockResolvedValue(null);
+    settlement.VerifyCheckoutPayment.mockResolvedValue(Verified(OTHER_HASH));
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).resolves.toMatchObject({
+      status: 'complete',
+      payment_details: { transaction_hash: OTHER_HASH },
+    });
+    expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+      null,
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('requires prepare before confirming', async () => {
+    Seed({ payment_details: null });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toThrow(
+      'Prepare the payment for this Checkout Session before confirming it'
+    );
+    expect(settlement.RelayCheckoutAuthorization).not.toHaveBeenCalled();
+  });
+
+  it('requires a signature or a transaction_hash', async () => {
+    await expect(module.ConfirmPayment(SLUG, {})).rejects.toThrow(
+      'signature or transaction_hash is required'
+    );
+  });
+
+  it('finishes a relayed payment after expires_at but relays nothing new after it', async () => {
+    Seed({ expires_at: GetFixedTimestamp() - 1 });
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toThrow('This Checkout Session has expired');
+    expect(settlement.RelayCheckoutAuthorization).not.toHaveBeenCalled();
+
+    Seed({
+      payment_details: {
+        transaction_hash: MOCK_RELAY_HASH,
+        payer_wallet: PAYER_WALLET,
+        relayed: true,
+      },
+    });
+    await expect(
+      module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+    ).resolves.toMatchObject({ status: 'complete' });
+  });
+
+  it('runs overlapping confirms of one session one at a time and pays once', async () => {
+    const [first, second] = await Promise.all([
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE }),
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE }),
+    ]);
+
+    expect(first.status).toBe('complete');
+    expect(second.status).toBe('complete');
+    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledTimes(1);
+    expect(memory.All<Charge>('Charges')).toHaveLength(1);
+    expect(memory.All<BalanceTransaction>('BalanceTransactions')).toHaveLength(
+      1
+    );
+  });
+
+  it('answers payment_pending when another process claimed the relay first', async () => {
+    settlement.RelayCheckoutAuthorization.mockImplementation(
+      async (_authorization, _signature, options) => {
+        // Another API instance recorded its relay after this one read the session.
+        Seed({
+          payment_details: {
+            transaction_hash: OTHER_HASH,
+            payer_wallet: PAYER_WALLET,
+            relayed: true,
+          },
+        });
+        await options.onSigned(MOCK_RELAY_HASH);
+        return MOCK_RELAY_HASH;
+      }
+    );
+
+    await expect(
+      module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      details: { transaction_hash: OTHER_HASH },
+    });
+    expect(Session().payment_details?.transaction_hash).toBe(OTHER_HASH);
+    expect(settlement.VerifyCheckoutPayment).not.toHaveBeenCalled();
+  });
+
+  describe('PreparePayment while a relay confirms', () => {
+    beforeEach(() => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
         },
-      };
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+    });
 
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByUrlSlug')
-        .mockResolvedValue(session);
-      jest
-        .spyOn(checkoutSessionModule, 'GetCheckoutSessionByTransactionHash')
-        .mockResolvedValue(null);
+    it('returns the same authorization to sign again and leaves the PaymentIntent processing', async () => {
+      const prepared = await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
 
-      mockDb.Get = jest
-        .fn()
-        // MarkProcessing
-        .mockResolvedValueOnce(requiresConfirmation)
-        .mockResolvedValueOnce(requiresConfirmation)
-        .mockResolvedValueOnce(processing)
-        // CreateCheckoutCharge → GetPaymentIntent
-        .mockResolvedValueOnce(processing)
-        // MarkPaymentFailed (ApplyStatusTransition)
-        .mockResolvedValueOnce(processing)
-        .mockResolvedValueOnce(failed);
+      expect(prepared.authorization).toEqual(
+        BuildTransferAuthorization({
+          payer: PAYER_WALLET,
+          merchant: MERCHANT_WALLET,
+          amountCents: 1000,
+          sessionId: 'cs_z_pay',
+          expiresAt: session.expires_at,
+        })
+      );
+      expect(Intent().status).toBe('processing');
+      expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
+    });
 
-      mockSettlement.VerifyCheckoutPayment.mockResolvedValue({
-        verified: false,
-        payer_address: null,
-        amount_cents: 0,
-        failure_reason: 'Amount mismatch',
+    it('refuses another wallet', async () => {
+      await expect(
+        module.PreparePayment(SLUG, MERCHANT_WALLET, {
+          email: 'buyer@example.com',
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+        details: { transaction_hash: MOCK_RELAY_HASH },
+      });
+      expect(Session().payment_details?.payer_wallet).toBe(PAYER_WALLET);
+    });
+  });
+
+  describe('on the simulated rail', () => {
+    beforeEach(() => {
+      module = Module(new SimulatedSettlement());
+      Seed({ payment_details: null });
+    });
+
+    it.each(['transaction_hash', 'signature'] as const)(
+      'prepares nothing to sign and completes with a sim_sig %s',
+      async (field) => {
+        const prepared = await module.PreparePayment(SLUG, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        });
+        expect(prepared).toMatchObject({
+          method: 'simulated',
+          typed_data: null,
+          authorization: null,
+          relayed: false,
+          fee_currency: 'none',
+        });
+
+        const reference = SimulatedSignature('cs_z_pay', PAYER_WALLET);
+        const result = await module.ConfirmPayment(SLUG, {
+          [field]: reference,
+        });
+
+        expect(result).toMatchObject({
+          status: 'complete',
+          payment_details: {
+            transaction_hash: reference,
+            payer_wallet: PAYER_WALLET,
+            relayed: false,
+          },
+        });
+      }
+    );
+  });
+
+  describe('subscription mode', () => {
+    beforeEach(() => {
+      Seed({
+        mode: 'subscription',
+        payment_intent: null,
+        line_items: {
+          object: 'list',
+          data: [BuildLineItem({ price: RecurringPrice() })],
+          has_more: false,
+          url: '/v1/checkout/sessions/cs_z_pay/line_items',
+        },
+      });
+    });
+
+    it('lets a typed first-period collect error propagate unwrapped', async () => {
+      const notSupported = NotSupported('CollectSubscriptionPayment');
+      settlement.CollectSubscriptionPayment.mockRejectedValue(notSupported);
+      module = Module(settlement, {
+        customerModule: {} as CustomerModule,
+        subscriptionModule: {} as SubscriptionModule,
       });
 
       await expect(
-        module.ConfirmPayment(session.url_slug, 'sig_bad')
-      ).rejects.toThrow('Amount mismatch');
-
-      expect(eventService.Emit.mock.calls.map((call) => call[0])).toEqual([
-        'payment_intent.processing',
-        'charge.failed',
-        'payment_intent.payment_failed',
-      ]);
-      expect(mockDb.Set).toHaveBeenCalledWith(
-        'Charges',
-        expect.stringMatching(/^ch_z_/),
-        expect.objectContaining({
-          status: 'failed',
-          paid: false,
-          payment_intent: 'pi_z_1',
-        })
-      );
-      expect(mockDb.Update).toHaveBeenCalledWith(
-        'PaymentIntents',
-        'pi_z_1',
-        expect.objectContaining({
-          last_payment_error: expect.objectContaining({
-            charge: expect.stringMatching(/^ch_z_/),
-            message: 'Amount mismatch',
-          }),
-        })
-      );
+        module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+      ).rejects.toBe(notSupported);
+      expect(Session().status).toBe('open');
     });
   });
 });

@@ -9,14 +9,19 @@
  */
 
 import { isAddress } from 'viem';
-import type { PublicConfig } from '@zoneless/shared-types';
+import type {
+  CheckoutTransferAuthorization,
+  PublicConfig,
+} from '@zoneless/shared-types';
 import { GetAppConfig, type SupportedChainId } from '../AppConfig';
 import { ChainClientsGeneration } from './Chain';
 import { CHAIN_EXPLORERS } from './contracts';
 import { Ethereum } from './Ethereum';
+import { AppError } from '../../utils/AppError';
 import { Now } from '../../utils/Timestamp';
 import type {
   BroadcastResult,
+  CheckoutPaymentExpectation,
   CheckoutPaymentVerification,
   ConfirmedBlock,
   CheckoutSubscribeVerification,
@@ -24,7 +29,9 @@ import type {
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PreparedAuthorization,
   RailDescription,
+  RelayCheckoutOptions,
   TransferRecipient,
   UnsignedPayoutBatch,
   UnsignedTransaction,
@@ -114,23 +121,38 @@ export interface Settlement {
   GetAccountNonce(address: string, blockNumber: number): Promise<number | null>;
   /** The addresses the token issuer has blacklisted. */
   IsBlacklisted(addresses: string[]): Promise<string[]>;
-  BuildCheckoutPaymentTransaction(
+  /**
+   * What the payer signs to pay `amountCents` to the merchant for the
+   * session: an EIP-3009 authorization valid until `expiresAt`.
+   */
+  BuildCheckoutPaymentAuthorization(
     payer: string,
     merchant: string,
     amountCents: number,
     sessionId: string,
-    options?: { relayed?: boolean }
-  ): Promise<UnsignedTransaction>;
-  ValidateAndBroadcastCheckoutTransaction(
-    signed: string
-  ): Promise<{ transaction_hash: string }>;
+    expiresAt: number
+  ): Promise<PreparedAuthorization>;
+  /**
+   * Submits the signed authorization and returns the transaction hash;
+   * `options.onSigned` sees the hash before the network does. Returns the
+   * pending hash while the node still knows it, or null when the
+   * authorization was already used on-chain, without sending anything.
+   * Throws when nothing was accepted.
+   */
+  RelayCheckoutAuthorization(
+    authorization: CheckoutTransferAuthorization,
+    signature: string,
+    options: RelayCheckoutOptions
+  ): Promise<string | null>;
+  /**
+   * Waits up to `timeoutMs` for the transaction to confirm, then checks it
+   * pays the session. With no hash, or a transaction that does not pay, it
+   * looks for another transaction that used the session's authorization.
+   */
   VerifyCheckoutPayment(
-    transactionHash: string,
-    expected: {
-      merchantWalletAddress: string;
-      amountInCents: number;
-      checkoutSessionId: string;
-    }
+    transactionHash: string | null,
+    expected: CheckoutPaymentExpectation,
+    options?: { timeoutMs?: number }
   ): Promise<CheckoutPaymentVerification>;
   GetPlanOwnerAddress(): string;
   CreateSubscriptionPlan(
@@ -239,14 +261,33 @@ export class SimulatedSettlement implements Settlement {
     return [];
   }
 
-  async BuildCheckoutPaymentTransaction(
-    _payer: string,
-    _merchant: string,
-    _amountCents: number,
-    _sessionId: string,
-    _options?: { relayed?: boolean }
-  ): Promise<UnsignedTransaction> {
-    return DummyUnsignedTransaction();
+  async BuildCheckoutPaymentAuthorization(): Promise<PreparedAuthorization> {
+    return {
+      method: 'simulated',
+      typed_data: null,
+      authorization: null,
+      estimated_fee: '0',
+      fee_currency: 'none',
+      chain_id: null,
+    };
+  }
+
+  /** The simulated wallet's `sim_sig:` reference stands for the transaction. */
+  async RelayCheckoutAuthorization(
+    _authorization: CheckoutTransferAuthorization,
+    signature: string,
+    options: RelayCheckoutOptions
+  ): Promise<string | null> {
+    if (!PayerFromSimulatedSignature(signature)) {
+      throw new AppError(
+        'signature must be a simulated wallet signature in test mode',
+        400,
+        'invalid_request_error'
+      );
+    }
+    if (options.pendingHash) return options.pendingHash;
+    await options.onSigned(signature);
+    return signature;
   }
 
   async BuildSubscribeTransaction(
@@ -256,12 +297,6 @@ export class SimulatedSettlement implements Settlement {
     _options?: { relayed?: boolean }
   ): Promise<UnsignedTransaction> {
     return DummyUnsignedTransaction();
-  }
-
-  async ValidateAndBroadcastCheckoutTransaction(
-    signed: string
-  ): Promise<{ transaction_hash: string }> {
-    return { transaction_hash: signed || 'sim_sig_broadcast' };
   }
 
   async FindExistingSubscription(
@@ -296,24 +331,30 @@ export class SimulatedSettlement implements Settlement {
   }
 
   async VerifyCheckoutPayment(
-    transactionHash: string,
-    expected: {
-      merchantWalletAddress: string;
-      amountInCents: number;
-      checkoutSessionId: string;
-    }
+    transactionHash: string | null,
+    expected: CheckoutPaymentExpectation
   ): Promise<CheckoutPaymentVerification> {
+    if (!transactionHash) {
+      return {
+        status: 'pending',
+        transaction_hash: null,
+        amount_cents: 0,
+        payer_address: null,
+      };
+    }
     const payerAddress = PayerFromSimulatedSignature(transactionHash);
     if (!payerAddress) {
       return {
-        verified: false,
+        status: 'failed',
+        transaction_hash: transactionHash,
         amount_cents: 0,
         payer_address: null,
         failure_reason: 'Invalid simulated payment',
       };
     }
     return {
-      verified: true,
+      status: 'verified',
+      transaction_hash: transactionHash,
       amount_cents: expected.amountInCents,
       payer_address: payerAddress,
     };

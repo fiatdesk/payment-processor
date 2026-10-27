@@ -928,7 +928,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     description:
       'Three-letter ISO currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Solana rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'customer',
@@ -1069,7 +1069,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
       {
         value: 'setup',
         description:
-          "Save a customer's Solana wallet to charge them later, without collecting payment now.",
+          "Save a customer's Ethereum wallet to charge them later, without collecting payment now.",
       },
       {
         value: 'subscription',
@@ -1120,7 +1120,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     description:
       'The list of payment method types this Checkout Session is allowed to accept.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Solana) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'payment_status',
@@ -1257,13 +1257,19 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         type: 'string',
         nullable: true,
         description:
-          'Hash of the payment transaction. <code>null</code> until the customer confirms payment.',
+          'Hash of the payment transaction. <code>null</code> until the customer confirms payment. Set as soon as the payment is submitted, before it confirms.',
       },
       {
         name: 'payer_wallet',
         type: 'string',
         nullable: true,
         description: 'The customer wallet address that paid or subscribed.',
+      },
+      {
+        name: 'relayed',
+        type: 'boolean',
+        description:
+          'Whether the customer paid by signing a USDC authorization that the API submitted on-chain, paying the gas. The customer needs no ETH.',
       },
     ],
   },
@@ -2255,7 +2261,7 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless connects Solana wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
+      '<strong>Difference from Stripe:</strong> Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
   },
   {
     name: 'merchant',
@@ -2360,7 +2366,7 @@ export const CHECKOUT_SESSIONS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: "A Checkout Session powers a hosted payment page where customers pay in USDC. In live mode they connect a Solana wallet. In test mode they approve a simulated wallet. Redirect your customer to the Session's <code>url</code> to begin, and they land back on your <code>success_url</code> once payment completes.",
+          text: "A Checkout Session powers a hosted payment page where customers pay in USDC on Ethereum. In live mode they connect an Ethereum wallet and sign one authorization; the API submits the payment and pays its gas, so they need no ETH. In test mode they approve a simulated wallet. Redirect your customer to the Session's <code>url</code> to begin, and they land back on your <code>success_url</code> once the payment confirms on-chain.",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -2399,7 +2405,7 @@ const CREATE_CHECKOUT_SESSION_PARAMETERS: Attribute[] = [
       {
         value: 'setup',
         description:
-          "Save a customer's Solana wallet to charge them later, without collecting payment now.",
+          "Save a customer's Ethereum wallet to charge them later, without collecting payment now.",
       },
       {
         value: 'subscription',
@@ -2449,7 +2455,11 @@ const CREATE_CHECKOUT_SESSION_PARAMETERS: Attribute[] = [
     description:
       'The list of payment method types this Checkout Session is allowed to accept. Defaults to <code>crypto</code>.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      {
+        value: 'crypto',
+        description:
+          'USDC on Ethereum. The customer signs an authorization and needs no ETH.',
+      },
     ],
   },
   {
@@ -3449,7 +3459,7 @@ const CREATE_CHECKOUT_SESSION_MORE_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless connects Solana wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
+      '<strong>Difference from Stripe:</strong> Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
   },
 ];
 

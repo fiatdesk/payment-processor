@@ -661,6 +661,7 @@ export class CheckoutSessionModule {
     paymentDetails: {
       transaction_hash: string;
       payer_wallet: string | null;
+      relayed?: boolean;
     },
     options?: {
       subscription?: string | null;
@@ -675,24 +676,29 @@ export class CheckoutSessionModule {
       );
     }
 
-    if (previousSession.status !== 'open') {
+    // Conditional on `open`, so concurrent confirms complete (and credit) once.
+    // The session url is only present while the session is active.
+    const completed =
+      await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+        'CheckoutSessions',
+        { id, status: 'open' },
+        {
+          status: 'complete',
+          payment_status: 'paid',
+          url: null,
+          payment_details: paymentDetails,
+          ...(options?.subscription !== undefined
+            ? { subscription: options.subscription }
+            : {}),
+        }
+      );
+    if (!completed) {
       throw new AppError(
         'Only Checkout Sessions with an `open` status can be completed',
         ERRORS.INVALID_REQUEST.status,
         ERRORS.INVALID_REQUEST.type
       );
     }
-
-    // The session url is only present while the session is active.
-    await this.db.Update<CheckoutSessionType>('CheckoutSessions', id, {
-      status: 'complete',
-      payment_status: 'paid',
-      url: null,
-      payment_details: paymentDetails,
-      ...(options?.subscription !== undefined
-        ? { subscription: options.subscription }
-        : {}),
-    });
 
     const session = await this.GetCheckoutSession(id);
     if (!session) {
@@ -870,6 +876,33 @@ export class CheckoutSessionModule {
       id,
       updatePayload
     );
+  }
+
+  /**
+   * Record the hash of a payment transaction on an open session, before the
+   * transaction is sent, so a retry or a crash never loses it. Changes the
+   * hash only while it still equals `expected` (null for none), so two
+   * confirms cannot both relay; returns false when it did not.
+   *
+   * @param id - The checkout session ID
+   * @param transactionHash - The new hash, or null to clear it
+   * @param expected - The hash the session must still hold
+   */
+  async SetPaymentTransactionHash(
+    id: string,
+    transactionHash: string | null,
+    expected: string | null
+  ): Promise<boolean> {
+    const updated = await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      {
+        id,
+        status: 'open',
+        'payment_details.transaction_hash': expected,
+      },
+      { 'payment_details.transaction_hash': transactionHash }
+    );
+    return updated !== null;
   }
 
   /**

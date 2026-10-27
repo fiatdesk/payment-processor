@@ -17,7 +17,11 @@ import { InvoiceModule } from '../modules/Invoice';
 import { SubscriptionModule } from '../modules/Subscription';
 
 import { ValidateRequest } from '../middleware/ValidateRequest';
-import { PrepareCheckoutPaymentSchema } from '@zoneless/shared-schemas';
+import {
+  ConfirmCheckoutPaymentSchema,
+  PrepareCheckoutPaymentSchema,
+  type ConfirmCheckoutPaymentInput,
+} from '@zoneless/shared-schemas';
 
 const router = express.Router();
 
@@ -117,9 +121,9 @@ router.get(
 
 /**
  * POST /v1/payment_pages/:urlSlug/prepare
- * Build an unsigned transaction for the checkout session. Payment
- * mode returns a USDC transfer; subscription mode returns a subscribe
- * transaction.
+ * Prepare what the customer signs. Payment mode returns an EIP-3009 USDC
+ * authorization as EIP-712 typed data (the API relays it and pays the gas);
+ * subscription mode returns a subscribe transaction.
  */
 router.post(
   '/:urlSlug/prepare',
@@ -159,30 +163,29 @@ router.post(
 
 /**
  * POST /v1/payment_pages/:urlSlug/confirm
- * Verify a broadcast transaction on-chain and complete the checkout
- * session. Subscription mode creates the off-chain Subscription and
- * collects the first period (unless trialing). Idempotent on transaction_hash.
+ * Payment mode: `{ signature }` relays the signed authorization, waits for
+ * confirmations and completes the session; while it is still confirming the
+ * response is a 409 `payment_pending` with the `transaction_hash` to retry
+ * with (`{ transaction_hash }`). Subscription mode verifies the subscribe
+ * transaction, creates the off-chain Subscription and collects the first
+ * period (unless trialing).
  */
 router.post(
   '/:urlSlug/confirm',
+  ValidateRequest(ConfirmCheckoutPaymentSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const {
+      signature,
       transaction_hash: transactionHash,
-      signed_transaction: signedTransaction,
       already_subscribed: alreadySubscribed,
       subscription_onchain_id: subscriptionOnchainId,
-    } = req.body as {
-      transaction_hash?: string;
-      signed_transaction?: string;
-      already_subscribed?: boolean;
-      subscription_onchain_id?: string;
-    };
+    } = req.body as ConfirmCheckoutPaymentInput;
 
     const session = await checkoutPaymentModule.ConfirmPayment(
       req.params.urlSlug,
-      transactionHash,
       {
-        signed_transaction: signedTransaction,
+        signature,
+        transaction_hash: transactionHash,
         already_subscribed: alreadySubscribed,
         subscription_onchain_id: subscriptionOnchainId,
       }

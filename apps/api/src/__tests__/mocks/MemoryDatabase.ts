@@ -93,6 +93,15 @@ export class MemoryDatabase {
     return this.Filter<T>(collection, { [field]: value });
   }
 
+  async FindCustom<T>(
+    collection: string,
+    field: string,
+    operator: string,
+    value: unknown
+  ): Promise<T[]> {
+    return this.Filter<T>(collection, OperatorFilter(field, operator, value));
+  }
+
   async Find2Custom<T>(
     collection: string,
     field1: string,

@@ -1191,7 +1191,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     description:
       'Three-letter ISO currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Solana rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'line_items',
@@ -1306,7 +1306,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     description:
       'The list of payment method types that customers can use. When <code>null</code>, relevant payment methods enabled in your payment method settings are shown dynamically.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Solana) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'url',
@@ -2056,7 +2056,7 @@ export const PAYMENT_LINKS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Share a Payment Link URL with customers so they can pay in USDC through a hosted Checkout page. Each visit creates a new Checkout Session — listen for session events to fulfill orders.',
+          text: 'Share a Payment Link URL with customers so they can pay in USDC on Ethereum through a hosted Checkout page. Customers sign an authorization and need no ETH; the API submits the payment and pays its gas. Each visit creates a new Checkout Session — listen for session events to fulfill orders.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -2123,7 +2123,11 @@ const CREATE_PAYMENT_LINK_PARAMETERS: Attribute[] = [
     description:
       'The list of payment method types that customers can use. Defaults to your payment method settings when omitted.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      {
+        value: 'crypto',
+        description:
+          'USDC on Ethereum. The customer signs an authorization and needs no ETH.',
+      },
     ],
   },
 ];
@@ -2627,7 +2631,11 @@ const UPDATE_PAYMENT_LINK_MORE_PARAMETERS: Attribute[] = [
     description:
       'The list of payment method types that customers can use. Pass an empty array to enable dynamic payment methods from your payment method settings.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      {
+        value: 'crypto',
+        description:
+          'USDC on Ethereum. The customer signs an authorization and needs no ETH.',
+      },
     ],
   },
   {

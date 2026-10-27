@@ -927,3 +927,131 @@ apps/docs/src/app/pages/docs/data/top-ups.ts
 apps/web/src/app/features/account/balance/components/add-funds-panel/add-funds-panel.component.html
 libs/shared-types/src/lib/TopUp.ts
 ```
+
+## Task 11: Checkout payments via relayed EIP-3009 authorizations
+
+Hosted checkout now settles on Ethereum. The buyer signs one EIP-712 `TransferWithAuthorization` and needs no ETH. The API relays it from `CHECKOUT_RELAYER_KEY` and pays the gas. The money rule is that a session completes only on a transfer its own authorization made: USDC must emit `AuthorizationUsed(payer, keccak256(session.id))` immediately followed by the `Transfer(payer → merchant wallet, value ≥ amount due)` of the same call. A plain transfer of the right amount, an authorization with another nonce, or the session's authorization paying another address is rejected.
+
+- **Pure helpers** (`chains/CheckoutAuthorization.ts`):
+  - `SessionNonce(id) = keccak256(utf8(id))`.
+  - `BuildTransferAuthorization` builds `to = merchant`, `value = amount_total × 10_000`, `validAfter = 0`, `validBefore = expires_at`.
+  - `BuildTransferAuthorizationTypedData` returns JSON-safe typed data. `types` includes `EIP712Domain`, so `eth_signTypedData_v4` hashes the same domain as viem. `value` is a decimal string.
+  - `SplitSignature` takes 65-byte signatures with a recovery byte of 27/28 or 0/1, and answers anything else with a 400.
+  - `VerifyCheckoutReceipt` pairs each `AuthorizationUsed` log with the `Transfer` log right after it, from the USDC contract only.
+- **Ethereum rail:**
+  - `GetUsdcDomain()` reads `name()` once; the version is `"2"`.
+  - `BuildCheckoutPaymentAuthorization` returns the typed data, the authorization and an informational relay fee: 100,000 gas × (2 × base fee + priority fee).
+  - `RelayCheckoutAuthorization`:
+    - It never relays an authorization that `authorizationState` already shows as used; it returns the recorded hash, or null, without sending.
+    - It reuses a recorded relay the node still knows.
+    - It simulates the call (`estimateGas`) before signing, so an invalid, expired, blacklisted or unfunded authorization is a 400 and nothing is sent.
+    - The relay transaction is signed locally, and `onSigned(hash)` runs before `sendRawTransaction`.
+    - "already known", or a hash the node knows after an error, counts as sent. "nonce too low" or "replacement transaction underpriced" re-signs at the next pending nonce (3 attempts). Any other error is a 400 `blockchain_error`.
+    - Relayer nonces: sends for one relayer are serialised in-process (`utils/KeyedLock.ts`) and read the `pending` nonce. A nonce taken by another process is re-signed.
+  - `VerifyCheckoutPayment(hash | null, expected, { timeoutMs })`:
+    - It polls until the receipt is `ETH_CONFIRMATIONS` below the head, then reads everything at the confirmed block.
+    - When the transaction does not pay, it checks `authorizationState` at that block. If the authorization was used, the transaction found by its `AuthorizationUsed` log decides. The search runs newest blocks first, in 2,000-block chunks back to just before the session's creation, at most 50 chunks. This covers a front-run, or a reverted second relay.
+    - A timeout or RPC error returns `pending`, never `failed`.
+    - The rail uses its own polling loop, not viem's `waitForTransactionReceipt`. viem's block poller leaves an uncancellable 4 s timer behind.
+  - On-chain checkout without `CHECKOUT_RELAYER_KEY` is a 501 `not_supported` at prepare and at relay.
+- **Simulated rail:** `method: 'simulated'` with nothing to sign. Relay and verify accept the `sim_sig:` references.
+- **Settlement interface:** `BuildCheckoutPaymentAuthorization`, `RelayCheckoutAuthorization` and the new `VerifyCheckoutPayment` signature replace `BuildCheckoutPaymentTransaction` and `ValidateAndBroadcastCheckoutTransaction`. `CheckoutPaymentVerification` now has `status` (`verified` / `failed` / `pending`) and `transaction_hash`.
+- **Checkout flow** (`CheckoutPayment.ts`):
+  - **Prepare:**
+    - It returns `method`, `typed_data`, `authorization`, `estimated_fee`, `fee_currency`, `chain_id` and `relayed: true` on-chain (`false` simulated and for subscriptions).
+    - It stores `payment_details.relayed`.
+    - While a relay is recorded, it returns the same authorization to sign again, leaves the PaymentIntent alone, and refuses another wallet with a 409 `payment_pending`.
+  - **Confirm** (`{ signature }` or `{ transaction_hash }`):
+    - The API rebuilds the authorization from the session and the payer recorded at prepare.
+    - Before the relay is sent, the API records its hash (`SetPaymentTransactionHash`, a compare-and-set, so two confirms cannot both relay) and marks the PaymentIntent `processing`.
+    - It waits up to `CHECKOUT_CONFIRM_TIMEOUT_MS` (new `GetCheckoutConfirmTimeoutMs()`, 1,000–300,000 ms, default 90,000, checked at boot).
+    - While the payment confirms, the response is a 409 `payment_pending` whose body carries `code: 'payment_pending'` and `transaction_hash`. A retry with that hash verifies without relaying again.
+    - A send the network refused clears the recorded hash and returns the PaymentIntent to `requires_payment_method` (`payment_intent.payment_failed`).
+    - A failure before anything was signed leaves both untouched.
+    - A final verification failure creates the failed Charge and clears the recorded hash, so a new signature can be relayed.
+    - A recorded payment may finish confirming after `expires_at`, because USDC already refused it after that time. No new relay starts after expiry.
+  - **Replay protection:** a transaction that paid another session is rejected before and after verification, and nothing is completed.
+  - **Typed errors:** typed `AppError`s (for example 501 `not_supported`) propagate unwrapped, including from the first-period subscription collect.
+  - **Concurrency:** confirms of one session run one at a time in-process. `CompleteCheckoutSession` is now conditional on `status: open`, so concurrent confirms complete and credit the ledger once.
+- **Schemas and types:**
+  - The new `ConfirmCheckoutPaymentSchema` (`signature`: `0x` + 130 hex; `transaction_hash`: `0x` + 64 hex; both also accept the simulated `sim_sig:` references; never both) is validated on `POST /v1/payment_pages/:urlSlug/confirm`.
+  - Hashes are lowercased.
+  - `CheckoutPaymentTransaction`, `CheckoutTransferAuthorization` and `Eip712TypedData` are now in `@zoneless/shared-types`. The web service switches to them in Task 12.
+  - `payment_details.relayed` is added.
+- **Errors:** `AppError` takes optional `details`, which `ErrorHandler` merges into the error body. Details cannot replace `message` or `type`.
+- **`Charge.ts`:** it already read `network` from `Describe()` (since Task 6), so it is unchanged.
+- **Docs:** the Checkout Session, PaymentIntent, Payment Link and Charge pages describe the flow: sign an authorization, no ETH needed, the API pays the gas, and `processing` lasts until the payment confirms. `payment_details.relayed` is documented. The Charge samples use an Ethereum network, address and hash. These four pages no longer mention Solana.
+- **Tests:**
+  - `CheckoutAuthorization.spec.ts`: the nonce, the typed data and its JSON round trip, signature splitting, and receipt verification including both Review Focus 3 cases.
+  - `CheckoutPayment.spec.ts`, against `MemoryDatabase`:
+    - The hash is recorded and the PaymentIntent is processing at send time and while waiting.
+    - `payment_pending` on a timeout.
+    - A retry by hash does not relay again.
+    - Replay rejection (A1), before and after verification.
+    - A3: untouched state on a pre-send failure, and 501 propagated unwrapped from the relay and from the collect.
+    - A refused send is reverted.
+    - A different hash is refused.
+    - A failed verification clears the relay.
+    - A front-run hash completes the session.
+    - Expiry handling.
+    - Overlapping confirms pay once.
+    - A cross-process claim conflict.
+    - Re-prepare during a relay.
+    - The simulated rail end to end.
+  - Ethereum mocked-RPC specs:
+    - The hash is recorded before the send.
+    - A used authorization is not relayed; a known relay is reused.
+    - A simulated revert is a 400.
+    - "already known", nonce re-sign, refused send.
+    - Concurrent relays get distinct nonces.
+    - Confirmed-depth waiting, pending on a timeout or RPC error.
+    - The log search finds a front-run and searches newest first.
+  - `CheckoutSessionSchema.spec.ts` (shared-schemas), `ErrorHandler.spec.ts`, `KeyedLock.spec.ts`, the AppConfig timeout specs, and the `CompleteCheckoutSession` / `SetPaymentTransactionHash` specs.
+  - `MemoryDatabase` gains `FindCustom`.
+  - The Anvil spec `Checkout.anvil.spec.ts`, on a real chain:
+    - The buyer signs the API's typed data with viem, the relayer relays it, and verification returns the buyer as payer.
+    - A second relay of the same authorization is not sent by the rail. Submitted directly, it reverts on the used nonce, and verifying it resolves to the first.
+    - A tampered `to` fails verification.
+    - A signature over another recipient is refused before sending.
+    - A front-run is found by its log.
+    - The module end to end: `payment_pending`, a mined block, then a retry by hash completes and credits the ledger.
+
+Added:
+
+```
+apps/api/src/__tests__/CheckoutAuthorization.spec.ts
+apps/api/src/__tests__/ErrorHandler.spec.ts
+apps/api/src/__tests__/KeyedLock.spec.ts
+apps/api/src/__tests__/anvil/Checkout.anvil.spec.ts
+apps/api/src/modules/chains/CheckoutAuthorization.ts
+apps/api/src/utils/KeyedLock.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.spec.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/CheckoutSession.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/mocks/MemoryDatabase.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/middleware/ErrorHandler.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/CheckoutSession.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/api/src/utils/AppError.ts
+apps/docs/src/app/pages/docs/data/charges.ts
+apps/docs/src/app/pages/docs/data/checkout-sessions.ts
+apps/docs/src/app/pages/docs/data/payment-intents.ts
+apps/docs/src/app/pages/docs/data/payment-links.ts
+libs/shared-schemas/src/lib/CheckoutSessionSchema.ts
+libs/shared-types/src/lib/CheckoutSession.ts
+```

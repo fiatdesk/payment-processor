@@ -469,10 +469,18 @@ export interface CheckoutSession {
    * @zoneless_extension
    */
   payment_details?: {
-    /** Hash of the payment transaction. Null after prepare, before confirm. */
+    /**
+     * Hash of the payment transaction. Null after prepare; set as soon as
+     * the API relays the payment, before it confirms.
+     */
     transaction_hash: string | null;
     /** The customer wallet that paid / subscribed. */
     payer_wallet: string | null;
+    /**
+     * True when the customer signed a USDC authorization that is relayed
+     * on-chain, so the customer paid no gas.
+     */
+    relayed?: boolean;
   } | null;
 
   /**
@@ -724,4 +732,68 @@ export interface CheckoutSessionDeleted {
   object: 'checkout.session';
   /** Always true for a deleted object */
   deleted: true;
+}
+
+/**
+ * EIP-712 typed data for `eth_signTypedData_v4`. `types` includes
+ * `EIP712Domain`; integers are JSON numbers or decimal strings.
+ */
+export interface Eip712TypedData {
+  domain: {
+    name: string;
+    version: string;
+    chainId: number;
+    verifyingContract: string;
+  };
+  types: Record<string, { name: string; type: string }[]>;
+  primaryType: string;
+  message: Record<string, string | number>;
+}
+
+/**
+ * The EIP-3009 `TransferWithAuthorization` a customer signs to pay a
+ * Checkout Session. `value` is in USDC base units (6 decimals); `nonce` is
+ * `keccak256` of the session id, which binds the payment to the session.
+ */
+export interface CheckoutTransferAuthorization {
+  from: string;
+  to: string;
+  value: string;
+  valid_after: number;
+  valid_before: number;
+  nonce: string;
+}
+
+/**
+ * Returned by `POST /v1/payment_pages/:urlSlug/prepare`. Payment mode
+ * returns the authorization to sign (`typed_data`), which the API relays and
+ * pays the gas for; subscription mode returns an unsigned subscribe
+ * transaction.
+ */
+export interface CheckoutPaymentTransaction {
+  object: 'checkout.payment_transaction';
+  checkout_session: string;
+  amount_total: number;
+  currency: string | null;
+  merchant_wallet_address: string;
+  /** True when the API relays the payment and pays its gas (always on-chain). */
+  relayed: boolean;
+  /** Payment mode: sign `typed_data`, or approve the simulated wallet. */
+  method?: 'eip3009_transfer' | 'simulated';
+  typed_data?: Eip712TypedData | null;
+  authorization?: CheckoutTransferAuthorization | null;
+  /** Gas the relayer is expected to pay, in atomic units of `fee_currency` */
+  estimated_fee: string;
+  fee_currency: string;
+  chain_id: number | null;
+  /** Subscription mode: the unsigned subscribe transaction. */
+  unsigned_transaction?: string;
+  nonce?: number | null;
+  to?: string | null;
+  /**
+   * True when the wallet is already subscribed on-chain (e.g. a prior attempt
+   * landed but checkout confirm failed); confirm without signing.
+   */
+  already_subscribed?: boolean;
+  subscription_onchain_id?: string;
 }

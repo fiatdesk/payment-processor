@@ -1,6 +1,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import {
   GetChainConfig,
+  GetCheckoutConfirmTimeoutMs,
   GetCheckoutRelayerKey,
   GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
@@ -22,6 +23,7 @@ const ENV_KEYS = [
   'CHECKOUT_RELAYER_KEY',
   'SUBSCRIPTION_OPERATOR_KEY',
   'PAYOUT_BUILD_DEADLINE_SECONDS',
+  'CHECKOUT_CONFIRM_TIMEOUT_MS',
 ];
 
 describe('AppConfig', () => {
@@ -155,6 +157,37 @@ describe('AppConfig', () => {
         const config = require('../modules/AppConfig');
         expect(() => config.GetAppConfig()).toThrow(
           /PAYOUT_BUILD_DEADLINE_SECONDS/
+        );
+      });
+    });
+  });
+
+  describe('GetCheckoutConfirmTimeoutMs', () => {
+    it('defaults to 90 seconds', () => {
+      expect(GetCheckoutConfirmTimeoutMs()).toBe(90_000);
+    });
+
+    it.each(['1000', '45000', '300000'])('accepts %s ms', (value) => {
+      process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = value;
+
+      expect(GetCheckoutConfirmTimeoutMs()).toBe(Number(value));
+    });
+
+    it.each(['999', '300001', '1.5', 'soon'])('rejects %s', (value) => {
+      process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = value;
+
+      expect(() => GetCheckoutConfirmTimeoutMs()).toThrow(
+        'CHECKOUT_CONFIRM_TIMEOUT_MS must be an integer from 1000 to 300000'
+      );
+    });
+
+    it('fails at boot on a bad timeout', () => {
+      process.env.CHECKOUT_CONFIRM_TIMEOUT_MS = '0';
+
+      jest.isolateModules(() => {
+        const config = require('../modules/AppConfig');
+        expect(() => config.GetAppConfig()).toThrow(
+          /CHECKOUT_CONFIRM_TIMEOUT_MS/
         );
       });
     });

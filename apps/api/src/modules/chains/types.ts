@@ -5,6 +5,11 @@
  * @module chains/types
  */
 
+import type {
+  CheckoutTransferAuthorization,
+  Eip712TypedData,
+} from '@zoneless/shared-types';
+
 export type Rail = 'simulated' | 'onchain';
 
 /** Identity of the active settlement rail. */
@@ -116,10 +121,56 @@ export interface IncomingDeposit {
   blockNumber: number;
 }
 
-/** Result of verifying a checkout payment transaction on-chain */
+/**
+ * What the customer signs at checkout: an EIP-3009 authorization on-chain,
+ * nothing on the simulated rail.
+ */
+export interface PreparedAuthorization {
+  method: 'eip3009_transfer' | 'simulated';
+  typed_data: Eip712TypedData | null;
+  authorization: CheckoutTransferAuthorization | null;
+  /** Gas the relayer is expected to pay, in atomic units of `fee_currency` */
+  estimated_fee: string;
+  fee_currency: string;
+  chain_id: number | null;
+}
+
+/** Hooks around relaying a checkout authorization. */
+export interface RelayCheckoutOptions {
+  /** A relay already recorded for the session; reused while the node knows it */
+  pendingHash?: string | null;
+  /**
+   * Runs with the hash of each signed relay transaction before it is sent.
+   * A throw cancels the send.
+   */
+  onSigned(transactionHash: string): Promise<void>;
+}
+
+/** The payment a checkout session expects. */
+export interface CheckoutPaymentExpectation {
+  merchantWalletAddress: string;
+  amountInCents: number;
+  checkoutSessionId: string;
+  /** The wallet that signed the authorization (recorded at prepare) */
+  payerAddress: string;
+  /** Unix time the session was created; its authorization is never older */
+  createdAt: number;
+}
+
+/** Result of verifying a checkout payment on-chain */
 export interface CheckoutPaymentVerification {
-  verified: boolean;
-  /** Total USDC (in cents) transferred to the merchant in this transaction */
+  /**
+   * `verified`: the session is paid. `failed`: final; the transaction does
+   * not pay the session. `pending`: not settled yet (not mined, not
+   * confirmed, or the node did not answer).
+   */
+  status: 'verified' | 'failed' | 'pending';
+  /**
+   * The transaction the result is about. It differs from the one checked
+   * when another transaction used the session's authorization first.
+   */
+  transaction_hash: string | null;
+  /** Total USDC (in cents) the authorized transfer paid the merchant */
   amount_cents: number;
   /** The payer's wallet address */
   payer_address: string | null;

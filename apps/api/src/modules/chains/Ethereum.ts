@@ -2,9 +2,9 @@
 /**
  * The on-chain Ethereum rail (mainnet, Sepolia or Anvil). Rail description,
  * explorer links, address checks, balance reads, deposit detection from USDC
- * `Transfer` logs and batch payouts through the PayoutBatch contract work;
- * the remaining money flows reject with `not_supported` until they are
- * implemented.
+ * `Transfer` logs, batch payouts through the PayoutBatch contract and hosted
+ * checkout through relayed EIP-3009 authorizations work; subscriptions
+ * reject with `not_supported` until they are implemented.
  *
  * @module chains/Ethereum
  */
@@ -36,9 +36,17 @@ import {
   type TransactionReceipt,
   type TransactionSerialized,
 } from 'viem';
+import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import type { CheckoutTransferAuthorization } from '@zoneless/shared-types';
 import { AppError } from '../../utils/AppError';
+import { WithKeyedLock } from '../../utils/KeyedLock';
 import { Logger } from '../../utils/Logger';
-import { GetPayoutDeadlineSeconds } from '../AppConfig';
+import {
+  GetCheckoutConfirmTimeoutMs,
+  GetCheckoutRelayerKey,
+  GetPayoutDeadlineSeconds,
+  IsCheckoutRelayed,
+} from '../AppConfig';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
 import { USDC_ABI } from './abi/Usdc';
 import {
@@ -46,6 +54,14 @@ import {
   GetPublicClient,
   IsDeploylessMulticall,
 } from './Chain';
+import {
+  BuildTransferAuthorization,
+  BuildTransferAuthorizationTypedData,
+  SessionNonce,
+  SplitSignature,
+  VerifyCheckoutReceipt,
+  type UsdcDomain,
+} from './CheckoutAuthorization';
 import {
   CentsToTokenUnits,
   EncodeDisperseCall,
@@ -55,6 +71,7 @@ import {
 import type { Settlement } from './Settlement';
 import type {
   BroadcastResult,
+  CheckoutPaymentExpectation,
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
   ConfirmedBlock,
@@ -62,7 +79,9 @@ import type {
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PreparedAuthorization,
   RailDescription,
+  RelayCheckoutOptions,
   TransferRecipient,
   UnsignedPayoutBatch,
   UnsignedTransaction,
@@ -78,8 +97,21 @@ const BATCH_PAID_EVENT = getAbiItem({
   name: 'BatchPaid',
 });
 const TRANSFER_EVENT = getAbiItem({ abi: USDC_ABI, name: 'Transfer' });
+const AUTHORIZATION_USED_EVENT = getAbiItem({
+  abi: USDC_ABI,
+  name: 'AuthorizationUsed',
+});
 /** Block timestamps kept for deposit lookups (oldest evicted first). */
 const BLOCK_TIMESTAMP_CACHE_SIZE = 256;
+/** Gas of one USDC `transferWithAuthorization`, for the quoted relay fee. */
+const RELAY_GAS_ESTIMATE = 100_000n;
+/** Sends of one relay, re-signed when another sender took the nonce. */
+const RELAY_SEND_ATTEMPTS = 3;
+/** Blocks per `getLogs` call when looking for a used authorization. */
+const AUTHORIZATION_LOG_CHUNK = 2_000n;
+const AUTHORIZATION_LOG_MAX_CHUNKS = 50;
+/** Blocks searched before the session's creation, on top of the estimate. */
+const AUTHORIZATION_LOG_MARGIN = 256n;
 
 interface Fees {
   maxFeePerGas: bigint;
@@ -97,6 +129,7 @@ export function NotSupported(method: string): AppError {
 
 export class Ethereum implements Settlement {
   private usdcDecimalsVerified = false;
+  private usdcDomain: UsdcDomain | null = null;
   private readonly blockTimestamps = new Map<bigint, number>();
 
   Describe(): RailDescription {
@@ -592,18 +625,211 @@ export class Ethereum implements Settlement {
     return accounts.filter((_, i) => results[i]);
   }
 
-  async BuildCheckoutPaymentTransaction(): Promise<UnsignedTransaction> {
-    throw NotSupported('BuildCheckoutPaymentTransaction');
+  /** The USDC EIP-712 domain; the token's `name()` is read once. */
+  async GetUsdcDomain(): Promise<UsdcDomain> {
+    if (!this.usdcDomain) {
+      const { chainId, usdc } = GetChainConfig();
+      const name = await GetPublicClient().readContract({
+        address: usdc,
+        abi: USDC_ABI,
+        functionName: 'name',
+      });
+      this.usdcDomain = {
+        name,
+        version: '2',
+        chainId,
+        verifyingContract: usdc,
+      };
+    }
+    return this.usdcDomain;
   }
 
-  async ValidateAndBroadcastCheckoutTransaction(): Promise<{
-    transaction_hash: string;
-  }> {
-    throw NotSupported('ValidateAndBroadcastCheckoutTransaction');
+  /**
+   * The `TransferWithAuthorization` the payer signs. The relayer pays the
+   * gas, so `estimated_fee` is what the relay is expected to cost.
+   */
+  async BuildCheckoutPaymentAuthorization(
+    payer: string,
+    merchant: string,
+    amountCents: number,
+    sessionId: string,
+    expiresAt: number
+  ): Promise<PreparedAuthorization> {
+    if (!IsCheckoutRelayed()) throw RelayerRequired();
+    const { chainId, usdc } = GetChainConfig();
+    await this.VerifyUsdcDecimals(usdc);
+    const authorization = BuildTransferAuthorization({
+      payer,
+      merchant,
+      amountCents,
+      sessionId,
+      expiresAt,
+    });
+    const [domain, fees] = await Promise.all([
+      this.GetUsdcDomain(),
+      this.CurrentFees(),
+    ]);
+    return {
+      method: 'eip3009_transfer',
+      typed_data: BuildTransferAuthorizationTypedData(domain, authorization),
+      authorization,
+      estimated_fee: (RELAY_GAS_ESTIMATE * fees.maxFeePerGas).toString(),
+      fee_currency: 'eth',
+      chain_id: chainId,
+    };
   }
 
-  async VerifyCheckoutPayment(): Promise<CheckoutPaymentVerification> {
-    throw NotSupported('VerifyCheckoutPayment');
+  /**
+   * `USDC.transferWithAuthorization` from CHECKOUT_RELAYER_KEY. The call is
+   * simulated first, so an invalid, expired or unfunded authorization fails
+   * before anything is signed. Sends for one relayer are serialised in this
+   * process and read the `pending` nonce; a nonce taken by another process
+   * is re-signed (each new hash goes through `onSigned` again).
+   */
+  async RelayCheckoutAuthorization(
+    authorization: CheckoutTransferAuthorization,
+    signature: string,
+    options: RelayCheckoutOptions
+  ): Promise<string | null> {
+    const relayer = privateKeyToAccount(RequireRelayer());
+    const { v, r, s } = SplitSignature(signature);
+    const { usdc } = GetChainConfig();
+    const from = ToAddress(authorization.from);
+    const nonce = AuthorizationNonce(authorization.nonce);
+    const data = encodeFunctionData({
+      abi: USDC_ABI,
+      functionName: 'transferWithAuthorization',
+      args: [
+        from,
+        ToAddress(authorization.to),
+        BigInt(authorization.value),
+        BigInt(authorization.valid_after),
+        BigInt(authorization.valid_before),
+        nonce,
+        v,
+        r,
+        s,
+      ],
+    });
+
+    const used = await NodeCall(() =>
+      GetPublicClient().readContract({
+        address: usdc,
+        abi: USDC_ABI,
+        functionName: 'authorizationState',
+        args: [from, nonce],
+      })
+    );
+    // Used by an earlier relay or by whoever submitted the signature first.
+    if (used) return options.pendingHash ?? null;
+    if (
+      options.pendingHash &&
+      (await this.IsKnownTransaction(options.pendingHash)) !== false
+    ) {
+      return options.pendingHash;
+    }
+
+    const gas = await this.EstimateRelayGas(relayer.address, usdc, data);
+    return WithKeyedLock(`relayer:${relayer.address}`, () =>
+      this.SendRelay(relayer, usdc, data, gas, options.onSigned)
+    );
+  }
+
+  /**
+   * Waits up to `timeoutMs` until the transaction is ETH_CONFIRMATIONS deep,
+   * then reads everything at that confirmed block. A transaction that does
+   * not pay the session is final unless the session's authorization was
+   * used: then the transaction that used it (found by its `AuthorizationUsed`
+   * log) decides. An RPC error leaves the result `pending`.
+   */
+  async VerifyCheckoutPayment(
+    transactionHash: string | null,
+    expected: CheckoutPaymentExpectation,
+    options: { timeoutMs?: number } = {}
+  ): Promise<CheckoutPaymentVerification> {
+    if (transactionHash !== null && !IsTransactionHash(transactionHash)) {
+      throw new AppError(
+        'transaction_hash must be 0x followed by 64 hex characters',
+        400,
+        'invalid_request_error'
+      );
+    }
+    const hash = transactionHash
+      ? (transactionHash.toLowerCase() as Hex)
+      : null;
+    const { usdc } = GetChainConfig();
+    const payer = ToAddress(expected.payerAddress);
+    const nonce = SessionNonce(expected.checkoutSessionId);
+    const receiptExpectation = {
+      usdc,
+      merchant: expected.merchantWalletAddress,
+      amountCents: expected.amountInCents,
+      sessionId: expected.checkoutSessionId,
+    };
+    const client = GetPublicClient();
+
+    try {
+      const mined =
+        hash !== null &&
+        (await this.WaitForCheckoutReceipt(
+          hash,
+          options.timeoutMs ?? GetCheckoutConfirmTimeoutMs()
+        ));
+      const confirmed = await this.GetConfirmedBlock();
+      let checked: CheckoutPaymentVerification | null = null;
+      if (hash && mined) {
+        const receipt = await this.GetReceiptOrNull(hash);
+        if (receipt && receipt.blockNumber > BigInt(confirmed.number)) {
+          return CheckoutPending(hash);
+        }
+        if (receipt) {
+          checked = {
+            ...VerifyCheckoutReceipt(receipt, receiptExpectation),
+            transaction_hash: hash,
+          };
+          if (checked.status === 'verified') return checked;
+        }
+      }
+
+      const used = await client.readContract({
+        address: usdc,
+        abi: USDC_ABI,
+        functionName: 'authorizationState',
+        args: [payer, nonce],
+        blockNumber: BigInt(confirmed.number),
+      });
+      if (!used) return checked ?? CheckoutPending(hash);
+
+      const usedBy = await this.FindAuthorizationUse(
+        payer,
+        nonce,
+        expected.createdAt,
+        confirmed
+      );
+      if (!usedBy) {
+        Logger.warn(
+          'A checkout authorization is used but its log was not found',
+          {
+            checkoutSessionId: expected.checkoutSessionId,
+            payer,
+          }
+        );
+        return CheckoutPending(hash);
+      }
+      if (usedBy === hash && checked) return checked;
+      const receipt = await client.getTransactionReceipt({ hash: usedBy });
+      return {
+        ...VerifyCheckoutReceipt(receipt, receiptExpectation),
+        transaction_hash: usedBy,
+      };
+    } catch (error) {
+      Logger.warn('Checkout payment verification could not read the chain', {
+        checkoutSessionId: expected.checkoutSessionId,
+        transactionHash: hash,
+        error: ErrorText(error),
+      });
+      return CheckoutPending(hash);
+    }
   }
 
   async CreateSubscriptionPlan(): Promise<string> {
@@ -685,6 +911,204 @@ export class Ethereum implements Settlement {
       block_number: Number(block.number ?? 0n),
       ...kind,
     };
+  }
+
+  private async CurrentFees(): Promise<Fees> {
+    const client = GetPublicClient();
+    const [block, priorityFee] = await Promise.all([
+      client.getBlock({ blockTag: 'latest' }),
+      client.estimateMaxPriorityFeePerGas(),
+    ]);
+    return {
+      maxFeePerGas: 2n * (block.baseFeePerGas ?? 0n) + priorityFee,
+      maxPriorityFeePerGas: priorityFee,
+    };
+  }
+
+  /** Simulates the relay; a revert is the authorization's fault (400). */
+  private async EstimateRelayGas(
+    relayer: Address,
+    usdc: Address,
+    data: Hex
+  ): Promise<bigint> {
+    try {
+      const estimate = await GetPublicClient().estimateGas({
+        account: relayer,
+        to: usdc,
+        data,
+      });
+      return CeilDiv(estimate * 6n, 5n);
+    } catch (error) {
+      if (!IsExecutionRevert(error)) throw NodeUnavailable(error);
+      throw new AppError(
+        `The USDC authorization cannot be relayed: ${
+          DecodeRevert(error).message
+        }`,
+        400,
+        'invalid_request_error'
+      );
+    }
+  }
+
+  /**
+   * Signs, hands the hash to `onSigned`, then sends. Accepted when the node
+   * takes it, already holds it, or knows the hash after an error; a nonce
+   * conflict re-signs at the next pending nonce; anything else throws.
+   */
+  private async SendRelay(
+    relayer: PrivateKeyAccount,
+    to: Address,
+    data: Hex,
+    gas: bigint,
+    onSigned: RelayCheckoutOptions['onSigned']
+  ): Promise<string> {
+    const client = GetPublicClient();
+    const { chainId } = GetChainConfig();
+    for (let attempt = 1; ; attempt++) {
+      const [fees, nonce] = await NodeCall(() =>
+        Promise.all([
+          this.CurrentFees(),
+          client.getTransactionCount({
+            address: relayer.address,
+            blockTag: 'pending',
+          }),
+        ])
+      );
+      const serialized = await relayer.signTransaction({
+        type: 'eip1559',
+        chainId,
+        nonce,
+        to,
+        data,
+        value: 0n,
+        gas,
+        ...fees,
+      });
+      const hash = keccak256(serialized);
+      await onSigned(hash);
+      try {
+        await client.sendRawTransaction({ serializedTransaction: serialized });
+        return hash;
+      } catch (error) {
+        if (
+          (await this.WasAccepted(error, hash)) ||
+          (await this.IsKnownTransaction(hash)) === true
+        ) {
+          return hash;
+        }
+        if (attempt < RELAY_SEND_ATTEMPTS && IsNonceConflict(error)) {
+          Logger.warn('The relayer nonce was taken; signing the relay again', {
+            transactionHash: hash,
+            nonce,
+            error: ErrorText(error),
+          });
+          continue;
+        }
+        throw new AppError(
+          `The network did not accept the payment: ${ErrorText(error)}`,
+          400,
+          'blockchain_error'
+        );
+      }
+    }
+  }
+
+  /** Whether the node has the transaction; null when it cannot say. */
+  private async IsKnownTransaction(hash: string): Promise<boolean | null> {
+    try {
+      await GetPublicClient().getTransaction({ hash: hash as Hex });
+      return true;
+    } catch (error) {
+      return error instanceof TransactionNotFoundError ? false : null;
+    }
+  }
+
+  /**
+   * Polls until the receipt is ETH_CONFIRMATIONS blocks below the head (at
+   * or below the confirmed block); false when `timeoutMs` passes first.
+   */
+  private async WaitForCheckoutReceipt(
+    hash: Hex,
+    timeoutMs: number
+  ): Promise<boolean> {
+    const client = GetPublicClient();
+    const depth = BigInt(GetChainConfig().confirmations);
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const receipt = await this.GetReceiptOrNull(hash);
+      if (
+        receipt &&
+        (await this.GetLatestBlockNumber()) - receipt.blockNumber >= depth
+      ) {
+        return true;
+      }
+      const left = deadline - Date.now();
+      if (left <= 0) return false;
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(client.pollingInterval, left))
+      );
+    }
+  }
+
+  private async GetReceiptOrNull(
+    hash: Hex
+  ): Promise<TransactionReceipt | null> {
+    try {
+      return await GetPublicClient().getTransactionReceipt({ hash });
+    } catch (error) {
+      if (error instanceof TransactionReceiptNotFoundError) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * The transaction whose `AuthorizationUsed(authorizer, nonce)` log is at
+   * or below the confirmed block, newest blocks first. The search starts a
+   * little before the block the session's creation time maps to (slots are
+   * 12 s, so the estimate errs earlier) and is capped at 50 chunks.
+   */
+  private async FindAuthorizationUse(
+    authorizer: Address,
+    nonce: Hex,
+    createdAt: number,
+    confirmed: ConfirmedBlock
+  ): Promise<Hex | null> {
+    const { usdc } = GetChainConfig();
+    const toBlock = BigInt(confirmed.number);
+    const elapsed = BigInt(Math.max(0, confirmed.timestamp - createdAt));
+    const span =
+      CeilDiv(elapsed, BigInt(BLOCK_TIME_SECONDS)) + AUTHORIZATION_LOG_MARGIN;
+    const floor = toBlock > span ? toBlock - span : 0n;
+
+    let end = toBlock;
+    for (let chunk = 0; chunk < AUTHORIZATION_LOG_MAX_CHUNKS; chunk++) {
+      const start =
+        end - floor >= AUTHORIZATION_LOG_CHUNK
+          ? end - AUTHORIZATION_LOG_CHUNK + 1n
+          : floor;
+      const logs = await GetPublicClient().getLogs({
+        address: usdc,
+        event: AUTHORIZATION_USED_EVENT,
+        args: { authorizer, nonce },
+        fromBlock: start,
+        toBlock: end,
+        strict: true,
+      });
+      const log = logs.find(
+        (candidate) =>
+          !candidate.removed &&
+          candidate.transactionHash !== null &&
+          SameAddress(candidate.address, usdc) &&
+          SameAddress(candidate.args.authorizer, authorizer) &&
+          candidate.args.nonce.toLowerCase() === nonce.toLowerCase()
+      );
+      if (log?.transactionHash) {
+        return log.transactionHash.toLowerCase() as Hex;
+      }
+      if (start === floor) return null;
+      end = start - 1n;
+    }
+    return null;
   }
 
   private async EstimateGas(from: Address, to: Address, data: Hex) {
@@ -879,6 +1303,59 @@ function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
 
 function IsTransactionHash(value: string): boolean {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
+}
+
+function RelayerRequired(): AppError {
+  return new AppError(
+    'On-chain checkout needs CHECKOUT_RELAYER_KEY to relay payments',
+    501,
+    'not_supported'
+  );
+}
+
+function RequireRelayer(): Hex {
+  const key = GetCheckoutRelayerKey();
+  if (!key) throw RelayerRequired();
+  return key;
+}
+
+function AuthorizationNonce(nonce: string): Hex {
+  if (!isHex(nonce) || nonce.length !== 66) {
+    throw new Error(`Invalid authorization nonce: ${nonce}`);
+  }
+  return nonce;
+}
+
+function CheckoutPending(hash: string | null): CheckoutPaymentVerification {
+  return {
+    status: 'pending',
+    transaction_hash: hash,
+    amount_cents: 0,
+    payer_address: null,
+  };
+}
+
+/** Another transaction from the relayer took the nonce this one used. */
+function IsNonceConflict(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /nonce too low|replacement transaction underpriced/i.test(message);
+}
+
+/** 502 for a node that could not answer; nothing was sent. */
+function NodeUnavailable(error: unknown): AppError {
+  return new AppError(
+    `The Ethereum node could not be reached: ${ErrorText(error)}`,
+    502,
+    'blockchain_error'
+  );
+}
+
+async function NodeCall<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    throw NodeUnavailable(error);
+  }
 }
 
 function SameAddress(

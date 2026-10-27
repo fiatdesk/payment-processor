@@ -61,6 +61,11 @@ const DEFAULT_CONFIRMATIONS = 2;
 const DEFAULT_PAYOUT_DEADLINE_SECONDS = 1800;
 const MIN_PAYOUT_DEADLINE_SECONDS = 120;
 const MAX_PAYOUT_DEADLINE_SECONDS = 86400;
+/** How long checkout confirm waits for a payment to confirm (milliseconds). */
+const DEFAULT_CHECKOUT_CONFIRM_TIMEOUT_MS = 90_000;
+const MIN_CHECKOUT_CONFIRM_TIMEOUT_MS = 1_000;
+/** Node's default request timeout; a longer wait would be cut off. */
+const MAX_CHECKOUT_CONFIRM_TIMEOUT_MS = 300_000;
 
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const PRIVATE_KEY_SETTINGS = [
@@ -142,6 +147,7 @@ function BuildConfigFromEnv(): AppConfig {
   // ETH_CONFIRMATIONS) instead of on the first on-chain call.
   if (railSettings.settlement_rail === 'onchain') GetChainConfig();
   GetPayoutDeadlineSeconds();
+  GetCheckoutConfirmTimeoutMs();
 
   return {
     mongodbUri:
@@ -262,6 +268,27 @@ export function GetPayoutDeadlineSeconds(): number {
     );
   }
   return seconds;
+}
+
+/**
+ * Milliseconds checkout confirm waits for the payment to confirm before
+ * returning `payment_pending` (CHECKOUT_CONFIRM_TIMEOUT_MS, 1000 to 300000,
+ * default 90000).
+ */
+export function GetCheckoutConfirmTimeoutMs(): number {
+  const value = (process.env.CHECKOUT_CONFIRM_TIMEOUT_MS || '').trim();
+  if (!value) return DEFAULT_CHECKOUT_CONFIRM_TIMEOUT_MS;
+  const timeout = Number(value);
+  if (
+    !Number.isInteger(timeout) ||
+    timeout < MIN_CHECKOUT_CONFIRM_TIMEOUT_MS ||
+    timeout > MAX_CHECKOUT_CONFIRM_TIMEOUT_MS
+  ) {
+    throw new Error(
+      `CHECKOUT_CONFIRM_TIMEOUT_MS must be an integer from ${MIN_CHECKOUT_CONFIRM_TIMEOUT_MS} to ${MAX_CHECKOUT_CONFIRM_TIMEOUT_MS}`
+    );
+  }
+  return timeout;
 }
 
 function ResolveConfirmations(): number {

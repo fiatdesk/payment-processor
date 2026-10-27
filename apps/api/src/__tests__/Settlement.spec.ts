@@ -65,27 +65,108 @@ describe('SimulatedSettlement', () => {
     );
   });
 
+  const CHECKOUT_EXPECTATION = {
+    merchantWalletAddress: MERCHANT,
+    amountInCents: 1500,
+    checkoutSessionId: 'cs_z_1',
+    payerAddress: PAYER,
+    createdAt: 1_700_000_000,
+  };
+
   it('verifies a simulated checkout signature', async () => {
     const signature = SimulatedSignature('cs_z_1', PAYER);
-    const result = await settlement.VerifyCheckoutPayment(signature, {
-      merchantWalletAddress: MERCHANT,
-      amountInCents: 1500,
-      checkoutSessionId: 'cs_z_1',
-    });
+    const result = await settlement.VerifyCheckoutPayment(
+      signature,
+      CHECKOUT_EXPECTATION
+    );
     expect(result).toEqual({
-      verified: true,
+      status: 'verified',
+      transaction_hash: signature,
       amount_cents: 1500,
       payer_address: PAYER,
     });
   });
 
   it('rejects a non-simulated checkout signature', async () => {
-    const result = await settlement.VerifyCheckoutPayment('real_sig', {
-      merchantWalletAddress: MERCHANT,
-      amountInCents: 1500,
-      checkoutSessionId: 'cs_z_1',
+    const result = await settlement.VerifyCheckoutPayment(
+      'real_sig',
+      CHECKOUT_EXPECTATION
+    );
+    expect(result).toMatchObject({ status: 'failed' });
+  });
+
+  it('leaves a checkout with no transaction pending', async () => {
+    await expect(
+      settlement.VerifyCheckoutPayment(null, CHECKOUT_EXPECTATION)
+    ).resolves.toMatchObject({ status: 'pending', transaction_hash: null });
+  });
+
+  it('prepares nothing to sign for checkout', async () => {
+    await expect(
+      settlement.BuildCheckoutPaymentAuthorization(
+        PAYER,
+        MERCHANT,
+        1500,
+        'cs_z_1',
+        1_700_086_400
+      )
+    ).resolves.toEqual({
+      method: 'simulated',
+      typed_data: null,
+      authorization: null,
+      estimated_fee: '0',
+      fee_currency: 'none',
+      chain_id: null,
     });
-    expect(result.verified).toBe(false);
+  });
+
+  describe('RelayCheckoutAuthorization', () => {
+    const authorization = {
+      from: PAYER,
+      to: MERCHANT,
+      value: '15000000',
+      valid_after: 0,
+      valid_before: 1_700_086_400,
+      nonce: `0x${'00'.repeat(32)}`,
+    };
+
+    it('records and returns the sim_sig reference as the transaction', async () => {
+      const signature = SimulatedSignature('cs_z_1', PAYER);
+      const onSigned = jest.fn().mockResolvedValue(undefined);
+
+      await expect(
+        settlement.RelayCheckoutAuthorization(authorization, signature, {
+          onSigned,
+        })
+      ).resolves.toBe(signature);
+      expect(onSigned).toHaveBeenCalledWith(signature);
+    });
+
+    it('reuses a recorded relay', async () => {
+      const onSigned = jest.fn();
+
+      await expect(
+        settlement.RelayCheckoutAuthorization(
+          authorization,
+          SimulatedSignature('cs_z_1', PAYER),
+          { pendingHash: 'sim_sig:cs_z_1:recorded', onSigned }
+        )
+      ).resolves.toBe('sim_sig:cs_z_1:recorded');
+      expect(onSigned).not.toHaveBeenCalled();
+    });
+
+    it('rejects a real signature with a 400', async () => {
+      await expect(
+        settlement.RelayCheckoutAuthorization(
+          authorization,
+          `0x${'ab'.repeat(65)}`,
+          { onSigned: jest.fn() }
+        )
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        type: 'invalid_request_error',
+      });
+    });
   });
 
   it('collects a subscription without hitting a chain', async () => {
