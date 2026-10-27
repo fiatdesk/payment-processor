@@ -74,6 +74,15 @@ export interface PublicConfig {
   livemode: boolean;
   /** How this instance settles money: fake funds vs a real chain */
   settlement: SettlementRail;
+  /** Network of the active settlement rail: `ethereum` or `simulated` */
+  network: string;
+  /** Chain id transactions must be sent on, or null on the simulated rail */
+  chain_id: number | null;
+  /**
+   * Block explorer origin (e.g. `https://etherscan.io`) for `/tx/…` and
+   * `/address/…` links; empty when the chain has none (Anvil, simulated)
+   */
+  explorer_url_base: string;
 }
 
 /**

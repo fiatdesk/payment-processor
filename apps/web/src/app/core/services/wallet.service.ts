@@ -2,7 +2,9 @@
 import { Injectable, signal, WritableSignal } from '@angular/core';
 import type {
   Address,
+  Chain,
   Hex,
+  TransactionSerializable,
   TypedData,
   TypedDataDefinition,
   WalletClient,
@@ -32,10 +34,30 @@ export interface ExpectedTransaction {
   chainId: number;
 }
 
+/** A transaction for the connected wallet to send. */
+export interface WalletTransaction {
+  /** Address the wallet's active account must be */
+  from: string;
+  to: Address;
+  data: Hex;
+  value?: bigint;
+  /** Chain the wallet must be on when it sends */
+  chainId: number;
+}
+
+/** The wallet was not on the right chain or account, so nothing was sent. */
+export class WalletNotReadyError extends Error {
+  override name = 'WalletNotReadyError';
+}
+
 /** Wallets that never answer EIP-6963 get picked up from window.ethereum. */
 const INJECTED_FALLBACK_DELAY_MS = 300;
 /** EIP-1193 / EIP-3085: the wallet does not know the requested chain. */
 const UNRECOGNIZED_CHAIN_CODE = 4902;
+/** JSON-RPC internal error; MetaMask Mobile wraps 4902 in it. */
+const INTERNAL_ERROR_CODE = -32603;
+/** EIP-1193: the user rejected the request. */
+const USER_REJECTED_CODE = 4001;
 const SEPOLIA_CHAIN_ID = 11155111;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
@@ -101,7 +123,10 @@ export class WalletService {
     return this.account() ?? '';
   }
 
-  /** Switches the wallet to `chainId`, adding Sepolia if the wallet lacks it. */
+  /**
+   * Switches the wallet to `chainId`, adding Sepolia if the wallet lacks it,
+   * and fails unless the wallet then reports that chain.
+   */
   async EnsureChain(chainId: number): Promise<void> {
     const client = await this.Client();
     if ((await client.getChainId()) === chainId) return;
@@ -113,7 +138,12 @@ export class WalletService {
       }
       const { sepolia } = await import('./wallet-viem');
       await client.addChain({ chain: sepolia });
+      // EIP-3085 lets a wallet add a chain without switching to it.
+      if ((await client.getChainId()) !== chainId) {
+        await client.switchChain({ id: chainId });
+      }
     }
+    AssertChain(await client.getChainId(), chainId);
   }
 
   /** Signs EIP-712 typed data with `eth_signTypedData_v4`. */
@@ -128,20 +158,47 @@ export class WalletService {
     } as Parameters<WalletClient['signTypedData']>[0]);
   }
 
-  /** Sends a transaction from the wallet and returns its hash. */
-  async SendTransaction(transaction: {
-    to: Address;
-    data: Hex;
-    value?: bigint;
-  }): Promise<Hex> {
-    const account = this.RequireAccount();
-    return (await this.Client()).sendTransaction({
+  /**
+   * Sends a transaction from the wallet and returns its hash. The user can
+   * switch accounts or chains at any time, so both are read again right
+   * before sending.
+   */
+  async SendTransaction(transaction: WalletTransaction): Promise<Hex> {
+    const client = await this.Client();
+    const [active] = await client.getAddresses();
+    if (!active || !IsSameAddress(active, transaction.from)) {
+      throw new WalletNotReadyError(
+        "The wallet's active account is not the platform wallet. Switch accounts in the wallet and try again."
+      );
+    }
+    const account = getAddress(active);
+    this.account.set(account);
+    AssertChain(await client.getChainId(), transaction.chainId);
+
+    return client.sendTransaction({
       account,
-      chain: null,
+      chain: ChainWithId(transaction.chainId),
       to: transaction.to,
       data: transaction.data,
       value: transaction.value ?? BigInt(0),
     });
+  }
+
+  /**
+   * Reads the target and calldata of a built transaction for a wallet to
+   * send, after checking it calls `expected.to` on `expected.chainId`.
+   */
+  async ReadBuiltTransaction(
+    unsignedTransaction: string,
+    expected: Pick<ExpectedTransaction, 'to' | 'chainId'>
+  ): Promise<{ to: Address; data: Hex }> {
+    const { parseTransaction } = await import('./wallet-viem');
+    const transaction = parseTransaction(unsignedTransaction as Hex);
+    AssertBuiltTransaction(transaction, expected);
+    return {
+      to: getAddress(transaction.to as Address),
+      data: transaction.data ?? '0x',
+    };
   }
 
   /** New secp256k1 key generated in the browser; never sent anywhere. */
@@ -178,14 +235,7 @@ export class WalletService {
     }
 
     const transaction = parseTransaction(unsignedTransaction as Hex);
-    if (!transaction.to || !IsSameAddress(transaction.to, expected.to)) {
-      throw new Error(
-        'Payout transaction does not target the expected contract'
-      );
-    }
-    if (transaction.chainId !== expected.chainId) {
-      throw new Error('Payout transaction is for a different chain');
-    }
+    AssertBuiltTransaction(transaction, expected);
     return signer.signTransaction(transaction);
   }
 
@@ -220,12 +270,71 @@ function IsSameAddress(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
+function AssertBuiltTransaction(
+  transaction: TransactionSerializable,
+  expected: Pick<ExpectedTransaction, 'to' | 'chainId'>
+): void {
+  if (!transaction.to || !IsSameAddress(transaction.to, expected.to)) {
+    throw new Error('Payout transaction does not target the expected contract');
+  }
+  if (transaction.chainId !== expected.chainId) {
+    throw new Error('Payout transaction is for a different chain');
+  }
+}
+
+function AssertChain(current: number, expected: number): void {
+  if (current !== expected) {
+    throw new WalletNotReadyError(
+      `The wallet is on chain ${current}, not ${expected}. Switch networks in the wallet and try again.`
+    );
+  }
+}
+
+/**
+ * Minimal chain for viem's send, which then checks the wallet's chain again
+ * immediately before the request. No RPC URL is used; the wallet sends.
+ */
+function ChainWithId(id: number): Chain {
+  return {
+    id,
+    name: `Chain ${id}`,
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: [] } },
+  };
+}
+
+/** True when the user rejected the wallet request (EIP-1193 4001). */
+export function IsUserRejectedError(error: unknown): boolean {
+  return HasErrorCode(error, (node) => node.code === USER_REJECTED_CODE);
+}
+
+/** 4902, or MetaMask Mobile's -32603 wrapping it in `data.originalError`. */
 function IsUnrecognizedChainError(error: unknown): boolean {
+  return HasErrorCode(
+    error,
+    (node) =>
+      node.code === UNRECOGNIZED_CHAIN_CODE ||
+      (node.code === INTERNAL_ERROR_CODE &&
+        node.data?.originalError?.code === UNRECOGNIZED_CHAIN_CODE)
+  );
+}
+
+interface ErrorNode {
+  code?: unknown;
+  data?: { originalError?: { code?: unknown } };
+  cause?: unknown;
+}
+
+/** Walks the `cause` chain viem builds around provider errors. */
+function HasErrorCode(
+  error: unknown,
+  matches: (node: ErrorNode) => boolean
+): boolean {
   let current: unknown = error;
   for (let depth = 0; depth < 4 && current; depth += 1) {
-    const { code, cause } = current as { code?: unknown; cause?: unknown };
-    if (code === UNRECOGNIZED_CHAIN_CODE) return true;
-    current = cause;
+    const node = current as ErrorNode;
+    if (matches(node)) return true;
+    current = node.cause;
   }
   return false;
 }

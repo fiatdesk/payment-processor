@@ -30,20 +30,5 @@ export function NormalizeEthereumAddress(address: string): string {
   return isAddress(address) ? getAddress(address) : address;
 }
 
-/**
- * Etherscan link for a transaction or address: mainnet in live mode,
- * Sepolia in test mode.
- */
-export function EtherscanUrl(
-  type: 'tx' | 'address',
-  value: string,
-  livemode: boolean
-): string {
-  const origin = livemode
-    ? 'https://etherscan.io'
-    : 'https://sepolia.etherscan.io';
-  return `${origin}/${type}/${value}`;
-}
-
 export const ETHEREUM_NETWORK = 'ethereum';
 export const ETHEREUM_CURRENCY = 'usdc';

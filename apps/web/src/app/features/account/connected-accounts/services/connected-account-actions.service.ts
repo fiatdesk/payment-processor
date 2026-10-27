@@ -12,9 +12,14 @@ import type {
   Balance,
   ExternalWallet,
   LoginLink,
+  PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
+  ReconcileResponse,
 } from '@zoneless/shared-types';
-import type { CreateAccountInput } from '@zoneless/shared-schemas';
+import type {
+  BroadcastPayoutsBatchInput,
+  CreateAccountInput,
+} from '@zoneless/shared-schemas';
 import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
 import {
   AccountService,
@@ -27,8 +32,15 @@ import {
   TopupService,
   TransferService,
 } from '../../../../data';
-import { WalletService } from '../../../../core';
+import {
+  ExpectedTransaction,
+  GetApiErrorType,
+  IsUserRejectedError,
+  WalletNotReadyError,
+  WalletService,
+} from '../../../../core';
 import { FormatBusinessType, GetCountryName } from '../../../../utils';
+import { FormatClockTime } from '../util/payout-fee';
 
 export type CreateConnectedAccountStep = 'summary' | 'edit-details' | 'success';
 
@@ -48,6 +60,27 @@ export type ConnectedAccountActionEvent =
   | { type: 'funds_added'; accountId: string }
   | { type: 'funds_pulled'; accountId: string }
   | { type: 'payout_processed'; accountId: string };
+
+/**
+ * Payout modal steps. On-chain: `details` creates and builds, `approval`
+ * signs the wallet's one-time allowance, `review` shows the fee and signs,
+ * `submitted` waits for confirmations (its only action is Reconcile).
+ */
+export type PayoutStep = 'details' | 'approval' | 'review' | 'submitted';
+
+/** What the modal offers after a build refused because of another batch. */
+export type PayoutRecovery = 'none' | 'reconcile' | 'reconcile_or_replace';
+
+/** Seconds a dashboard-built payout stays signable (and its payout held). */
+const PAYOUT_DEADLINE_SECONDS = 300;
+
+const RECOVERY_FOR_BUILD_ERROR: Record<string, PayoutRecovery> = {
+  payout_batch_in_progress: 'reconcile_or_replace',
+  payout_batch_in_flight: 'reconcile',
+  payout_batch_already_paid: 'reconcile',
+};
+
+const SUBMITTED_NOTICE = 'Submitted, waiting for confirmations.';
 
 export interface ConnectedAccountDraft {
   country: string;
@@ -129,9 +162,13 @@ export class ConnectedAccountActionsService {
   payoutPrivateKeyAddress: WritableSignal<string> = signal('');
   payoutPlatformWalletAddress: WritableSignal<string> = signal('');
   payoutCreatedId: WritableSignal<string> = signal('');
-  payoutSignedTransaction: WritableSignal<string> = signal('');
   payoutBuildResult: WritableSignal<PayoutBatchBuildResponse | null> =
     signal(null);
+  payoutStep: WritableSignal<PayoutStep> = signal('details');
+  payoutRecovery: WritableSignal<PayoutRecovery> = signal('none');
+  payoutNotice: WritableSignal<string> = signal('');
+  /** Hash of the submitted transaction, once one is known */
+  payoutSubmittedHash: WritableSignal<string> = signal('');
 
   profilePanelOpen: WritableSignal<boolean> = signal(false);
 
@@ -182,22 +219,42 @@ export class ConnectedAccountActionsService {
   });
 
   readonly canSubmitPayout = computed(() => {
+    if (this.payoutLoading()) return false;
+    const step = this.payoutStep();
+    if (step === 'submitted') return true;
+
+    const signerReady =
+      this.configService.IsSimulatedSettlement() || this.IsPayoutSignerReady();
+    if (step !== 'details') return signerReady;
+
+    // Once the payout exists its amount is debited, so the balance no longer
+    // bounds it.
     const amount = this.ParseAmountCents(this.payoutAmount());
     const available = this.GetAvailableAmount(this.connectedBalance());
-    const signerReady =
-      this.configService.IsSimulatedSettlement() ||
-      !!this.payoutSignedTransaction() ||
-      this.GetPayoutSignerAddress() === this.payoutPlatformWalletAddress();
-    const account = this.activeAccount();
+    const amountValid =
+      !!this.payoutCreatedId() || (amount > 0 && amount <= available);
     return (
-      amount > 0 &&
-      amount <= available &&
+      amountValid &&
       !!this.GetDefaultWallet() &&
-      !!account?.payouts_enabled &&
+      !!this.activeAccount()?.payouts_enabled &&
       signerReady &&
-      this.payoutConfirmed() &&
-      !this.payoutLoading()
+      this.payoutConfirmed()
     );
+  });
+
+  readonly payoutSubmitLabel = computed(() => {
+    switch (this.payoutStep()) {
+      case 'approval':
+        return 'Approve USDC';
+      case 'review':
+        return 'Sign and pay out';
+      case 'submitted':
+        return 'Reconcile';
+      default:
+        return this.configService.IsSimulatedSettlement()
+          ? 'Pay out'
+          : 'Review payout';
+    }
   });
 
   readonly events$ = new Subject<ConnectedAccountActionEvent>();
@@ -511,10 +568,14 @@ export class ConnectedAccountActionsService {
   async ClosePayout(): Promise<void> {
     const pendingPayoutId = this.payoutCreatedId();
     if (pendingPayoutId) {
-      try {
-        await this.payoutService.CancelPayout(pendingPayoutId);
-      } catch {
-        // The payout may already be broadcasting or terminal.
+      // A built or broadcast batch holds its payout until it is paid or its
+      // deadline passes, and the API refuses to cancel it before then.
+      if (this.IsPayoutUnheld()) {
+        try {
+          await this.payoutService.CancelPayout(pendingPayoutId);
+        } catch {
+          // The payout may already be terminal.
+        }
       }
       const account = this.activeAccount();
       if (account) {
@@ -531,50 +592,39 @@ export class ConnectedAccountActionsService {
     this.ResetPayoutSigner();
   }
 
+  /** The modal's primary action for the current step. */
   async ConfirmPayout(): Promise<void> {
     const account = this.activeAccount();
-    const wallet = this.GetDefaultWallet();
-    if (!account || !wallet || !this.canSubmitPayout()) return;
+    if (!account || !this.canSubmitPayout()) return;
 
-    this.payoutLoading.set(true);
-    this.payoutError.set('');
-
-    try {
-      const statementDescriptor =
-        account.settings?.payouts?.statement_descriptor?.trim() ?? '';
-      const input = {
-        amount: this.ParseAmountCents(this.payoutAmount()),
-        currency: 'usdc',
-        destination: wallet.id,
-        method: 'instant' as const,
-        ...(statementDescriptor
-          ? { statement_descriptor: statementDescriptor }
-          : {}),
-      };
-      const result = await this.ConfirmProcessedPayout(account.id, input);
-
-      this.events$.next({
-        type: 'payout_processed',
-        accountId: account.id,
-      });
-
-      if (result.status === 'failed') {
-        this.ClearPayoutRetryState();
-        this.payoutError.set(
-          result.failure_message || 'Failed to process payout.'
-        );
-        return;
+    await this.RunPayoutAction(async () => {
+      switch (this.payoutStep()) {
+        case 'details':
+          return this.StartPayout(account);
+        case 'approval':
+        case 'review':
+          return this.SignAndSubmit(account);
+        case 'submitted':
+          return this.ReconcileAndCheck(account);
       }
+    });
+  }
 
-      this.ClearPayoutRetryState();
-      await this.ClosePayout();
-    } catch (err) {
-      this.payoutError.set(
-        err instanceof Error ? err.message : 'Failed to process payout.'
-      );
-    } finally {
-      this.payoutLoading.set(false);
-    }
+  /**
+   * Settles outstanding batches from the chain. While submitted, it then
+   * reports where this payout stands; it never sends anything again.
+   */
+  async ReconcilePayout(): Promise<void> {
+    const account = this.activeAccount();
+    if (!account || this.payoutLoading()) return;
+    await this.RunPayoutAction(() => this.ReconcileAndCheck(account));
+  }
+
+  /** Builds with `replace: true` after a batch conflict the user saw. */
+  async ReplaceOutstandingBatch(): Promise<void> {
+    const account = this.activeAccount();
+    if (!account || this.payoutLoading()) return;
+    await this.RunPayoutAction(() => this.StartPayout(account, true));
   }
 
   GetPayoutSignerAddress(): string {
@@ -613,14 +663,12 @@ export class ConnectedAccountActionsService {
 
   SetPayoutSignerMethod(method: 'wallet' | 'private_key'): void {
     this.payoutSignerMethod.set(method);
-    this.payoutSignedTransaction.set('');
     this.payoutError.set('');
   }
 
   SetPayoutPrivateKey(privateKey: string): void {
     this.payoutPrivateKey.set(privateKey);
     this.payoutPrivateKeyAddress.set('');
-    this.payoutSignedTransaction.set('');
     this.payoutError.set('');
   }
 
@@ -633,43 +681,316 @@ export class ConnectedAccountActionsService {
     }
   }
 
-  private async ConfirmProcessedPayout(
-    connectedAccountId: string,
-    input: Parameters<PayoutService['CreatePayoutForConnectedAccount']>[1]
-  ) {
-    // Ethereum payout signing lands with the payout batch contract; fail
-    // before creating a payout that could not be broadcast.
-    if (!this.configService.IsSimulatedSettlement()) {
-      throw new Error('Payout signing is wired up in a later step');
-    }
+  private IsPayoutSignerReady(): boolean {
+    const signer = this.GetPayoutSignerAddress();
+    const expected = this.payoutPlatformWalletAddress();
+    return !!signer && signer.toLowerCase() === expected.toLowerCase();
+  }
 
-    let buildResult = this.payoutBuildResult();
-    if (!buildResult) {
-      let payoutId = this.payoutCreatedId();
-      if (!payoutId) {
-        const payout = await this.payoutService.CreatePayoutForConnectedAccount(
-          connectedAccountId,
-          input
-        );
-        payoutId = payout.id;
-        this.payoutCreatedId.set(payoutId);
-      }
-      buildResult = await this.payoutService.BuildPayoutsBatch({
+  /** True while no batch holds the created payout, so it can be canceled. */
+  private IsPayoutUnheld(): boolean {
+    const build = this.payoutBuildResult();
+    // An approval batch holds no payouts.
+    if (build?.transaction_type === 'approval') return true;
+    return this.payoutStep() === 'details' && !build;
+  }
+
+  private async RunPayoutAction(action: () => Promise<void>): Promise<void> {
+    this.payoutLoading.set(true);
+    this.payoutError.set('');
+    this.payoutNotice.set('');
+    try {
+      await action();
+    } catch (err) {
+      this.payoutError.set(
+        err instanceof Error ? err.message : 'Failed to process payout.'
+      );
+    } finally {
+      this.payoutLoading.set(false);
+    }
+  }
+
+  /** Creates and builds the payout; the simulated rail settles at once. */
+  private async StartPayout(account: Account, replace = false): Promise<void> {
+    const simulated = this.configService.IsSimulatedSettlement();
+    // A simulated build left by a failed broadcast still holds the wallet.
+    const build =
+      (simulated && !replace && this.payoutBuildResult()) ||
+      (await this.BuildPayout(account, replace));
+    if (simulated) {
+      await this.BroadcastSimulated(account.id, build);
+      return;
+    }
+    this.payoutStep.set(
+      build.transaction_type === 'approval' ? 'approval' : 'review'
+    );
+  }
+
+  private async BuildPayout(
+    account: Account,
+    replace = false
+  ): Promise<PayoutBatchBuildResponse> {
+    const payoutId = await this.EnsurePayoutCreated(account);
+    this.payoutRecovery.set('none');
+    try {
+      const build = await this.payoutService.BuildPayoutsBatch({
         payouts: [payoutId],
+        deadline_seconds: PAYOUT_DEADLINE_SECONDS,
+        ...(replace ? { replace: true } : {}),
       });
-      this.payoutBuildResult.set(buildResult);
+      this.payoutBuildResult.set(build);
+      return build;
+    } catch (error) {
+      this.payoutRecovery.set(
+        RECOVERY_FOR_BUILD_ERROR[GetApiErrorType(error) ?? ''] ?? 'none'
+      );
+      throw error;
     }
+  }
 
-    let signedTransaction = this.payoutSignedTransaction();
-    if (!signedTransaction) {
-      signedTransaction = buildResult.unsigned_transaction;
-      this.payoutSignedTransaction.set(signedTransaction);
-    }
+  private async EnsurePayoutCreated(account: Account): Promise<string> {
+    const existing = this.payoutCreatedId();
+    if (existing) return existing;
 
-    return this.payoutService.BroadcastPayoutsBatch({
-      signed_transaction: signedTransaction,
-      payouts: buildResult.payouts.map((payout) => payout.id),
+    const wallet = this.GetDefaultWallet();
+    if (!wallet) throw new Error('This account has no external wallet.');
+    const statementDescriptor =
+      account.settings?.payouts?.statement_descriptor?.trim() ?? '';
+    const payout = await this.payoutService.CreatePayoutForConnectedAccount(
+      account.id,
+      {
+        amount: this.ParseAmountCents(this.payoutAmount()),
+        currency: 'usdc',
+        destination: wallet.id,
+        method: 'instant',
+        ...(statementDescriptor
+          ? { statement_descriptor: statementDescriptor }
+          : {}),
+      }
+    );
+    this.payoutCreatedId.set(payout.id);
+    return payout.id;
+  }
+
+  private async BroadcastSimulated(
+    accountId: string,
+    build: PayoutBatchBuildResponse
+  ): Promise<void> {
+    const result = await this.payoutService.BroadcastPayoutsBatch({
+      signed_transaction: build.unsigned_transaction,
+      payouts: build.payouts.map((payout) => payout.id),
     });
+    this.events$.next({ type: 'payout_processed', accountId });
+    this.ClearPayoutRetryState();
+    if (result.status === 'failed') {
+      this.payoutError.set(
+        result.failure_message || 'Failed to process payout.'
+      );
+      return;
+    }
+    await this.ClosePayout();
+  }
+
+  /** Signs the built transaction (approval or payout) and broadcasts it. */
+  private async SignAndSubmit(account: Account): Promise<void> {
+    const build = this.payoutBuildResult();
+    if (!build) return;
+    const chainId = this.configService.GetChainId();
+    if (chainId === null || !build.to) {
+      throw new Error('This instance did not report the chain to pay on.');
+    }
+    if (build.deadline !== null && Date.now() / 1000 >= build.deadline) {
+      this.EnterSubmitted(
+        `The signing window closed at ${FormatClockTime(
+          build.deadline
+        )}. Reconcile after ${FormatClockTime(
+          build.release_after ?? build.deadline
+        )} to build the payout again.`
+      );
+      return;
+    }
+
+    const expected: ExpectedTransaction = {
+      from: this.payoutPlatformWalletAddress(),
+      to: build.to,
+      chainId,
+    };
+    const submission =
+      this.payoutSignerMethod() === 'wallet'
+        ? await this.SendFromWallet(build, expected)
+        : await this.SignWithPrivateKey(build, expected);
+    if (!submission) return;
+
+    await this.SubmitBatch(account, {
+      ...submission,
+      payouts: build.payouts.map((payout) => payout.id),
+    });
+  }
+
+  /** Null when the wallet may have sent it: the modal then only reconciles. */
+  private async SendFromWallet(
+    build: PayoutBatchBuildResponse,
+    expected: ExpectedTransaction
+  ): Promise<{ transaction_hash: string } | null> {
+    await this.walletService.EnsureChain(expected.chainId);
+    const { to, data } = await this.walletService.ReadBuiltTransaction(
+      build.unsigned_transaction,
+      expected
+    );
+    try {
+      const hash = await this.walletService.SendTransaction({
+        from: expected.from,
+        to,
+        data,
+        chainId: expected.chainId,
+      });
+      return { transaction_hash: hash };
+    } catch (error) {
+      if (error instanceof WalletNotReadyError) throw error;
+      if (IsUserRejectedError(error)) {
+        const until = build.deadline
+          ? ` before ${FormatClockTime(build.deadline)}`
+          : '';
+        throw new Error(
+          `The transaction was rejected in the wallet. Sign again${until}, or close.`
+        );
+      }
+      this.EnterSubmitted(
+        "The wallet did not confirm whether it sent the transaction. Check the wallet's activity, then reconcile; do not send it again."
+      );
+      this.payoutError.set(
+        error instanceof Error ? error.message : String(error)
+      );
+      return null;
+    }
+  }
+
+  private async SignWithPrivateKey(
+    build: PayoutBatchBuildResponse,
+    expected: ExpectedTransaction
+  ): Promise<{ signed_transaction: string }> {
+    try {
+      const signed = await this.walletService.SignTransactionWithPrivateKey(
+        build.unsigned_transaction,
+        this.payoutPrivateKey(),
+        expected
+      );
+      return { signed_transaction: signed };
+    } finally {
+      // The pasted key signs once and is never kept.
+      this.payoutPrivateKey.set('');
+      this.payoutPrivateKeyAddress.set('');
+    }
+  }
+
+  private async SubmitBatch(
+    account: Account,
+    submission: BroadcastPayoutsBatchInput
+  ): Promise<void> {
+    this.payoutSubmittedHash.set(submission.transaction_hash ?? '');
+    let result: PayoutBatchBroadcastResponse;
+    try {
+      result = await this.payoutService.BroadcastPayoutsBatch(submission);
+    } catch (error) {
+      // It may still reach the chain (timeout, transaction_not_found, ...).
+      this.EnterSubmitted();
+      this.payoutError.set(
+        error instanceof Error ? error.message : 'Broadcast failed.'
+      );
+      return;
+    }
+    this.events$.next({ type: 'payout_processed', accountId: account.id });
+    this.payoutSubmittedHash.set(result.transaction_hash);
+
+    if (result.status === 'pending') {
+      this.EnterSubmitted();
+    } else if (result.status === 'failed') {
+      this.EnterSubmitted('');
+      this.payoutError.set(
+        result.failure_message || 'The transaction failed on-chain.'
+      );
+    } else if (result.transaction_type === 'approval') {
+      // The approval is spent: if the next build fails, start from details
+      // rather than offering to send the approval again.
+      this.payoutBuildResult.set(null);
+      this.payoutStep.set('details');
+      await this.ContinueAfterApproval(account);
+    } else {
+      this.ClearPayoutRetryState();
+      await this.ClosePayout();
+    }
+  }
+
+  private async ContinueAfterApproval(account: Account): Promise<void> {
+    const build = await this.BuildPayout(account);
+    this.payoutSubmittedHash.set('');
+    if (build.transaction_type === 'approval') {
+      this.payoutStep.set('approval');
+      this.payoutNotice.set(
+        'The earlier approval did not take effect. Approve again to continue.'
+      );
+      return;
+    }
+    this.payoutStep.set('review');
+    this.payoutNotice.set(
+      this.payoutSignerMethod() === 'private_key'
+        ? 'Approval confirmed. Paste the private key again to sign the payout.'
+        : 'Approval confirmed. Review the payout and sign it.'
+    );
+  }
+
+  private async ReconcileAndCheck(account: Account): Promise<void> {
+    const result = await this.payoutService.Reconcile();
+    this.events$.next({ type: 'payout_processed', accountId: account.id });
+    if (this.payoutStep() !== 'submitted') {
+      this.payoutRecovery.set('none');
+      this.payoutNotice.set(ReconcileSummary(result));
+      return;
+    }
+    if (this.payoutBuildResult()?.transaction_type === 'approval') {
+      await this.CheckApproval(account);
+      return;
+    }
+
+    const payout = await this.payoutService.GetPayout(this.payoutCreatedId());
+    if (payout.status === 'paid') {
+      this.ClearPayoutRetryState();
+      await this.ClosePayout();
+    } else if (payout.status === 'failed') {
+      this.payoutError.set(
+        `The payout failed${
+          payout.failure_message ? `: ${payout.failure_message}` : ''
+        }. Its amount was returned to the connected account's balance.`
+      );
+    } else if (payout.status === 'pending' && !payout.payout_batch) {
+      // Released after its deadline without being mined: build it afresh.
+      this.payoutBuildResult.set(null);
+      this.payoutSubmittedHash.set('');
+      this.payoutStep.set('details');
+      this.payoutNotice.set(
+        'The payout was not sent and is pending again. Review it to build a new transaction, or close to cancel it.'
+      );
+    } else {
+      this.payoutNotice.set('Not settled yet. Reconcile again in a minute.');
+    }
+  }
+
+  /** The approval has settled once the wallet can build again. */
+  private async CheckApproval(account: Account): Promise<void> {
+    try {
+      await this.ContinueAfterApproval(account);
+    } catch (error) {
+      if (GetApiErrorType(error) !== 'payout_batch_in_progress') throw error;
+      this.payoutRecovery.set('none');
+      this.payoutNotice.set(
+        'The approval is still waiting for confirmations. Reconcile again in a minute.'
+      );
+    }
+  }
+
+  private EnterSubmitted(notice = SUBMITTED_NOTICE): void {
+    this.payoutStep.set('submitted');
+    this.payoutNotice.set(notice);
   }
 
   private ResetPayoutSigner(): void {
@@ -682,8 +1003,11 @@ export class ConnectedAccountActionsService {
     this.payoutPrivateKey.set('');
     this.payoutPrivateKeyAddress.set('');
     this.payoutCreatedId.set('');
-    this.payoutSignedTransaction.set('');
     this.payoutBuildResult.set(null);
+    this.payoutStep.set('details');
+    this.payoutRecovery.set('none');
+    this.payoutNotice.set('');
+    this.payoutSubmittedHash.set('');
   }
 
   // ── Profile panel ────────────────────────────────────────────────────────
@@ -1047,4 +1371,13 @@ export class ConnectedAccountActionsService {
     this.draftBusinessType.set(DEFAULT_DRAFT.businessType);
     this.draftTransfersRequested.set(DEFAULT_DRAFT.transfersRequested);
   }
+}
+
+function ReconcileSummary(result: ReconcileResponse): string {
+  if (result.reconciled === 0) return 'No payout batches were outstanding.';
+  return `Reconciled ${result.reconciled} payout batch${
+    result.reconciled === 1 ? '' : 'es'
+  }: ${result.paid} paid, ${result.failed} failed, ${
+    result.pending
+  } still waiting.`;
 }

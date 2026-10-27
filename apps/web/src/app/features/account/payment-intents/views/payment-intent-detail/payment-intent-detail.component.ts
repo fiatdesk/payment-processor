@@ -15,7 +15,11 @@ import type {
   Customer,
   PaymentIntent,
 } from '@zoneless/shared-types';
-import { ChargeService, PaymentIntentService } from '../../../../../data';
+import {
+  ChargeService,
+  ConfigService,
+  PaymentIntentService,
+} from '../../../../../data';
 import { PaymentIntentActionsService } from '../../services/payment-intent-actions.service';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PaymentIntentActionsHostComponent } from '../../components/payment-intent-actions-host/payment-intent-actions-host.component';
@@ -23,7 +27,6 @@ import { CopyTextComponent, StatusChipComponent } from '../../../../../shared';
 import { EventsListComponent } from '../../../components';
 import { MetadataToArray } from '../../../util/metadata';
 import { MetaService } from '../../../../../core';
-import { EtherscanUrl } from '../../../../../utils';
 import { Subscription } from 'rxjs';
 
 interface TimelineEvent {
@@ -53,6 +56,7 @@ export class PaymentIntentDetailComponent implements OnInit, OnDestroy {
   private readonly paymentIntentService = inject(PaymentIntentService);
   private readonly chargeService = inject(ChargeService);
   private readonly metaService = inject(MetaService);
+  private readonly configService = inject(ConfigService);
   readonly actions = inject(PaymentIntentActionsService);
   readonly MetadataToArray = MetadataToArray;
 
@@ -201,7 +205,7 @@ export class PaymentIntentDetailComponent implements OnInit, OnDestroy {
 
   GetExplorerUrl(txHash: string | null | undefined): string | null {
     if (!txHash || txHash.startsWith('sim_')) return null;
-    return EtherscanUrl('tx', txHash, this.paymentIntent()?.livemode !== false);
+    return this.configService.GetExplorerUrl('tx', txHash) || null;
   }
 
   OnViewOnBlockchain(): void {

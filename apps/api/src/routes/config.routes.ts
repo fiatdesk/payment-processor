@@ -21,7 +21,11 @@ import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { VerifyToken } from '../utils/Token';
 import { GetJwtSecret, GetAppConfig } from '../modules/AppConfig';
-import { ExplorerUrl, GetSettlement } from '../modules/chains/Settlement';
+import {
+  ExplorerUrl,
+  GetSettlement,
+  PublicRailConfig,
+} from '../modules/chains/Settlement';
 
 const router = express.Router();
 
@@ -36,6 +40,7 @@ const apiKeyModule = new ApiKeyModule(db);
 function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
   const { livemode, settlement_rail } = GetAppConfig();
   const settlement = settlement_rail ?? 'simulated';
+  const rail = PublicRailConfig();
 
   if (!platformAccount) {
     return {
@@ -46,6 +51,7 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
       privacy_url: '',
       livemode,
       settlement,
+      ...rail,
     };
   }
 
@@ -60,6 +66,7 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
     privacy_url: platformAccount.settings?.privacy_url || '',
     livemode,
     settlement,
+    ...rail,
   };
 }
 

@@ -31,6 +31,30 @@ const account = await zoneless.accounts.create({
 console.log(account.id); // acct_...
 ```
 
+## Payouts
+
+Payouts stay `pending` until your platform processes them. The SDK builds an Ethereum transaction through the API, signs it locally with the platform wallet's private key, and broadcasts it. The key never leaves your process.
+
+```typescript
+const results = await zoneless.payouts.processAll(
+  process.env.WALLET_PRIVATE_KEY as `0x${string}`, // 0x + 64 hex
+  { expectedSigner: process.env.PLATFORM_WALLET_ADDRESS }
+);
+
+const last = results[results.length - 1];
+if (last && last.status !== 'paid') {
+  // Stopped early: pending (not confirmed yet) or failed.
+  await zoneless.payouts.reconcile(); // later, then call processAll again
+}
+```
+
+- **Wallet and gas.** The platform wallet holds the USDC it pays out and pays Ethereum network gas in ETH for every transaction. A batch of up to 100 payouts is one transaction, so payouts in one batch share its gas. `build()` returns `estimated_fee`, an upper bound in wei.
+- **One-time approval.** Payouts go through the PayoutBatch contract. The first build for a wallet returns `transaction_type: 'approval'`. `processBatch()`, `processAll()` and `ensureAllowance()` sign and broadcast that approval, then build the payouts. If the approval is not confirmed yet, they return a `pending` result with `transaction_type: 'approval'`.
+- **Pending results.** `status: 'pending'` means the transaction was submitted but not confirmed within the API's wait. Its payouts stay `in_transit`. Call `payouts.reconcile()` later to settle them; never sign the same payouts again in the meantime.
+- **Errors.** Batch conflicts throw a `ZonelessPayoutBatchError` whose `code` names the case. For example, `payout_batch_in_progress` means another batch holds the wallet.
+- **Re-pricing.** `processBatch(key, { replace: true })` re-prices the wallet's outstanding batch with the same payouts (fresh fees and deadline). A different set of payouts waits until that batch is paid or its deadline passes.
+- **Step by step.** Call `build()`, then `sign(build, privateKey)`, then `broadcast()`. `sign()` refuses a transaction that does not call `build.to` on `build.chain_id`, or a key that is not `expectedSigner`.
+
 ## Documentation
 
 Full API documentation is served by your own docs deployment (the `apps/docs` app in this repository).

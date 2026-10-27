@@ -3,6 +3,7 @@ import { GetAppConfig } from '../modules/AppConfig';
 import {
   ExplorerUrl,
   GetSettlement,
+  PublicRailConfig,
   SIMULATED_TEST_WALLET,
   SimulatedSettlement,
   SimulatedSignature,
@@ -250,6 +251,41 @@ describe('GetSettlement', () => {
     expect(ExplorerUrl('tx', '0xab')).toBe(
       'https://sepolia.etherscan.io/tx/0xab'
     );
+  });
+
+  describe('PublicRailConfig', () => {
+    it('has no chain or explorer on the simulated rail', () => {
+      UseRail('simulated');
+
+      expect(PublicRailConfig()).toEqual({
+        network: 'simulated',
+        chain_id: null,
+        explorer_url_base: '',
+      });
+    });
+
+    it('reports the chain and its explorer on-chain', () => {
+      UseRail('onchain');
+
+      expect(PublicRailConfig()).toEqual({
+        network: 'ethereum',
+        chain_id: 11155111,
+        explorer_url_base: 'https://sepolia.etherscan.io',
+      });
+    });
+
+    it('links no explorer on Anvil', () => {
+      process.env.ETH_CHAIN_ID = '31337';
+      process.env.USDC_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+      ResetChainClientsForTests();
+      UseRail('onchain');
+
+      expect(PublicRailConfig()).toEqual({
+        network: 'ethereum',
+        chain_id: 31337,
+        explorer_url_base: '',
+      });
+    });
   });
 });
 

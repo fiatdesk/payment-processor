@@ -55,6 +55,61 @@ export class ZonelessApiError extends Error {
   }
 }
 
+/** Codes the payout build and broadcast endpoints return for 400 and 409s. */
+export const PAYOUT_BATCH_ERROR_CODES = [
+  /** Another batch holds the wallet's nonce lock: let it settle, or build with `replace: true` */
+  'payout_batch_in_progress',
+  /** A batch whose transaction may still be mined holds these payouts; reconcile first */
+  'payout_batch_in_flight',
+  /** The chain shows this payout set paid already; reconcile instead */
+  'payout_batch_already_paid',
+  /** The transaction or payout ids differ from the built batch */
+  'payout_batch_mismatch',
+  /** The reported hash is not visible yet; it is kept, so reconcile later */
+  'transaction_not_found',
+  /** A wallet broadcast the batch; speed it up in the wallet instead */
+  'use_wallet_speed_up',
+  'account_frozen',
+  'sanctioned_address',
+  'insufficient_funds',
+  'blockchain_error',
+] as const;
+
+export type PayoutBatchErrorCode = (typeof PAYOUT_BATCH_ERROR_CODES)[number];
+
+/**
+ * A payout batch error from the API, with its code in `code`. The API sends
+ * these codes as the error `type`, which is kept as well.
+ */
+export class ZonelessPayoutBatchError extends ZonelessApiError {
+  declare readonly code: PayoutBatchErrorCode;
+
+  constructor(error: ZonelessError & { code: PayoutBatchErrorCode }) {
+    super(error);
+    this.name = 'ZonelessPayoutBatchError';
+  }
+
+  /** The typed form of `error` when it carries a payout batch code. */
+  static From(error: unknown): unknown {
+    if (!(error instanceof ZonelessApiError)) return error;
+    const code = [error.code, error.type].find(IsPayoutBatchErrorCode);
+    if (!code) return error;
+    return new ZonelessPayoutBatchError({
+      type: error.type,
+      message: error.message,
+      code,
+      param: error.param,
+      statusCode: error.statusCode,
+    });
+  }
+}
+
+function IsPayoutBatchErrorCode(
+  value: string | undefined
+): value is PayoutBatchErrorCode {
+  return (PAYOUT_BATCH_ERROR_CODES as readonly string[]).includes(value ?? '');
+}
+
 /**
  * HTTP client for making requests to the Zoneless API.
  * Uses native fetch API (Node 18+).

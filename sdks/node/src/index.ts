@@ -98,7 +98,22 @@ export class Zoneless {
   /** PaymentLinks API resource */
   readonly paymentLinks: PaymentLinks;
 
-  /** Payouts API resource */
+  /**
+   * Payouts API resource. Payouts settle in USDC on Ethereum from the
+   * platform wallet, which signs locally with its private key and pays the
+   * network gas in ETH. The first batch for a wallet also signs a one-time
+   * approval of the PayoutBatch contract; `processAll()` handles it.
+   *
+   * @example
+   * ```typescript
+   * const results = await zoneless.payouts.processAll(
+   *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
+   * );
+   * if (results.some((r) => r.status === 'pending')) {
+   *   await zoneless.payouts.reconcile(); // later, then process again
+   * }
+   * ```
+   */
   readonly payouts: Payouts;
 
   /** Prices API resource */
@@ -178,7 +193,17 @@ export class Zoneless {
 export default Zoneless;
 
 // Named exports
-export { ZonelessApiError } from './HttpClient';
-export type { RequestExtraOptions } from './HttpClient';
+export {
+  ZonelessApiError,
+  ZonelessPayoutBatchError,
+  PAYOUT_BATCH_ERROR_CODES,
+} from './HttpClient';
+export type { PayoutBatchErrorCode, RequestExtraOptions } from './HttpClient';
+export type {
+  EnsureAllowanceOptions,
+  ProcessAllOptions,
+  ProcessBatchOptions,
+  SignPayoutOptions,
+} from './resources/Payouts';
 export { WebhookSignatureVerificationError } from './resources/Webhooks';
 export * from '@zoneless/shared-types';

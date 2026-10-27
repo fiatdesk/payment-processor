@@ -9,7 +9,11 @@ import {
   type TypedDataDefinition,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { Eip1193Provider, WalletService } from './wallet.service';
+import {
+  Eip1193Provider,
+  IsUserRejectedError,
+  WalletService,
+} from './wallet.service';
 
 /** Anvil default account #1 (public test key). */
 const PRIVATE_KEY =
@@ -32,6 +36,42 @@ function FakeProvider(
       return handler(params);
     }),
   };
+}
+
+/** A wallet whose active chain and account change like a real one. */
+function StatefulProvider(options: {
+  chainId: number;
+  account?: string;
+  knows?: number[];
+  addSwitches?: boolean;
+  errorForUnknown?: () => unknown;
+}): Eip1193Provider & { request: jest.Mock; state: { chainId: number } } {
+  const state = { chainId: options.chainId };
+  const known = new Set([options.chainId, ...(options.knows ?? [])]);
+  const provider = FakeProvider({
+    eth_requestAccounts: () => [options.account ?? ADDRESS],
+    eth_accounts: () => [options.account ?? ADDRESS],
+    eth_chainId: () => `0x${state.chainId.toString(16)}`,
+    eth_sendTransaction: () => `0x${'cd'.repeat(32)}`,
+    wallet_switchEthereumChain: (params) => {
+      const id = Number((params as [{ chainId: string }])[0].chainId);
+      if (!known.has(id)) {
+        throw (
+          options.errorForUnknown?.() ??
+          Object.assign(new Error('Unrecognized chain'), { code: 4902 })
+        );
+      }
+      state.chainId = id;
+      return null;
+    },
+    wallet_addEthereumChain: (params) => {
+      const id = Number((params as [{ chainId: string }])[0].chainId);
+      known.add(id);
+      if (options.addSwitches) state.chainId = id;
+      return null;
+    },
+  });
+  return Object.assign(provider, { state });
 }
 
 /** The request objects the provider received, in order. */
@@ -171,18 +211,37 @@ describe('WalletService', () => {
       });
     });
 
-    it('sends a transaction and returns its hash', async () => {
-      await service.Connect();
+    it('sends a transaction on the asserted chain and returns its hash', async () => {
+      provider.request.mockImplementation(async ({ method }) =>
+        method === 'eth_accounts'
+          ? [ADDRESS.toLowerCase()]
+          : method === 'eth_chainId'
+          ? '0xaa36a7'
+          : `0x${'ab'.repeat(32)}`
+      );
 
       await expect(
-        service.SendTransaction({ to: PAYOUT_BATCH, data: '0x1234' })
+        service.SendTransaction({
+          from: ADDRESS,
+          to: PAYOUT_BATCH,
+          data: '0x1234',
+          chainId: 11155111,
+        })
       ).resolves.toBe(`0x${'ab'.repeat(32)}`);
-      expect(Requests(provider)).toContainEqual({
-        method: 'eth_sendTransaction',
-        params: [
-          { from: ADDRESS, to: PAYOUT_BATCH, data: '0x1234', value: '0x0' },
-        ],
-      });
+      // The account and chain are read right before the send (viem checks
+      // the chain once more itself).
+      expect(Requests(provider)).toEqual([
+        { method: 'eth_accounts' },
+        { method: 'eth_chainId' },
+        { method: 'eth_chainId' },
+        {
+          method: 'eth_sendTransaction',
+          params: [
+            { from: ADDRESS, to: PAYOUT_BATCH, data: '0x1234', value: '0x0' },
+          ],
+        },
+      ]);
+      expect(service.GetAddress()).toBe(ADDRESS);
     });
 
     it('skips the chain switch when the wallet is already on the chain', async () => {
@@ -194,22 +253,21 @@ describe('WalletService', () => {
     });
 
     it('switches chains when the wallet is elsewhere', async () => {
+      const stateful = StatefulProvider({ chainId: 11155111, knows: [1] });
+      service = new WalletService();
+      Announce(fakeWindow, stateful);
+
       await service.EnsureChain(1);
 
-      expect(Requests(provider)).toContainEqual({
+      expect(Requests(stateful)).toContainEqual({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: '0x1' }],
       });
+      expect(stateful.state.chainId).toBe(1);
     });
 
     it('adds Sepolia when the wallet does not know it', async () => {
-      provider = FakeProvider({
-        eth_chainId: () => '0x1',
-        wallet_switchEthereumChain: () => {
-          throw Object.assign(new Error('Unrecognized chain'), { code: 4902 });
-        },
-        wallet_addEthereumChain: () => null,
-      });
+      provider = StatefulProvider({ chainId: 1, addSwitches: true });
       service = new WalletService();
       Announce(fakeWindow, provider);
 
@@ -223,6 +281,152 @@ describe('WalletService', () => {
         chainName: 'Sepolia',
         nativeCurrency: { symbol: 'ETH', decimals: 18 },
       });
+    });
+  });
+
+  describe('chain and account checks before sending', () => {
+    function Use(provider: Eip1193Provider): WalletService {
+      const service = new WalletService();
+      Announce(fakeWindow, provider);
+      return service;
+    }
+
+    const send = {
+      from: ADDRESS,
+      to: PAYOUT_BATCH,
+      data: '0x1234',
+      chainId: 11155111,
+    } as const;
+
+    it('refuses to send while the wallet is on another chain', async () => {
+      const provider = StatefulProvider({ chainId: 1 });
+
+      await expect(Use(provider).SendTransaction(send)).rejects.toThrow(
+        'The wallet is on chain 1, not 11155111. Switch networks in the wallet and try again.'
+      );
+      expect(Requests(provider)).not.toContainEqual(
+        expect.objectContaining({ method: 'eth_sendTransaction' })
+      );
+    });
+
+    it('re-reads the active account and refuses one that changed', async () => {
+      const provider = StatefulProvider({
+        chainId: 11155111,
+        account: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      });
+
+      await expect(Use(provider).SendTransaction(send)).rejects.toThrow(
+        "The wallet's active account is not the platform wallet"
+      );
+      expect(Requests(provider)).toContainEqual({ method: 'eth_accounts' });
+      expect(Requests(provider)).not.toContainEqual(
+        expect.objectContaining({ method: 'eth_sendTransaction' })
+      );
+    });
+
+    it('switches again when adding Sepolia did not switch to it', async () => {
+      const provider = StatefulProvider({ chainId: 1 });
+      const service = Use(provider);
+
+      await service.EnsureChain(11155111);
+
+      expect(provider.state.chainId).toBe(11155111);
+      expect(
+        Requests(provider)
+          .map((request) => (request as { method: string }).method)
+          .filter((method) => method.startsWith('wallet_'))
+      ).toEqual([
+        'wallet_switchEthereumChain',
+        'wallet_addEthereumChain',
+        'wallet_switchEthereumChain',
+      ]);
+    });
+
+    it("recognises MetaMask Mobile's wrapped unrecognized-chain error", async () => {
+      const provider = StatefulProvider({
+        chainId: 1,
+        addSwitches: true,
+        errorForUnknown: () =>
+          Object.assign(new Error('Internal error'), {
+            code: -32603,
+            data: { originalError: { code: 4902 } },
+          }),
+      });
+
+      await Use(provider).EnsureChain(11155111);
+
+      expect(provider.state.chainId).toBe(11155111);
+      expect(Requests(provider)).toContainEqual(
+        expect.objectContaining({ method: 'wallet_addEthereumChain' })
+      );
+    });
+
+    it('does not add a chain for an unrelated internal error', async () => {
+      const provider = StatefulProvider({
+        chainId: 1,
+        errorForUnknown: () =>
+          Object.assign(new Error('Internal error'), { code: -32603 }),
+      });
+
+      await expect(Use(provider).EnsureChain(11155111)).rejects.toThrow();
+      expect(Requests(provider)).not.toContainEqual(
+        expect.objectContaining({ method: 'wallet_addEthereumChain' })
+      );
+    });
+
+    it('fails when the wallet reports success but stays on another chain', async () => {
+      const provider = StatefulProvider({ chainId: 1, knows: [11155111] });
+      provider.request.mockImplementation(async ({ method }) =>
+        method === 'eth_chainId' ? '0x1' : null
+      );
+
+      await expect(Use(provider).EnsureChain(11155111)).rejects.toThrow(
+        'The wallet is on chain 1, not 11155111. Switch networks in the wallet and try again.'
+      );
+    });
+
+    it('detects a user rejection anywhere in the error chain', () => {
+      const rejected = Object.assign(new Error('User rejected the request.'), {
+        code: 4001,
+      });
+
+      expect(IsUserRejectedError(rejected)).toBe(true);
+      expect(
+        IsUserRejectedError(
+          Object.assign(new Error('wrapped'), { cause: rejected })
+        )
+      ).toBe(true);
+      expect(IsUserRejectedError(new Error('RPC unavailable'))).toBe(false);
+    });
+  });
+
+  describe('built transactions', () => {
+    const service = new WalletService();
+
+    it('reads the target and calldata of a built transaction', async () => {
+      await expect(
+        service.ReadBuiltTransaction(UnsignedPayout(), {
+          to: PAYOUT_BATCH,
+          chainId: 11155111,
+        })
+      ).resolves.toEqual({ to: PAYOUT_BATCH, data: '0x1234' });
+    });
+
+    it('rejects a built transaction aimed at another contract or chain', async () => {
+      await expect(
+        service.ReadBuiltTransaction(UnsignedPayout({ to: ADDRESS }), {
+          to: PAYOUT_BATCH,
+          chainId: 11155111,
+        })
+      ).rejects.toThrow(
+        'Payout transaction does not target the expected contract'
+      );
+      await expect(
+        service.ReadBuiltTransaction(UnsignedPayout({ chainId: 1 }), {
+          to: PAYOUT_BATCH,
+          chainId: 11155111,
+        })
+      ).rejects.toThrow('Payout transaction is for a different chain');
     });
   });
 

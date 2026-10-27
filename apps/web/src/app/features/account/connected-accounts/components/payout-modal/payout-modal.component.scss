@@ -129,3 +129,75 @@
     flex-shrink: 0;
   }
 }
+
+.payout-review,
+.payout-submitted {
+  padding: $spacing;
+  border: 1px solid $darkest-background-color;
+  border-radius: $border-radius-small;
+  background-color: $darker-background-color;
+}
+
+.approval-help {
+  margin-top: 0;
+}
+
+// Label/value rows; further rows (a USD estimate) slot in without layout changes.
+.fee-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: $spacing;
+  row-gap: $spacing-extra-small;
+  margin: $spacing-small 0;
+  font-size: $font-size;
+
+  dt {
+    opacity: $dimmed;
+  }
+
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}
+
+.fee-guide,
+.reserved-help {
+  margin-bottom: 0;
+}
+
+.payout-deadline {
+  margin-top: $spacing-small;
+  font-size: $font-size;
+  font-weight: 600;
+}
+
+.payout-submitted-title {
+  font-size: $font-size;
+  font-weight: 600;
+}
+
+.submitted-hash {
+  overflow-wrap: anywhere;
+
+  a,
+  span {
+    font-family: monospace;
+  }
+}
+
+.payout-notice {
+  font-size: $font-size-small;
+  opacity: $dimmed;
+}
+
+.payout-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-small;
+
+  .action-button {
+    margin: 0;
+  }
+}

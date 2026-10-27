@@ -127,6 +127,7 @@ export class ApiService {
           errorData?.error?.message || `API Call failed: ${response.statusText}`
         );
         (error as ApiError).status = response.status;
+        (error as ApiError).type = errorData?.error?.type;
         throw error;
       }
 
@@ -174,6 +175,13 @@ export class ApiService {
   }
 }
 
-interface ApiError extends Error {
+export interface ApiError extends Error {
   status?: number;
+  /** The API error type, e.g. `payout_batch_in_progress` */
+  type?: string;
+}
+
+/** The API error type of a failed `ApiService.Call`, if it had one. */
+export function GetApiErrorType(error: unknown): string | undefined {
+  return error instanceof Error ? (error as ApiError).type : undefined;
 }

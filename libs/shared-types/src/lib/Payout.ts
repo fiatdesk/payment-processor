@@ -292,13 +292,29 @@ export interface ReconcileResponse {
 }
 
 /**
+ * Result of the SDK's `payouts.ensureAllowance()`: the payout build to sign,
+ * after the one-time approval when the platform wallet needed one.
+ */
+export interface EnsureAllowanceResult {
+  /** Payout build to sign and broadcast; null while the approval is unconfirmed or failed */
+  build: PayoutBatchBuildResponse | null;
+  /** Broadcast result of the approval, or null when none was needed */
+  approval: PayoutBatchBroadcastResponse | null;
+}
+
+/**
  * Result of the processPending operation.
  */
 export interface ProcessPendingResult {
   /** Hash of the broadcast transaction */
   transaction_hash: string;
-  /** Status of the operation */
+  /**
+   * Status of the operation. `pending` means submitted but not confirmed:
+   * call `payouts.reconcile()` later, then process again.
+   */
   status: 'paid' | 'failed' | 'pending';
+  /** `approval` when the batch stopped at the one-time approval */
+  transaction_type: PayoutBatchTransactionType;
   /** URL to view the transaction on a blockchain explorer */
   viewer_url: string;
   /** Array of processed payout objects */

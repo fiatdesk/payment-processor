@@ -8,8 +8,15 @@ import type {
   Payout,
   PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
+  ReconcileResponse,
 } from '@zoneless/shared-types';
 import { ApiService } from '../../core';
+
+/**
+ * Broadcast can wait 60 s for a wallet-sent hash to appear and 60 s more for
+ * confirmations, so the browser waits longer than the API.
+ */
+const BROADCAST_TIMEOUT_MS = 150000;
 
 @Injectable({
   providedIn: 'root',
@@ -43,8 +50,17 @@ export class PayoutService {
       'POST',
       'payouts/broadcast',
       input,
-      { timeout: 60000 }
+      { timeout: BROADCAST_TIMEOUT_MS }
     );
+  }
+
+  /** Settles the platform's outstanding payout batches from the chain. */
+  async Reconcile(): Promise<ReconcileResponse> {
+    return this.api.Call<ReconcileResponse>('POST', 'payouts/reconcile');
+  }
+
+  async GetPayout(payoutId: string): Promise<Payout> {
+    return this.api.Call<Payout>('GET', `payouts/${payoutId}`);
   }
 
   async CancelPayout(payoutId: string): Promise<Payout> {

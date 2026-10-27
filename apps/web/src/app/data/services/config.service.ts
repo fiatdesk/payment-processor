@@ -151,6 +151,23 @@ export class ConfigService {
   }
 
   /**
+   * Chain id wallet and payout transactions must use, or null on the
+   * simulated rail.
+   */
+  GetChainId(): number | null {
+    return this.config()?.chain_id ?? null;
+  }
+
+  /**
+   * Block explorer link for a transaction or address on the active chain;
+   * empty when the chain has no explorer (Anvil, simulated settlement).
+   */
+  GetExplorerUrl(type: 'tx' | 'address', value: string): string {
+    const base = this.config()?.explorer_url_base;
+    return base && value ? `${base}/${type}/${value}` : '';
+  }
+
+  /**
    * Clear the cached config. Useful when switching contexts.
    */
   ClearConfig(): void {

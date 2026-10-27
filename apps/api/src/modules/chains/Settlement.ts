@@ -9,8 +9,10 @@
  */
 
 import { isAddress } from 'viem';
-import { GetAppConfig } from '../AppConfig';
+import type { PublicConfig } from '@zoneless/shared-types';
+import { GetAppConfig, type SupportedChainId } from '../AppConfig';
 import { ChainClientsGeneration } from './Chain';
+import { CHAIN_EXPLORERS } from './contracts';
 import { Ethereum } from './Ethereum';
 import { Now } from '../../utils/Timestamp';
 import type {
@@ -445,4 +447,23 @@ export function GetSettlement(): Settlement {
 /** Explorer link for the active rail; empty on the simulated rail. */
 export function ExplorerUrl(type: 'tx' | 'address', value: string): string {
   return GetSettlement().ExplorerUrl(type, value);
+}
+
+/**
+ * Rail fields of the public config: the chain clients must send on, and the
+ * explorer origin for links (empty on the simulated rail and Anvil).
+ */
+export function PublicRailConfig(): Pick<
+  PublicConfig,
+  'network' | 'chain_id' | 'explorer_url_base'
+> {
+  const { network, chain_id } = GetSettlement().Describe();
+  return {
+    network,
+    chain_id,
+    explorer_url_base:
+      chain_id === null
+        ? ''
+        : CHAIN_EXPLORERS[chain_id as SupportedChainId] ?? '',
+  };
 }

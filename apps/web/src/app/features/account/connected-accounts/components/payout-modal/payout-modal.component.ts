@@ -7,6 +7,12 @@ import {
 import { ModalComponent } from '../../../../../shared';
 import { ConfigService } from '../../../../../data';
 import { ConnectedAccountActionsService } from '../../services/connected-account-actions.service';
+import {
+  FormatClockTime,
+  FormatEth,
+  FormatGwei,
+  PerRecipientFee,
+} from '../../util/payout-fee';
 
 @Component({
   selector: 'app-payout-modal',
@@ -21,6 +27,20 @@ export class PayoutModalComponent {
 
   readonly isSimulatedSettlement = computed(() =>
     this.configService.IsSimulatedSettlement()
+  );
+
+  readonly step = computed(() => this.actions.payoutStep());
+
+  /** Amount and destination are fixed once the payout exists. */
+  readonly detailsEditable = computed(
+    () =>
+      this.step() === 'details' &&
+      !this.actions.payoutCreatedId() &&
+      !this.actions.payoutLoading()
+  );
+
+  readonly closeLabel = computed(() =>
+    this.step() === 'details' ? 'Cancel' : 'Close'
   );
 
   readonly availableCents = computed(() =>
@@ -53,6 +73,48 @@ export class PayoutModalComponent {
     const wallet = this.walletLabel();
     return `Pay out US$${dollars} from ${name}'s balance to ${wallet}.`;
   });
+
+  private readonly build = computed(() => this.actions.payoutBuildResult());
+
+  /** Upper bound of the network fee, in ETH. */
+  readonly feeEth = computed(() => {
+    const build = this.build();
+    return build ? FormatEth(build.estimated_fee) : '';
+  });
+
+  readonly perRecipientFeeEth = computed(() => {
+    const build = this.build();
+    if (!build || build.recipients_count === 0) return '';
+    return FormatEth(
+      PerRecipientFee(build.estimated_fee, build.recipients_count)
+    );
+  });
+
+  readonly gasPriceGwei = computed(() => {
+    const maxFeePerGas = this.build()?.max_fee_per_gas;
+    return maxFeePerGas ? FormatGwei(maxFeePerGas) : '';
+  });
+
+  readonly signBefore = computed(() => {
+    const deadline = this.build()?.deadline;
+    return deadline ? FormatClockTime(deadline) : '';
+  });
+
+  readonly reservedUntil = computed(() => {
+    const releaseAfter = this.build()?.release_after;
+    return releaseAfter ? FormatClockTime(releaseAfter) : '';
+  });
+
+  readonly submittedHash = computed(() => this.actions.payoutSubmittedHash());
+
+  readonly submittedHashLabel = computed(() => {
+    const hash = this.submittedHash();
+    return hash ? `${hash.slice(0, 10)}…${hash.slice(-8)}` : '';
+  });
+
+  readonly submittedExplorerUrl = computed(() =>
+    this.configService.GetExplorerUrl('tx', this.submittedHash())
+  );
 
   OnAmountInput(event: Event): void {
     const value = (event.target as HTMLInputElement).value;

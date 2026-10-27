@@ -1,15 +1,16 @@
 <app-modal
   [isOpen]="actions.payoutOpen()"
   title="Pay out to wallet"
-  closeLabel="Cancel"
-  submitLabel="Pay out"
+  [closeLabel]="closeLabel()"
+  [submitLabel]="actions.payoutSubmitLabel()"
   [loading]="actions.payoutLoading()"
   [submitDisabled]="!actions.canSubmitPayout()"
   (submitted)="actions.ConfirmPayout()"
   (closed)="actions.ClosePayout()"
 >
   <div class="fund-modal">
-    @if (!hasBalance()) {
+    @if (step() === 'details') { @if (!hasBalance() &&
+    !actions.payoutCreatedId()) {
     <div class="payout-status">No balance available</div>
     } @if (actions.activeAccount() && !actions.activeAccount()?.payouts_enabled)
     {
@@ -17,7 +18,7 @@
       Payouts are not enabled for this account. Outstanding identity
       requirements may need to be resolved first.
     </div>
-    }
+    } }
 
     <div class="field">
       <div class="field-title">Amount</div>
@@ -30,12 +31,14 @@
           placeholder="0.00"
           [value]="actions.payoutAmount()"
           (input)="OnAmountInput($event)"
-          [disabled]="actions.payoutLoading()"
+          [disabled]="!detailsEditable()"
         />
       </div>
+      @if (step() === 'details' && !actions.payoutCreatedId()) {
       <div class="field-help">
         Available to pay out: US${{ availableLabel() }}
       </div>
+      }
     </div>
 
     <div class="field">
@@ -48,7 +51,68 @@
       </div>
     </div>
 
-    @if (!isSimulatedSettlement()) {
+    @if (step() === 'approval' || step() === 'review') {
+    <div class="field payout-review">
+      @if (step() === 'approval') {
+      <div class="field-title">One-time approval</div>
+      <div class="field-help approval-help">
+        Before its first payout, the platform wallet approves the PayoutBatch
+        contract to send its USDC. The contract can only move the platform
+        wallet's own funds, in transactions that wallet signs. Once the approval
+        confirms, you review and sign the payout.
+      </div>
+      } @else {
+      <div class="field-title">Review payout</div>
+      }
+      <dl class="fee-summary">
+        <dt>Network fee</dt>
+        <dd>Up to {{ feeEth() }} ETH</dd>
+        @if (perRecipientFeeEth()) {
+        <dt>Per recipient</dt>
+        <dd>{{ perRecipientFeeEth() }} ETH</dd>
+        } @if (gasPriceGwei()) {
+        <dt>Gas price</dt>
+        <dd>Up to {{ gasPriceGwei() }} gwei</dd>
+        }
+        <!-- A USD estimate row joins here once a verified ETH/USD feed exists. -->
+      </dl>
+      <div class="field-help fee-guide">
+        Network gas is paid in ETH from the platform wallet; see the gas guide.
+      </div>
+      @if (step() === 'review' && signBefore()) {
+      <div class="payout-deadline">Sign before {{ signBefore() }}.</div>
+      } @if (step() === 'review' && reservedUntil()) {
+      <div class="field-help reserved-help">
+        Closing keeps this payout reserved until {{ reservedUntil() }}; it can
+        be canceled from the payouts list after that.
+      </div>
+      }
+    </div>
+    } @if (step() === 'submitted') {
+    <div class="field payout-submitted">
+      @if (actions.payoutNotice()) {
+      <div class="payout-submitted-title">{{ actions.payoutNotice() }}</div>
+      } @if (submittedHash()) {
+      <div class="field-help submitted-hash">
+        Transaction: @if (submittedExplorerUrl()) {
+        <a
+          [href]="submittedExplorerUrl()"
+          target="_blank"
+          rel="noopener noreferrer"
+          [title]="submittedHash()"
+          >{{ submittedHashLabel() }}</a
+        >
+        } @else {
+        <span [title]="submittedHash()">{{ submittedHashLabel() }}</span>
+        }
+      </div>
+      }
+      <div class="field-help">
+        Reconcile settles the payout from the chain. Nothing is sent again from
+        here.
+      </div>
+    </div>
+    } @if (!isSimulatedSettlement() && step() !== 'submitted') {
     <div class="field">
       <div class="field-title">Sign payout</div>
       <div class="field-help signer-help">
@@ -121,8 +185,7 @@
         } }
       </div>
     </div>
-    }
-
+    } @if (step() === 'details') {
     <div class="confirm-section">
       <div class="confirm-heading">Confirm payout</div>
       <label class="confirm-row">
@@ -135,8 +198,30 @@
         <span>{{ confirmLabel() }}</span>
       </label>
     </div>
-
-    @if (actions.payoutError()) {
+    } @if (actions.payoutNotice() && step() !== 'submitted') {
+    <div class="payout-notice">{{ actions.payoutNotice() }}</div>
+    } @if (actions.payoutRecovery() !== 'none') {
+    <div class="payout-recovery">
+      <button
+        type="button"
+        class="action-button action-button-dainty outline"
+        (click)="actions.ReconcilePayout()"
+        [disabled]="actions.payoutLoading()"
+      >
+        Reconcile
+      </button>
+      @if (actions.payoutRecovery() === 'reconcile_or_replace') {
+      <button
+        type="button"
+        class="action-button action-button-dainty outline"
+        (click)="actions.ReplaceOutstandingBatch()"
+        [disabled]="actions.payoutLoading()"
+      >
+        Replace outstanding batch
+      </button>
+      }
+    </div>
+    } @if (actions.payoutError()) {
     <div class="fund-error">{{ actions.payoutError() }}</div>
     }
   </div>

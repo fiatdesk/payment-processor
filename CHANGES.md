@@ -704,3 +704,115 @@ apps/api/src/modules/PayoutBatchStore.ts
 apps/api/src/modules/chains/Ethereum.spec.ts
 apps/api/src/modules/chains/Ethereum.ts
 ```
+
+## Task 9: SDK and dashboard payout signing
+
+The Node SDK and the dashboard now drive the Ethereum payout API from Task 8. Both check a built transaction before signing it. Neither sends a transaction a second time: after an unclear outcome, the only next step is reconcile.
+
+- **SDK `sign(build, privateKey, { expectedSigner? })`** replaces `sign(unsignedTransaction, privateKey)`. This is a breaking change.
+  - Before signing, it checks that the transaction calls `build.to` ("Unsigned transaction does not target the expected contract") on `build.chain_id`.
+  - With `expectedSigner`, it also checks that the key belongs to that wallet.
+  - `'sim_tx'` still passes through unsigned.
+- **SDK `ensureAllowance(privateKey, params, options?)`**:
+  - It builds. If build returns the one-time `approval`, it signs that, broadcasts it with `payouts: []`, and builds once more.
+  - It returns `{ build, approval }`. `build` is `null` while the approval is `pending` or `failed`.
+  - The new shared type is `EnsureAllowanceResult`.
+- **SDK `processBatch(privateKey, { limit, replace, expectedSigner, requestOptions })`**:
+  - It takes up to 100 payouts (default 100, was 10).
+  - It handles the approval through `ensureAllowance`.
+  - `replace: true` re-prices the wallet's outstanding batch with the same payouts. It is sent on the first build only. A different set still waits for the batch to be paid or to expire, which the API enforces.
+  - `ProcessPendingResult` gains `transaction_type`. A stopped approval returns `status: 'pending'` (or `failed`) with `transaction_type: 'approval'`.
+- **SDK `processAll`** stops at the first result that is not `paid` and returns the results so far, including that one, with `has_more: true`. The caller then reconciles and resumes.
+- **SDK request options.** The multi-request helpers drop `idempotencyKey` from their request options. The API keys idempotency by key alone, so one key would replay the first response.
+- **SDK errors.** Build and broadcast raise `ZonelessPayoutBatchError` for the payout batch codes. Its `code` comes from the API's `error.type`, which is also kept. The codes are:
+
+  - `payout_batch_in_progress`, `payout_batch_in_flight`, `payout_batch_already_paid`, `payout_batch_mismatch`;
+  - `transaction_not_found`, `use_wallet_speed_up`;
+  - `account_frozen`, `sanctioned_address`, `insufficient_funds`, `blockchain_error`.
+
+  The class and `PAYOUT_BATCH_ERROR_CODES` are exported. The README gains a payouts section covering the private key, the allowance step, gas, pending results and same-set `replace`.
+
+- **Public config (A3).**
+  - `PublicConfig` gains `network`, `chain_id` and `explorer_url_base`. They come from the rail's `Describe()` and the chain explorer table, through `PublicRailConfig()`. The base is empty on Anvil and on the simulated rail.
+  - The web's duplicate `EtherscanUrl`, which linked Anvil to Sepolia, is removed. `ConfigService.GetExplorerUrl()` replaces it in the payment intent and balance views.
+- **Wallet (A1, A2).** `WalletService.SendTransaction({ from, to, data, value?, chainId })`:
+
+  - Right before sending, it re-reads the active account (`eth_accounts`) and checks `getChainId()`.
+  - It then passes a chain object, so viem checks the chain once more.
+  - A wrong account or chain throws `WalletNotReadyError`, and nothing is sent.
+
+  `EnsureChain`:
+
+  - After `wallet_addEthereumChain`, it switches again if the wallet did not, then verifies the chain.
+  - `IsUnrecognizedChainError` also matches MetaMask Mobile's `-32603` with `data.originalError.code === 4902`.
+
+  New helpers: `ReadBuiltTransaction` (checked target and calldata) and `IsUserRejectedError`.
+
+- **Dashboard payout modal.** The on-chain flow takes two clicks:
+  1. "Review payout" creates the payout and builds it with `deadline_seconds: 300`. That is the A6 value, which replaces A5's 600.
+  2. "Sign and pay out" signs and broadcasts.
+- **Approval.** An approval build adds an "Approve USDC" step first, and the payout is then built for its own confirmation.
+- **Wallet path.** `EnsureChain(config.chain_id)` → `SendTransaction` → broadcast `{ transaction_hash }`.
+- **Private-key path.**
+  - It runs `SignTransactionWithPrivateKey` → broadcast `{ signed_transaction }`.
+  - The pasted key stays in the browser, is never stored, and is cleared after each signature.
+- **Review step.** It shows:
+
+  - `estimated_fee` in ETH (6 decimals), the fee per recipient, and the gas price in gwei;
+  - the line "Network gas is paid in ETH from the platform wallet; see the gas guide.";
+  - "Sign before HH:MM";
+  - and on close, the notice that the payout stays reserved until `release_after`.
+
+  Closing at that point never cancels the payout, because its batch holds it.
+
+- **Fee display.** Open decision 16 is resolved as ETH-only display; a Chainlink-backed USD estimate is a follow-up after Task 18 verifies the Chainlink ETH/USD feed addresses. The fee rows leave a slot for that USD line.
+  - Follow-up: Chainlink ETH/USD feed addresses to be verified in Task 18.
+  - The gas guide is plain text until Task 16 adds the gas page.
+- **Unclear outcomes.** These are a `pending` broadcast, a broadcast error such as `transaction_not_found` or a timeout, and a wallet error other than a user rejection. Each leads to "Submitted, waiting for confirmations.", whose only action is Reconcile.
+  - Reconcile then reads the payout. It closes on `paid`, reports `failed`, and returns to review once the batch released the payout.
+  - A user rejection lets the user sign the same build again.
+- **Batch conflicts.** `payout_batch_in_progress` on build offers Reconcile and "Replace outstanding batch" (`replace: true`). `payout_batch_in_flight` and `payout_batch_already_paid` offer Reconcile.
+- **Simulated rail.** It keeps its one-click flow (`sim_tx`).
+- **Web plumbing.**
+  - `ApiService` keeps the API error `type` on thrown errors (`GetApiErrorType`).
+  - `PayoutService` gains `Reconcile()` and `GetPayout()`.
+  - The broadcast timeout is 150 s. The API can wait 60 s for a wallet hash to appear plus 60 s for confirmations.
+- **Docs.** The payouts page's SDK snippets use `sign(build, key)`, `process.env.WALLET_PRIVATE_KEY`, 100-payout batches, and the approval, pending and reconcile behaviour of the helpers.
+
+Added:
+
+```
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.spec.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.spec.ts
+apps/web/src/app/features/account/connected-accounts/util/payout-fee.spec.ts
+apps/web/src/app/features/account/connected-accounts/util/payout-fee.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/routes/config.routes.ts
+apps/docs/src/app/pages/docs/data/payouts.ts
+apps/web/src/app/core/services/api.service.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/data/services/config.service.ts
+apps/web/src/app/data/services/payout.service.ts
+apps/web/src/app/features/account/balance/components/balance-detail/balance-detail.component.ts
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.html
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.scss
+apps/web/src/app/features/account/connected-accounts/components/payout-modal/payout-modal.component.ts
+apps/web/src/app/features/account/connected-accounts/services/connected-account-actions.service.ts
+apps/web/src/app/features/account/payment-intents/views/payment-intent-detail/payment-intent-detail.component.ts
+apps/web/src/app/utils/validation/ethereum.ts
+libs/shared-types/src/lib/Config.ts
+libs/shared-types/src/lib/Payout.ts
+sdks/node/README.md
+sdks/node/src/HttpClient.ts
+sdks/node/src/__tests__/Payouts.spec.ts
+sdks/node/src/index.ts
+sdks/node/src/resources/Payouts.ts
+```

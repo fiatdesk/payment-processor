@@ -1063,18 +1063,25 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
               code: `${NODE_INIT}
 
 // Build an unsigned transaction for multiple payouts
-const buildResult = await zoneless.payouts.build({
+const build = await zoneless.payouts.build({
   payouts: [
     'po_z_1Nv0FGQ9RKHgCVdK',
     'po_z_2Xw1GHR0SKIiDWeL'
   ]
 });
 
-if (buildResult.transaction_type === 'approval') {
-  // Sign and broadcast the one-time approval, then build again
+if (build.transaction_type === 'approval') {
+  // Sign and broadcast the one-time approval with payouts: [],
+  // then build again (payouts.ensureAllowance() does both)
 }
-console.log(buildResult.unsigned_transaction);
-console.log(buildResult.total_amount); // 160000 cents`,
+
+// Checks build.to and build.chain_id before signing locally
+const signedTransaction = await zoneless.payouts.sign(
+  build,
+  process.env.WALLET_PRIVATE_KEY
+);
+console.log(build.estimated_fee); // upper bound in wei
+console.log(build.total_amount); // 160000 cents`,
             },
           ],
         },
@@ -1228,13 +1235,14 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-// After signing the transaction from build()
+// Sign the build() result locally, then broadcast it
+const signedTransaction = await zoneless.payouts.sign(
+  build,
+  process.env.WALLET_PRIVATE_KEY
+);
 const result = await zoneless.payouts.broadcast({
   signed_transaction: signedTransaction,
-  payouts: [
-    'po_z_1Nv0FGQ9RKHgCVdK',
-    'po_z_2Xw1GHR0SKIiDWeL'
-  ],
+  payouts: build.payouts.map((payout) => payout.id),
 });
 
 console.log(result.status); // 'paid', 'failed' or 'pending'
@@ -1260,13 +1268,13 @@ console.log(result.viewer_url); // Link to Etherscan`,
         { type: 'heading', level: 3, text: 'processBatch()' },
         {
           type: 'paragraph',
-          text: 'Process up to 10 pending payouts in a single batch. Returns a <code>has_more</code> flag indicating if more payouts remain.',
+          text: 'Process up to 100 pending payouts in a single batch, signing the wallet’s one-time approval first when build asks for it. Returns a <code>has_more</code> flag indicating if more payouts remain. A <code>pending</code> status means the transaction (or the approval) is not confirmed yet: <a href="#payouts-reconcile">reconcile</a> later, then process again. Pass <code>replace: true</code> to re-price the wallet’s outstanding batch of the same payouts.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'processAll()' },
         {
           type: 'paragraph',
-          text: 'Process all pending payouts automatically, handling multiple batches until none remain. Returns an array of results, one per batch.',
+          text: 'Process all pending payouts automatically, handling multiple batches until none remain. Returns an array of results, one per batch. It stops at the first batch that is not <code>paid</code> and returns it last, with <code>has_more: true</code>. Batch conflicts throw a <code>ZonelessPayoutBatchError</code> whose <code>code</code> is the API error, such as <code>payout_batch_in_progress</code>.',
           html: true,
         },
       ],
@@ -1280,15 +1288,17 @@ console.log(result.viewer_url); // Link to Etherscan`,
               label: 'processBatch()',
               code: `${NODE_INIT}
 
-// Process up to 10 pending payouts
+// Process up to 100 pending payouts
 const result = await zoneless.payouts.processBatch(
-  process.env.SOLANA_SECRET_KEY
+  process.env.WALLET_PRIVATE_KEY
 );
 
-console.log(\`Processed \${result.payouts.length} payouts\`);
+console.log(\`\${result.status}: \${result.payouts.length} payouts\`);
 console.log(\`Transaction: \${result.transaction_hash}\`);
 
-if (result.has_more) {
+if (result.status === 'pending') {
+  // Not confirmed yet: reconcile later, then process again
+} else if (result.has_more) {
   console.log('More payouts pending...');
 }`,
             },
@@ -1299,7 +1309,7 @@ if (result.has_more) {
 
 // Process ALL pending payouts (multiple batches)
 const results = await zoneless.payouts.processAll(
-  process.env.SOLANA_SECRET_KEY
+  process.env.WALLET_PRIVATE_KEY
 );
 
 const totalProcessed = results.reduce(
@@ -1308,7 +1318,12 @@ const totalProcessed = results.reduce(
 
 console.log(
   \`Processed \${totalProcessed} payouts in \${results.length} batches\`
-);`,
+);
+
+const last = results[results.length - 1];
+if (last && last.status !== 'paid') {
+  await zoneless.payouts.reconcile(); // later, then processAll again
+}`,
             },
           ],
         },
