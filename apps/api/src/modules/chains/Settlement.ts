@@ -26,7 +26,9 @@ import type {
   ConfirmedBlock,
   CheckoutSubscribeVerification,
   IncomingDeposit,
+  ChargeReconcileExpectation,
   ChargeReconciliation,
+  ChargeSearch,
   OnchainSubscriptionState,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
@@ -36,7 +38,9 @@ import type {
   RailDescription,
   RelayCheckoutOptions,
   RelaySubscribeOptions,
+  SubscribeAuthorizationOptions,
   SubscribeRelay,
+  SubscriptionCancelOptions,
   SubscriptionCollectParams,
   SubscriptionCollection,
   TransferRecipient,
@@ -179,13 +183,14 @@ export interface Settlement {
    * message, and a USDC permit (for the current allowance plus this plan's
    * bounded value) when the allowance is below this plan's value plus
    * `otherPlansAllowance`, the values of the wallet's other live plans.
-   * Valid until `expiresAt` at most.
+   * Valid until `expiresAt` at most. With `trialSeconds`, the first charge
+   * is due that long after now (`first_charge_at`), else at subscribe.
    */
   BuildSubscribeAuthorization(
     subscriber: string,
     planKey: string,
     expiresAt: number,
-    options?: { otherPlansAllowance?: bigint }
+    options?: SubscribeAuthorizationOptions
   ): Promise<PreparedSubscribe>;
   /**
    * Submits the signed subscribe (with its permit, if any) and returns the
@@ -225,33 +230,31 @@ export interface Settlement {
   CollectSubscriptionPayment(
     params: SubscriptionCollectParams
   ): Promise<SubscriptionCollection>;
-  /** What a recorded charge hash says now (see `ChargeReconciliation`). */
+  /**
+   * What every hash recorded for a charge says, together (see
+   * `ChargeReconciliation`).
+   */
   ReconcileSubscriptionCharge(
-    transactionHash: string,
-    expected: {
-      subscriptionOnchainId: string;
-      amountCents: number;
-      sentAt: number | null;
-      onReplaced(transactionHash: string): Promise<void>;
-    }
+    transactionHashes: string[],
+    expected: ChargeReconcileExpectation
   ): Promise<ChargeReconciliation>;
-  /** The newest charge of `amountCents` mined at or after `since`, or null. */
+  /**
+   * The newest charge of `amountCents` mined at or after `since` that
+   * `accept` takes, or null.
+   */
   FindSubscriptionCharge(
     subscriptionOnchainId: string,
-    expected: { amountCents: number; since: number }
+    expected: ChargeSearch
   ): Promise<{ transaction_hash: string; next_charge_at: number } | null>;
   /**
    * Sends the plan owner's cancel without waiting for it; `onSigned`
    * records the hash first. Null when the subscription is not active or
-   * paused on-chain (nothing to send); the pending hash while the node
-   * still knows it.
+   * paused on-chain (nothing to send); the recorded cancel while it may
+   * still land (re-priced after 10 minutes).
    */
   CancelSubscription(
     subscriptionOnchainId: string,
-    options: {
-      pendingHash?: string | null;
-      onSigned(transactionHash: string): Promise<void>;
-    }
+    options: SubscriptionCancelOptions
   ): Promise<string | null>;
 }
 
@@ -289,6 +292,14 @@ function PayerFromSimulatedSignature(signature: string): string | null {
   const separator = rest.indexOf(':');
   if (separator < 0) return rest || null;
   return rest.slice(separator + 1) || null;
+}
+
+/** The checkout session a `sim_sig:` reference names, if any. */
+function SessionFromSimulatedSignature(signature: string): string | null {
+  if (!signature.startsWith(SIM_SIG_PREFIX)) return null;
+  const rest = signature.slice(SIM_SIG_PREFIX.length);
+  const separator = rest.indexOf(':');
+  return separator > 0 ? rest.slice(0, separator) : null;
 }
 
 /** In-process rail that settles without touching a chain. */
@@ -366,6 +377,7 @@ export class SimulatedSettlement implements Settlement {
       permit_typed_data: null,
       subscribe_typed_data: null,
       deadline: null,
+      first_charge_at: 0,
       estimated_fee: '0',
       fee_currency: 'none',
       chain_id: null,
@@ -411,11 +423,16 @@ export class SimulatedSettlement implements Settlement {
           : {}),
       };
     }
+    // One simulated subscription per checkout session: the test wallet is
+    // the same for every simulated checkout.
+    const session = SessionFromSimulatedSignature(transactionHash);
     return {
       status: 'verified',
       transaction_hash: transactionHash,
       subscriber_address: expected.subscriberWallet,
-      subscription_onchain_id: `sim_sub_${expected.planKey}_${expected.subscriberWallet}`,
+      subscription_onchain_id: `sim_sub_${expected.planKey}_${
+        expected.subscriberWallet
+      }${session ? `_${session}` : ''}`,
     };
   }
 
@@ -434,7 +451,7 @@ export class SimulatedSettlement implements Settlement {
     params: SubscriptionCollectParams
   ): Promise<SubscriptionCollection> {
     const reference = `sim_collect:${params.subscriberWallet}`;
-    await params.onSigned(reference);
+    await params.onSigned(reference, { nonce: 0 });
     return {
       status: 'collected',
       transaction_hash: reference,
@@ -443,11 +460,11 @@ export class SimulatedSettlement implements Settlement {
   }
 
   async ReconcileSubscriptionCharge(
-    transactionHash: string
+    transactionHashes: string[]
   ): Promise<ChargeReconciliation> {
     return {
       status: 'paid',
-      transaction_hash: transactionHash,
+      transaction_hash: transactionHashes[transactionHashes.length - 1],
       next_charge_at: null,
     };
   }

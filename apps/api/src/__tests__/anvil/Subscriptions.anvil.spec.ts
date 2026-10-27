@@ -11,6 +11,7 @@ import {
   createTestClient,
   createWalletClient,
   http,
+  parseEventLogs,
   type Address,
   type Hex,
   type TypedDataDefinition,
@@ -221,13 +222,14 @@ describe('Subscriptions on Anvil', () => {
     )) as Hex;
   }
 
-  /** What the buyer signs for `planKey`, and the signatures. */
-  async function Signed(planKey: Hex) {
+  /** What the buyer signs for `planKey` (with an optional trial). */
+  async function Signed(planKey: Hex, trialSeconds = 0) {
     const prepared: PreparedSubscribe =
       await ethereum.BuildSubscribeAuthorization(
         buyer,
         planKey,
-        (await ChainTime()) + 3600
+        (await ChainTime()) + 3600,
+        { trialSeconds }
       );
     return {
       prepared,
@@ -239,6 +241,7 @@ describe('Subscriptions on Anvil', () => {
           : null,
         subscribeSignature: await Sign(prepared.subscribe_typed_data),
         deadline: prepared.deadline ?? 0,
+        firstChargeAt: prepared.first_charge_at,
       },
     };
   }
@@ -254,8 +257,8 @@ describe('Subscriptions on Anvil', () => {
   }
 
   /** Signs, relays and verifies a subscribe; returns the subscription id. */
-  async function Subscribe(planKey: Hex): Promise<Hex> {
-    const { relay } = await Signed(planKey);
+  async function Subscribe(planKey: Hex, trialSeconds = 0): Promise<Hex> {
+    const { relay } = await Signed(planKey, trialSeconds);
     const { hash } = await Relay(relay);
     await Context().Mine(1);
     const verification = await ethereum.VerifySubscribeTransaction(
@@ -991,6 +994,173 @@ describe('Subscriptions on Anvil', () => {
         end: periodStart + 2 * P,
       });
       expect(await BalanceOf(platform)).toBe(platformBefore + AMOUNT);
+    });
+
+    it('starts a 7-day trial on the chain grid: no charge before it ends, then the runner pays the invoice at its end', async () => {
+      const api = await BillingApi();
+      const P = PERIOD_SECONDS;
+      const WEEK = 7 * 24 * 3600;
+      const preparedAt = await ChainTime();
+      const { prepared, relay } = await Signed(api.planKey, WEEK);
+      expect(prepared.first_charge_at).toBe(preparedAt + WEEK);
+      expect(prepared.subscribe_typed_data?.message.firstChargeAt).toBe(
+        String(preparedAt + WEEK)
+      );
+      const trialEnd = prepared.first_charge_at;
+
+      const { hash } = await Relay(relay);
+      await Context().Mine(1);
+      const verification = await ethereum.VerifySubscribeTransaction(
+        hash,
+        { planKey: api.planKey, subscriberWallet: buyer },
+        TIMEOUT
+      );
+      const subId = verification.subscription_onchain_id as Hex;
+      const receipt = await Context().publicClient.getTransactionReceipt({
+        hash: hash as Hex,
+      });
+      const [subscribed] = parseEventLogs({
+        abi: SUBSCRIPTIONS_ABI,
+        eventName: 'Subscribed',
+        logs: receipt.logs,
+      });
+      const subscribedAt = Number(
+        (
+          await Context().publicClient.getBlock({
+            blockNumber: receipt.blockNumber,
+          })
+        ).timestamp
+      );
+      // Subscribed.nextChargeAt is the signed trial end, a week after the
+      // subscribe (less the seconds between prepare and subscribe).
+      expect(Number(subscribed.args.nextChargeAt)).toBe(trialEnd);
+      expect(trialEnd - subscribedAt).toBeGreaterThan(WEEK - 60);
+      expect(trialEnd - subscribedAt).toBeLessThanOrEqual(WEEK);
+      // The contract refuses a charge during the trial.
+      await expect(Collect(api.planKey, subId)).resolves.toEqual({
+        status: 'already_collected',
+        transaction_hash: null,
+      });
+
+      // What checkout records for a trial: the trial window, no invoice yet.
+      mockClock = await ChainTime();
+      const subscription = await api.subscriptions.CreateSubscription(
+        PLATFORM_ACCOUNT,
+        {
+          customer: api.customer,
+          items: [{ price: api.price.id, quantity: 1 }],
+          default_payment_method: buyer,
+          trial_end: trialEnd,
+        },
+        {
+          subscriptionOnchainId: subId,
+          periodStart: mockClock,
+          periodEnd: trialEnd,
+        }
+      );
+      expect(subscription.status).toBe('trialing');
+      expect(CycleInvoices(api, subscription.id)).toEqual([]);
+
+      await PassTime(WEEK);
+      const platformBefore = await BalanceOf(platform);
+      await expect(RunBilling(api)).resolves.toMatchObject({
+        processed: 1,
+        succeeded: 1,
+      });
+
+      expect(CycleInvoices(api, subscription.id)).toEqual([
+        expect.objectContaining({ status: 'paid', period_start: trialEnd }),
+      ]);
+      await expect(ethereum.GetSubscriptionState(subId)).resolves.toMatchObject(
+        {
+          next_charge_at: trialEnd + P,
+        }
+      );
+      expect(Period(api, subscription.id)).toEqual({
+        start: trialEnd,
+        end: trialEnd + P,
+      });
+      expect(Stored(api, subscription.id).status).toBe('active');
+      expect(await BalanceOf(platform)).toBe(platformBefore + AMOUNT);
+    });
+
+    it('pays once, and credits, a re-priced charge whose original is the one mined', async () => {
+      const api = await BillingApi();
+      const { subId, subscription, periodStart } = await Checkout(api);
+      const P = PERIOD_SECONDS;
+      const collect = ethereum.CollectSubscriptionPayment.bind(ethereum);
+      const wait = jest
+        .spyOn(ethereum, 'CollectSubscriptionPayment')
+        .mockImplementation((params) => collect({ ...params, timeoutMs: 500 }));
+      await PassTime(P + 60);
+      const platformBefore = await BalanceOf(platform);
+      const credited = api.memory.All('BalanceTransactions').length;
+      const claimId = CycleClaimId(subId, periodStart + P);
+      let original: string | null = null;
+
+      try {
+        await SetAutomine(false);
+        mockClock = await ChainTime();
+        await api.billing.Run({ platformAccountId: PLATFORM_ACCOUNT });
+        original = api.memory.Doc<SubscriptionCycleClaim>(
+          'SubscriptionCycleClaims',
+          claimId
+        ).charge_hash;
+        expect(original).toMatch(/^0x[0-9a-f]{64}$/);
+
+        // Ten minutes on, the run re-prices the stuck charge at its nonce;
+        // the replacement is recorded first, then the network refuses it.
+        const client = GetPublicClient();
+        const send = jest
+          .spyOn(client, 'sendRawTransaction')
+          .mockRejectedValueOnce(
+            new Error('replacement transaction underpriced')
+          );
+        mockClock += 601;
+        await api.billing.Run({ platformAccountId: PLATFORM_ACCOUNT });
+        send.mockRestore();
+        const claim = api.memory.Doc<SubscriptionCycleClaim>(
+          'SubscriptionCycleClaims',
+          claimId
+        );
+        expect(claim.charge_hashes).toHaveLength(2);
+        expect(claim.charge_hashes[0]).toBe(original);
+        expect(claim.charge_hash).toBe(claim.charge_hashes[1]);
+        const [invoice] = CycleInvoices(api, subscription.id);
+        expect(IntentOf(api, invoice).charge_hashes).toEqual(
+          claim.charge_hashes
+        );
+
+        // Only the original is in the pool: mine it.
+        await new Promise((resolve) =>
+          setTimeout(resolve, GetPublicClient().pollingInterval + 100)
+        );
+        await Context().Mine(2);
+      } finally {
+        await SetAutomine(true);
+        wait.mockRestore();
+      }
+
+      mockClock += 5;
+      await expect(
+        api.billing.Run({ platformAccountId: PLATFORM_ACCOUNT })
+      ).resolves.toMatchObject({ processed: 1, succeeded: 1 });
+
+      const [paid] = CycleInvoices(api, subscription.id);
+      expect(paid.status).toBe('paid');
+      expect(
+        api.memory
+          .All<{ payment_intent: string; crypto?: unknown }>('Charges')
+          .filter((charge) =>
+            JSON.stringify(charge).includes(original as string)
+          )
+      ).toHaveLength(1);
+      expect(api.memory.All('BalanceTransactions')).toHaveLength(credited + 1);
+      expect(await BalanceOf(platform)).toBe(platformBefore + AMOUNT);
+      expect(Period(api, subscription.id)).toEqual({
+        start: periodStart + P,
+        end: periodStart + 2 * P,
+      });
     });
   });
 });

@@ -727,6 +727,8 @@ describe('InvoiceModule', () => {
         MarkPaymentFailed: jest.Mock;
         MarkProcessing: jest.Mock;
         SetPendingChargeHash: jest.Mock;
+        ClearPendingChargeHash: jest.Mock;
+        GetPaymentIntent: jest.Mock;
       };
       let chargeModule: {
         CreateFromPaymentAttempt: jest.Mock;
@@ -808,6 +810,8 @@ describe('InvoiceModule', () => {
           MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
           MarkProcessing: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
           SetPendingChargeHash: jest.fn().mockResolvedValue(true),
+          ClearPendingChargeHash: jest.fn(),
+          GetPaymentIntent: jest.fn().mockResolvedValue(null),
         };
         chargeModule = {
           CreateFromPaymentAttempt: jest
@@ -836,6 +840,34 @@ describe('InvoiceModule', () => {
         return memory.Doc('SubscriptionCycleClaims', CLAIM);
       }
 
+      /** This invoice's claim on the cycle at NOW. */
+      function SeedClaim(overrides: Record<string, unknown> = {}): void {
+        memory.Seed('SubscriptionCycleClaims', {
+          id: CLAIM,
+          subscription_onchain_id: SUB_ONCHAIN,
+          due_at: NOW,
+          owner: 'in_z_test001',
+          charge_hash: CHARGE,
+          charge_hashes: [CHARGE],
+          charge_nonce: 7,
+          charge_sent_at: NOW - 60,
+          ...overrides,
+        });
+      }
+
+      /** The chain's logs hold `hash`, offered to the search's `accept`. */
+      function LogsHold(hash: string): void {
+        settlement.FindSubscriptionCharge.mockImplementation(
+          async (
+            _subId: string,
+            search: { accept?(h: string): Promise<boolean> }
+          ) =>
+            search.accept && !(await search.accept(hash))
+              ? null
+              : { transaction_hash: hash, next_charge_at: NOW + PERIOD }
+        );
+      }
+
       function EmittedTypes(): string[] {
         return eventService.Emit.mock.calls.map(([type]) => type);
       }
@@ -852,7 +884,7 @@ describe('InvoiceModule', () => {
         const seen: Record<string, unknown> = {};
         settlement.CollectSubscriptionPayment.mockImplementation(
           async (params) => {
-            await params.onSigned(CHARGE);
+            await params.onSigned(CHARGE, { nonce: 7 });
             seen.claim = Claim();
             seen.processing = paymentIntentModule.MarkProcessing.mock.calls;
             return {
@@ -877,6 +909,8 @@ describe('InvoiceModule', () => {
           owner: 'in_z_test001',
           due_at: NOW,
           charge_hash: CHARGE,
+          charge_hashes: [CHARGE],
+          charge_nonce: 7,
         });
         expect(seen.processing).toEqual([['pi_z_1']]);
         expect(paymentIntentModule.SetPendingChargeHash).toHaveBeenCalledWith(
@@ -891,16 +925,20 @@ describe('InvoiceModule', () => {
             crypto: expect.objectContaining({ transaction_hash: CHARGE }),
           })
         );
-        // The settled charge is no longer pending on the PaymentIntent.
-        expect(
-          paymentIntentModule.SetPendingChargeHash
-        ).toHaveBeenLastCalledWith('pi_z_1', null, CHARGE);
+        // The settled charge is no longer pending on the PaymentIntent, and
+        // the period it paid comes from its Charged event.
+        expect(paymentIntentModule.ClearPendingChargeHash).toHaveBeenCalledWith(
+          'pi_z_1'
+        );
+        expect(Claim()).toMatchObject({
+          paid_period: { start: NOW, end: NOW + PERIOD },
+        });
       });
 
       it('keeps a charge that did not confirm in time pending: no decline, no failure events', async () => {
         settlement.CollectSubscriptionPayment.mockImplementation(
           async (params) => {
-            await params.onSigned(CHARGE);
+            await params.onSigned(CHARGE, { nonce: 7 });
             return { status: 'pending', transaction_hash: CHARGE };
           }
         );
@@ -915,7 +953,7 @@ describe('InvoiceModule', () => {
       it('reconciles a recorded charge by its hash before sending another', async () => {
         settlement.CollectSubscriptionPayment.mockImplementationOnce(
           async (params) => {
-            await params.onSigned(CHARGE);
+            await params.onSigned(CHARGE, { nonce: 7 });
             return { status: 'pending', transaction_hash: CHARGE };
           }
         );
@@ -925,14 +963,143 @@ describe('InvoiceModule', () => {
         const result = await Pay();
 
         expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
-          CHARGE,
+          [CHARGE],
           expect.objectContaining({
             subscriptionOnchainId: SUB_ONCHAIN,
             amountCents: 1099,
+            nonce: 7,
           })
         );
         expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
         expect(result.status).toBe('paid');
+      });
+
+      it('reconciles every hash of the claim: a re-priced charge whose original mined is paid, not voided', async () => {
+        const REPLACEMENT = `0x${'c5'.repeat(32)}`;
+        SeedClaim({
+          charge_hash: REPLACEMENT,
+          charge_hashes: [CHARGE, REPLACEMENT],
+          charge_nonce: 7,
+        });
+        // The original landed, so the chain is due one period on.
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW + PERIOD,
+          period_seconds: PERIOD,
+          chain_time: NOW + 120,
+        });
+        settlement.ReconcileSubscriptionCharge.mockImplementation(
+          async (hashes) =>
+            hashes.includes(CHARGE)
+              ? {
+                  status: 'paid',
+                  transaction_hash: CHARGE,
+                  next_charge_at: NOW + PERIOD,
+                }
+              : { status: 'dropped' }
+        );
+
+        const result = await Pay();
+
+        expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
+          [CHARGE, REPLACEMENT],
+          expect.objectContaining({ nonce: 7 })
+        );
+        expect(result.status).toBe('paid');
+        expect(chargeModule.CreateFromPaymentAttempt).toHaveBeenCalledWith(
+          PLATFORM,
+          expect.objectContaining({
+            crypto: expect.objectContaining({ transaction_hash: CHARGE }),
+          })
+        );
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        // Its charge landed, so the chain moved on past its period.
+        ['a missed cycle', NOW + PERIOD, NOW + 120],
+        // The chain does not show the period due yet.
+        ['a period not due', NOW, NOW - 30],
+      ])(
+        'pays from the logs a charge of its own claim before refusing it as %s',
+        async (_label, nextChargeAt, chainTime) => {
+          SeedClaim({ charge_hash: null, charge_hashes: [CHARGE] });
+          settlement.GetSubscriptionState.mockResolvedValue({
+            status: 'active',
+            next_charge_at: nextChargeAt,
+            period_seconds: PERIOD,
+            chain_time: chainTime,
+          });
+          LogsHold(CHARGE);
+
+          const result = await Pay();
+
+          expect(result.status).toBe('paid');
+          expect(settlement.FindSubscriptionCharge).toHaveBeenCalledWith(
+            SUB_ONCHAIN,
+            expect.objectContaining({ amountCents: 1099, since: NOW })
+          );
+          expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        }
+      );
+
+      it('does not take a logged charge another cycle recorded', async () => {
+        SeedClaim({
+          charge_hash: null,
+          charge_hashes: [`0x${'dd'.repeat(32)}`],
+        });
+        memory.Seed('SubscriptionCycleClaims', {
+          id: `${SUB_ONCHAIN}:${NOW + PERIOD}`,
+          subscription_onchain_id: SUB_ONCHAIN,
+          due_at: NOW + PERIOD,
+          owner: 'in_z_next',
+          charge_hash: null,
+          charge_hashes: [CHARGE],
+        });
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW + 2 * PERIOD,
+          period_seconds: PERIOD,
+          chain_time: NOW + PERIOD + 5,
+        });
+        LogsHold(CHARGE);
+
+        ExpectWait(await Pay(), CYCLE_MISSED);
+      });
+
+      it('follows the claim when the PaymentIntent holds another pending hash', async () => {
+        paymentIntentModule.SetPendingChargeHash.mockResolvedValueOnce(false);
+        paymentIntentModule.GetPaymentIntent.mockResolvedValue({
+          id: 'pi_z_1',
+          pending_charge_hash: `0x${'ee'.repeat(32)}`,
+        });
+
+        const result = await Pay();
+
+        expect(
+          paymentIntentModule.SetPendingChargeHash
+        ).toHaveBeenNthCalledWith(2, 'pi_z_1', CHARGE, `0x${'ee'.repeat(32)}`);
+        expect(result.status).toBe('paid');
+      });
+
+      it('keeps a decline’s retry time over a pause and a resume', async () => {
+        SeedClaim({ charge_hash: null });
+        memory.Seed('Invoices', {
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          next_payment_attempt: NOW + 3 * 86_400,
+        });
+
+        await module.ScheduleOpenSubscriptionInvoices('sub_z_1', null);
+        expect(
+          memory.Doc<Invoice>('Invoices', 'in_z_test001').next_payment_attempt
+        ).toBeNull();
+        expect(Claim()).toMatchObject({ paused_retry_at: NOW + 3 * 86_400 });
+
+        await module.ScheduleOpenSubscriptionInvoices('sub_z_1', NOW + 60);
+        expect(
+          memory.Doc<Invoice>('Invoices', 'in_z_test001').next_payment_attempt
+        ).toBe(NOW + 3 * 86_400);
+        expect(Claim()).toMatchObject({ paused_retry_at: null });
       });
 
       it('sends a new charge when the recorded one was dropped', async () => {
@@ -1028,7 +1195,7 @@ describe('InvoiceModule', () => {
 
         expect(settlement.FindSubscriptionCharge).toHaveBeenCalledWith(
           SUB_ONCHAIN,
-          { amountCents: 1099, since: NOW }
+          expect.objectContaining({ amountCents: 1099, since: NOW })
         );
         expect(result.status).toBe('paid');
       });

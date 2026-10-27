@@ -35,10 +35,17 @@ import {
   PAUSED_ON_CHAIN,
   PERIOD_ALREADY_COLLECTED,
   type CheckoutPaymentVerification,
+  type SignedTransaction,
 } from './chains/types';
 import { CentsToTokenUnits } from './chains/PayoutEncoding';
-import { SubscriptionCycleClaims } from './SubscriptionCycleClaims';
-import { RecurringIntervalToSeconds } from '../utils/RecurringInterval';
+import {
+  ClaimHashes,
+  SubscriptionCycleClaims,
+} from './SubscriptionCycleClaims';
+import {
+  RecurringIntervalToSeconds,
+  SECONDS_PER_DAY,
+} from '../utils/RecurringInterval';
 import { GetCheckoutConfirmTimeoutMs } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -81,12 +88,25 @@ type PreparedSubscription = Pick<
   | 'subscription_onchain_id'
 >;
 
+/** The first-period charge of a subscription checkout. */
+interface FirstCharge {
+  transactionHash: string;
+  /** The period the charge paid; `end` null when the rail keeps no schedule */
+  period: { start: number; end: number | null };
+}
+
 /** The signed subscribe (or its transaction) a subscription confirm sends. */
 interface SubscribeConfirmation {
   permitSignature?: string;
   subscribeSignature?: string;
   deadline?: number;
   transactionHash?: string;
+}
+
+/** The trial a recurring price gives before its first charge, in seconds. */
+function TrialSeconds(price: Price): number {
+  const days = price.recurring?.trial_period_days ?? 0;
+  return days > 0 ? days * SECONDS_PER_DAY : 0;
 }
 
 /**
@@ -425,6 +445,9 @@ export class CheckoutPaymentModule {
         payer_wallet: payerWallet,
         relayed: prepared.relayed,
         merchant_wallet: merchant,
+        ...('subscription' in prepared
+          ? { first_charge_at: prepared.subscription?.first_charge_at ?? null }
+          : {}),
       });
     }
 
@@ -483,6 +506,7 @@ export class CheckoutPaymentModule {
           permit_typed_data: null,
           subscribe_typed_data: null,
           deadline: null,
+          first_charge_at: null,
           already_subscribed: true,
           subscription_onchain_id: existing,
         },
@@ -498,6 +522,7 @@ export class CheckoutPaymentModule {
           payerWallet,
           planKey
         ),
+        trialSeconds: TrialSeconds(this.RequireRecurringCheckoutPrice(session)),
       }
     );
     return {
@@ -512,6 +537,7 @@ export class CheckoutPaymentModule {
         permit_typed_data: prepared.permit_typed_data,
         subscribe_typed_data: prepared.subscribe_typed_data,
         deadline: prepared.deadline,
+        first_charge_at: prepared.first_charge_at,
         already_subscribed: false,
         subscription_onchain_id: null,
       },
@@ -825,9 +851,15 @@ export class CheckoutPaymentModule {
    * when another confirm recorded the payment meanwhile. A claim that is not
    * released in time answers `payment_pending`.
    */
+  /**
+   * Waits for the session's settlement claim under `paidBy`. While another
+   * confirm holds it past the wait, the 409 names `reportedHash` (by
+   * default `paidBy`), the transaction the client may confirm with.
+   */
   private async ClaimSettlement(
     session: CheckoutSession,
-    paidBy: string
+    paidBy: string,
+    reportedHash: string | null = paidBy
   ): Promise<CheckoutSession | null> {
     const deadline = Date.now() + SETTLEMENT_WAIT_MS;
     for (;;) {
@@ -854,7 +886,7 @@ export class CheckoutPaymentModule {
       }
       if (Date.now() >= deadline) {
         throw PaymentPending(
-          paidBy,
+          reportedHash,
           'Another confirmation is recording this payment. Confirm again shortly.',
           'another_confirmation'
         );
@@ -1118,6 +1150,9 @@ export class CheckoutPaymentModule {
       session
     );
     const recorded = session.payment_details?.transaction_hash ?? null;
+    // The whole confirm, the first-period collect included, stays within
+    // CHECKOUT_CONFIRM_TIMEOUT_MS.
+    const confirmDeadline = Date.now() + GetCheckoutConfirmTimeoutMs();
 
     let transactionHash: string | null;
     if (input.transactionHash) {
@@ -1140,6 +1175,7 @@ export class CheckoutPaymentModule {
         permitSignature: input.permitSignature ?? null,
         subscribeSignature: input.subscribeSignature,
         deadline: input.deadline ?? 0,
+        firstChargeAt: session.payment_details?.first_charge_at ?? 0,
       });
     } else {
       throw new AppError(
@@ -1201,6 +1237,7 @@ export class CheckoutPaymentModule {
       subscriberWallet,
       subscriptionOnchainId: verification.subscription_onchain_id,
       subscribeHash: verification.transaction_hash,
+      confirmDeadline,
     });
   }
 
@@ -1219,6 +1256,7 @@ export class CheckoutPaymentModule {
       permitSignature: string | null;
       subscribeSignature: string;
       deadline: number;
+      firstChargeAt: number;
     }
   ): Promise<string | null> {
     const recorder = this.RelayRecorder(
@@ -1234,6 +1272,7 @@ export class CheckoutPaymentModule {
           permitSignature: relay.permitSignature,
           subscribeSignature: relay.subscribeSignature,
           deadline: relay.deadline,
+          firstChargeAt: relay.firstChargeAt,
         },
         { pendingHash: relay.recorded, onSigned: recorder.onSigned }
       );
@@ -1334,6 +1373,7 @@ export class CheckoutPaymentModule {
       subscriberWallet,
       subscriptionOnchainId: onchainId,
       subscribeHash: null,
+      confirmDeadline: Date.now() + GetCheckoutConfirmTimeoutMs(),
     });
   }
 
@@ -1349,11 +1389,18 @@ export class CheckoutPaymentModule {
       subscriptionOnchainId: string;
       /** The subscribe transaction; null when another one created it */
       subscribeHash: string | null;
+      /** When the confirm's time budget runs out (ms since the epoch) */
+      confirmDeadline: number;
     }
   ): Promise<CheckoutSession> {
-    // A claim token, not a settlement reference.
+    // A claim token, not a settlement reference: a client never sees a
+    // subscription id as `transaction_hash`.
     const token = details.subscribeHash ?? details.subscriptionOnchainId;
-    const finished = await this.ClaimSettlement(session, token);
+    const finished = await this.ClaimSettlement(
+      session,
+      token,
+      details.subscribeHash
+    );
     if (finished) return finished;
     try {
       // Read again: a confirm that crashed after the claim may have created
@@ -1379,12 +1426,23 @@ export class CheckoutPaymentModule {
     }
   }
 
+  /**
+   * Creates the Subscription for a verified on-chain subscription. Without a
+   * trial the first period is collected first, and the period follows the
+   * charge's `Charged` event. With a trial (Q11a) nothing is collected: the
+   * chain's first charge time is the trial end (the contract refuses any
+   * charge before it), so the trial is `[now, nextChargeAt]` and the first
+   * cycle invoice will start at `nextChargeAt`. A subscription whose first
+   * charge is later than this checkout's trial allows is refused; one
+   * already due has no trial left and is collected at once.
+   */
   private async FinalizeSubscriptionCheckout(
     session: CheckoutSession,
     details: {
       subscriberWallet: string;
       subscriptionOnchainId: string;
       subscribeHash: string | null;
+      confirmDeadline: number;
     }
   ): Promise<CheckoutSession> {
     if (!this.subscriptionModule || !this.customerModule) {
@@ -1427,13 +1485,26 @@ export class CheckoutPaymentModule {
         price.recurring?.interval_count ?? 1
       );
 
-    const trialPeriodDays = price.recurring?.trial_period_days ?? null;
-    const hasTrial = !!trialPeriodDays && trialPeriodDays > 0;
-    // Off-chain periods follow the on-chain grid, which starts at subscribe.
-    let periodStart = nextChargeAt;
-    let chargeHash: string | null = null;
-    if (!hasTrial) {
-      const first = await this.CollectFirstPeriod(session, {
+    const trialSeconds = TrialSeconds(price);
+    const trialEnd =
+      trialSeconds === 0
+        ? null
+        : state.next_charge_at === null
+        ? now + trialSeconds
+        : state.next_charge_at > now
+        ? state.next_charge_at
+        : null;
+    if (trialEnd !== null && trialEnd > now + trialSeconds) {
+      throw new AppError(
+        "The on-chain subscription's first charge is later than this checkout's trial allows",
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+
+    let first: FirstCharge | null = null;
+    if (trialEnd === null) {
+      first = await this.CollectFirstPeriod(session, {
         subscriptionOnchainId,
         planKey,
         subscriberWallet,
@@ -1441,10 +1512,10 @@ export class CheckoutPaymentModule {
         now,
         nextChargeAt,
         periodSeconds,
+        confirmDeadline: details.confirmDeadline,
       });
-      chargeHash = first.transactionHash;
-      periodStart = first.periodStart;
     }
+    const chargeHash = first?.transactionHash ?? null;
 
     const customerId = await this.EnsureCheckoutCustomer(
       session,
@@ -1456,7 +1527,7 @@ export class CheckoutPaymentModule {
       {
         customer: customerId,
         items: [{ price: price.id, quantity: 1 }],
-        ...(hasTrial ? { trial_period_days: trialPeriodDays! } : {}),
+        ...(trialEnd !== null ? { trial_end: trialEnd } : {}),
         default_payment_method: subscriberWallet,
         metadata: {
           checkout_session: session.id,
@@ -1466,7 +1537,10 @@ export class CheckoutPaymentModule {
       {
         settlementTransactionHash: chargeHash ?? undefined,
         subscriptionOnchainId,
-        periodStart,
+        periodStart: first ? first.period.start : now,
+        periodEnd: first
+          ? first.period.end ?? undefined
+          : trialEnd ?? undefined,
       }
     );
 
@@ -1498,13 +1572,20 @@ export class CheckoutPaymentModule {
   }
 
   /**
-   * Collects the first period. The cycle is claimed for this session
-   * before anything is sent, so no other session can collect it, and the
-   * charge's hash is recorded on the claim and the session first. A charge
-   * an earlier attempt recorded is reconciled by its hash: paid counts, a
-   * pending one answers `payment_pending`. `NotDueYet` with no charge of
-   * this session behind it is a 409 `period_already_collected`: nothing is
-   * created, since this session did not pay.
+   * Collects the first period. The cycle is claimed for this session before
+   * anything is sent, so no other session can collect it, and every charge
+   * hash is recorded on the claim (and the session) first.
+   * - Charges an earlier attempt recorded are reconciled, all their hashes
+   *   together: paid counts; pending answers `payment_pending`.
+   * - When a claim of this session ever sent a charge, the chain's
+   *   `Charged` logs since its period started decide before anything is
+   *   refused or sent again, so this session's own landed charge always
+   *   completes it.
+   * - `NotDueYet` with no charge of this session behind it is a 409
+   *   `period_already_collected`: nothing is created, since this session
+   *   did not pay.
+   * The charge waits only for what is left of the confirm's budget; past it,
+   * it is `payment_pending` and the client confirms again.
    */
   private async CollectFirstPeriod(
     session: CheckoutSession,
@@ -1516,38 +1597,66 @@ export class CheckoutPaymentModule {
       now: number;
       nextChargeAt: number;
       periodSeconds: number;
+      confirmDeadline: number;
     }
-  ): Promise<{ transactionHash: string; periodStart: number }> {
-    const { subscriptionOnchainId, amountCents } = cycle;
+  ): Promise<FirstCharge> {
+    const { subscriptionOnchainId, amountCents, periodSeconds } = cycle;
     const Pending = () =>
       PaymentPending(
         session.payment_details?.transaction_hash ?? null,
         'The first subscription payment is waiting for network confirmations. Confirm again shortly.'
       );
+    const Paid = async (
+      transactionHash: string,
+      start: number,
+      nextChargeAt: number | null
+    ) => {
+      await this.SetSessionPendingCharge(session, null);
+      return {
+        transactionHash,
+        period:
+          nextChargeAt === null
+            ? { start, end: null }
+            : { start: nextChargeAt - periodSeconds, end: nextChargeAt },
+      };
+    };
 
-    for (const claim of await this.cycleClaims.FindOwned(
+    const owned = await this.cycleClaims.FindOwned(
       subscriptionOnchainId,
       session.id
-    )) {
+    );
+    for (const claim of owned) {
       if (!claim.charge_hash) continue;
+      let current = claim.charge_hash;
       const result = await this.settlement.ReconcileSubscriptionCharge(
-        claim.charge_hash,
+        ClaimHashes(claim),
         {
           subscriptionOnchainId,
           amountCents,
           sentAt: claim.charge_sent_at,
-          onReplaced: (hash) =>
-            this.RecordFirstCharge(session, claim.id, hash, claim.charge_hash),
+          nonce: claim.charge_nonce ?? null,
+          onReplaced: async (hash, signed) => {
+            await this.RecordFirstCharge(
+              session,
+              claim.id,
+              hash,
+              current,
+              signed
+            );
+            current = hash;
+          },
         }
       );
       if (result.status === 'paid') {
-        return {
-          transactionHash: result.transaction_hash,
-          periodStart: claim.due_at,
-        };
+        return Paid(
+          result.transaction_hash,
+          claim.due_at,
+          result.next_charge_at
+        );
       }
       if (result.status === 'pending') throw Pending();
-      await this.cycleClaims.SetChargeHash(claim.id, null, claim.charge_hash);
+      await this.cycleClaims.SetChargeHash(claim.id, null, current);
+      await this.SetSessionPendingCharge(session, null);
       if (
         result.status === 'failed' &&
         COLLECTION_DECLINE_CODES.has(result.error.type)
@@ -1555,19 +1664,28 @@ export class CheckoutPaymentModule {
         throw result.error;
       }
     }
+    // A charge of this session may have landed without a receipt to show.
+    for (const claim of owned) {
+      if (ClaimHashes(claim).length === 0) continue;
+      const found = await this.FindClaimCharge(
+        subscriptionOnchainId,
+        claim.id,
+        amountCents,
+        claim.due_at
+      );
+      if (found) {
+        return Paid(found.transaction_hash, claim.due_at, found.next_charge_at);
+      }
+    }
 
     if (cycle.now < cycle.nextChargeAt) throw PeriodAlreadyCollected();
-    const dueAt = CurrentDueAt(
-      cycle.nextChargeAt,
-      cycle.now,
-      cycle.periodSeconds
-    );
-    const { claim, owned } = await this.cycleClaims.Claim(
+    const dueAt = CurrentDueAt(cycle.nextChargeAt, cycle.now, periodSeconds);
+    const { claim, owned: claimed } = await this.cycleClaims.Claim(
       subscriptionOnchainId,
       dueAt,
       session.id
     );
-    if (!owned) throw PeriodAlreadyCollected();
+    if (!claimed) throw PeriodAlreadyCollected();
 
     let recorded = claim.charge_hash;
     let recordedHere: string | null = null;
@@ -1577,25 +1695,45 @@ export class CheckoutPaymentModule {
         planKey: cycle.planKey,
         subscriberWallet: cycle.subscriberWallet,
         amountCents,
-        onSigned: async (hash) => {
-          await this.RecordFirstCharge(session, claim.id, hash, recorded);
+        onSigned: async (hash, signed) => {
+          await this.RecordFirstCharge(
+            session,
+            claim.id,
+            hash,
+            recorded,
+            signed
+          );
           recorded = hash;
           recordedHere = hash;
         },
+        timeoutMs: Math.max(1, cycle.confirmDeadline - Date.now()),
       });
       if (collection.status === 'collected') {
-        return {
-          transactionHash: collection.transaction_hash,
-          periodStart: dueAt,
-        };
+        return await Paid(
+          collection.transaction_hash,
+          dueAt,
+          collection.next_charge_at
+        );
       }
       if (collection.status === 'pending') throw Pending();
+      // NotDueYet: only a charge of this session's own counts.
+      const found = await this.FindClaimCharge(
+        subscriptionOnchainId,
+        claim.id,
+        amountCents,
+        dueAt,
+        { ownOnly: true }
+      );
+      if (found) {
+        return await Paid(found.transaction_hash, dueAt, found.next_charge_at);
+      }
       throw PeriodAlreadyCollected();
     } catch (error) {
       const pending =
         error instanceof AppError && error.type === 'payment_pending';
       if (recordedHere && !pending) {
         await this.cycleClaims.SetChargeHash(claim.id, null, recordedHere);
+        await this.SetSessionPendingCharge(session, null);
       }
       // The subscribe landed: surface the failure rather than record a
       // first payment that was not collected. Typed errors keep their
@@ -1614,23 +1752,58 @@ export class CheckoutPaymentModule {
   }
 
   /**
-   * Records the first-period charge's hash on its cycle claim, and on the
-   * session for visibility, before it is sent. A claim that moved meanwhile
-   * cancels the send.
+   * A `Charged` log since `since` that pays this claim: not recorded by any
+   * other cycle, and with `ownOnly` one of this claim's own hashes.
+   */
+  private async FindClaimCharge(
+    subscriptionOnchainId: string,
+    claimId: string,
+    amountCents: number,
+    since: number,
+    options: { ownOnly?: boolean } = {}
+  ): Promise<{ transaction_hash: string; next_charge_at: number } | null> {
+    return this.settlement.FindSubscriptionCharge(subscriptionOnchainId, {
+      amountCents,
+      since,
+      accept: async (hash) => {
+        const claims = await this.cycleClaims.FindByChargeHash(hash);
+        if (options.ownOnly && !claims.some((c) => c.id === claimId)) {
+          return false;
+        }
+        return claims.every((c) => c.id === claimId);
+      },
+    });
+  }
+
+  /**
+   * Records the first-period charge's hash on its cycle claim (with its
+   * nonce), and on the session for visibility, before it is sent. A claim
+   * that moved meanwhile cancels the send.
    */
   private async RecordFirstCharge(
     session: CheckoutSession,
     claimId: string,
     hash: string,
-    expected: string | null
+    expected: string | null,
+    signed?: SignedTransaction
   ): Promise<void> {
-    if (!(await this.cycleClaims.SetChargeHash(claimId, hash, expected))) {
+    if (
+      !(await this.cycleClaims.SetChargeHash(claimId, hash, expected, signed))
+    ) {
       throw PaymentPending(
         session.payment_details?.transaction_hash ?? null,
         'Another confirmation is collecting the first subscription payment. Confirm again shortly.',
         'another_confirmation'
       );
     }
+    await this.SetSessionPendingCharge(session, hash);
+  }
+
+  /** The session's `payment_details.pending_charge_hash`, while it is open. */
+  private async SetSessionPendingCharge(
+    session: CheckoutSession,
+    hash: string | null
+  ): Promise<void> {
     await this.db.FindOneAndUpdateByFilter<CheckoutSession>(
       'CheckoutSessions',
       { id: session.id, status: 'open' },
@@ -2114,7 +2287,12 @@ export class CheckoutPaymentModule {
 
   private async MarkPaymentIntentRequiresConfirmation(
     session: CheckoutSession,
-    details: { payer_wallet: string; relayed: boolean; merchant_wallet: string }
+    details: {
+      payer_wallet: string;
+      relayed: boolean;
+      merchant_wallet: string;
+      first_charge_at?: number | null;
+    }
   ): Promise<void> {
     // Persist the payer and merchant wallets on the open session: confirm
     // rebuilds the signed authorization from them, and subscription confirm

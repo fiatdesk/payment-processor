@@ -126,6 +126,11 @@ export class SubscriptionModule {
       subscriptionOnchainId?: string;
       /** Start of the first period: the on-chain grid point it collects */
       periodStart?: number;
+      /**
+       * End of the first period, when the chain sets it: the next due time
+       * after the first charge, or the trial end
+       */
+      periodEnd?: number;
     }
   ): Promise<SubscriptionType> {
     const validatedInput = ValidateUpdate(CreateSubscriptionSchema, input);
@@ -158,7 +163,8 @@ export class SubscriptionModule {
       platformAccountId,
       id,
       validatedInput.items,
-      billingCycleAnchor
+      billingCycleAnchor,
+      options?.periodEnd
     );
 
     // Persist first so the invoice can reference the subscription id.
@@ -1121,6 +1127,7 @@ export class SubscriptionModule {
       paused_on_chain: false,
       cancel_pending_on_chain: false,
       cancel_pending_transaction_hash: null,
+      cancel_pending_sent_at: null,
       billing_lock_until: null,
     };
   }
@@ -1340,7 +1347,8 @@ export class SubscriptionModule {
     platformAccountId: string,
     subscriptionId: string,
     itemsInput: CreateItemInput[],
-    periodStart: number
+    periodStart: number,
+    periodEnd?: number
   ): Promise<SubscriptionItemType[]> {
     const items: SubscriptionItemType[] = [];
     for (const itemInput of itemsInput) {
@@ -1348,7 +1356,8 @@ export class SubscriptionModule {
         platformAccountId,
         subscriptionId,
         itemInput,
-        periodStart
+        periodStart,
+        periodEnd
       );
       items.push(item);
     }
@@ -1359,14 +1368,17 @@ export class SubscriptionModule {
     platformAccountId: string,
     subscriptionId: string,
     itemInput: CreateItemInput | UpdateItemInput,
-    periodStart: number
+    periodStart: number,
+    fixedPeriodEnd?: number
   ): Promise<SubscriptionItemType> {
     const price = await this.ResolvePrice(platformAccountId, itemInput);
-    const periodEnd = AddRecurringInterval(
-      periodStart,
-      price.recurring?.interval ?? 'month',
-      price.recurring?.interval_count ?? 1
-    );
+    const periodEnd =
+      fixedPeriodEnd ??
+      AddRecurringInterval(
+        periodStart,
+        price.recurring?.interval ?? 'month',
+        price.recurring?.interval_count ?? 1
+      );
 
     const billingThresholds =
       'billing_thresholds' in itemInput &&
@@ -1820,7 +1832,9 @@ export class SubscriptionModule {
    * The chain says the subscription is canceled (or gone): that is final.
    * Its open invoices are voided (`invoice.voided`), the subscription is
    * canceled with `comment: 'canceled_on_chain'` and its billing lock
-   * released, with no dunning. Repeating it changes nothing.
+   * released, with no dunning. Like the API cancel, it emits only
+   * `customer.subscription.deleted`. Repeating it changes nothing; on a
+   * subscription canceled here it only clears the pending on-chain cancel.
    */
   async CancelFromChain(subscriptionId: string): Promise<SubscriptionType> {
     const previous = await this.RequireSubscription(subscriptionId);
@@ -1828,6 +1842,8 @@ export class SubscriptionModule {
       await this.db.Update<SubscriptionType>('Subscriptions', subscriptionId, {
         billing_lock_until: null,
         cancel_pending_on_chain: false,
+        cancel_pending_transaction_hash: null,
+        cancel_pending_sent_at: null,
       });
       return this.RequireSubscription(subscriptionId);
     }
@@ -1837,7 +1853,7 @@ export class SubscriptionModule {
       await this.invoiceModule?.VoidInvoice(invoice.id);
     }
     const now = Now();
-    const subscription = await this.PatchSubscription(previous, {
+    await this.db.Update<SubscriptionType>('Subscriptions', subscriptionId, {
       status: 'canceled',
       canceled_at: now,
       ended_at: now,
@@ -1851,8 +1867,11 @@ export class SubscriptionModule {
       pause_collection: null,
       paused_on_chain: false,
       cancel_pending_on_chain: false,
+      cancel_pending_transaction_hash: null,
+      cancel_pending_sent_at: null,
       billing_lock_until: null,
     });
+    const subscription = await this.RequireSubscription(subscriptionId);
     if (this.eventService) {
       await this.eventService.Emit(
         'customer.subscription.deleted',
@@ -1865,10 +1884,13 @@ export class SubscriptionModule {
 
   /**
    * Sends the plan owner's on-chain cancel of a subscription canceled here,
-   * without waiting for it. Its hash is recorded first, a cancel the node
-   * still holds is not sent again, and `cancel_pending_on_chain` is cleared
-   * once nothing is left to cancel on-chain. A failure is logged and the
-   * billing runner calls this again.
+   * without waiting for it. Its hash and send time are recorded first. A
+   * recorded cancel that may still land is followed (and re-priced after 10
+   * minutes) instead of sent again; one that reverted, or lost its nonce, is
+   * replaced by a new cancel while the chain still reads the subscription
+   * active. Once the chain reads it canceled (or gone), `CancelFromChain`
+   * clears `cancel_pending_on_chain`. A failure is logged and the billing
+   * runner calls this again.
    */
   async SendOnchainCancel(subscriptionId: string): Promise<void> {
     const subscription = await this.RequireSubscription(subscriptionId);
@@ -1879,24 +1901,21 @@ export class SubscriptionModule {
         onchainId,
         {
           pendingHash: subscription.cancel_pending_transaction_hash,
+          sentAt: subscription.cancel_pending_sent_at,
           onSigned: async (hash) => {
             await this.db.Update<SubscriptionType>(
               'Subscriptions',
               subscriptionId,
-              { cancel_pending_transaction_hash: hash }
+              {
+                cancel_pending_transaction_hash: hash,
+                cancel_pending_sent_at: Now(),
+              }
             );
           },
         }
       );
       if (transactionHash === null) {
-        await this.db.Update<SubscriptionType>(
-          'Subscriptions',
-          subscriptionId,
-          {
-            cancel_pending_on_chain: false,
-            cancel_pending_transaction_hash: null,
-          }
-        );
+        await this.CancelFromChain(subscriptionId);
         return;
       }
       Logger.info('Sent the on-chain cancel of a subscription', {
@@ -2173,6 +2192,7 @@ function WithDefaults(subscription: SubscriptionType): SubscriptionType {
     cancel_pending_on_chain: subscription.cancel_pending_on_chain ?? false,
     cancel_pending_transaction_hash:
       subscription.cancel_pending_transaction_hash ?? null,
+    cancel_pending_sent_at: subscription.cancel_pending_sent_at ?? null,
   };
 }
 

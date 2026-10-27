@@ -169,15 +169,18 @@ describe('SubscriptionAuthorization', () => {
   describe('BuildSubscribeTypedData', () => {
     const planKey = PlanKeyFor(OPERATOR, PlanIdFromPriceId('price_z_1'));
     const domain = BuildSubscriptionsDomain(31337, SUBSCRIPTIONS);
+    /** A 7-day trial: the first period is due a week after subscribe. */
+    const FIRST_CHARGE_AT = 1_700_604_800;
     const typedData = BuildSubscribeTypedData(domain, {
       planKey,
       subscriber: SUBSCRIBER,
       terms: TERMS,
+      firstChargeAt: FIRST_CHARGE_AT,
       nonce: 2n,
       deadline: 1_700_001_800,
     });
 
-    it('uses the Subscriptions/1 domain and binds the plan terms', () => {
+    it('uses the Subscriptions/1 domain and binds the plan terms and first charge time', () => {
       expect(typedData).toEqual({
         domain: {
           name: 'Subscriptions',
@@ -198,6 +201,7 @@ describe('SubscriptionAuthorization', () => {
             { name: 'token', type: 'address' },
             { name: 'amount', type: 'uint256' },
             { name: 'periodSeconds', type: 'uint64' },
+            { name: 'firstChargeAt', type: 'uint64' },
             { name: 'nonce', type: 'uint256' },
             { name: 'deadline', type: 'uint256' },
           ],
@@ -209,6 +213,7 @@ describe('SubscriptionAuthorization', () => {
           token: USDC,
           amount: '20000000',
           periodSeconds: '2592000',
+          firstChargeAt: '1700604800',
           nonce: '2',
           deadline: 1_700_001_800,
         },
@@ -218,7 +223,7 @@ describe('SubscriptionAuthorization', () => {
     it('hashes to the digest the contract checks', () => {
       const typeHash = keccak256(
         toBytes(
-          'Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)'
+          'Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)'
         )
       );
       const structHash = keccak256(
@@ -230,6 +235,7 @@ describe('SubscriptionAuthorization', () => {
             { type: 'address' },
             { type: 'uint256' },
             { type: 'uint64' },
+            { type: 'uint64' },
             { type: 'uint256' },
             { type: 'uint256' },
           ],
@@ -240,6 +246,7 @@ describe('SubscriptionAuthorization', () => {
             USDC,
             TERMS.amount,
             TERMS.periodSeconds,
+            BigInt(FIRST_CHARGE_AT),
             2n,
             1_700_001_800n,
           ]

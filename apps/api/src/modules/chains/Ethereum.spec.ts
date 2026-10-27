@@ -1763,6 +1763,7 @@ describe('Ethereum rail', () => {
       permitSignature: null,
       subscribeSignature: `0x${'ab'.repeat(65)}`,
       deadline: 1_700_001_800,
+      firstChargeAt: 0,
     };
     const collect = {
       subscriptionOnchainId: SUB_ID,
@@ -1982,6 +1983,44 @@ describe('Ethereum rail', () => {
         );
       });
 
+      it('signing the first charge at the trial end, or 0 without a trial', async () => {
+        const ethereum = new Ethereum();
+        const week = 7 * 24 * 3600;
+
+        const trial = await ethereum.BuildSubscribeAuthorization(
+          SUBSCRIBER,
+          PLAN_KEY,
+          1_700_003_600,
+          { trialSeconds: week }
+        );
+        const none = await ethereum.BuildSubscribeAuthorization(
+          SUBSCRIBER,
+          PLAN_KEY,
+          1_700_003_600
+        );
+
+        expect(trial.first_charge_at).toBe(1_700_000_000 + week);
+        expect(trial.subscribe_typed_data?.types.Subscribe).toContainEqual({
+          name: 'firstChargeAt',
+          type: 'uint64',
+        });
+        expect(trial.subscribe_typed_data?.message.firstChargeAt).toBe(
+          String(1_700_000_000 + week)
+        );
+        expect(none.first_charge_at).toBe(0);
+        expect(none.subscribe_typed_data?.message.firstChargeAt).toBe('0');
+        await expect(
+          ethereum.BuildSubscribeAuthorization(
+            SUBSCRIBER,
+            PLAN_KEY,
+            1_700_003_600,
+            {
+              trialSeconds: 366 * 24 * 3600,
+            }
+          )
+        ).rejects.toMatchObject({ statusCode: 400 });
+      });
+
       it("counting the wallet's other plans", async () => {
         allowance = PLAN_VALUE + 1n;
         const ethereum = new Ethereum();
@@ -2004,11 +2043,14 @@ describe('Ethereum rail', () => {
       });
     });
 
-    describe('reconciles a recorded charge by its hash', () => {
+    describe('reconciles a recorded charge by all its hashes', () => {
+      const OPERATOR = privateKeyToAccount(OPERATOR_KEY).address;
+      const REPLACEMENT: Hex = `0x${'c5'.repeat(32)}`;
       const expected = {
         subscriptionOnchainId: SUB_ID,
         amountCents: 2000,
         sentAt: null as number | null,
+        nonce: 5 as number | null,
         onReplaced: jest.fn(async () => undefined),
       };
 
@@ -2033,33 +2075,74 @@ describe('Ethereum rail', () => {
         } as Log;
       }
 
-      function Pending(nonce: number, minedNonce: number) {
-        client.getTransactionReceipt.mockRejectedValue(
-          new TransactionReceiptNotFoundError({ hash: CHARGE })
+      /** The node's view: receipts and transactions by hash. */
+      function Node(
+        view: {
+          receipts?: Record<string, unknown>;
+          transactions?: Record<string, { nonce: number }>;
+          minedNonce?: number;
+        } = {}
+      ) {
+        client.getTransactionReceipt.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            const receipt = view.receipts?.[hash];
+            if (!receipt) throw new TransactionReceiptNotFoundError({ hash });
+            return receipt;
+          }
         );
-        client.getTransaction.mockResolvedValue({
-          hash: CHARGE,
-          from: privateKeyToAccount(OPERATOR_KEY).address,
-          to: SUBSCRIPTIONS,
-          nonce,
-          input: '0x1234',
-          gas: 120_000n,
-          maxFeePerGas: 2_000_000_000n,
-          maxPriorityFeePerGas: 1_000_000_000n,
-        });
-        client.getTransactionCount.mockResolvedValue(minedNonce);
+        client.getTransaction.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            const transaction = view.transactions?.[hash];
+            if (!transaction) throw new TransactionNotFoundError({ hash });
+            return {
+              hash,
+              from: OPERATOR,
+              to: SUBSCRIPTIONS,
+              input: '0x1234',
+              gas: 120_000n,
+              maxFeePerGas: 2_000_000_000n,
+              maxPriorityFeePerGas: 1_000_000_000n,
+              ...transaction,
+            };
+          }
+        );
+        client.getTransactionCount.mockResolvedValue(view.minedNonce ?? 5);
+      }
+
+      function Receipt(logs: Log[], status = 'success') {
+        return {
+          transactionHash: CHARGE,
+          status,
+          blockNumber: 10n,
+          logs,
+        };
       }
 
       it('as paid from a confirmed Charged log', async () => {
-        client.getTransactionReceipt.mockResolvedValue({
-          transactionHash: CHARGE,
-          status: 'success',
-          blockNumber: 10n,
-          logs: [ChargedLog()],
+        Node({ receipts: { [CHARGE]: Receipt([ChargedLog()]) } });
+
+        await expect(
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], expected)
+        ).resolves.toEqual({
+          status: 'paid',
+          transaction_hash: CHARGE,
+          next_charge_at: 1_702_592_000,
+        });
+      });
+
+      it('as paid when the original mines after it was re-priced', async () => {
+        // Only the original has a receipt; the replacement never landed.
+        Node({
+          receipts: { [CHARGE]: Receipt([ChargedLog()]) },
+          transactions: { [CHARGE]: { nonce: 5 } },
+          minedNonce: 6,
         });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, expected)
+          new Ethereum().ReconcileSubscriptionCharge(
+            [CHARGE, REPLACEMENT],
+            expected
+          )
         ).resolves.toEqual({
           status: 'paid',
           transaction_hash: CHARGE,
@@ -2068,59 +2151,82 @@ describe('Ethereum rail', () => {
       });
 
       it('as failed when the receipt has no Charged log for the amount', async () => {
-        client.getTransactionReceipt.mockResolvedValue({
-          transactionHash: CHARGE,
-          status: 'success',
-          blockNumber: 10n,
-          logs: [ChargedLog(1n)],
+        Node({
+          receipts: { [CHARGE]: Receipt([ChargedLog(1n)]) },
+          transactions: { [CHARGE]: { nonce: 5 } },
         });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, expected)
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], expected)
         ).resolves.toMatchObject({ status: 'failed' });
       });
 
       it('as pending until it has ETH_CONFIRMATIONS, counting its own block', async () => {
         Env({ ETH_CONFIRMATIONS: '2' });
         client.getBlockNumber.mockResolvedValue(10n);
-        client.getTransactionReceipt.mockResolvedValue({
-          transactionHash: CHARGE,
-          status: 'success',
-          blockNumber: 10n,
-          logs: [ChargedLog()],
-        });
+        Node({ receipts: { [CHARGE]: Receipt([ChargedLog()]) } });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, expected)
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], expected)
         ).resolves.toEqual({ status: 'pending', transaction_hash: CHARGE });
       });
 
-      it('as dropped when the node no longer knows it', async () => {
-        client.getTransactionReceipt.mockRejectedValue(
-          new TransactionReceiptNotFoundError({ hash: CHARGE })
-        );
-        client.getTransaction.mockRejectedValue(
-          new TransactionNotFoundError({ hash: CHARGE })
-        );
+      it('as pending when the node does not know it but its nonce is unused (Q10 #7)', async () => {
+        Node({ minedNonce: 5 });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, expected)
+          new Ethereum().ReconcileSubscriptionCharge(
+            [CHARGE, REPLACEMENT],
+            expected
+          )
+        ).resolves.toEqual({
+          status: 'pending',
+          transaction_hash: REPLACEMENT,
+        });
+      });
+
+      it('as dropped only once its nonce is used and none has a receipt', async () => {
+        Node({ minedNonce: 6 });
+
+        await expect(
+          new Ethereum().ReconcileSubscriptionCharge(
+            [CHARGE, REPLACEMENT],
+            expected
+          )
         ).resolves.toEqual({ status: 'dropped' });
       });
 
-      it('as dropped when another transaction took its nonce', async () => {
-        Pending(4, 5);
+      it('as dropped when another transaction took the nonce of a known one', async () => {
+        Node({ transactions: { [CHARGE]: { nonce: 5 } }, minedNonce: 6 });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, expected)
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], expected)
         ).resolves.toEqual({ status: 'dropped' });
+      });
+
+      it('ignores an earlier attempt at another nonce, except for a payment', async () => {
+        const EARLIER: Hex = `0x${'e1'.repeat(32)}`;
+        Node({
+          receipts: {
+            [EARLIER]: { ...Receipt([], 'reverted'), transactionHash: EARLIER },
+          },
+          transactions: { [EARLIER]: { nonce: 4 }, [CHARGE]: { nonce: 5 } },
+          minedNonce: 5,
+        });
+
+        await expect(
+          new Ethereum().ReconcileSubscriptionCharge(
+            [EARLIER, CHARGE],
+            expected
+          )
+        ).resolves.toEqual({ status: 'pending', transaction_hash: CHARGE });
       });
 
       it('as pending while its nonce is unused, without re-pricing early', async () => {
-        Pending(5, 5);
+        Node({ transactions: { [CHARGE]: { nonce: 5 } }, minedNonce: 5 });
 
         await expect(
-          new Ethereum().ReconcileSubscriptionCharge(CHARGE, {
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], {
             ...expected,
             sentAt: Math.floor(Date.now() / 1000) - 60,
           })
@@ -2128,35 +2234,87 @@ describe('Ethereum rail', () => {
         expect(client.sendRawTransaction).not.toHaveBeenCalled();
       });
 
-      it('re-prices it at the same nonce after 10 minutes, recording the new hash first', async () => {
-        Pending(5, 5);
-        const replaced: string[] = [];
+      it('re-prices it at the same nonce after 10 minutes, recording the new hash and nonce first', async () => {
+        Node({ transactions: { [CHARGE]: { nonce: 5 } }, minedNonce: 5 });
+        const replaced: Array<[string, { nonce: number }]> = [];
         client.sendRawTransaction.mockImplementation(async () => {
           expect(replaced).toHaveLength(1);
-          return replaced[0];
+          return replaced[0][0];
         });
 
         const result = await new Ethereum().ReconcileSubscriptionCharge(
-          CHARGE,
+          [CHARGE],
           {
             ...expected,
             sentAt: Math.floor(Date.now() / 1000) - 601,
-            onReplaced: async (hash) => {
-              replaced.push(hash);
+            onReplaced: async (hash, signed) => {
+              replaced.push([hash, signed]);
             },
           }
         );
 
         expect(result).toEqual({
           status: 'pending',
-          transaction_hash: replaced[0],
+          transaction_hash: replaced[0][0],
         });
-        expect(replaced[0]).not.toBe(CHARGE);
-        expect(client.getTransactionCount).toHaveBeenCalledTimes(1);
+        expect(replaced[0][0]).not.toBe(CHARGE);
+        expect(replaced[0][1]).toEqual({ nonce: 5 });
+      });
+
+      it('stays pending when the network refuses the re-price', async () => {
+        Node({ transactions: { [CHARGE]: { nonce: 5 } }, minedNonce: 5 });
+        client.sendRawTransaction.mockRejectedValue(
+          new Error('replacement transaction underpriced')
+        );
+        const onReplaced = jest.fn(async () => undefined);
+
+        await expect(
+          new Ethereum().ReconcileSubscriptionCharge([CHARGE], {
+            ...expected,
+            sentAt: Math.floor(Date.now() / 1000) - 601,
+            onReplaced,
+          })
+        ).resolves.toEqual({ status: 'pending', transaction_hash: CHARGE });
+        expect(onReplaced).toHaveBeenCalledTimes(1);
       });
     });
 
     describe('cancels without waiting for the receipt', () => {
+      const OPERATOR = privateKeyToAccount(OPERATOR_KEY).address;
+
+      function RecordedCancel(view: {
+        receipt?: { status: string };
+        nonce?: number;
+        minedNonce?: number;
+      }) {
+        client.getTransactionReceipt.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            if (!view.receipt) {
+              throw new TransactionReceiptNotFoundError({ hash });
+            }
+            return { transactionHash: hash, blockNumber: 10n, ...view.receipt };
+          }
+        );
+        client.getTransaction.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            if (view.nonce === undefined) {
+              throw new TransactionNotFoundError({ hash });
+            }
+            return {
+              hash,
+              from: OPERATOR,
+              to: SUBSCRIPTIONS,
+              nonce: view.nonce,
+              input: '0x40e58ee5',
+              gas: 60_000n,
+              maxFeePerGas: 2_000_000_000n,
+              maxPriorityFeePerGas: 1_000_000_000n,
+            };
+          }
+        );
+        client.getTransactionCount.mockResolvedValue(view.minedNonce ?? 3);
+      }
+
       it('records the hash and returns it once sent', async () => {
         client.estimateGas.mockResolvedValue(60_000n);
         client.getTransactionCount.mockResolvedValue(2);
@@ -2167,20 +2325,59 @@ describe('Ethereum rail', () => {
           onSigned,
         });
 
-        expect(onSigned).toHaveBeenCalledWith(hash);
+        expect(onSigned).toHaveBeenCalledWith(hash, { nonce: 2 });
         expect(client.getTransactionReceipt).not.toHaveBeenCalled();
       });
 
-      it('sends nothing while the recorded cancel is still known', async () => {
-        client.getTransaction.mockResolvedValue({ hash: CHARGE });
+      it('sends nothing while the recorded cancel is pending', async () => {
+        RecordedCancel({ nonce: 3, minedNonce: 3 });
 
         await expect(
           new Ethereum().CancelSubscription(SUB_ID, {
             pendingHash: CHARGE,
+            sentAt: Math.floor(Date.now() / 1000) - 60,
             onSigned: jest.fn(),
           })
         ).resolves.toBe(CHARGE);
         expect(client.sendRawTransaction).not.toHaveBeenCalled();
+      });
+
+      it('re-prices a cancel still pending after 10 minutes', async () => {
+        RecordedCancel({ nonce: 3, minedNonce: 3 });
+        const onSigned = jest.fn<Promise<void>, [string]>(
+          async () => undefined
+        );
+        client.sendRawTransaction.mockImplementation(
+          async () => onSigned.mock.calls[0][0]
+        );
+
+        const hash = await new Ethereum().CancelSubscription(SUB_ID, {
+          pendingHash: CHARGE,
+          sentAt: Math.floor(Date.now() / 1000) - 601,
+          onSigned,
+        });
+
+        expect(hash).not.toBe(CHARGE);
+        expect(onSigned).toHaveBeenCalledWith(hash, { nonce: 3 });
+      });
+
+      it('sends a new cancel when the recorded one reverted while the chain still reads it active', async () => {
+        RecordedCancel({ receipt: { status: 'reverted' }, nonce: 3 });
+        client.estimateGas.mockResolvedValue(60_000n);
+        const onSigned = jest.fn<Promise<void>, [string]>(
+          async () => undefined
+        );
+        client.sendRawTransaction.mockImplementation(
+          async () => onSigned.mock.calls[0][0]
+        );
+
+        const hash = await new Ethereum().CancelSubscription(SUB_ID, {
+          pendingHash: CHARGE,
+          onSigned,
+        });
+
+        expect(hash).not.toBe(CHARGE);
+        expect(onSigned).toHaveBeenCalledTimes(1);
       });
 
       it('is null once the chain reads it canceled', async () => {

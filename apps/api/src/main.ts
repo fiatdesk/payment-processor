@@ -157,7 +157,16 @@ async function StartServer() {
     await mongoose.connect(appConfig.mongodbUri);
     console.log('✅ Connected to MongoDB');
 
-    await db.EnsureCollections();
+    try {
+      await db.EnsureCollections();
+    } catch (error) {
+      // A fixed message for what an operator must fix (e.g. duplicate live
+      // Subscriptions); the driver error is logged where it happened.
+      console.error(
+        `❌ ${error instanceof Error ? error.message : String(error)}`
+      );
+      process.exit(1);
+    }
 
     // Initialize app secrets (from env or auto-generated in DB)
     await InitializeAppConfig(db);

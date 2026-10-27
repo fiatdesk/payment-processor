@@ -2,8 +2,9 @@
 /**
  * In-memory stand-in for `Database` with the Mongo semantics the payout and
  * billing flows rely on: equality, `$in`/`$ne`, range and top-level `$or`
- * filters (array fields match by containment), `$set`/`$inc`/`$addToSet`/`$unset` updates with
- * dotted paths, insert-only `AddID`, ordered queries with `startAt` /
+ * filters (array fields match by containment), `$set`/`$setOnInsert`/`$inc`/
+ * `$addToSet`/`$unset` updates with dotted paths, upserts by `id`, ordered
+ * queries with `startAt` /
  * `startAfter` cursors, transactions that roll back when the callback
  * throws, and opt-in unique (optionally partial) indexes. Pass it where a
  * `Database` is expected with `AsDatabase()`.
@@ -62,17 +63,11 @@ export class MemoryDatabase {
     return doc ? (Clone(doc) as T) : null;
   }
 
+  /** An upsert by `id`; `$setOnInsert` applies only when it inserts. */
   async Set<T>(collection: string, id: string, data: Partial<T>): Promise<T> {
-    const doc = Clone(this.Collection(collection).get(id) ?? { id });
-    ApplyUpdate(doc, data as Doc);
-    return Clone(this.Store(collection, id, doc)) as T;
-  }
-
-  /** Insert only: an existing `id` is a duplicate-key error, as in Mongo. */
-  async AddID<T>(collection: string, data: T): Promise<T> {
-    const doc = Clone(data as Doc);
-    const id = String(doc.id);
-    if (this.Collection(collection).has(id)) throw DuplicateKey(collection);
+    const existing = this.Collection(collection).get(id);
+    const doc = Clone(existing ?? { id });
+    ApplyUpdate(doc, data as Doc, !existing);
     return Clone(this.Store(collection, id, doc)) as T;
   }
 
@@ -327,13 +322,15 @@ function Matches(doc: Doc, filter: Filter): boolean {
   });
 }
 
-function ApplyUpdate(doc: Doc, update: Doc): void {
+function ApplyUpdate(doc: Doc, update: Doc, inserting = false): void {
   const operators = Object.keys(update).some((key) => key.startsWith('$'));
   const changes = operators ? update : { $set: update };
   for (const [operator, fields] of Object.entries(changes)) {
     for (const [path, value] of Object.entries(fields as Doc)) {
       if (operator === '$set') Write(doc, path, Clone(value));
-      else if (operator === '$unset') Write(doc, path, undefined);
+      else if (operator === '$setOnInsert') {
+        if (inserting) Write(doc, path, Clone(value));
+      } else if (operator === '$unset') Write(doc, path, undefined);
       else if (operator === '$inc') {
         Write(doc, path, Number(Read(doc, path) ?? 0) + Number(value));
       } else if (operator === '$addToSet') {

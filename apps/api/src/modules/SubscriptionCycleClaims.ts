@@ -5,9 +5,14 @@
  * Before collecting a period from an on-chain subscription, its collector
  * (a checkout session or an invoice) inserts the claim
  * `${subscriptionOnchainId}:${dueAt}`, where `dueAt` is the grid point the
- * charge collects. Writes are insert-only, so exactly one actor owns a cycle.
- * The claim also holds the hash of the `charge` before it is sent, so a
- * collection that timed out or crashed is reconciled by that hash.
+ * charge collects. The claim is written once, by an upsert that only inserts
+ * (`$setOnInsert`), so exactly one actor owns a cycle. It goes through
+ * `Database.Set`, as every collection's writes do: a mongoose document
+ * (`new model(data).save()`) would drop `id`, which the schema's `id`
+ * virtual shadows.
+ * The claim also holds the hash of each `charge` before it is sent (the
+ * original and every re-priced replacement, append-only), so a collection
+ * that timed out or crashed is reconciled by all of them.
  *
  * @module SubscriptionCycleClaims
  */
@@ -39,11 +44,34 @@ export interface SubscriptionCycleClaim {
   due_at: number;
   /** The checkout session or invoice that collects this cycle */
   owner: string;
-  /** The `charge` transaction, recorded before it is sent */
+  /** The newest `charge` transaction, recorded before it is sent */
   charge_hash: string | null;
+  /** Every `charge` transaction ever signed for this cycle, oldest first */
+  charge_hashes: string[];
+  /** The nonce `charge_hash` was signed with */
+  charge_nonce: number | null;
   /** When `charge_hash` was recorded, for re-pricing a stuck charge */
   charge_sent_at: number | null;
+  /**
+   * The billing period the charge that paid this cycle paid, from the
+   * `Charged` event: `[nextChargeAt - period, nextChargeAt]`
+   */
+  paid_period: { start: number; end: number } | null;
+  /**
+   * The invoice's `next_payment_attempt` while collection is paused, so
+   * resuming keeps its dunning schedule
+   */
+  paused_retry_at: number | null;
   created: number;
+}
+
+/** Every hash a claim recorded (older claims kept only `charge_hash`). */
+export function ClaimHashes(claim: SubscriptionCycleClaim): string[] {
+  const hashes = [...(claim.charge_hashes ?? [])];
+  if (claim.charge_hash && !hashes.includes(claim.charge_hash)) {
+    hashes.push(claim.charge_hash);
+  }
+  return hashes;
 }
 
 export function CycleClaimId(
@@ -57,8 +85,9 @@ export class SubscriptionCycleClaims {
   constructor(private readonly db: Database) {}
 
   /**
-   * Claim the cycle for `owner`. Returns the claim and whether `owner` holds
-   * it: an existing claim of the same owner (a retry) counts as held.
+   * Claim the cycle for `owner`: inserted when absent, else left as it is.
+   * Returns the stored claim and whether `owner` holds it; an existing claim
+   * of the same owner (a retry) counts as held.
    */
   async Claim(
     subscriptionOnchainId: string,
@@ -66,28 +95,25 @@ export class SubscriptionCycleClaims {
     owner: string
   ): Promise<{ claim: SubscriptionCycleClaim; owned: boolean }> {
     const id = CycleClaimId(subscriptionOnchainId, dueAt);
-    const claim: SubscriptionCycleClaim = {
-      id,
+    const claim: Omit<SubscriptionCycleClaim, 'id'> = {
       object: 'subscription_cycle_claim',
       subscription_onchain_id: subscriptionOnchainId,
       due_at: dueAt,
       owner,
       charge_hash: null,
+      charge_hashes: [],
+      charge_nonce: null,
       charge_sent_at: null,
+      paid_period: null,
+      paused_retry_at: null,
       created: Now(),
     };
-    try {
-      await this.db.AddID(COLLECTION, claim);
-      return { claim, owned: true };
-    } catch (error) {
-      if (!IsDuplicateKey(error)) throw error;
-      const existing = await this.db.Get<SubscriptionCycleClaim>(
-        COLLECTION,
-        id
-      );
-      if (!existing) throw error;
-      return { claim: existing, owned: existing.owner === owner };
-    }
+    // The filter supplies `id` to an inserted claim.
+    const stored = await this.db.Set<SubscriptionCycleClaim>(COLLECTION, id, {
+      $setOnInsert: claim,
+    } as Partial<SubscriptionCycleClaim>);
+    if (!stored) throw new Error(`The cycle claim ${id} was not stored`);
+    return { claim: stored, owned: stored.owner === owner };
   }
 
   async Get(id: string): Promise<SubscriptionCycleClaim | null> {
@@ -111,22 +137,63 @@ export class SubscriptionCycleClaims {
     return [...(claims ?? [])].sort((a, b) => b.due_at - a.due_at);
   }
 
+  /** Claims, of any cycle, that recorded `hash` among their charges. */
+  async FindByChargeHash(hash: string): Promise<SubscriptionCycleClaim[]> {
+    return (
+      (await this.db.Find<SubscriptionCycleClaim>(
+        COLLECTION,
+        'charge_hashes',
+        hash
+      )) ?? []
+    );
+  }
+
   /**
    * Compare-and-set of the claim's charge hash: changes it only while it
-   * still equals `expected`. Returns false when another write came first.
+   * still equals `expected`. A new hash is also appended to
+   * `charge_hashes` with its nonce, so no signed charge is ever forgotten;
+   * clearing keeps them. Returns false when another write came first.
    */
   async SetChargeHash(
     id: string,
     hash: string | null,
-    expected: string | null
+    expected: string | null,
+    signed?: { nonce: number }
   ): Promise<boolean> {
+    const update: Record<string, unknown> = hash
+      ? {
+          $set: {
+            charge_hash: hash,
+            charge_sent_at: Now(),
+            ...(signed ? { charge_nonce: signed.nonce } : {}),
+          },
+          $addToSet: { charge_hashes: hash },
+        }
+      : { $set: { charge_hash: null, charge_sent_at: null } };
     const updated =
       await this.db.FindOneAndUpdateByFilter<SubscriptionCycleClaim>(
         COLLECTION,
         { id, charge_hash: expected },
-        { charge_hash: hash, charge_sent_at: hash ? Now() : null }
+        update
       );
     return updated !== null;
+  }
+
+  /** Records the period the charge that paid this cycle paid. */
+  async SetPaidPeriod(
+    id: string,
+    period: { start: number; end: number } | null
+  ): Promise<void> {
+    await this.db.Update<SubscriptionCycleClaim>(COLLECTION, id, {
+      paid_period: period,
+    });
+  }
+
+  /** Keeps (or, with null, drops) an invoice's schedule over a pause. */
+  async SetPausedRetryAt(id: string, retryAt: number | null): Promise<void> {
+    await this.db.Update<SubscriptionCycleClaim>(COLLECTION, id, {
+      paused_retry_at: retryAt,
+    });
   }
 }
 

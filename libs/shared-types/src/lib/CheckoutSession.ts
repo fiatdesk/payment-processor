@@ -486,6 +486,16 @@ export interface CheckoutSession {
      * prepare. Confirm verifies the payment against it.
      */
     merchant_wallet?: string | null;
+    /**
+     * Subscription mode: the first charge time the prepared `Subscribe`
+     * signs (0: at subscribe). The relay sends the same value.
+     */
+    first_charge_at?: number | null;
+    /**
+     * Subscription mode: the first-period charge sent and not settled yet,
+     * recorded before it is sent; cleared once it is reconciled.
+     */
+    pending_charge_hash?: string | null;
   } | null;
 
   /**
@@ -789,6 +799,12 @@ export interface CheckoutSubscribeAuthorization {
   subscribe_typed_data: Eip712TypedData | null;
   /** Unix time both signatures are valid until; send it back on confirm */
   deadline: number | null;
+  /**
+   * When the first period is due (Unix seconds), as `subscribe_typed_data`
+   * signs it: the trial's end, or 0 when the first charge is at subscribe.
+   * Null when nothing is signed.
+   */
+  first_charge_at: number | null;
   /**
    * True when the wallet is already subscribed on-chain (a prior attempt
    * landed but its confirm failed); confirm without signing.

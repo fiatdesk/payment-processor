@@ -116,7 +116,7 @@ const PRICES_ATTRIBUTES: Attribute[] = [
         type: 'number',
         nullable: true,
         description:
-          'The number of trial days before the customer is charged for the first time.',
+          "The number of trial days before the customer is charged for the first time. With hosted subscription checkout, the customer signs the trial's end as the on-chain subscription's first charge time, so the Subscriptions contract refuses any charge before it; at most 365 days.",
       },
       {
         name: 'usage_type',

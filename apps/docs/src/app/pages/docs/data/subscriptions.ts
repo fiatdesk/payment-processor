@@ -706,6 +706,7 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   "paused_on_chain": false,
   "cancel_pending_on_chain": false,
   "cancel_pending_transaction_hash": null,
+  "cancel_pending_sent_at": null,
   "billing_lock_until": null
 }`;
 
@@ -1635,6 +1636,15 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
   {
+    name: 'cancel_pending_sent_at',
+    type: 'timestamp',
+    nullable: true,
+    description:
+      'When <code>cancel_pending_transaction_hash</code> was sent. A cancel still unmined 10 minutes later is re-priced at the same nonce.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
     name: 'billing_lock_until',
     type: 'timestamp',
     nullable: true,
@@ -1683,7 +1693,7 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: "A subscription with a <code>subscription_onchain_id</code> is collected by the Subscriptions contract, which charges at most the plan’s amount once per period. It has exactly one item, with <code>quantity=1</code>, and nothing may raise an invoice above the price’s <code>unit_amount</code>: more items, a higher quantity, and invoice items, prorations or tax on top are refused with a 400 <code>invalid_request_error</code> whose code is <code>onchain_plan_amount_exceeded</code>. The allowance the customer signs is shared by all of their plans, and a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).",
+          text: "A subscription with a <code>subscription_onchain_id</code> is collected by the Subscriptions contract, which charges at most the plan’s amount once per period. It has exactly one item, with <code>quantity=1</code>, and nothing may raise an invoice above the price’s <code>unit_amount</code>: more items, a higher quantity, and invoice items, prorations or tax on top are refused with a 400 <code>invalid_request_error</code> whose code is <code>onchain_plan_amount_exceeded</code>. A trial (the price's <code>trial_period_days</code>) is the on-chain subscription's first charge time, which the customer signs: the contract refuses any charge before it. While trialing, the period runs from the subscribe time to <code>trial_end</code>, and the first cycle invoice starts at <code>trial_end</code>. The allowance the customer signs is shared by all of their plans, and a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -3027,7 +3037,7 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs send the cancel again until the chain reads it canceled. The cancellation stands either way, and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
+          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs follow the cancel until the chain reads it canceled: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The cancellation stands either way, and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },

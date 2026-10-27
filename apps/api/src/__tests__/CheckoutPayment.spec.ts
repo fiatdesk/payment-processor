@@ -2,13 +2,17 @@
 import { CheckoutPaymentModule } from '../modules/CheckoutPayment';
 import { CheckoutSessionModule } from '../modules/CheckoutSession';
 import { ChargeModule } from '../modules/Charge';
-import type { CustomerModule } from '../modules/Customer';
+import { CustomerModule } from '../modules/Customer';
 import { Database } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
 import { PaymentIntentModule } from '../modules/PaymentIntent';
 import { ProductModule } from '../modules/Product';
-import type { SubscriptionModule } from '../modules/Subscription';
+import { InvoiceModule } from '../modules/Invoice';
+import { InvoiceItemModule } from '../modules/InvoiceItem';
+import { PriceModule } from '../modules/Price';
+import { SubscriptionModule } from '../modules/Subscription';
+import { LIVE_SUBSCRIPTION_STATUSES } from '../modules/SubscriptionCycleClaims';
 import { NotSupported } from '../modules/chains/Ethereum';
 import { BuildTransferAuthorization } from '../modules/chains/CheckoutAuthorization';
 import {
@@ -30,6 +34,7 @@ import {
   ExternalWallet,
   PaymentIntent,
   Price,
+  Subscription,
 } from '@zoneless/shared-types';
 import {
   CreateMockDatabase,
@@ -53,6 +58,7 @@ import {
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
+  ...jest.requireActual('../utils/IdGenerator'),
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
   GenerateUrlSlug: jest.fn(() => DeterministicUrlSlug()),
 }));
@@ -493,7 +499,7 @@ describe('CheckoutPaymentModule', () => {
           PAYER_WALLET,
           MOCK_PLAN_KEY,
           session.expires_at,
-          { otherPlansAllowance: 0n }
+          { otherPlansAllowance: 0n, trialSeconds: 0 }
         );
         expect(
           mockSettlement.BuildCheckoutPaymentAuthorization
@@ -516,6 +522,7 @@ describe('CheckoutPaymentModule', () => {
           permit_typed_data: prepared.permit_typed_data,
           subscribe_typed_data: prepared.subscribe_typed_data,
           deadline: session.expires_at,
+          first_charge_at: 0,
           already_subscribed: false,
           subscription_onchain_id: null,
         });
@@ -1622,6 +1629,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           permitSignature: PERMIT_SIGNATURE,
           subscribeSignature: SUBSCRIBE_SIGNATURE,
           deadline: DEADLINE,
+          firstChargeAt: 0,
         },
         expect.objectContaining({ pendingHash: null })
       );
@@ -1883,7 +1891,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     it('answers payment_pending for a first-period charge not confirmed yet, keeping its hash', async () => {
       settlement.CollectSubscriptionPayment.mockImplementation(
         async (params) => {
-          await params.onSigned(MOCK_CHARGE_HASH);
+          await params.onSigned(MOCK_CHARGE_HASH, { nonce: 7 });
           return { status: 'pending', transaction_hash: MOCK_CHARGE_HASH };
         }
       );
@@ -1908,7 +1916,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       const result = await module.ConfirmPayment(SLUG, SIGNED);
 
       expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
-        MOCK_CHARGE_HASH,
+        [MOCK_CHARGE_HASH],
         expect.objectContaining({
           subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
           amountCents: 1000,
@@ -1986,7 +1994,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         PAYER_WALLET,
         MOCK_PLAN_KEY,
         expect.any(Number),
-        { otherPlansAllowance: 20_000_000n * 13n }
+        { otherPlansAllowance: 20_000_000n * 13n, trialSeconds: 0 }
       );
     });
 
@@ -2023,47 +2031,247 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       expect(settlement.VerifySubscribeTransaction).not.toHaveBeenCalled();
     });
 
-    it('completes a simulated subscription by its sim_sig reference, without the one-subscription limit', async () => {
-      const simulatedId = `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}`;
-      module = Module(new SimulatedSettlement(), {
-        customerModule: customers as unknown as CustomerModule,
-        subscriptionModule: subscriptions as unknown as SubscriptionModule,
+    it('completes two simulated subscription checkouts to the same price against the real one-subscription index', async () => {
+      memory.UniqueIndex('Subscriptions', ['subscription_onchain_id'], {
+        subscription_onchain_id: { $type: 'string' },
+        status: { $in: [...LIVE_SUBSCRIPTION_STATUSES] },
       });
+      const db = memory.AsDatabase();
+      const eventService = {
+        Emit: jest.fn().mockResolvedValue(undefined),
+      } as unknown as EventService;
+      const simulated = new SimulatedSettlement();
+      const customerModule = new CustomerModule(db, eventService);
+      const priceModule = new PriceModule(db, eventService, productModule);
+      const invoiceModule = new InvoiceModule(
+        db,
+        eventService,
+        customerModule,
+        new InvoiceItemModule(db, eventService, customerModule, priceModule),
+        paymentIntentModule,
+        chargeModule,
+        priceModule,
+        simulated
+      );
+      module = Module(simulated, {
+        customerModule,
+        subscriptionModule: new SubscriptionModule(
+          db,
+          eventService,
+          customerModule,
+          priceModule,
+          invoiceModule,
+          simulated
+        ),
+      });
+      memory.Seed('Prices', { ...RecurringPrice() });
       Seed({ payment_details: null });
-      // Every simulated checkout uses the same test wallet.
-      memory.Seed('Subscriptions', {
-        id: 'sub_z_earlier',
-        status: 'active',
-        subscription_onchain_id: simulatedId,
+      memory.Seed('CheckoutSessions', {
+        ...Session(),
+        id: 'cs_z_second',
+        url_slug: 'slug_second',
       });
 
-      const prepared = await module.PreparePayment(SLUG, PAYER_WALLET, {
-        email: 'buyer@example.com',
+      // Every simulated checkout pays from the same test wallet.
+      for (const [id, slug] of [
+        ['cs_z_pay', SLUG],
+        ['cs_z_second', 'slug_second'],
+      ]) {
+        await module.PreparePayment(slug, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        });
+        await expect(
+          module.ConfirmPayment(slug, {
+            transaction_hash: SimulatedSignature(id, PAYER_WALLET),
+          })
+        ).resolves.toMatchObject({ status: 'complete' });
+      }
+
+      const created = memory.All<Subscription>('Subscriptions');
+      expect(created.map((s) => s.subscription_onchain_id).sort()).toEqual([
+        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_z_pay`,
+        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_z_second`,
+      ]);
+      expect(created.map((s) => s.status)).toEqual(['active', 'active']);
+    });
+
+    describe('with a trial (Q11a)', () => {
+      const WEEK = 7 * 86_400;
+
+      beforeEach(() => {
+        const price = RecurringPrice();
+        Seed({
+          line_items: {
+            object: 'list',
+            data: [
+              BuildLineItem({
+                price: {
+                  ...price,
+                  recurring: {
+                    ...(price.recurring as NonNullable<Price['recurring']>),
+                    trial_period_days: 7,
+                  },
+                },
+              }),
+            ],
+            has_more: false,
+            url: '/v1/checkout/sessions/cs_z_pay/line_items',
+          },
+        });
       });
-      expect(prepared).toMatchObject({
-        relayed: false,
-        fee_currency: 'none',
-        subscription: {
-          needs_permit: false,
-          permit_typed_data: null,
-          subscribe_typed_data: null,
+
+      it('prepares a Subscribe that signs the first charge at the trial end, and keeps it for the relay', async () => {
+        Seed({ payment_details: null });
+        settlement.BuildSubscribeAuthorization.mockImplementationOnce(
+          async (subscriber, planKey, expiresAt) =>
+            MockPreparedSubscribe(
+              subscriber,
+              planKey,
+              expiresAt,
+              true,
+              NOW + WEEK
+            )
+        );
+
+        const prepared = await module.PreparePayment(SLUG, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        });
+
+        expect(settlement.BuildSubscribeAuthorization).toHaveBeenCalledWith(
+          PAYER_WALLET,
+          MOCK_PLAN_KEY,
+          expect.any(Number),
+          expect.objectContaining({ trialSeconds: WEEK })
+        );
+        expect(prepared.subscription?.first_charge_at).toBe(NOW + WEEK);
+        expect(Session().payment_details?.first_charge_at).toBe(NOW + WEEK);
+
+        await module.ConfirmPayment(SLUG, SIGNED);
+
+        expect(settlement.RelaySubscribe).toHaveBeenCalledWith(
+          expect.objectContaining({ firstChargeAt: NOW + WEEK }),
+          expect.anything()
+        );
+      });
+
+      it('collects nothing and ends the trial at the chain’s first charge time', async () => {
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW + WEEK - 30,
+          period_seconds: 2_592_000,
+          chain_time: NOW,
+        });
+
+        const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+          'acct_z_platform',
+          expect.objectContaining({ trial_end: NOW + WEEK - 30 }),
+          {
+            settlementTransactionHash: undefined,
+            subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+            periodStart: NOW,
+            periodEnd: NOW + WEEK - 30,
+          }
+        );
+        expect(Claims()).toEqual([]);
+        expect(result.status).toBe('complete');
+      });
+
+      it('refuses an on-chain first charge later than the trial allows', async () => {
+        settlement.GetSubscriptionState.mockResolvedValue({
+          status: 'active',
+          next_charge_at: NOW + WEEK + 1,
+          period_seconds: 2_592_000,
+          chain_time: NOW,
+        });
+
+        await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject(
+          { statusCode: 400 }
+        );
+        ExpectNoSubscription();
+      });
+    });
+
+    it('completes from its own landed charge when the recorded hashes read dropped, never a 409', async () => {
+      SeedClaim();
+      Seed({
+        payment_details: {
+          ...(Session().payment_details as NonNullable<
+            CheckoutSession['payment_details']
+          >),
+          pending_charge_hash: MOCK_CHARGE_HASH,
         },
       });
-
-      const reference = SimulatedSignature('cs_z_pay', PAYER_WALLET);
-      const result = await module.ConfirmPayment(SLUG, {
-        transaction_hash: reference,
+      settlement.ReconcileSubscriptionCharge.mockResolvedValue({
+        status: 'dropped',
       });
-
-      expect(result).toMatchObject({
-        status: 'complete',
-        payment_details: { transaction_hash: reference },
+      // The charge landed, so the chain is due one period on.
+      settlement.GetSubscriptionState.mockResolvedValue({
+        status: 'active',
+        next_charge_at: NOW + 2_592_000,
+        period_seconds: 2_592_000,
+        chain_time: NOW + 60,
       });
+      settlement.FindSubscriptionCharge.mockImplementation(
+        async (_subId, search) =>
+          search.accept && !(await search.accept(MOCK_CHARGE_HASH))
+            ? null
+            : {
+                transaction_hash: MOCK_CHARGE_HASH,
+                next_charge_at: NOW + 2_592_000,
+              }
+      );
+
+      const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.FindSubscriptionCharge).toHaveBeenCalledWith(
+        MOCK_SUBSCRIPTION_ID,
+        expect.objectContaining({ amountCents: 1000, since: NOW })
+      );
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
         'acct_z_platform',
         expect.anything(),
-        expect.objectContaining({ subscriptionOnchainId: simulatedId })
+        expect.objectContaining({
+          settlementTransactionHash: MOCK_CHARGE_HASH,
+          periodStart: NOW,
+          periodEnd: NOW + 2_592_000,
+        })
       );
+      expect(result.status).toBe('complete');
+    });
+
+    it('clears the session’s pending charge once the recorded one is dropped', async () => {
+      SeedClaim();
+      Seed({
+        payment_details: {
+          ...(Session().payment_details as NonNullable<
+            CheckoutSession['payment_details']
+          >),
+          pending_charge_hash: MOCK_CHARGE_HASH,
+        },
+      });
+      settlement.ReconcileSubscriptionCharge.mockResolvedValue({
+        status: 'dropped',
+      });
+      settlement.CollectSubscriptionPayment.mockRejectedValue(
+        new AppError('allowance', 402, 'collection_failed_allowance')
+      );
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 402,
+      });
+      expect(Session().payment_details?.pending_charge_hash).toBeNull();
+    });
+
+    it('gives the first-period charge only what is left of the confirm budget', async () => {
+      await module.ConfirmPayment(SLUG, SIGNED);
+
+      const [params] = settlement.CollectSubscriptionPayment.mock.calls[0];
+      expect(params.timeoutMs).toBeGreaterThan(0);
+      expect(params.timeoutMs).toBeLessThanOrEqual(90_000);
     });
 
     describe('with already_subscribed', () => {
@@ -2089,6 +2297,31 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           })
         );
         expect(result.status).toBe('complete');
+      });
+
+      it('never reports the subscription id as transaction_hash while another confirm records it', async () => {
+        jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+        settlement.FindExistingSubscription.mockResolvedValue(
+          MOCK_SUBSCRIPTION_ID
+        );
+        jest
+          .spyOn(checkoutSessionModule, 'ClaimPaymentSettlement')
+          .mockResolvedValue(false);
+
+        const outcome = module
+          .ConfirmPayment(SLUG, {
+            already_subscribed: true,
+            subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+          })
+          .catch((error: unknown) => error);
+        await jest.advanceTimersByTimeAsync(11_000);
+        jest.useRealTimers();
+
+        await expect(outcome).resolves.toMatchObject({
+          statusCode: 409,
+          type: 'payment_pending',
+          details: { reason: 'another_confirmation', transaction_hash: null },
+        });
       });
 
       it('refuses a subscription id that is not the wallet’s', async () => {

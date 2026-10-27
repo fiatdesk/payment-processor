@@ -1,17 +1,38 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
+import type {
+  Invoice,
+  Subscription,
+  SubscriptionItem,
+} from '@zoneless/shared-types';
 import { SubscriptionBillingModule } from '../modules/SubscriptionBilling';
 import { SubscriptionModule } from '../modules/Subscription';
 import { InvoiceModule } from '../modules/Invoice';
+import { InvoiceItemModule } from '../modules/InvoiceItem';
+import { ChargeModule } from '../modules/Charge';
+import { CustomerModule } from '../modules/Customer';
+import { PaymentIntentModule } from '../modules/PaymentIntent';
+import { PriceModule } from '../modules/Price';
+import { ProductModule } from '../modules/Product';
+import type { EventService } from '../modules/EventService';
 import { Database } from '../modules/Database';
-import type { OnchainSubscriptionState } from '../modules/chains/types';
+import { LIVE_SUBSCRIPTION_STATUSES } from '../modules/SubscriptionCycleClaims';
+import {
+  COLLECTION_FAILED_ALLOWANCE,
+  type OnchainSubscriptionState,
+} from '../modules/chains/types';
+import { AppError } from '../utils/AppError';
+import { Now } from '../utils/Timestamp';
 import { CreateMockDatabase, GetFixedTimestamp, ResetIdCounter } from './Setup';
+import { MemoryDatabase } from './mocks/MemoryDatabase';
 import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/Timestamp', () => ({
+  ...jest.requireActual('../utils/Timestamp'),
   Now: jest.fn(() => GetFixedTimestamp()),
 }));
 jest.mock('../modules/AppConfig', () => ({
+  ...jest.requireActual('../modules/AppConfig'),
   GetAppConfig: jest.fn(() => ({
     dashboardUrl: 'http://localhost:4200',
     livemode: false,
@@ -77,11 +98,20 @@ describe('SubscriptionBillingModule', () => {
       SendOnchainCancel: jest.fn(),
     } as unknown as jest.Mocked<SubscriptionModule>;
 
+    // The charge that paid the cycle at G1 paid [G1, G1 + PERIOD], as its
+    // Charged event says (kept on the cycle claim).
+    mockDb.Get = jest.fn(async (collection: string, id: string) =>
+      collection === 'SubscriptionCycleClaims' && id.endsWith(`:${G1}`)
+        ? { id, paid_period: { start: G1, end: G1 + PERIOD } }
+        : null
+    ) as never;
+
     invoiceModule = {
       PayInvoice: jest.fn().mockResolvedValue({
         id: INVOICE_ID,
         status: 'paid',
         attempt_count: 1,
+        period_start: G1,
       }),
       MarkInvoiceUncollectible: jest.fn(),
       VoidInvoice: jest.fn(),
@@ -158,20 +188,8 @@ describe('SubscriptionBillingModule', () => {
     return subscription;
   }
 
-  it('bills the period due on-chain and advances to the period the charge paid', async () => {
+  it('bills the period due on-chain and advances to the period the charge paid, from its Charged event', async () => {
     DueSubscription();
-    // After the charge the chain is due one period later.
-    settlement.GetSubscriptionState.mockResolvedValueOnce({
-      status: 'active',
-      next_charge_at: G1,
-      period_seconds: PERIOD,
-      chain_time: NOW,
-    }).mockResolvedValueOnce({
-      status: 'active',
-      next_charge_at: G1 + PERIOD,
-      period_seconds: PERIOD,
-      chain_time: NOW + 15,
-    });
 
     const result = await module.Run({ batchSize: 10 });
 
@@ -187,6 +205,8 @@ describe('SubscriptionBillingModule', () => {
       INVOICE_ID,
       { start: G1, end: G1 + PERIOD }
     );
+    // The paid period is not read from the chain again.
+    expect(settlement.GetSubscriptionState).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
   });
 
@@ -576,5 +596,288 @@ describe('SubscriptionBillingModule', () => {
     expect(subscriptionModule.SendOnchainCancel).toHaveBeenCalledWith(
       'sub_z_canceled'
     );
+  });
+});
+
+describe('SubscriptionBillingModule with the real billing modules', () => {
+  const PLATFORM_ACCOUNT = 'acct_z_platform';
+  const WALLET = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+  const ONCHAIN_ID = `0x${'5b'.repeat(32)}`;
+  const PERIOD_SECONDS = 30 * 24 * 3600;
+  const DAY = 24 * 3600;
+  const T0 = GetFixedTimestamp();
+  let memory: MemoryDatabase;
+  let settlement: ReturnType<typeof CreateMockSettlement>;
+  let subscriptions: SubscriptionModule;
+  let billing: SubscriptionBillingModule;
+  let events: string[];
+  let clock: number;
+  /** The chain's next due time. */
+  let nextChargeAt: number;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    memory = new MemoryDatabase();
+    memory.UniqueIndex('Subscriptions', ['subscription_onchain_id'], {
+      subscription_onchain_id: { $type: 'string' },
+      status: { $in: [...LIVE_SUBSCRIPTION_STATUSES] },
+    });
+    const db = memory.AsDatabase();
+    events = [];
+    const eventService = {
+      Emit: jest.fn(async (type: string) => {
+        events.push(type);
+      }),
+    } as unknown as EventService;
+    clock = T0;
+    jest.mocked(Now).mockImplementation(() => clock);
+    settlement = CreateMockSettlement();
+    settlement.GetSubscriptionState.mockImplementation(async () => ({
+      status: 'active',
+      next_charge_at: nextChargeAt,
+      period_seconds: PERIOD_SECONDS,
+      chain_time: clock,
+    }));
+    const customers = new CustomerModule(db, eventService);
+    const products = new ProductModule(db, eventService);
+    const prices = new PriceModule(db, eventService, products);
+    const paymentIntents = new PaymentIntentModule(db, eventService, customers);
+    const charges = new ChargeModule(db, eventService, customers);
+    const invoices = new InvoiceModule(
+      db,
+      eventService,
+      customers,
+      new InvoiceItemModule(db, eventService, customers, prices),
+      paymentIntents,
+      charges,
+      prices,
+      settlement
+    );
+    subscriptions = new SubscriptionModule(
+      db,
+      eventService,
+      customers,
+      prices,
+      invoices,
+      settlement
+    );
+    billing = new SubscriptionBillingModule(
+      db,
+      subscriptions,
+      invoices,
+      settlement
+    );
+    memory.Seed('Customers', {
+      id: 'cus_z_1',
+      object: 'customer',
+      platform_account: PLATFORM_ACCOUNT,
+      email: 'subscriber@example.com',
+      invoice_prefix: 'ABCD1234',
+      next_invoice_sequence: 1,
+      metadata: {},
+    });
+    memory.Seed('Prices', {
+      id: 'price_z_1',
+      object: 'price',
+      active: true,
+      currency: 'usdc',
+      product: 'prod_z_1',
+      platform_account: PLATFORM_ACCOUNT,
+      type: 'recurring',
+      unit_amount: 2000,
+      recurring: { interval: 'month', interval_count: 1 },
+      subscription_plan_id: `0x${'a1'.repeat(32)}`,
+      metadata: {},
+    });
+    memory.Seed('Products', {
+      id: 'prod_z_1',
+      object: 'product',
+      name: 'Plan',
+      platform_account: PLATFORM_ACCOUNT,
+      metadata: {},
+    });
+  });
+
+  afterEach(() => {
+    jest.mocked(Now).mockImplementation(() => GetFixedTimestamp());
+  });
+
+  /** A subscription whose first period was collected at checkout. */
+  async function Subscribed(
+    input: Record<string, unknown> = {},
+    options: { periodStart: number; periodEnd: number } = {
+      periodStart: T0 - PERIOD_SECONDS,
+      periodEnd: T0,
+    }
+  ) {
+    return subscriptions.CreateSubscription(
+      PLATFORM_ACCOUNT,
+      {
+        customer: 'cus_z_1',
+        items: [{ price: 'price_z_1', quantity: 1 }],
+        default_payment_method: WALLET,
+        ...input,
+      },
+      {
+        subscriptionOnchainId: ONCHAIN_ID,
+        settlementTransactionHash: input.trial_end
+          ? undefined
+          : `0x${'f1'.repeat(32)}`,
+        ...options,
+      }
+    );
+  }
+
+  async function RunAt(time: number) {
+    clock = time;
+    return billing.Run({ platformAccountId: PLATFORM_ACCOUNT });
+  }
+
+  function CycleInvoices(): Invoice[] {
+    return memory
+      .All<Invoice>('Invoices')
+      .filter((invoice) => invoice.billing_reason === 'subscription_cycle');
+  }
+
+  function Count(type: string): number {
+    return events.filter((event) => event === type).length;
+  }
+
+  it('keeps the 1/3/5-day dunning schedule: one attempt per retry time, unpaid only after the last', async () => {
+    nextChargeAt = T0;
+    const subscription = await Subscribed();
+    settlement.CollectSubscriptionPayment.mockRejectedValue(
+      new AppError('allowance', 402, COLLECTION_FAILED_ALLOWANCE)
+    );
+    const attempts = () =>
+      settlement.CollectSubscriptionPayment.mock.calls.length;
+    const Status = () =>
+      memory.Doc<Subscription>('Subscriptions', subscription.id).status;
+
+    const first = T0 + 60;
+    await RunAt(first);
+    expect(attempts()).toBe(1);
+    const [invoice] = CycleInvoices();
+    expect(invoice).toMatchObject({
+      status: 'open',
+      attempt_count: 1,
+      next_payment_attempt: first + DAY,
+    });
+    expect(Status()).toBe('past_due');
+
+    // Another run inside the dunning window changes nothing.
+    await expect(RunAt(first + 3600)).resolves.toMatchObject({
+      processed: 0,
+      failed: 0,
+    });
+    expect(attempts()).toBe(1);
+    expect(Count('invoice.payment_failed')).toBe(1);
+    expect(Count('customer.subscription.allowance_exhausted')).toBe(1);
+
+    // Each retry comes at its delay: 1, then 3, then 5 days.
+    const second = first + DAY;
+    await RunAt(second - 1);
+    expect(attempts()).toBe(1);
+    await RunAt(second);
+    expect(attempts()).toBe(2);
+    expect(CycleInvoices()[0]).toMatchObject({
+      attempt_count: 2,
+      next_payment_attempt: second + 3 * DAY,
+    });
+
+    const third = second + 3 * DAY;
+    await RunAt(third - 1);
+    expect(attempts()).toBe(2);
+    await RunAt(third);
+    expect(attempts()).toBe(3);
+    expect(CycleInvoices()[0]).toMatchObject({
+      attempt_count: 3,
+      next_payment_attempt: third + 5 * DAY,
+    });
+    expect(Status()).toBe('past_due');
+
+    const fourth = third + 5 * DAY;
+    await RunAt(fourth - 1);
+    expect(attempts()).toBe(3);
+    await RunAt(fourth);
+    expect(attempts()).toBe(4);
+    expect(CycleInvoices()[0]).toMatchObject({
+      attempt_count: 4,
+      status: 'uncollectible',
+    });
+    expect(Status()).toBe('unpaid');
+    expect(Count('invoice.payment_failed')).toBe(4);
+    expect(Count('customer.subscription.allowance_exhausted')).toBe(4);
+  });
+
+  it('collects the first period at the trial end, from the real post-subscribe state', async () => {
+    const trialEnd = T0 + 7 * DAY;
+    nextChargeAt = trialEnd;
+    const subscription = await Subscribed(
+      { trial_end: trialEnd },
+      { periodStart: T0, periodEnd: trialEnd }
+    );
+    expect(subscription).toMatchObject({
+      status: 'trialing',
+      trial_end: trialEnd,
+    });
+    expect(subscription.items.data[0]).toMatchObject({
+      current_period_start: T0,
+      current_period_end: trialEnd,
+    });
+    expect(memory.All<Invoice>('Invoices')).toEqual([]);
+    settlement.CollectSubscriptionPayment.mockImplementation(async (params) => {
+      await params.onSigned(`0x${'c4'.repeat(32)}`, { nonce: 1 });
+      nextChargeAt = trialEnd + PERIOD_SECONDS;
+      return {
+        status: 'collected',
+        transaction_hash: `0x${'c4'.repeat(32)}`,
+        next_charge_at: trialEnd + PERIOD_SECONDS,
+      };
+    });
+
+    await RunAt(trialEnd - 60);
+    expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+
+    await RunAt(trialEnd + 30);
+
+    expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+    expect(CycleInvoices()).toEqual([
+      expect.objectContaining({ status: 'paid', period_start: trialEnd }),
+    ]);
+    const after = memory.Doc<Subscription>('Subscriptions', subscription.id);
+    expect(after.status).toBe('active');
+    expect(
+      memory
+        .All<SubscriptionItem>('SubscriptionItems')
+        .find((item) => item.subscription === subscription.id)
+    ).toMatchObject({
+      current_period_start: trialEnd,
+      current_period_end: trialEnd + PERIOD_SECONDS,
+    });
+  });
+
+  it('follows every pending on-chain cancel oldest first, past the batch size', async () => {
+    for (let i = 0; i < 3; i++) {
+      memory.Seed('Subscriptions', {
+        id: `sub_z_cancel${i}`,
+        platform_account: PLATFORM_ACCOUNT,
+        status: 'canceled',
+        canceled_at: T0 - 100 + i,
+        cancel_pending_on_chain: true,
+        subscription_onchain_id: `0x${String(i).repeat(64)}`,
+      });
+    }
+    const sent = jest
+      .spyOn(subscriptions, 'SendOnchainCancel')
+      .mockResolvedValue(undefined);
+
+    await billing.Run({ platformAccountId: PLATFORM_ACCOUNT, batchSize: 1 });
+
+    expect(sent.mock.calls.map(([id]) => id)).toEqual([
+      'sub_z_cancel0',
+      'sub_z_cancel1',
+      'sub_z_cancel2',
+    ]);
   });
 });

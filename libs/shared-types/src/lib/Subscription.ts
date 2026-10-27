@@ -257,6 +257,13 @@ export interface Subscription {
   cancel_pending_transaction_hash: string | null;
 
   /**
+   * When `cancel_pending_transaction_hash` was sent (Unix seconds); a cancel
+   * still unmined 10 minutes later is re-priced.
+   * @zoneless_extension
+   */
+  cancel_pending_sent_at: number | null;
+
+  /**
    * Unix timestamp until which this subscription is claimed by a billing runner.
    * Used to prevent duplicate cycle invoices across multiple API instances.
    * @zoneless_extension

@@ -31,7 +31,11 @@ import { Logger } from '../../utils/Logger';
 import { GetCheckoutRelayerKey } from '../AppConfig';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
 import { GetChainConfig, GetPublicClient } from './Chain';
-import type { ConfirmedBlock, PayoutBuildOptions } from './types';
+import type {
+  ConfirmedBlock,
+  PayoutBuildOptions,
+  SignedTransaction,
+} from './types';
 
 /** Ethereum's slot time. */
 export const BLOCK_TIME_SECONDS = 12;
@@ -231,8 +235,8 @@ export function SenderLock(address: Address): string {
 }
 
 export interface SendOptions {
-  /** Runs with each signed hash before it is sent; a throw cancels it */
-  onSigned(transactionHash: string): Promise<void>;
+  /** Runs with each signed hash (and its nonce) before it is sent; a throw cancels it */
+  onSigned(transactionHash: string, signed: SignedTransaction): Promise<void>;
   /** The refusal message clients see */
   refused: string;
   /**
@@ -282,7 +286,7 @@ export async function SendSigned(
       ...fees,
     });
     const hash = keccak256(serialized);
-    await options.onSigned(hash);
+    await options.onSigned(hash, { nonce });
     try {
       await client.sendRawTransaction({ serializedTransaction: serialized });
       return hash;
