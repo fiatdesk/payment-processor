@@ -1,9 +1,11 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { DocPage } from './types';
 
 const dashboardBalanceUrl = 'https://pay.yourdomain.com/account/balance';
 const dashboardSettingsUrl = 'https://pay.yourdomain.com/account/settings';
 const coinbaseUrl = 'https://www.coinbase.com/';
 const krakenUrl = 'https://www.kraken.com/';
+const circleFaucetUrl = 'https://faucet.circle.com/';
 
 const ExternalLink = (url: string, label: string): string =>
   `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}<img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a>`;
@@ -12,7 +14,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
   id: 'fund-platform-wallet',
   title: 'Fund your platform wallet',
   description:
-    'Turn money from your sales into USDC on Solana, then add it to your Zoneless balance for seller payouts.',
+    'Turn money from your sales into USDC on Ethereum, then add it to your Zoneless balance for seller payouts.',
   sections: [
     {
       left: [
@@ -35,7 +37,17 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'New to USDC? ',
-          text: 'USDC is a digital dollar designed to stay close to $1 USD. Solana is the network that moves it between wallets. Your wallet address, also called a public key, is safe to share. Your secret key is not.',
+          text: 'USDC is a digital dollar designed to stay close to $1 USD. Ethereum is the network that moves it between wallets. Your wallet address (it starts with 0x) is safe to share. Your private key and recovery phrase are not.',
+        },
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Testing first? ',
+          text: `In test mode on Sepolia (<code>SETTLEMENT_RAIL=onchain</code>), skip the exchange: get free test USDC from the ${ExternalLink(
+            circleFaucetUrl,
+            'Circle faucet'
+          )} (select <strong>Ethereum Sepolia</strong>) and a little Sepolia ETH for gas from any Sepolia faucet. Never send real ETH or USDC to a test wallet. Simulated test mode needs no wallet at all; see <a href="/local-development#test-funds">Test funds</a>.`,
+          html: true,
         },
       ],
     },
@@ -91,7 +103,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: `The deposit address is your platform wallet's public key. If you created the wallet in your browser, it is the public key you saved during setup. You can view or change the platform wallet under ${ExternalLink(
+          text: `The deposit address is your platform wallet's address. If you created the wallet during setup, it is the address you saved then. You can view or change the platform wallet under ${ExternalLink(
             dashboardSettingsUrl,
             'Settings'
           )}.`,
@@ -123,22 +135,14 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'When the exchange asks which network to use, select <strong>Solana</strong>. It may also be labelled <strong>SOL</strong> or <strong>SPL</strong>. Do not select Ethereum, Base, Polygon, or another network, even though those networks also support USDC.',
+          text: 'When the exchange asks which network to use, select <strong>Ethereum</strong>. It may also be labelled <strong>ERC-20</strong> or <strong>ETH</strong>. Do not select Base, Polygon, Arbitrum, Optimism, or another network, even though those networks also carry USDC and accept the same address.',
           html: true,
         },
         {
           type: 'callout',
           variant: 'warning',
-          title: 'The network must be Solana. ',
-          text: 'Sending USDC over the wrong network can permanently lose the funds. The asset should be USDC and the withdrawal network should be Solana.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/top-ups/top-up-2.webp',
-          alt: 'USDC withdrawal with Solana selected as the network',
-          caption: 'Select USDC as the asset and Solana as the network.',
+          title: 'The network must be Ethereum. ',
+          text: 'Deposits are detected on Ethereum only. USDC sent over another network does not reach your Zoneless balance and may be hard or impossible to recover. The asset should be USDC and the withdrawal network should be Ethereum.',
         },
       ],
     },
@@ -147,21 +151,12 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '5. Send the USDC' },
         {
           type: 'paragraph',
-          text: 'Enter the amount, review the exchange fee, address, and network one more time, then confirm the withdrawal. Your exchange may ask for a security code or email confirmation.',
+          text: 'Enter the amount, review the exchange fee, address, and network one more time, then confirm the withdrawal. Withdrawals on Ethereum can cost more than on other networks, so check the fee. Your exchange may ask for a security code or email confirmation.',
         },
         {
           type: 'paragraph',
           text: "Return to the Zoneless Add funds panel, scroll down to the bottom and click <strong>I've sent my funds</strong>. Zoneless will watch the wallet for the transfer.",
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/top-ups/top-up-3.webp',
-          alt: 'I have sent my funds button in Zoneless',
-          caption:
-            'Tell Zoneless after you confirm the withdrawal at the exchange.',
         },
       ],
     },
@@ -170,11 +165,11 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '6. Wait for confirmation' },
         {
           type: 'paragraph',
-          text: 'A Solana transfer usually reaches Zoneless in about 10 seconds after the exchange sends it. The exchange may take longer to review and release a withdrawal.',
+          text: 'Once the exchange sends the transfer, it usually reaches Zoneless within a few minutes, after a couple of block confirmations. The exchange may take longer to review and release a withdrawal.',
         },
         {
           type: 'paragraph',
-          text: 'Once detected, the deposit is added to your available platform balance. If it does not appear, check that the exchange marks the withdrawal as complete, the network was Solana, and the destination matches your deposit address.',
+          text: 'Once detected, the deposit is added to your available platform balance. If it does not appear, check that the exchange marks the withdrawal as complete, the network was Ethereum, and the destination matches your deposit address.',
         },
       ],
       right: [
@@ -197,8 +192,8 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Keep a little SOL in the wallet too. ',
-          text: 'Solana charges a small network fee when you send payouts. Buy a small amount of SOL on the exchange and send it to the same platform wallet address using the Solana network.',
+          title: 'Keep some ETH in the wallet too. ',
+          text: 'Ethereum charges a network fee, called gas, in ETH when you send payouts. Buy some ETH on the exchange and send it to the same platform wallet address on the Ethereum network. The dashboard shows the estimated fee before you sign each payout.',
         },
         {
           type: 'list',

@@ -26,15 +26,17 @@ const TOPUP_OBJECT_JSON = `{
   "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
   "created": 1704067200,
   "currency": "usdc",
-  "description": "Deposit from 8xK2Nv3F...",
+  "description": "Deposit from 0x14366C...",
   "expected_availability_date": 1704067200,
   "failure_code": null,
   "failure_message": null,
   "livemode": false,
   "metadata": {
-    "blockchain_tx": "5xK9...abc123",
-    "network": "solana",
-    "sender_address": "8xK2Nv3F..."
+    "blockchain_tx": "0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
+    "log_index": "41",
+    "network": "ethereum",
+    "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
+    "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
   },
   "platform_account": "acct_z_Platform123abc",
   "source": {
@@ -129,7 +131,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     description:
       'Date the funds are expected to arrive in your Zoneless account. May not be specified depending on status of top-up.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> USDC deposits on Solana are typically available immediately after blockchain confirmation, unlike traditional bank transfers.',
+      '<strong>Difference from Stripe:</strong> USDC deposits on Ethereum are available as soon as the transfer has <code>ETH_CONFIRMATIONS</code> block confirmations (2 by default, usually under a minute), unlike bank transfers.',
   },
   {
     name: 'failure_code',
@@ -155,7 +157,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     name: 'metadata',
     type: 'object',
     description:
-      'Set of key-value pairs that you can attach to an object. For blockchain deposits, this automatically includes <code>blockchain_tx</code>, <code>network</code>, and <code>sender_address</code>.',
+      'Set of key-value pairs that you can attach to an object. For detected deposits, this automatically includes <code>blockchain_tx</code> (the transaction hash), <code>log_index</code> (the index of the USDC <code>Transfer</code> log in its block), <code>network</code>, <code>sender_address</code>, and <code>explorer_url</code>. One transaction can pay your wallet more than once; each payment is its own top-up, identified by <code>blockchain_tx</code> and <code>log_index</code> together.',
   },
   {
     name: 'source',
@@ -198,7 +200,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     description:
       'Extra information about a top-up. Limited to 15 ASCII characters.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Unlike bank transfers, Solana USDC transactions do not display statement descriptors. This field is retained for API compatibility.',
+      '<strong>Difference from Stripe:</strong> Unlike bank transfers, USDC transfers on Ethereum do not display statement descriptors. This field is retained for API compatibility.',
   },
   {
     name: 'status',
@@ -263,7 +265,7 @@ export const TOPUPS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Top-up object',
   description:
-    "To top up your Zoneless balance in live mode, send USDC to your platform's Solana wallet. Once the funds are detected, a top-up object is created and your balance is increased. In test mode, add simulated USDC from the dashboard instead. You can retrieve individual top-ups, as well as list all top-ups. Top-ups are identified by a unique, random ID.",
+    'To top up your Zoneless balance in live mode, send USDC on Ethereum to your platform wallet. Once the funds are detected, a top-up object is created and your balance is increased. In test mode, add simulated USDC from the dashboard instead. You can retrieve individual top-ups, as well as list all top-ups. Top-ups are identified by a unique, random ID.',
   stripeDocsUrl: 'https://docs.stripe.com/api/topups',
   endpoints: BuildEndpointSummaries(TOPUPS_SUBSECTION, [
     { method: 'POST', path: '/v1/topups', pageId: 'create' },
@@ -285,7 +287,7 @@ export const TOPUPS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'How top-ups work: ',
-          text: 'In live mode, send USDC to the platform\'s Solana wallet, then call the <a href="#topups-check-deposits">check-deposits endpoint</a> to detect the transfer. In test mode, add simulated USDC from the dashboard (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>.',
+          text: 'In live mode, send USDC on Ethereum to the platform wallet, then call the <a href="#topups-check-deposits">check-deposits endpoint</a> to detect the transfer. Test mode with <code>SETTLEMENT_RAIL=onchain</code> works the same way on Sepolia. In simulated test mode, add USDC from the dashboard (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -332,7 +334,7 @@ const CREATE_TOPUP_PARAMETERS: Attribute[] = [
     name: 'metadata',
     type: 'object',
     description:
-      'Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them.',
+      'Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them. The keys <code>blockchain_tx</code> and <code>log_index</code> are reserved for detected deposits.',
   },
 ];
 
@@ -428,7 +430,7 @@ const UPDATE_TOPUP_PARAMETERS: Attribute[] = [
     name: 'metadata',
     type: 'object',
     description:
-      'Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them. All keys can be unset by posting an empty value to <code>metadata</code>.',
+      'Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. Individual keys can be unset by posting an empty value to them. All keys can be unset by posting an empty value to <code>metadata</code>. <code>blockchain_tx</code> and <code>log_index</code> identify a detected deposit and cannot be set, changed, or unset.',
   },
 ];
 
@@ -445,9 +447,11 @@ const TOPUP_UPDATE_RESPONSE_JSON = `{
   "failure_message": null,
   "livemode": false,
   "metadata": {
-    "blockchain_tx": "5xK9...abc123",
-    "network": "solana",
-    "sender_address": "8xK2Nv3F...",
+    "blockchain_tx": "0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
+    "log_index": "41",
+    "network": "ethereum",
+    "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
+    "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
     "order_id": "6735"
   },
   "platform_account": "acct_z_Platform123abc",
@@ -673,15 +677,17 @@ const LIST_TOPUPS_RESPONSE_JSON = `{
       "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
       "created": 1704067200,
       "currency": "usdc",
-      "description": "Deposit from 8xK2Nv3F...",
+      "description": "Deposit from 0x14366C...",
       "expected_availability_date": 1704067200,
       "failure_code": null,
       "failure_message": null,
       "livemode": false,
       "metadata": {
-        "blockchain_tx": "5xK9...abc123",
-        "network": "solana",
-        "sender_address": "8xK2Nv3F..."
+        "blockchain_tx": "0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
+        "log_index": "41",
+        "network": "ethereum",
+        "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
+        "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
       },
       "platform_account": "acct_z_Platform123abc",
       "source": {
@@ -850,16 +856,17 @@ const CHECK_DEPOSITS_RESPONSE_JSON = `{
       "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
       "created": 1704067200,
       "currency": "usdc",
-      "description": "Deposit from 8xK2Nv3F...",
+      "description": "Deposit from 0x14366C...",
       "expected_availability_date": 1704067200,
       "failure_code": null,
       "failure_message": null,
       "livemode": false,
       "metadata": {
-        "blockchain_tx": "5xK9...abc123",
-        "network": "solana",
-        "sender_address": "8xK2Nv3F...",
-        "explorer_url": "https://explorer.solana.com/tx/5xK9...abc123"
+        "blockchain_tx": "0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
+        "log_index": "41",
+        "network": "ethereum",
+        "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
+        "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
       },
       "platform_account": "acct_z_Platform123abc",
       "source": {
@@ -875,14 +882,14 @@ const CHECK_DEPOSITS_RESPONSE_JSON = `{
       "arrival_date": 1704067200
     }
   ],
-  "message": "Processed 1 new deposits"
+  "message": "Found and processed 1 new deposit(s)"
 }`;
 
 export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
   id: 'check-deposits',
   title: 'Check for deposits',
   description:
-    'Checks the Solana blockchain for new incoming USDC deposits to your platform wallet. This endpoint queries the blockchain for recent USDC transfers and automatically creates top-up records for any new deposits found.',
+    'Checks Ethereum for new USDC deposits to your platform wallet. Each USDC Transfer to the wallet in a newly confirmed block becomes a top-up.',
   endpoints: [{ method: 'POST', path: '/v1/topups/check-deposits' }],
   sections: [
     {
@@ -895,11 +902,37 @@ export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'This is the recommended way to detect live deposits after a user sends funds. The endpoint checks for new USDC transfers to your platform wallet and creates top-up records with status <code>succeeded</code> for any confirmed transactions. Simulated test mode does not watch the blockchain; use <strong>Add test USDC</strong> on the dashboard, or <code>POST /v1/test_helpers/treasury/topups</code>, instead.',
+          text: 'This is the recommended way to detect live deposits after a user sends funds. The endpoint creates a top-up with status <code>succeeded</code> for each new USDC transfer to your platform wallet. Simulated test mode does not watch the blockchain; use <strong>Add test USDC</strong> on the dashboard, or <code>POST /v1/test_helpers/treasury/topups</code>, instead.',
           html: true,
         },
+        { type: 'heading', level: 2, text: 'How deposits are found' },
+        {
+          type: 'list',
+          items: [
+            {
+              text: 'A transfer counts once it has <code>ETH_CONFIRMATIONS</code> block confirmations (2 by default), usually within a minute.',
+              html: true,
+            },
+            {
+              text: 'Each call continues from the last block scanned for the wallet. The first scan starts 1,000 blocks (about 3 hours) back, so send funds after the platform wallet is set up.',
+            },
+            {
+              text: 'One call scans up to 20,000 blocks. If the wallet is further behind, <code>message</code> says which blocks remain; call again.',
+              html: true,
+            },
+            {
+              text: 'A transaction that pays the wallet twice creates two top-ups. A transfer is never credited twice, even when calls overlap.',
+            },
+            {
+              text: 'Amounts are whole cents. A transfer worth less than one cent is not credited, and fractions of a cent stay in the wallet.',
+            },
+          ],
+        },
         { type: 'heading', level: 2, text: 'Parameters' },
-        { type: 'paragraph', text: 'No parameters.' },
+        {
+          type: 'paragraph',
+          text: 'No parameters. The request body is ignored.',
+        },
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
@@ -924,7 +957,8 @@ export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
             {
               name: 'errors',
               type: 'integer',
-              description: 'Number of errors encountered during processing.',
+              description:
+                'Number of deposits that could not be credited. They are retried on the next call.',
             },
             {
               name: 'topups',

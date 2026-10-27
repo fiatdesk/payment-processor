@@ -40,10 +40,15 @@ export interface Settlement {
   CheckWalletExists(address: string): Promise<boolean>;
   GetNativeBalance(address: string): Promise<number>;
   GetUSDCBalance(address: string): Promise<number>;
+  /** The chain's latest block number; 0 on a rail without a chain. */
+  GetLatestBlockNumber(): Promise<bigint>;
+  /**
+   * One deposit per USDC `Transfer` log to `address` in the inclusive block
+   * range. Throws when the node cannot serve the range.
+   */
   GetIncomingDeposits(
     address: string,
-    limit: number,
-    processed: Set<string>
+    range: { fromBlock: bigint; toBlock: bigint }
   ): Promise<IncomingDeposit[]>;
   /**
    * Unsigned batch payout, or the one-time approval when the platform
@@ -224,6 +229,10 @@ export class SimulatedSettlement implements Settlement {
 
   GetPlanOwnerAddress(): string {
     return SIMULATED_TEST_WALLET;
+  }
+
+  async GetLatestBlockNumber(): Promise<bigint> {
+    return 0n;
   }
 
   async GetIncomingDeposits(): Promise<IncomingDeposit[]> {

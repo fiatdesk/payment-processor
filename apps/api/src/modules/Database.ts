@@ -447,6 +447,7 @@ export class Database {
       'AppSecrets',
       'Balances',
       'BalanceTransactions',
+      'ChainCursors',
       'Events',
       'ExternalWallets',
       'LoginLinks',
@@ -500,6 +501,21 @@ export class Database {
         {
           unique: true,
           partialFilterExpression: { status: { $in: ['built', 'broadcast'] } },
+        }
+      );
+    }
+
+    if (collectionName === 'TopUps') {
+      // Deposit dedupe key: one top-up per USDC Transfer log, so a credit
+      // racing another scan fails with a duplicate key instead of paying twice.
+      flexibleSchema.index(
+        { 'metadata.blockchain_tx': 1, 'metadata.log_index': 1 },
+        {
+          unique: true,
+          partialFilterExpression: {
+            'metadata.blockchain_tx': { $exists: true },
+            'metadata.log_index': { $exists: true },
+          },
         }
       );
     }

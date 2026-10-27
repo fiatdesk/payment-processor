@@ -1,9 +1,10 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
  * The on-chain Ethereum rail (mainnet, Sepolia or Anvil). Rail description,
- * explorer links, address checks, balance reads and batch payouts through
- * the PayoutBatch contract work; the remaining money flows reject with
- * `not_supported` until they are implemented.
+ * explorer links, address checks, balance reads, deposit detection from USDC
+ * `Transfer` logs and batch payouts through the PayoutBatch contract work;
+ * the remaining money flows reject with `not_supported` until they are
+ * implemented.
  *
  * @module chains/Ethereum
  */
@@ -76,6 +77,9 @@ const BATCH_PAID_EVENT = getAbiItem({
   abi: PAYOUT_BATCH_ABI,
   name: 'BatchPaid',
 });
+const TRANSFER_EVENT = getAbiItem({ abi: USDC_ABI, name: 'Transfer' });
+/** Block timestamps kept for deposit lookups (oldest evicted first). */
+const BLOCK_TIMESTAMP_CACHE_SIZE = 256;
 
 interface Fees {
   maxFeePerGas: bigint;
@@ -93,6 +97,7 @@ export function NotSupported(method: string): AppError {
 
 export class Ethereum implements Settlement {
   private usdcDecimalsVerified = false;
+  private readonly blockTimestamps = new Map<bigint, number>();
 
   Describe(): RailDescription {
     const { chainId, usdc } = GetChainConfig();
@@ -138,8 +143,74 @@ export class Ethereum implements Settlement {
     throw NotSupported('GetPlanOwnerAddress');
   }
 
-  async GetIncomingDeposits(): Promise<IncomingDeposit[]> {
-    throw NotSupported('GetIncomingDeposits');
+  async GetLatestBlockNumber(): Promise<bigint> {
+    return GetPublicClient().getBlockNumber({ cacheTime: 0 });
+  }
+
+  /** Unix seconds of a block, cached per block number. */
+  async GetBlockTimestamp(blockNumber: bigint): Promise<number> {
+    const cached = this.blockTimestamps.get(blockNumber);
+    if (cached !== undefined) return cached;
+    const block = await GetPublicClient().getBlock({ blockNumber });
+    const timestamp = Number(block.timestamp);
+    if (this.blockTimestamps.size >= BLOCK_TIMESTAMP_CACHE_SIZE) {
+      const [oldest] = this.blockTimestamps.keys();
+      this.blockTimestamps.delete(oldest);
+    }
+    this.blockTimestamps.set(blockNumber, timestamp);
+    return timestamp;
+  }
+
+  /**
+   * `Transfer(from, to = address, value)` logs of USDC in the range, in
+   * chain order. Each log is one deposit, so a transaction paying the wallet
+   * twice yields two deposits that differ in `logIndex`.
+   */
+  async GetIncomingDeposits(
+    address: string,
+    range: { fromBlock: bigint; toBlock: bigint }
+  ): Promise<IncomingDeposit[]> {
+    const { fromBlock, toBlock } = range;
+    if (toBlock < fromBlock) {
+      throw new Error(`Block range ${fromBlock}..${toBlock} is empty`);
+    }
+    const { usdc } = GetChainConfig();
+    await this.VerifyUsdcDecimals(usdc);
+    const wallet = ToAddress(address);
+
+    const logs = await GetPublicClient().getLogs({
+      address: usdc,
+      event: TRANSFER_EVENT,
+      args: { to: wallet },
+      fromBlock,
+      toBlock,
+      strict: true,
+    });
+    const deposits: IncomingDeposit[] = [];
+    for (const log of logs) {
+      if (
+        log.removed ||
+        log.blockNumber === null ||
+        log.transactionHash === null ||
+        log.logIndex === null ||
+        !SameAddress(log.address, usdc) ||
+        !SameAddress(log.args.to, wallet)
+      ) {
+        continue;
+      }
+      const { from, value } = log.args;
+      deposits.push({
+        transactionHash: log.transactionHash.toLowerCase(),
+        logIndex: log.logIndex,
+        amount: Number(formatUnits(value, USDC_DECIMALS)),
+        // Truncated to whole cents; fractions of a cent are not credited.
+        amountCents: Number(value / 10_000n),
+        senderAddress: getAddress(from),
+        timestamp: await this.GetBlockTimestamp(log.blockNumber),
+        blockNumber: Number(log.blockNumber),
+      });
+    }
+    return deposits;
   }
 
   /**
@@ -389,13 +460,11 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /** `latest - ETH_CONFIRMATIONS`, read once per reconcile. */
   /** The block at `latest - ETH_CONFIRMATIONS`, read once per reconcile. */
   async GetConfirmedBlock(): Promise<ConfirmedBlock> {
-    const client = GetPublicClient();
-    const latest = await client.getBlockNumber({ cacheTime: 0 });
+    const latest = await this.GetLatestBlockNumber();
     const depth = BigInt(GetChainConfig().confirmations);
-    const block = await client.getBlock({
+    const block = await GetPublicClient().getBlock({
       blockNumber: latest > depth ? latest - depth : 0n,
     });
     return {

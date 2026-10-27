@@ -855,3 +855,75 @@ sdks/node/src/__tests__/Payouts.spec.ts
 sdks/node/src/index.ts
 sdks/node/src/resources/Payouts.ts
 ```
+
+## Task 10: Top-ups from USDC `Transfer` logs
+
+The platform balance is credited when USDC arrives at the platform wallet on Ethereum. The money rule is that each USDC `Transfer` log credits exactly once. The dedupe key is the log's transaction hash **and** log index, so a transaction that pays the wallet twice creates two top-ups.
+
+- **Scanning** (`TopUpMonitor`):
+  - The poller (`TOPUP_MONITOR_ENABLED`, still off by default) and `POST /v1/topups/check-deposits` run the same scan.
+  - Each scan reads the chain head once. It then walks the blocks after the wallet's cursor up to `latest - ETH_CONFIRMATIONS`, in chunks of at most 2,000 blocks and at most 10 chunks per call. No chunk ever ends past that one confirmed block.
+  - A wallet's first scan starts at `latest - 1000`. A wallet further behind catches up over later calls, and the `check-deposits` message says which blocks remain.
+  - The cursor moves past a chunk only after every deposit in it is credited, or was already credited. A deposit that fails to credit leaves the cursor before its chunk, so the next scan retries it.
+  - A head or log-range error throws without moving the cursor past the failed range.
+  - Transfers worth less than one cent are skipped. Amounts are truncated to whole cents.
+  - The simulated rail scans nothing.
+- **Cursor:** the new internal `ChainCursors` collection (`ChainCursorStore`, no public endpoint) holds `{ id: wallet id, chain_id, last_scanned_block, updated }`.
+  - A cursor recorded on another chain is ignored, so switching chains starts a fresh first scan.
+  - Reads go through `Database.Query`, which throws on a failed read. `Database.Get` would return null instead, and a first scan run from that null would jump the cursor past unscanned blocks.
+- **Dedupe:**
+  - `TopUp.metadata` gains `log_index` (a string).
+  - `IsDepositProcessed(transactionHash, logIndex)` and `GetProcessedDepositKeys(transactionHashes)` replace the signature-only checks.
+  - A unique partial index on `TopUps {metadata.blockchain_tx, metadata.log_index}` backs the code check. It is global, like the code check. A credit that races another scan hits a duplicate key (11000), which counts as "already processed".
+  - `IsSignatureProcessed`, `GetProcessedSignatures` and the unused `GetTopUpBySignature` are removed.
+  - The API now refuses `metadata.blockchain_tx` and `metadata.log_index` on `POST /v1/topups` and `POST /v1/topups/:id` (400 `invalid_request_error`). Erasing the key would let a log credit twice, and claiming one would block a real deposit.
+- **Ethereum rail:**
+  - `GetLatestBlockNumber()`, and a cached `GetBlockTimestamp(blockNumber)` that holds 256 entries.
+  - `GetIncomingDeposits(address, { fromBlock, toBlock })` runs `getLogs` for USDC `Transfer(to = wallet)` with `strict: true`. It drops logs from another contract or recipient and removed logs, lowercases transaction hashes, returns senders in EIP-55 form and computes `amountCents = value / 10_000n`.
+  - `GetConfirmedBlock` reuses `GetLatestBlockNumber`.
+  - The `Settlement` interface takes the new signature. The simulated rail returns `0n` and `[]`.
+- **Simulated deposits** come from `SIMULATED_TEST_WALLET` instead of the old placeholder sender.
+- **Routes:** `check-deposits` no longer passes a `limit`, and the request body is ignored. `Balance.ts` already reported `wallet_native` from `GetNativeBalance`, so it is unchanged.
+- **Dashboard:** the add-funds panel adds a confirmations note ("a couple of block confirmations, usually within a few minutes"), and the waiting copy names Ethereum.
+- **Docs:**
+  - `top-ups.ts`: Ethereum samples with `log_index` and `explorer_url`, the reserved metadata keys, and how `check-deposits` scans (confirmations, cursor, 20,000 blocks per call, one top-up per log).
+  - `balance.ts`: payouts go to Ethereum wallets.
+  - `fund-platform-wallet.ts` is rewritten: buy USDC, withdraw on the Ethereum network (not Base, Polygon, Arbitrum or Optimism), keep ETH for gas, and confirmations take minutes, with a Sepolia faucet note for test mode. The two exchange screenshots that showed the old network selected (`top-up-2.webp`, `top-up-3.webp`) are no longer referenced. The files stay in place.
+- **Tests:**
+  - `TopUp.spec.ts` (two logs of one transaction → two top-ups; duplicate key credits once; reserved keys; index declaration).
+  - `TopUpMonitor.spec.ts` (first-scan window, `latest - confirmations`, 2,000-block chunks, 10-chunk cap, one head read, re-scan dedupe, duplicate-key race, failures never skip a deposit).
+  - `ChainCursorStore.spec.ts`.
+  - Ethereum mocked-RPC deposit specs.
+  - The Anvil spec `TopUps.anvil.spec.ts`: a buyer's `PayoutBatch.disperse` pays the platform twice in one transaction, `GetIncomingDeposits` returns two logs with distinct `logIndex`, both are credited, the cursor is persisted, and the next scan finds nothing.
+  - `MemoryDatabase` gains opt-in unique indexes.
+
+Added:
+
+```
+apps/api/src/__tests__/ChainCursorStore.spec.ts
+apps/api/src/__tests__/TopUp.spec.ts
+apps/api/src/__tests__/TopUpMonitor.spec.ts
+apps/api/src/__tests__/anvil/TopUps.anvil.spec.ts
+apps/api/src/modules/ChainCursorStore.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/mocks/MemoryDatabase.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/Database.ts
+apps/api/src/modules/TopUp.ts
+apps/api/src/modules/TopUpMonitor.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/routes/topups.routes.ts
+apps/docs/src/app/pages/docs/data/balance.ts
+apps/docs/src/app/pages/docs/data/fund-platform-wallet.ts
+apps/docs/src/app/pages/docs/data/top-ups.ts
+apps/web/src/app/features/account/balance/components/add-funds-panel/add-funds-panel.component.html
+libs/shared-types/src/lib/TopUp.ts
+```

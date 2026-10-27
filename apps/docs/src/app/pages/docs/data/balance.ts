@@ -167,7 +167,7 @@ export const BALANCE_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: "Zoneless balances are denominated in USDC. The <code>available</code> balance can be paid out to connected accounts' Solana wallets immediately, while <code>pending</code> funds are waiting for clearance.",
+          text: "Zoneless balances are denominated in USDC. The <code>available</code> balance can be paid out to connected accounts' Ethereum wallets immediately, while <code>pending</code> funds are waiting for clearance.",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

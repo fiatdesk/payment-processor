@@ -1,14 +1,22 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
- * @fileOverview TopUp Monitor - Polls the chain for incoming USDC deposits
+ * @fileOverview TopUp Monitor - Detects incoming USDC deposits on-chain
  *
- * This service runs at regular intervals to detect incoming USDC transfers
- * to platform wallets. When a transfer is detected, it creates a TopUp
- * record and credits the platform balance.
+ * A deposit is a USDC `Transfer` log to a platform wallet. Each scan reads
+ * the chain head once, then walks the blocks after the wallet's cursor
+ * (ChainCursors) up to `latest - ETH_CONFIRMATIONS`, in chunks of at most
+ * 2000 blocks and at most 10 chunks per scan. A wallet's first scan starts
+ * 1000 blocks before the head. The cursor moves past a chunk only once every
+ * deposit in it has been credited, so a failure is retried by the next scan.
+ * Each log credits once: scans skip logs that already have a top-up, and a
+ * unique index on the deposit key stops a concurrent scan from crediting
+ * the same log again.
  *
- * IMPORTANT: The TopUpMonitor is DISABLED by default because it can cause
- * duplicate processing issues in multi-instance deployments (e.g., Cloud Run).
+ * IMPORTANT: The TopUpMonitor is DISABLED by default. In multi-instance
+ * deployments (e.g., Cloud Run) every instance would scan the same wallets.
  * For production deployments, use the POST /v1/topups/check-deposits endpoint
  * instead, which is triggered on-demand when users confirm they've sent funds.
+ * Both run the same scan.
  *
  * To enable the monitor (e.g., for single-instance development), set:
  *   TOPUP_MONITOR_ENABLED=true
@@ -20,9 +28,11 @@
  */
 
 import { Database } from './Database';
-import { TopUpModule } from './TopUp';
+import { DepositKey, TopUpModule } from './TopUp';
 import { AccountModule } from './Account';
+import { ChainCursorStore } from './ChainCursorStore';
 import { ExternalWalletModule } from './ExternalWallet';
+import { GetChainConfig } from './chains/Chain';
 import type { IncomingDeposit } from './chains/types';
 import {
   GetSettlement,
@@ -38,8 +48,16 @@ const TOPUP_POLL_INTERVAL_MS = parseInt(
   process.env.TOPUP_POLL_INTERVAL_MS || '30000',
   10
 );
-// DISABLED by default to prevent duplicate processing in multi-instance deployments
+// DISABLED by default; see the module comment
 const TOPUP_MONITOR_ENABLED = process.env.TOPUP_MONITOR_ENABLED === 'true';
+
+/** Most blocks in one log request. */
+const SCAN_CHUNK_BLOCKS = 2000n;
+/** Most log requests per scan; a wallet further behind catches up later. */
+const MAX_SCAN_CHUNKS = 10;
+/** How far before the head a wallet's first scan starts. */
+const FIRST_SCAN_LOOKBACK_BLOCKS = 1000n;
+const DUPLICATE_KEY = 11000;
 
 /**
  * Internal representation of a platform wallet for polling.
@@ -49,8 +67,16 @@ interface PlatformWalletInfo {
   id: string;
   /** The platform account ID that owns this wallet */
   account: string;
-  /** The wallet public key / address */
-  publicKey: string;
+  /** The wallet address */
+  address: string;
+}
+
+interface ScanResult {
+  processed: number;
+  errors: number;
+  topUps: TopUp[];
+  /** First confirmed block this scan left unscanned; null when caught up */
+  nextBlock: bigint | null;
 }
 
 export class TopUpMonitor {
@@ -58,9 +84,10 @@ export class TopUpMonitor {
   private readonly topUpModule: TopUpModule;
   private readonly accountModule: AccountModule;
   private readonly externalWalletModule: ExternalWalletModule;
+  private readonly cursorStore: ChainCursorStore;
   private readonly settlement: Settlement;
   private intervalId: NodeJS.Timeout | null = null;
-  private isRunning: boolean = false;
+  private isRunning = false;
 
   constructor(db: Database) {
     this.db = db;
@@ -68,6 +95,7 @@ export class TopUpMonitor {
     this.topUpModule = new TopUpModule(db, eventService);
     this.accountModule = new AccountModule(db);
     this.externalWalletModule = new ExternalWalletModule(db);
+    this.cursorStore = new ChainCursorStore(db);
     this.settlement = GetSettlement();
   }
 
@@ -150,7 +178,7 @@ export class TopUpMonitor {
         wallets.push({
           id: primaryWallet.id,
           account: account.id,
-          publicKey: primaryWallet.wallet_address,
+          address: primaryWallet.wallet_address,
         });
       }
     }
@@ -177,7 +205,7 @@ export class TopUpMonitor {
     return {
       id: primaryWallet.id,
       account: platformAccountId,
-      publicKey: primaryWallet.wallet_address,
+      address: primaryWallet.wallet_address,
     };
   }
 
@@ -199,7 +227,7 @@ export class TopUpMonitor {
 
       for (const wallet of wallets) {
         try {
-          await this.PollWallet(wallet, 1);
+          await this.PollWallet(wallet);
         } catch (error) {
           Logger.error('Failed to poll platform wallet', error as Error, {
             walletId: wallet.id,
@@ -218,14 +246,12 @@ export class TopUpMonitor {
    * This is the primary method for on-demand deposit detection via the API.
    *
    * @param platformAccountId - The platform account ID to check deposits for
-   * @param limit - Maximum number of recent signatures to check (default: 1)
    * @returns CheckDepositsResponse with processed count and created TopUps
    */
   async CheckDepositsForAccount(
-    platformAccountId: string,
-    limit: number = 1
+    platformAccountId: string
   ): Promise<CheckDepositsResponse> {
-    Logger.info('Checking deposits for account', { platformAccountId, limit });
+    Logger.info('Checking deposits for account', { platformAccountId });
 
     const wallet = await this.GetPlatformWallet(platformAccountId);
 
@@ -240,65 +266,97 @@ export class TopUpMonitor {
       };
     }
 
-    const result = await this.PollWallet(wallet, limit);
+    const result = await this.PollWallet(wallet);
 
     return {
       object: 'check_deposits_result',
       processed: result.processed,
       errors: result.errors,
       topups: result.topUps,
-      message:
-        result.processed > 0
-          ? `Found and processed ${result.processed} new deposit(s)`
-          : 'No new deposits found',
+      message: DescribeScan(result),
     };
   }
 
   /**
-   * Poll a single platform wallet for incoming deposits.
+   * Scan a platform wallet's next confirmed blocks for deposits and credit
+   * them. Throws, leaving the cursor before the failed range, when the head
+   * or a range cannot be read.
    *
    * @param wallet - The platform wallet info to poll
-   * @param limit - Maximum number of recent signatures to check
-   * @returns Object with processed count, errors, and created TopUps
+   * @returns Credited top-ups and counts, and where the scan stopped
    */
-  private async PollWallet(
-    wallet: PlatformWalletInfo,
-    limit: number
-  ): Promise<{ processed: number; errors: number; topUps: TopUp[] }> {
-    Logger.debug('Polling wallet', {
-      walletId: wallet.id,
-      account: wallet.account,
-      publicKey: wallet.publicKey,
-    });
+  private async PollWallet(wallet: PlatformWalletInfo): Promise<ScanResult> {
+    const result: ScanResult = {
+      processed: 0,
+      errors: 0,
+      topUps: [],
+      nextBlock: null,
+    };
+    // The simulated rail has no chain to scan.
+    if (IsSimulatedSettlement()) return result;
 
-    const result = { processed: 0, errors: 0, topUps: [] as TopUp[] };
+    const { chainId, confirmations } = GetChainConfig();
+    // One head read per scan: no chunk may end past this confirmed block.
+    const latest = await this.settlement.GetLatestBlockNumber();
+    const confirmedBlock = latest - BigInt(confirmations);
+    const cursor = await this.cursorStore.Get(wallet.id, chainId);
+    let fromBlock = cursor
+      ? BigInt(cursor.last_scanned_block) + 1n
+      : MaxBlock(latest - FIRST_SCAN_LOOKBACK_BLOCKS, 0n);
 
-    // Get already processed signatures to avoid duplicates
-    const processedSignatures = await this.topUpModule.GetProcessedSignatures(
-      wallet.account
-    );
-
-    // Fetch recent incoming deposits
-    const deposits = await this.settlement.GetIncomingDeposits(
-      wallet.publicKey,
-      limit,
-      processedSignatures
-    );
-
-    if (deposits.length === 0) {
-      Logger.debug('No new deposits found for wallet', {
+    for (
+      let chunk = 0;
+      chunk < MAX_SCAN_CHUNKS && fromBlock <= confirmedBlock;
+      chunk++
+    ) {
+      const toBlock = MinBlock(
+        fromBlock + SCAN_CHUNK_BLOCKS - 1n,
+        confirmedBlock
+      );
+      Logger.debug('Scanning wallet for deposits', {
         walletId: wallet.id,
+        address: wallet.address,
+        fromBlock: fromBlock.toString(),
+        toBlock: toBlock.toString(),
       });
-      return result;
+      const deposits = await this.settlement.GetIncomingDeposits(
+        wallet.address,
+        { fromBlock, toBlock }
+      );
+      const errorsBefore = result.errors;
+      await this.ProcessDeposits(deposits, wallet, result);
+      // Rescan this chunk next time, so the failed deposit is retried.
+      if (result.errors > errorsBefore) break;
+      await this.cursorStore.Set(wallet.id, chainId, Number(toBlock));
+      fromBlock = toBlock + 1n;
     }
 
-    Logger.info(`Found ${deposits.length} new deposit(s) to process`, {
+    result.nextBlock = fromBlock <= confirmedBlock ? fromBlock : null;
+    return result;
+  }
+
+  /** Credits the deposits of one scanned range that have no top-up yet. */
+  private async ProcessDeposits(
+    deposits: IncomingDeposit[],
+    wallet: PlatformWalletInfo,
+    result: ScanResult
+  ): Promise<void> {
+    if (deposits.length === 0) return;
+
+    Logger.info(`Found ${deposits.length} deposit log(s) to check`, {
       walletId: wallet.id,
       account: wallet.account,
     });
+    const processedKeys = await this.topUpModule.GetProcessedDepositKeys(
+      deposits.map((deposit) => deposit.transactionHash)
+    );
 
-    // Process each deposit
     for (const deposit of deposits) {
+      if (
+        processedKeys.has(DepositKey(deposit.transactionHash, deposit.logIndex))
+      ) {
+        continue;
+      }
       try {
         const topUp = await this.ProcessDeposit(deposit, wallet.account);
         if (topUp) {
@@ -307,13 +365,12 @@ export class TopUpMonitor {
         }
       } catch (error) {
         Logger.error('Failed to process deposit', error as Error, {
-          signature: deposit.transactionHash,
+          transactionHash: deposit.transactionHash,
+          logIndex: deposit.logIndex,
         });
         result.errors++;
       }
     }
-
-    return result;
   }
 
   /**
@@ -322,37 +379,55 @@ export class TopUpMonitor {
    *
    * @param deposit - The deposit to process
    * @param platformAccountId - The platform account to credit
-   * @returns The created TopUp or null if already processed
+   * @returns The created TopUp, or null if skipped or already processed
    */
   private async ProcessDeposit(
     deposit: IncomingDeposit,
     platformAccountId: string
   ): Promise<TopUp | null> {
-    // Double-check the signature hasn't been processed (race condition protection)
-    const alreadyProcessed = await this.topUpModule.IsSignatureProcessed(
-      deposit.transactionHash
-    );
+    const logContext = {
+      transactionHash: deposit.transactionHash,
+      logIndex: deposit.logIndex,
+    };
 
-    if (alreadyProcessed) {
-      Logger.debug(
-        `Skipping already processed signature: ${deposit.transactionHash}`
-      );
+    if (deposit.amountCents < 1) {
+      Logger.debug('Skipping a transfer worth less than one cent', logContext);
+      return null;
+    }
+
+    // Narrows the race with a concurrent scan; the unique index closes it.
+    if (
+      await this.topUpModule.IsDepositProcessed(
+        deposit.transactionHash,
+        deposit.logIndex
+      )
+    ) {
+      Logger.debug('Skipping an already processed deposit', logContext);
       return null;
     }
 
     Logger.info('Processing incoming deposit', {
-      signature: deposit.transactionHash,
+      ...logContext,
       amount: deposit.amount,
       amountCents: deposit.amountCents,
       sender: deposit.senderAddress,
       platformAccountId,
     });
 
-    // Create the TopUp (this also creates BalanceTransaction, updates balance, and emits events)
-    const topUp = await this.topUpModule.CreateFromDeposit(
-      deposit,
-      platformAccountId
-    );
+    let topUp: TopUp;
+    try {
+      // Creates the BalanceTransaction, updates the balance and emits events
+      topUp = await this.topUpModule.CreateFromDeposit(
+        deposit,
+        platformAccountId
+      );
+    } catch (error) {
+      if ((error as { code?: number })?.code === DUPLICATE_KEY) {
+        Logger.info('Deposit was credited by a concurrent scan', logContext);
+        return null;
+      }
+      throw error;
+    }
 
     // Detailed audit log for the created TopUp
     Logger.info('TopUp processed successfully', {
@@ -361,6 +436,7 @@ export class TopUpMonitor {
       currency: topUp.currency,
       status: topUp.status,
       blockchain_tx: topUp.metadata.blockchain_tx,
+      log_index: topUp.metadata.log_index,
       sender: topUp.metadata.sender_address,
       explorer_url: topUp.metadata.explorer_url,
       balance_transaction: topUp.balance_transaction,
@@ -384,7 +460,7 @@ export class TopUpMonitor {
 
       for (const wallet of wallets) {
         try {
-          const result = await this.PollWallet(wallet, 5);
+          const result = await this.PollWallet(wallet);
           processed += result.processed;
           errors += result.errors;
         } catch (error) {
@@ -408,6 +484,34 @@ export class TopUpMonitor {
   IsRunning(): boolean {
     return this.isRunning;
   }
+}
+
+function MinBlock(a: bigint, b: bigint): bigint {
+  return a < b ? a : b;
+}
+
+function MaxBlock(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
+/** The check-deposits message: what was credited and what is left. */
+function DescribeScan(result: ScanResult): string {
+  const parts = [
+    result.processed > 0
+      ? `Found and processed ${result.processed} new deposit(s)`
+      : 'No new deposits found',
+  ];
+  if (result.errors > 0) {
+    parts.push(
+      `${result.errors} deposit(s) could not be credited and will be retried`
+    );
+  }
+  if (result.nextBlock !== null) {
+    parts.push(
+      `blocks from ${result.nextBlock} on are not scanned yet; call again`
+    );
+  }
+  return parts.join('; ');
 }
 
 // Singleton instance for the monitor

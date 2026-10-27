@@ -24,6 +24,8 @@ export const MOCK_PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 export const MOCK_PAYOUT_NONCE = 7;
 /** What GetConfirmedBlock returns: the block at `latest - ETH_CONFIRMATIONS`. */
 export const MOCK_CONFIRMED_BLOCK = 150;
+/** What GetLatestBlockNumber returns (Sepolia's default 2 confirmations). */
+export const MOCK_LATEST_BLOCK = BigInt(MOCK_CONFIRMED_BLOCK + 2);
 /** Mock "now" for deadlines; specs pin Now() to 1700000000. */
 export const MOCK_BUILD_TIME = 1_700_000_000;
 /** Confirmed-block time by default: after the build, before any deadline. */
@@ -110,6 +112,7 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     CheckWalletExists: jest.fn().mockResolvedValue(true),
     GetNativeBalance: jest.fn().mockResolvedValue(1),
     GetUSDCBalance: jest.fn().mockResolvedValue(100),
+    GetLatestBlockNumber: jest.fn().mockResolvedValue(MOCK_LATEST_BLOCK),
     GetIncomingDeposits: jest.fn().mockResolvedValue([]),
     BuildBatchPayoutTransaction: jest.fn(
       async (

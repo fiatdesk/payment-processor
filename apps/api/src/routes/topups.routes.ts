@@ -33,12 +33,14 @@ const topUpModule = new TopUpModule(db, eventService);
 
 /**
  * POST /v1/topups/check-deposits
- * Check the blockchain for new incoming USDC deposits.
+ * Check Ethereum for new incoming USDC deposits.
  * Platform-only endpoint. This is the recommended way to detect deposits
  * after a user sends funds, as it works reliably in multi-instance deployments.
  *
- * The endpoint checks the settlement chain for new USDC transfers to the
- * platform wallet and creates TopUp records for any new deposits found.
+ * Scans USDC `Transfer` logs to the platform wallet in the confirmed blocks
+ * after the wallet's last scan (up to 20,000 blocks per call) and creates a
+ * TopUp for each new log. The request body is ignored; the old `limit` has
+ * no effect.
  */
 router.post(
   '/check-deposits',
@@ -49,10 +51,7 @@ router.post(
     Logger.info('Checking for new deposits', { platformAccountId });
 
     const monitor = new TopUpMonitor(db);
-    const response = await monitor.CheckDepositsForAccount(
-      platformAccountId,
-      1 // Check only the most recent deposit to minimize RPC calls
-    );
+    const response = await monitor.CheckDepositsForAccount(platformAccountId);
 
     Logger.info('Deposit check completed', {
       platformAccountId,

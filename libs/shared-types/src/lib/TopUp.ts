@@ -26,7 +26,13 @@ export interface TopUp {
   failure_message: string | null;
   /** Has the value true if the object exists in live mode or false if in test mode */
   livemode: boolean;
-  /** Set of key-value pairs for storing additional information */
+  /**
+   * Set of key-value pairs for storing additional information. Top-ups from
+   * detected deposits also carry `blockchain_tx` (transaction hash),
+   * `log_index` (index of the USDC `Transfer` log in its block), `network`,
+   * `sender_address` and `explorer_url`. The pair `blockchain_tx` +
+   * `log_index` identifies the deposit and cannot be set or changed.
+   */
   metadata: Record<string, string>;
   /** The source field contains information about the funding source (deprecated in Stripe, simplified here) */
   source: TopUpSource | null;

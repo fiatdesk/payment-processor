@@ -728,6 +728,162 @@ describe('Ethereum rail', () => {
     });
   });
 
+  describe('deposit detection (mocked RPC)', () => {
+    const BUYER = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+    const TX: Hex = `0x${'AB'.repeat(32)}`;
+    const client = {
+      getBlockNumber: jest.fn(),
+      getBlock: jest.fn(),
+      getLogs: jest.fn(),
+      readContract: jest.fn(),
+    };
+    let ethereum: Ethereum;
+
+    beforeEach(() => {
+      SetChainEnv({
+        LIVEMODE: 'false',
+        SETTLEMENT_RAIL: 'onchain',
+        ETH_CHAIN_ID: '31337',
+        USDC_ADDRESS: ANVIL_USDC,
+      });
+      for (const method of Object.values(client)) method.mockReset();
+      jest
+        .spyOn(Chain, 'GetPublicClient')
+        .mockReturnValue(client as unknown as PublicClient);
+      client.readContract.mockResolvedValue(6); // decimals
+      client.getBlock.mockImplementation(
+        async ({ blockNumber }: { blockNumber: bigint }) => ({
+          number: blockNumber,
+          timestamp: 1_000n + blockNumber,
+        })
+      );
+      ethereum = new Ethereum();
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    /** A log as getLogs returns it for the Transfer event (args decoded). */
+    function TransferLog(
+      overrides: {
+        logIndex?: number;
+        value?: bigint;
+        to?: string;
+        address?: string;
+        removed?: boolean;
+      } = {}
+    ) {
+      return {
+        address: overrides.address ?? ANVIL_USDC.toLowerCase(),
+        blockNumber: 120n,
+        transactionHash: TX,
+        logIndex: overrides.logIndex ?? 0,
+        removed: overrides.removed ?? false,
+        args: {
+          from: BUYER.toLowerCase(),
+          to: overrides.to ?? PLATFORM,
+          value: overrides.value ?? 1_500_000n,
+        },
+      };
+    }
+
+    const Scan = () =>
+      ethereum.GetIncomingDeposits(PLATFORM.toLowerCase(), {
+        fromBlock: 100n,
+        toBlock: 140n,
+      });
+
+    it('reads the latest block uncached', async () => {
+      client.getBlockNumber.mockResolvedValue(77n);
+
+      await expect(ethereum.GetLatestBlockNumber()).resolves.toBe(77n);
+      expect(client.getBlockNumber).toHaveBeenCalledWith({ cacheTime: 0 });
+    });
+
+    it('turns each Transfer log to the wallet into a deposit keyed by hash and log index', async () => {
+      client.getLogs.mockResolvedValue([
+        TransferLog(),
+        TransferLog({ logIndex: 2, value: 2_250_000n }),
+      ]);
+
+      const deposits = await Scan();
+
+      expect(client.getLogs).toHaveBeenCalledWith({
+        address: ANVIL_USDC,
+        event: expect.objectContaining({ type: 'event', name: 'Transfer' }),
+        args: { to: PLATFORM },
+        fromBlock: 100n,
+        toBlock: 140n,
+        strict: true,
+      });
+      const deposit = {
+        transactionHash: TX.toLowerCase(),
+        senderAddress: BUYER,
+        timestamp: 1_120,
+        blockNumber: 120,
+      };
+      expect(deposits).toEqual([
+        { ...deposit, logIndex: 0, amount: 1.5, amountCents: 150 },
+        { ...deposit, logIndex: 2, amount: 2.25, amountCents: 225 },
+      ]);
+      expect(client.getBlock).toHaveBeenCalledTimes(1);
+    });
+
+    it('counts whole cents only', async () => {
+      client.getLogs.mockResolvedValue([
+        TransferLog({ value: 1_509_999n }),
+        TransferLog({ logIndex: 1, value: 9_999n }),
+      ]);
+
+      const deposits = await Scan();
+
+      expect(deposits.map((d) => d.amountCents)).toEqual([150, 0]);
+    });
+
+    it('drops logs of another contract or recipient and removed logs', async () => {
+      client.getLogs.mockResolvedValue([
+        TransferLog({ address: PAYOUT_BATCH }),
+        TransferLog({ logIndex: 1, to: RECIPIENT }),
+        TransferLog({ logIndex: 2, removed: true }),
+        TransferLog({ logIndex: 3 }),
+      ]);
+
+      const deposits = await Scan();
+
+      expect(deposits.map((d) => d.logIndex)).toEqual([3]);
+    });
+
+    it('caches block timestamps', async () => {
+      client.getLogs.mockResolvedValue([TransferLog()]);
+
+      await Scan();
+      await Scan();
+
+      expect(client.getBlock).toHaveBeenCalledTimes(1);
+      await expect(ethereum.GetBlockTimestamp(121n)).resolves.toBe(1_121);
+      expect(client.getBlock).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses an empty range without querying', async () => {
+      await expect(
+        ethereum.GetIncomingDeposits(PLATFORM, {
+          fromBlock: 11n,
+          toBlock: 10n,
+        })
+      ).rejects.toThrow(/empty/);
+      expect(client.getLogs).not.toHaveBeenCalled();
+    });
+
+    it('lets a failed log query throw', async () => {
+      client.getLogs.mockRejectedValue(
+        new HttpRequestError({ url: 'http://127.0.0.1:8545' })
+      );
+
+      await expect(Scan()).rejects.toBeInstanceOf(HttpRequestError);
+    });
+  });
+
   describe('ReplacementFees', () => {
     const current = {
       maxFeePerGas: 3_000_000_000n,

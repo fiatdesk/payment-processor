@@ -158,6 +158,13 @@ describe('SimulatedSettlement', () => {
     ).resolves.toBeNull();
   });
 
+  it('has no chain head or deposit logs', async () => {
+    await expect(settlement.GetLatestBlockNumber()).resolves.toBe(0n);
+    await expect(
+      settlement.GetIncomingDeposits(MERCHANT, { fromBlock: 0n, toBlock: 10n })
+    ).resolves.toEqual([]);
+  });
+
   it('describes the simulated rail', () => {
     expect(new SimulatedSettlement().Describe()).toEqual({
       rail: 'simulated',

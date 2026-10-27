@@ -5,6 +5,10 @@
  * When an incoming deposit is detected, a TopUp is created along with
  * a BalanceTransaction, and the platform's balance is increased.
  *
+ * A deposit is one USDC `Transfer` log, identified by its transaction hash
+ * and log index (`metadata.blockchain_tx`, `metadata.log_index`). A unique
+ * index on that pair (see Database.GetModel) lets each log credit once.
+ *
  *
  * @module TopUp
  */
@@ -26,9 +30,20 @@ import {
   QueryOperators,
 } from '@zoneless/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
-import { GetSettlement } from './chains/Settlement';
+import { GetSettlement, SIMULATED_TEST_WALLET } from './chains/Settlement';
 import type { IncomingDeposit } from './chains/types';
 import { CreateTopUpInput, UpdateTopUpInput } from '@zoneless/shared-schemas';
+
+/** Metadata keys that identify the Transfer log a top-up credits. */
+const DEPOSIT_KEY_FIELDS = ['blockchain_tx', 'log_index'];
+
+/** One USDC Transfer log: its transaction hash and log index. */
+export function DepositKey(
+  transactionHash: string,
+  logIndex: number | string
+): string {
+  return `${transactionHash}:${logIndex}`;
+}
 
 export class TopUpModule {
   private readonly db: Database;
@@ -59,6 +74,7 @@ export class TopUpModule {
     input: CreateTopUpInput,
     platformAccountId: string
   ): Promise<TopUpType> {
+    AssertNoDepositKeys(input.metadata);
     const topUp = this.TopUpObject(
       input.amount,
       input.currency,
@@ -85,6 +101,8 @@ export class TopUpModule {
    * Creates a TopUp from an incoming blockchain deposit.
    * This is called by the TopUpMonitor when a deposit is detected.
    * Emits 'topup.created' and 'topup.succeeded' events.
+   * Rejects with a duplicate-key error (code 11000) when a top-up already
+   * credits the same Transfer log; nothing is credited then.
    *
    * @param deposit - The incoming deposit detected on-chain
    * @param platformAccountId - The platform account to credit
@@ -102,6 +120,7 @@ export class TopUpModule {
         const settlement = GetSettlement();
         const metadata: Record<string, string> = {
           blockchain_tx: deposit.transactionHash,
+          log_index: String(deposit.logIndex),
           network: settlement.Describe().network,
           sender_address: deposit.senderAddress,
           explorer_url: settlement.ExplorerUrl('tx', deposit.transactionHash),
@@ -208,7 +227,7 @@ export class TopUpModule {
         logIndex: 0,
         amount: amountCents / 100,
         amountCents,
-        senderAddress: 'SimulatedTestWallet1111111111111111111',
+        senderAddress: SIMULATED_TEST_WALLET,
         timestamp: Now(),
         blockNumber: 0,
       },
@@ -323,53 +342,65 @@ export class TopUpModule {
   }
 
   /**
-   * Check if a blockchain transaction has already been processed as a TopUp.
+   * Whether a top-up already credits this Transfer log, on any platform (the
+   * unique index on the same key is global too).
    *
-   * @param signature - The blockchain transaction signature
-   * @returns True if already processed, false otherwise
+   * @param transactionHash - The deposit's transaction hash
+   * @param logIndex - The Transfer log's index in its block
    */
-  async IsSignatureProcessed(signature: string): Promise<boolean> {
-    const existingTopUps = await this.db.Find<TopUpType>(
-      'TopUps',
-      'metadata.blockchain_tx',
-      signature
-    );
-    return existingTopUps.length > 0;
-  }
-
-  /**
-   * Get all processed blockchain signatures for a platform account.
-   * Used by the TopUpMonitor to avoid reprocessing.
-   *
-   * @param platformAccountId - The platform account to get signatures for
-   * @param limit - Maximum number of recent signatures to fetch
-   * @returns Set of processed signatures
-   */
-  async GetProcessedSignatures(
-    platformAccountId: string,
-    limit: number = 200
-  ): Promise<Set<string>> {
+  async IsDepositProcessed(
+    transactionHash: string,
+    logIndex: number
+  ): Promise<boolean> {
     const topUps = await this.db.Query<TopUpType>({
       collection: 'TopUps',
       method: 'READ',
       parameters: [
         {
-          key: 'account',
+          key: 'metadata.blockchain_tx',
           operator: QueryOperators['=='],
-          value: platformAccountId,
+          value: transactionHash,
+        },
+        {
+          key: 'metadata.log_index',
+          operator: QueryOperators['=='],
+          value: String(logIndex),
         },
       ],
-      orderBy: [{ key: 'created', direction: 'desc' }],
-      limit,
+      limit: 1,
     });
+    return topUps.length > 0;
+  }
 
-    const signatures = new Set<string>();
+  /**
+   * The DepositKey of every Transfer log already credited among the given
+   * transactions, on any platform. The TopUpMonitor skips these.
+   *
+   * @param transactionHashes - Transaction hashes of scanned deposits
+   */
+  async GetProcessedDepositKeys(
+    transactionHashes: string[]
+  ): Promise<Set<string>> {
+    const keys = new Set<string>();
+    if (transactionHashes.length === 0) return keys;
+    const topUps = await this.db.Query<TopUpType>({
+      collection: 'TopUps',
+      method: 'READ',
+      parameters: [
+        {
+          key: 'metadata.blockchain_tx',
+          operator: QueryOperators.in,
+          value: [...new Set(transactionHashes)],
+        },
+      ],
+    });
     for (const topUp of topUps) {
-      if (topUp.metadata?.blockchain_tx) {
-        signatures.add(topUp.metadata.blockchain_tx);
+      const { blockchain_tx, log_index } = topUp.metadata ?? {};
+      if (blockchain_tx && log_index !== undefined) {
+        keys.add(DepositKey(blockchain_tx, log_index));
       }
     }
-    return signatures;
+    return keys;
   }
 
   /**
@@ -380,21 +411,6 @@ export class TopUpModule {
    */
   async GetTopUp(topUpId: string): Promise<TopUpType | null> {
     return this.db.Get<TopUpType>('TopUps', topUpId);
-  }
-
-  /**
-   * Get a TopUp by blockchain transaction signature.
-   *
-   * @param signature - The blockchain transaction signature
-   * @returns The TopUp object or null if not found
-   */
-  async GetTopUpBySignature(signature: string): Promise<TopUpType | null> {
-    const topUps = await this.db.Find<TopUpType>(
-      'TopUps',
-      'metadata.blockchain_tx',
-      signature
-    );
-    return topUps.length > 0 ? topUps[0] : null;
   }
 
   /**
@@ -437,6 +453,7 @@ export class TopUpModule {
       return null;
     }
 
+    AssertNoDepositKeys(input.metadata);
     const update: Partial<TopUpType> = {};
 
     if (input.description !== undefined) {
@@ -516,5 +533,20 @@ export class TopUpModule {
     }
 
     return topUp;
+  }
+}
+
+/**
+ * API callers cannot set or change a deposit's key: erasing it would let the
+ * same Transfer log credit again, and claiming one would block a real deposit.
+ */
+function AssertNoDepositKeys(metadata: Record<string, string> | undefined) {
+  if (!metadata) return;
+  if (DEPOSIT_KEY_FIELDS.some((key) => key in metadata)) {
+    throw new AppError(
+      'metadata.blockchain_tx and metadata.log_index identify the deposit a top-up credits and cannot be set or changed',
+      ERRORS.INVALID_REQUEST.status,
+      ERRORS.INVALID_REQUEST.type
+    );
   }
 }

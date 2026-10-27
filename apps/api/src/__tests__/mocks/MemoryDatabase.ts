@@ -2,9 +2,9 @@
 /**
  * In-memory stand-in for `Database` with the Mongo semantics the payout flow
  * relies on: equality and `$in`/`$ne` filters (array fields match by
- * containment), `$set`/`$addToSet`/`$unset` updates with dotted paths, and
- * transactions that roll back when the callback throws. Pass it where a
- * `Database` is expected with `AsDatabase()`.
+ * containment), `$set`/`$addToSet`/`$unset` updates with dotted paths,
+ * transactions that roll back when the callback throws, and opt-in unique
+ * indexes. Pass it where a `Database` is expected with `AsDatabase()`.
  */
 
 import type { QueryParameters } from '@zoneless/shared-types';
@@ -15,9 +15,20 @@ type Filter = Record<string, unknown>;
 
 export class MemoryDatabase {
   private collections = new Map<string, Map<string, Doc>>();
+  private uniqueIndexes = new Map<string, string[][]>();
 
   AsDatabase(): Database {
     return this as unknown as Database;
+  }
+
+  /**
+   * Mirrors a unique compound index that is partial on its fields: only
+   * documents holding every field take part. `Set` and `Update` then reject
+   * a clashing write with Mongo's duplicate-key error (code 11000).
+   */
+  UniqueIndex(collection: string, fields: string[]): void {
+    const indexes = this.uniqueIndexes.get(collection) ?? [];
+    this.uniqueIndexes.set(collection, [...indexes, fields]);
   }
 
   Seed(collection: string, ...docs: Doc[]): void {
@@ -44,11 +55,9 @@ export class MemoryDatabase {
   }
 
   async Set<T>(collection: string, id: string, data: Partial<T>): Promise<T> {
-    const docs = this.Collection(collection);
-    const doc = docs.get(id) ?? { id };
+    const doc = Clone(this.Collection(collection).get(id) ?? { id });
     ApplyUpdate(doc, data as Doc);
-    docs.set(id, doc);
-    return Clone(doc) as T;
+    return Clone(this.Store(collection, id, doc)) as T;
   }
 
   async Update<T>(
@@ -56,10 +65,11 @@ export class MemoryDatabase {
     id: string,
     data: Partial<T>
   ): Promise<T | null> {
-    const doc = this.Collection(collection).get(id);
-    if (!doc) return null;
+    const existing = this.Collection(collection).get(id);
+    if (!existing) return null;
+    const doc = Clone(existing);
     ApplyUpdate(doc, data as Doc);
-    return Clone(doc) as T;
+    return Clone(this.Store(collection, id, doc)) as T;
   }
 
   async FindOneAndUpdateByFilter<T>(
@@ -130,6 +140,27 @@ export class MemoryDatabase {
       this.collections = snapshot;
       throw error;
     }
+  }
+
+  private Store(collection: string, id: string, doc: Doc): Doc {
+    const docs = this.Collection(collection);
+    for (const fields of this.uniqueIndexes.get(collection) ?? []) {
+      const key = fields.map((field) => Read(doc, field));
+      if (key.some((value) => value === undefined)) continue;
+      const clash = [...docs].some(
+        ([otherId, other]) =>
+          otherId !== id &&
+          fields.every((field, i) => Read(other, field) === key[i])
+      );
+      if (clash) {
+        throw Object.assign(
+          new Error(`E11000 duplicate key error collection: ${collection}`),
+          { code: 11000 }
+        );
+      }
+    }
+    docs.set(id, doc);
+    return doc;
   }
 
   private Filter<T>(collection: string, filter: Filter): T[] {
