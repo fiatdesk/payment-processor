@@ -54,7 +54,7 @@ export interface ChargeOutcome {
 
 /**
  * Crypto payment method snapshot on a Charge.
- * Primary payment method details shape for Zoneless (on-chain USDC).
+ * Primary payment method details shape for FiatDesk (on-chain USDC).
  * `network` is the active rail's: `ethereum`, or `simulated` in simulated
  * test mode.
  */
@@ -75,7 +75,7 @@ export interface ChargePaymentMethodDetailsCrypto {
 
 /**
  * Details about the payment method at the time of the transaction.
- * Crypto is typed for Zoneless; traditional Stripe payment method hashes are opaque stubs
+ * Crypto is typed for FiatDesk; traditional Stripe payment method hashes are opaque stubs
  * so Stripe API consumers can keep field access without lint errors.
  */
 export interface ChargePaymentMethodDetails {
@@ -223,7 +223,7 @@ export interface ChargeRefundsList {
 }
 
 /**
- * Stripe-compatible Charge object for Zoneless.
+ * Stripe-compatible Charge object for FiatDesk.
  * Represents a charge against a payment method / wallet.
  *
  * @see https://docs.stripe.com/api/charges/object
@@ -300,7 +300,7 @@ export interface Charge {
   transfer_group: string | null;
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

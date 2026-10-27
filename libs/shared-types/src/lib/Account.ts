@@ -3,7 +3,7 @@ import { ExternalWallet } from './ExternalWallet';
 import { LoginLink } from './LoginLink';
 
 /**
- * Stripe-compatible Account object for Zoneless Connect.
+ * Stripe-compatible Account object for FiatDesk Connect.
  * @see https://docs.stripe.com/api/accounts/object
  */
 export interface Account {
@@ -98,16 +98,16 @@ export interface Account {
   tos_acceptance?: AccountTosAcceptance | null;
 
   /**
-   * The Zoneless account type.
-   * - express: Zoneless-hosted onboarding and dashboard
-   * - custom: Platform handles onboarding, Zoneless handles payouts
+   * The FiatDesk account type.
+   * - express: FiatDesk-hosted onboarding and dashboard
+   * - custom: Platform handles onboarding, FiatDesk handles payouts
    * - standard: Full dashboard access (rarely used)
    * - none: Created with controller attributes that don't map to a type
    */
   type?: AccountType;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Zoneless-specific extensions (not in Stripe API)
+  // FiatDesk-specific extensions (not in Stripe API)
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
@@ -116,7 +116,7 @@ export interface Account {
    * For platform accounts, this is self-referential (equals the account's own id).
    * This enables multi-tenant operation where multiple platforms
    * can each have their own connected accounts.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
@@ -124,14 +124,14 @@ export interface Account {
    * Managed-hosting metadata, set by the instance operator (operator mode only).
    * When `disabled` is true, all API access for the platform and its
    * connected accounts is rejected.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   managed?: AccountManaged | null;
 }
 
 /**
  * Managed-hosting metadata set via the operator API.
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 export interface AccountManaged {
   /** True if the instance operator has disabled this platform */
@@ -195,7 +195,7 @@ export interface AccountCapabilities {
 
   /**
    * The status of the USDC payouts capability.
-   * @zoneless_extension - Stripe uses card_payments, we use usdc_payouts
+   * @fiatdesk_extension - Stripe uses card_payments, we use usdc_payouts
    */
   usdc_payouts?: CapabilityStatus;
 }
@@ -218,13 +218,13 @@ export interface AccountController {
   type?: 'application' | 'account';
 
   /**
-   * A hash of configuration for who pays Zoneless fees for product usage on this account.
+   * A hash of configuration for who pays FiatDesk fees for product usage on this account.
    */
   fees?: {
     /**
      * A value indicating the responsible payer of fees.
-     * - account: The account is responsible for paying Zoneless fees
-     * - application: The Connect application is responsible for Zoneless fees
+     * - account: The account is responsible for paying FiatDesk fees
+     * - application: The Connect application is responsible for FiatDesk fees
      * - application_custom: The application is responsible for fees matching Custom account behavior
      * - application_express: The application is responsible for fees matching Express account behavior
      */
@@ -240,20 +240,20 @@ export interface AccountController {
    */
   losses?: {
     /** A value indicating who is liable for losses */
-    payments: 'application' | 'zoneless';
+    payments: 'application' | 'fiatdesk';
   };
 
   /**
    * A value indicating responsibility for collecting requirements on this account.
-   * For Express, this is `zoneless`. For Custom, this is `application`.
+   * For Express, this is `fiatdesk`. For Custom, this is `application`.
    */
-  requirement_collection?: 'application' | 'zoneless';
+  requirement_collection?: 'application' | 'fiatdesk';
 
   /**
-   * A hash of configuration for Zoneless-hosted dashboards.
+   * A hash of configuration for FiatDesk-hosted dashboards.
    */
-  zoneless_dashboard?: {
-    /** Whether this account has access to the full Zoneless dashboard */
+  fiatdesk_dashboard?: {
+    /** Whether this account has access to the full FiatDesk dashboard */
     type: 'express' | 'full' | 'none';
   };
 }
@@ -384,7 +384,7 @@ export interface AccountSettings {
   branding?: AccountBrandingSettings;
 
   /**
-   * Settings used to configure the account within the Zoneless dashboard.
+   * Settings used to configure the account within the FiatDesk dashboard.
    */
   dashboard?: AccountDashboardSettings;
 
@@ -396,28 +396,28 @@ export interface AccountSettings {
   /**
    * Identity verification provider credentials and threshold rules.
    * Only applicable for platform accounts. Secrets are write-only.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   identity?: AccountIdentitySettings | null;
 
   /**
    * URL to the platform's Terms of Service page.
    * Only applicable for platform accounts.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   terms_url?: string | null;
 
   /**
    * URL to the platform's Privacy Policy page.
    * Only applicable for platform accounts.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   privacy_url?: string | null;
 }
 
 /**
  * Platform identity / KYC provider configuration.
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 export interface AccountIdentitySettings {
   /** Active identity verification provider */
@@ -454,13 +454,13 @@ export interface AccountIdentityDiditSettings {
 
   /**
    * True when an API key is stored (secrets are never returned).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   api_key_set?: boolean;
 
   /**
    * True when a webhook secret is stored (secrets are never returned).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   webhook_secret_set?: boolean;
 }
@@ -505,12 +505,12 @@ export interface AccountBrandingSettings {
 export interface AccountDashboardSettings {
   /**
    * The display name for this account.
-   * This is used on the Zoneless Dashboard to differentiate between accounts.
+   * This is used on the FiatDesk Dashboard to differentiate between accounts.
    */
   display_name?: string | null;
 
   /**
-   * The timezone used in the Zoneless Dashboard for this account.
+   * The timezone used in the FiatDesk Dashboard for this account.
    * A list of possible time zone values is maintained at the IANA Time Zone Database.
    */
   timezone?: string | null;
@@ -518,7 +518,7 @@ export interface AccountDashboardSettings {
 
 export interface AccountPayoutSettings {
   /**
-   * A Boolean indicating if Zoneless should attempt to reclaim negative balances
+   * A Boolean indicating if FiatDesk should attempt to reclaim negative balances
    * from an attached wallet.
    */
   debit_negative_balances?: boolean;

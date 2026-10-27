@@ -19,9 +19,9 @@ export const PERSONS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const PERSON_OBJECT_JSON = `{
-  "id": "person_z_1Nv0FGQ9RKHgCVdK",
+  "id": "person_fd_1Nv0FGQ9RKHgCVdK",
   "object": "person",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "address": {
     "city": "San Francisco",
     "country": "US",
@@ -50,7 +50,7 @@ const PERSON_OBJECT_JSON = `{
   "last_name": "Jones",
   "metadata": {},
   "phone": "+14155551234",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "relationship": {
     "authorizer": null,
     "director": false,
@@ -89,7 +89,7 @@ const PERSON_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless person IDs are prefixed with <code>person_z_</code>.',
+      'Unique identifier for the object. FiatDesk person IDs are prefixed with <code>person_fd_</code>.',
   },
   {
     name: 'object',
@@ -498,7 +498,7 @@ const PERSON_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -509,7 +509,7 @@ export const PERSONS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Person object',
   description:
-    "This is an object representing a person associated with a Zoneless account. Persons are used to collect information about individuals associated with the account's legal entity, such as owners, directors, executives, and representatives.",
+    "This is an object representing a person associated with a FiatDesk account. Persons are used to collect information about individuals associated with the account's legal entity, such as owners, directors, executives, and representatives.",
   stripeDocsUrl: 'https://docs.stripe.com/api/persons',
   endpoints: BuildEndpointSummaries(PERSONS_SUBSECTION, [
     { method: 'POST', path: '/v1/accounts/:id/persons', pageId: 'create' },
@@ -530,7 +530,7 @@ export const PERSONS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Simplified for MVP: ',
-          text: "Zoneless Persons are a streamlined version of Stripe's Person object. Japan-specific fields (address_kana, address_kanji, name_kana, name_kanji) and other rarely-used fields (maiden_name, nationality, political_exposure, registered_address, gender, full_name_aliases) have been removed to simplify the API.",
+          text: "FiatDesk Persons are a streamlined version of Stripe's Person object. Japan-specific fields (address_kana, address_kanji, name_kana, name_kanji) and other rarely-used fields (maiden_name, nationality, political_exposure, registered_address, gender, full_name_aliases) have been removed to simplify the API.",
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -769,9 +769,9 @@ const CREATE_PERSON_PARAMETERS: Attribute[] = [
 ];
 
 const CREATE_PERSON_RESPONSE_JSON = `{
-  "id": "person_z_1Nv0FGQ9RKHgCVdK",
+  "id": "person_fd_1Nv0FGQ9RKHgCVdK",
   "object": "person",
-  "account": "acct_z_1032D82eZvKYlo2C",
+  "account": "acct_fd_1032D82eZvKYlo2C",
   "address": null,
   "created": 1684518375,
   "dob": {
@@ -793,7 +793,7 @@ const CREATE_PERSON_RESPONSE_JSON = `{
   "last_name": "Doe",
   "metadata": {},
   "phone": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "relationship": {
     "authorizer": null,
     "director": false,
@@ -862,8 +862,8 @@ export const PERSONS_CREATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1032D82eZvKYlo2C/persons \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d first_name=John \\
   -d last_name=Doe`,
             },
@@ -872,8 +872,8 @@ export const PERSONS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const person = await zoneless.accounts.createPerson(
-  'acct_z_1032D82eZvKYlo2C',
+const person = await fiatdesk.accounts.createPerson(
+  'acct_fd_1032D82eZvKYlo2C',
   {
     first_name: 'John',
     last_name: 'Doe',
@@ -1111,9 +1111,9 @@ const UPDATE_PERSON_PARAMETERS: Attribute[] = [
 ];
 
 const UPDATE_PERSON_RESPONSE_JSON = `{
-  "id": "person_z_1MqjB62eZvKYlo2CaeEJzKVR",
+  "id": "person_fd_1MqjB62eZvKYlo2CaeEJzKVR",
   "object": "person",
-  "account": "acct_z_1032D82eZvKYlo2C",
+  "account": "acct_fd_1032D82eZvKYlo2C",
   "address": null,
   "created": 1680035496,
   "dob": {
@@ -1137,7 +1137,7 @@ const UPDATE_PERSON_RESPONSE_JSON = `{
     "order_id": "6735"
   },
   "phone": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "relationship": {
     "authorizer": null,
     "director": false,
@@ -1200,8 +1200,8 @@ export const PERSONS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1032D82eZvKYlo2C/persons/person_z_1MqjB62eZvKYlo2CaeEJzKVR \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons/person_fd_1MqjB62eZvKYlo2CaeEJzKVR \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -1209,9 +1209,9 @@ export const PERSONS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const person = await zoneless.accounts.updatePerson(
-  'acct_z_1032D82eZvKYlo2C',
-  'person_z_1MqjB62eZvKYlo2CaeEJzKVR',
+const person = await fiatdesk.accounts.updatePerson(
+  'acct_fd_1032D82eZvKYlo2C',
+  'person_fd_1MqjB62eZvKYlo2CaeEJzKVR',
   {
     metadata: {
       order_id: '6735',
@@ -1235,9 +1235,9 @@ const person = await zoneless.accounts.updatePerson(
 // Retrieve Person
 // ============================================
 const RETRIEVE_PERSON_RESPONSE_JSON = `{
-  "id": "person_z_1N9XNb2eZvKYlo2CjPX7xF6F",
+  "id": "person_fd_1N9XNb2eZvKYlo2CjPX7xF6F",
   "object": "person",
-  "account": "acct_z_1032D82eZvKYlo2C",
+  "account": "acct_fd_1032D82eZvKYlo2C",
   "address": null,
   "created": 1684518375,
   "dob": {
@@ -1259,7 +1259,7 @@ const RETRIEVE_PERSON_RESPONSE_JSON = `{
   "last_name": null,
   "metadata": {},
   "phone": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "relationship": {
     "authorizer": null,
     "director": false,
@@ -1318,17 +1318,17 @@ export const PERSONS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1032D82eZvKYlo2C/persons/person_z_1MqjB62eZvKYlo2CaeEJzKVR \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons/person_fd_1MqjB62eZvKYlo2CaeEJzKVR \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const person = await zoneless.accounts.retrievePerson(
-  'acct_z_1032D82eZvKYlo2C',
-  'person_z_1MqjB62eZvKYlo2CaeEJzKVR'
+const person = await fiatdesk.accounts.retrievePerson(
+  'acct_fd_1032D82eZvKYlo2C',
+  'person_fd_1MqjB62eZvKYlo2CaeEJzKVR'
 );`,
             },
           ],
@@ -1351,7 +1351,7 @@ const LIST_PERSONS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>person_z_bar</code>, your subsequent call can include <code>ending_before=person_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>person_fd_bar</code>, your subsequent call can include <code>ending_before=person_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -1408,19 +1408,19 @@ const LIST_PERSONS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>person_z_foo</code>, your subsequent call can include <code>starting_after=person_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>person_fd_foo</code>, your subsequent call can include <code>starting_after=person_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
 const LIST_PERSONS_RESPONSE_JSON = `{
   "object": "list",
-  "url": "/v1/accounts/acct_z_1032D82eZvKYlo2C/persons",
+  "url": "/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons",
   "has_more": false,
   "data": [
     {
-      "id": "person_z_1MqjB62eZvKYlo2CaeEJzKVR",
+      "id": "person_fd_1MqjB62eZvKYlo2CaeEJzKVR",
       "object": "person",
-      "account": "acct_z_1032D82eZvKYlo2C",
+      "account": "acct_fd_1032D82eZvKYlo2C",
       "address": null,
       "created": 1680035496,
       "dob": {
@@ -1442,7 +1442,7 @@ const LIST_PERSONS_RESPONSE_JSON = `{
       "last_name": "Diaz",
       "metadata": {},
       "phone": null,
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "relationship": {
         "authorizer": null,
         "director": false,
@@ -1509,8 +1509,8 @@ export const PERSONS_LIST_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -G https://api.yourdomain.com/v1/accounts/acct_z_1032D82eZvKYlo2C/persons \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl -G https://api.yourdomain.com/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -1518,8 +1518,8 @@ export const PERSONS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const persons = await zoneless.accounts.listPersons(
-  'acct_z_1032D82eZvKYlo2C',
+const persons = await fiatdesk.accounts.listPersons(
+  'acct_fd_1032D82eZvKYlo2C',
   {
     limit: 3,
   }
@@ -1537,7 +1537,7 @@ const persons = await zoneless.accounts.listPersons(
 // Delete Person
 // ============================================
 const DELETE_PERSON_RESPONSE_JSON = `{
-  "id": "person_z_1MqjB62eZvKYlo2CaeEJzKVR",
+  "id": "person_fd_1MqjB62eZvKYlo2CaeEJzKVR",
   "object": "person",
   "deleted": true
 }`;
@@ -1568,17 +1568,17 @@ export const PERSONS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_z_1032D82eZvKYlo2C/persons/person_z_1MqjB62eZvKYlo2CaeEJzKVR \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_fd_1032D82eZvKYlo2C/persons/person_fd_1MqjB62eZvKYlo2CaeEJzKVR \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.accounts.deletePerson(
-  'acct_z_1032D82eZvKYlo2C',
-  'person_z_1MqjB62eZvKYlo2CaeEJzKVR'
+const deleted = await fiatdesk.accounts.deletePerson(
+  'acct_fd_1032D82eZvKYlo2C',
+  'person_fd_1MqjB62eZvKYlo2CaeEJzKVR'
 );`,
             },
           ],

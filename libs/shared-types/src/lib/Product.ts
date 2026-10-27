@@ -1,7 +1,7 @@
 import { Price } from './Price';
 
 /**
- * Stripe-compatible Balance Product object for Zoneless.
+ * Stripe-compatible Balance Product object for FiatDesk.
  * Represents a product that can be sold.
  *
  * @see https://docs.stripe.com/api/products/object
@@ -45,7 +45,7 @@ export interface Product {
   url: string | null;
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

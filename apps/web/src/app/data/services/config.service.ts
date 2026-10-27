@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { PublicConfig, SetupStatus } from '@zoneless/shared-types';
+import { PublicConfig, SetupStatus } from '@fiatdesk/shared-types';
 
 @Injectable({
   providedIn: 'root',
@@ -72,10 +72,10 @@ export class ConfigService {
   }
 
   /**
-   * Returns the platform name, or 'Zoneless' as fallback.
+   * Returns the platform name, or 'FiatDesk' as fallback.
    */
   GetPlatformName(): string {
-    return this.config()?.platform_name || 'Zoneless';
+    return this.config()?.platform_name || 'FiatDesk';
   }
 
   /**

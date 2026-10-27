@@ -39,7 +39,7 @@ export class MetaService {
       content: seo.description,
     });
     this.meta.updateTag({ property: 'og:image', content: seo.image });
-    this.meta.updateTag({ property: 'og:site_name', content: 'Zoneless' });
+    this.meta.updateTag({ property: 'og:site_name', content: 'FiatDesk' });
     this.meta.updateTag({ property: 'og:locale', content: 'en_US' });
 
     this.meta.updateTag({

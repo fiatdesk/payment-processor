@@ -5,7 +5,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
   id: 'checkout-api-quickstart',
   title: 'API Quickstart',
   description:
-    'Accept USDC payments from your app with Checkout and the Zoneless Node.js SDK. This guide uses Zoneless Cloud in live mode.',
+    'Accept USDC payments from your app with Checkout and the FiatDesk Node.js SDK. This guide uses FiatDesk Cloud in live mode.',
   sections: [
     {
       left: [
@@ -21,7 +21,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Sign up at your dashboard (or use an existing account) and copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Keep it server-side only; never expose it in client-side code or commit it to version control.',
+          text: 'Sign up at your dashboard (or use an existing account) and copy your live secret key from the dashboard. It starts with <code>sk_live_fd_</code>. Keep it server-side only; never expose it in client-side code or commit it to version control.',
           html: true,
         },
       ],
@@ -35,7 +35,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Install the Zoneless Node.js SDK using your preferred package manager.',
+          text: 'Install the FiatDesk Node.js SDK using your preferred package manager.',
         },
       ],
       right: [
@@ -43,8 +43,8 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
           type: 'code',
           title: 'Install',
           tabs: [
-            { id: 'npm', label: 'npm', code: 'npm install @zoneless/node' },
-            { id: 'yarn', label: 'yarn', code: 'yarn add @zoneless/node' },
+            { id: 'npm', label: 'npm', code: 'npm install @fiatdesk/node' },
+            { id: 'yarn', label: 'yarn', code: 'yarn add @fiatdesk/node' },
           ],
         },
       ],
@@ -58,7 +58,7 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Create a Zoneless client with your live secret key and the cloud API base URL.',
+          text: 'Create a FiatDesk client with your live secret key and the cloud API base URL.',
         },
       ],
       right: [
@@ -75,11 +75,11 @@ export const CHECKOUT_API_QUICKSTART_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `# Set your API key as an environment variable
-export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
+export FIATDESK_API_KEY="sk_live_fd_YOUR_API_KEY"
 
 # Include in requests via the x-api-key header
 curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: $ZONELESS_API_KEY"`,
+  -H "x-api-key: $FIATDESK_API_KEY"`,
             },
           ],
         },
@@ -108,7 +108,7 @@ curl https://api.yourdomain.com/v1/balance \\
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.checkout.sessions.create({
+const session = await fiatdesk.checkout.sessions.create({
   success_url: 'https://yoursite.com/success',
   cancel_url: 'https://yoursite.com/cancel',
   line_items: [
@@ -133,7 +133,7 @@ console.log(session.url);`,
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/checkout/sessions \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -d success_url="https://yoursite.com/success" \\
   -d cancel_url="https://yoursite.com/cancel" \\
   -d "line_items[0][price_data][currency]"=usdc \\

@@ -1,6 +1,6 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { TestBed } from '@angular/core/testing';
-import type { PayoutBatchBuildResponse } from '@zoneless/shared-types';
+import type { PayoutBatchBuildResponse } from '@fiatdesk/shared-types';
 import {
   AccountLinkService,
   AccountService,
@@ -27,7 +27,7 @@ function PayoutBuild(
 ): PayoutBatchBuildResponse {
   return {
     object: 'payout_batch_build',
-    payout_batch: 'pob_z_1',
+    payout_batch: 'pob_fd_1',
     replaced_payout_batch: null,
     unsigned_transaction: '0x02',
     estimated_fee: '3000000000000000',
@@ -116,7 +116,7 @@ describe('PayoutModalComponent', () => {
     });
     actions = TestBed.inject(ConnectedAccountActionsService);
     actions.payoutPlatformWalletAddress.set(PLATFORM_WALLET);
-    actions.payoutCreatedId.set('po_z_1');
+    actions.payoutCreatedId.set('po_fd_1');
   });
 
   it('shows the fee in ETH, per recipient and as a gas price before signing', () => {

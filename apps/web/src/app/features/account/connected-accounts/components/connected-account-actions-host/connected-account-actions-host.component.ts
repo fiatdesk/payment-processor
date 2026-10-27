@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import type { Account } from '@zoneless/shared-types';
+import type { Account } from '@fiatdesk/shared-types';
 import {
   SlidePanelComponent,
   LoaderComponent,

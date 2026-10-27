@@ -1,7 +1,7 @@
 /**
  * Person types following the Stripe API specification.
  *
- * This is an object representing a person associated with a Zoneless account.
+ * This is an object representing a person associated with a FiatDesk account.
  * Persons are used to collect information about individuals associated with
  * the account's legal entity.
  *
@@ -173,7 +173,7 @@ export interface Person {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

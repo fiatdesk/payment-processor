@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TRANSACTION_HASH_PATTERN } from '@zoneless/shared-types';
+import { TRANSACTION_HASH_PATTERN } from '@fiatdesk/shared-types';
 import { EthereumAddressSchema } from './AddressSchema';
 import { ExpandableSchema } from './ExpandableSchema';
 import { RecurringIntervalSchema } from './PriceSchema';
@@ -282,7 +282,7 @@ export const CheckoutSessionTransferDataSchema = z.object({
 
 /**
  * A subset of parameters passed to PaymentIntent creation for Checkout Sessions in `payment` mode.
- * @remarks Stripe's `capture_method` here also accepts `automatic`/`automatic_async`; Zoneless
+ * @remarks Stripe's `capture_method` here also accepts `automatic`/`automatic_async`; FiatDesk
  * settles USDC transfers on confirmation, so only `manual` (hold funds) is meaningful to expose.
  */
 const CheckoutSessionPaymentIntentDataSchema = z.object({
@@ -423,7 +423,7 @@ const CheckoutSessionSubscriptionDataSchema = z.object({
  * Payment-method-specific configuration for the PaymentIntent or SetupIntent of this
  * CheckoutSession.
  * @remarks Stripe defines 40+ per-payment-method-type option bags here (acss_debit, card,
- * klarna, wechat_pay, etc.) that are specific to fiat payment rails. Zoneless only accepts
+ * klarna, wechat_pay, etc.) that are specific to fiat payment rails. FiatDesk only accepts
  * USDC wallet payments, so only the `crypto` option bag is exposed, matching the simplification
  * already used for CheckoutSession's `payment_method_options`.
  */
@@ -437,8 +437,8 @@ const CheckoutSessionPaymentMethodOptionsSchema = z.object({
 
 const CheckoutSessionWalletOptionsSchema = z.object({
   /**
-   * @remarks Stripe's only wallet option here is Link, which has no Zoneless equivalent since
-   * Zoneless connects crypto wallets directly rather than a Stripe-hosted wallet product.
+   * @remarks Stripe's only wallet option here is Link, which has no FiatDesk equivalent since
+   * FiatDesk connects crypto wallets directly rather than a Stripe-hosted wallet product.
    * Retained for API parity.
    */
   link: z

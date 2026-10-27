@@ -1,14 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { StorageService } from './storage.service';
-import { BRAND } from '@zoneless/shared-types';
+import { BRAND } from '@fiatdesk/shared-types';
 import { environment } from '../../../environments/environment';
 
 export interface ApiOptions {
   timeout?: number;
   retries?: number;
   retryDelay?: number;
-  /** Act on behalf of a connected account (sends Zoneless-Account header) */
-  zonelessAccount?: string;
+  /** Act on behalf of a connected account (sends FiatDesk-Account header) */
+  fiatdeskAccount?: string;
 }
 
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
@@ -46,7 +46,7 @@ export class ApiService {
           endpoint,
           parameters,
           timeout,
-          options.zonelessAccount
+          options.fiatdeskAccount
         );
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -72,7 +72,7 @@ export class ApiService {
     endpoint: string,
     parameters: object,
     timeout: number,
-    zonelessAccount?: string
+    fiatdeskAccount?: string
   ): Promise<T> {
     const cleanEndpoint = endpoint.startsWith('/')
       ? endpoint.substring(1)
@@ -91,8 +91,8 @@ export class ApiService {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      if (zonelessAccount) {
-        headers[BRAND.connectedAccountHeader] = zonelessAccount;
+      if (fiatdeskAccount) {
+        headers[BRAND.connectedAccountHeader] = fiatdeskAccount;
       }
 
       const options: RequestInit = {

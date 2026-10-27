@@ -1,8 +1,8 @@
 /**
- * Stripe-compatible AccountLink API response object for Zoneless Connect.
+ * Stripe-compatible AccountLink API response object for FiatDesk Connect.
  *
  * Account Links are the means by which a Connect platform grants a connected
- * account permission to access Zoneless-hosted applications, such as Connect Onboarding.
+ * account permission to access FiatDesk-hosted applications, such as Connect Onboarding.
  *
  * This represents the response returned from POST /v1/account_links.
  * The response is minimal - only the essential fields needed to redirect the user.

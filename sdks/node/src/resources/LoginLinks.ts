@@ -1,5 +1,5 @@
 import { BaseResource } from './Base';
-import { LoginLink } from '@zoneless/shared-types';
+import { LoginLink } from '@fiatdesk/shared-types';
 /**
  * @see /login-links
  */

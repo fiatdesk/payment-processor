@@ -11,7 +11,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'How identity checks work' },
         {
           type: 'paragraph',
-          text: "Zoneless gives marketplaces two levels of protection. The first is a set of lightweight checks that run whenever a connected account signs up. These checks look for suspicious details, such as a phone number used by several accounts or a mismatch between the seller's country, address, and IP address.",
+          text: "FiatDesk gives marketplaces two levels of protection. The first is a set of lightweight checks that run whenever a connected account signs up. These checks look for suspicious details, such as a phone number used by several accounts or a mismatch between the seller's country, address, and IP address.",
         },
         {
           type: 'paragraph',
@@ -20,7 +20,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Optionally, for stronger checks, Zoneless connects to <a href="https://didit.me/pricing/" target="_blank" rel="noopener noreferrer">Didit</a>. Didit asks the seller for an identity document and a selfie, then checks that the document is valid and belongs to them. Didit currently includes 500 checks per month for free. Additional checks cost $0.33 each.',
+          text: 'Optionally, for stronger checks, FiatDesk connects to <a href="https://didit.me/pricing/" target="_blank" rel="noopener noreferrer">Didit</a>. Didit asks the seller for an identity document and a selfie, then checks that the document is valid and belongs to them. Didit currently includes 500 checks per month for free. Additional checks cost $0.33 each.',
           html: true,
         },
         {
@@ -47,7 +47,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Connect one Didit workspace to your Zoneless instance. Zoneless starts a check automatically when a seller reaches one of the payout limits you set.',
+          text: 'Connect one Didit workspace to your FiatDesk instance. FiatDesk starts a check automatically when a seller reaches one of the payout limits you set.',
         },
       ],
     },
@@ -87,10 +87,10 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
     },
     {
       left: [
-        { type: 'heading', level: 2, text: '3. Add the API key to Zoneless' },
+        { type: 'heading', level: 2, text: '3. Add the API key to FiatDesk' },
         {
           type: 'paragraph',
-          text: 'In Zoneless, open <strong>Settings</strong>, then <strong>Identity</strong>. Paste the key into <strong>Didit API Key</strong>.',
+          text: 'In FiatDesk, open <strong>Settings</strong>, then <strong>Identity</strong>. Paste the key into <strong>Didit API Key</strong>.',
           html: true,
         },
         {
@@ -104,7 +104,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'image',
           src: '/assets/images/screenshots/didit/identity-3.webp',
-          alt: 'Didit API key field in Zoneless',
+          alt: 'Didit API key field in FiatDesk',
         },
       ],
     },
@@ -130,11 +130,11 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'heading',
           level: 2,
-          text: '5. Add the workflow ID to Zoneless',
+          text: '5. Add the workflow ID to FiatDesk',
         },
         {
           type: 'paragraph',
-          text: 'Paste the ID into the <strong>Workflow ID</strong> field in your Zoneless Identity settings.',
+          text: 'Paste the ID into the <strong>Workflow ID</strong> field in your FiatDesk Identity settings.',
           html: true,
         },
       ],
@@ -142,7 +142,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'image',
           src: '/assets/images/screenshots/didit/identity-5.webp',
-          alt: 'Workflow ID field in Zoneless',
+          alt: 'Workflow ID field in FiatDesk',
         },
       ],
     },
@@ -151,12 +151,12 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '6. Create a webhook in Didit' },
         {
           type: 'paragraph',
-          text: 'In Didit, open <strong>Webhooks</strong> and click <strong>Add destination</strong>. Give the webhook a name, then paste in the webhook URL shown in your Zoneless Identity settings.',
+          text: 'In Didit, open <strong>Webhooks</strong> and click <strong>Add destination</strong>. Give the webhook a name, then paste in the webhook URL shown in your FiatDesk Identity settings.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'If you use Zoneless Cloud, the URL is <code>https://api.yourdomain.com/v1/identity/webhooks/didit</code>. If you self-host, use the same path on your own API domain.',
+          text: 'If you use FiatDesk Cloud, the URL is <code>https://api.yourdomain.com/v1/identity/webhooks/didit</code>. If you self-host, use the same path on your own API domain.',
           html: true,
         },
         {
@@ -178,19 +178,19 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '7. Save the webhook secret' },
         {
           type: 'paragraph',
-          text: 'Create the webhook, then copy its secret. Return to Zoneless and paste it into <strong>Webhook secret</strong>.',
+          text: 'Create the webhook, then copy its secret. Return to FiatDesk and paste it into <strong>Webhook secret</strong>.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'The secret lets Zoneless confirm that identity updates really came from Didit.',
+          text: 'The secret lets FiatDesk confirm that identity updates really came from Didit.',
         },
       ],
       right: [
         {
           type: 'image',
           src: '/assets/images/screenshots/didit/identity-7.webp',
-          alt: 'Webhook secret field in Zoneless',
+          alt: 'Webhook secret field in FiatDesk',
         },
       ],
     },
@@ -223,7 +223,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'image',
           src: '/assets/images/screenshots/didit/identity-8.webp',
-          alt: 'Default and country payout thresholds in Zoneless',
+          alt: 'Default and country payout thresholds in FiatDesk',
         },
       ],
     },
@@ -232,11 +232,11 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'What happens next' },
         {
           type: 'paragraph',
-          text: 'When a seller reaches a threshold, Zoneless pauses their payouts and shows a notification in their Express Dashboard. The seller follows the link to Didit, then uses their phone to upload a valid identity document and complete a selfie check.',
+          text: 'When a seller reaches a threshold, FiatDesk pauses their payouts and shows a notification in their Express Dashboard. The seller follows the link to Didit, then uses their phone to upload a valid identity document and complete a selfie check.',
         },
         {
           type: 'paragraph',
-          text: "Didit sends the result to Zoneless through the webhook. Once the check is approved, Zoneless enables the seller's payouts again.",
+          text: "Didit sends the result to FiatDesk through the webhook. Once the check is approved, FiatDesk enables the seller's payouts again.",
         },
       ],
       right: [
@@ -263,7 +263,7 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<a href="/webhooks">Webhooks</a> - receive updates from Zoneless',
+              text: '<a href="/webhooks">Webhooks</a> - receive updates from FiatDesk',
               html: true,
             },
             {

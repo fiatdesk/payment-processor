@@ -2,7 +2,7 @@
  * @fileOverview Methods for LoginLinks
  *
  * Login Links are single-use URLs that take an Express account to the login page
- * for their Zoneless dashboard. A Login Link differs from an Account Link in that
+ * for their FiatDesk dashboard. A Login Link differs from an Account Link in that
  * it takes the user directly to their Express dashboard for the specified account.
  *
  * @see https://docs.stripe.com/api/accounts/login_link
@@ -13,7 +13,7 @@ import { Database } from './Database';
 import { GetAppConfig } from './AppConfig';
 import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';
-import { LoginLink, LoginLinkRecord } from '@zoneless/shared-types';
+import { LoginLink, LoginLinkRecord } from '@fiatdesk/shared-types';
 
 /**
  * Converts an internal LoginLinkRecord to the Stripe-compatible API response.
@@ -35,7 +35,7 @@ export class LoginLinkModule {
   }
 
   /**
-   * Creates a LoginLink object that includes a single-use Zoneless URL
+   * Creates a LoginLink object that includes a single-use FiatDesk URL
    * that the platform can redirect their user to in order to access
    * the Express dashboard.
    *

@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 
-import { BalanceDetails } from '@zoneless/shared-types';
+import { BalanceDetails } from '@fiatdesk/shared-types';
 import { BalanceService, ConfigService } from '../../../../../data';
 import { LoaderComponent } from '../../../../../shared';
 

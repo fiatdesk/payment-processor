@@ -5,8 +5,8 @@ import { exitCodes, type AgentSkillId } from './Types';
 
 const defaultAgentSkillId: AgentSkillId = 'payments';
 const skillDirectories: Record<AgentSkillId, string> = {
-  marketplace: 'zoneless-marketplace',
-  payments: 'zoneless-payments',
+  marketplace: 'fiatdesk-marketplace',
+  payments: 'fiatdesk-payments',
 };
 /** `store` was the original name of the payments skill; published prompts still use it. */
 const skillAliases: Record<string, AgentSkillId> = { store: 'payments' };

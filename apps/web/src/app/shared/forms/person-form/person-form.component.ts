@@ -12,7 +12,7 @@ import {
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Person } from '@zoneless/shared-types';
+import { Person } from '@fiatdesk/shared-types';
 
 import { TestModeBannerComponent } from '../../ui';
 import {

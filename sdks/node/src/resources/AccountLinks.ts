@@ -1,5 +1,5 @@
 import { BaseResource } from './Base';
-import { AccountLink } from '@zoneless/shared-types';
+import { AccountLink } from '@fiatdesk/shared-types';
 import type { CreateAccountLinkInput } from '../generated/Inputs';
 /**
  * @see /account-links

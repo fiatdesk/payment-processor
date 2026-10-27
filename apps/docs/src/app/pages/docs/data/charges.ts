@@ -185,7 +185,7 @@ const SHIPPING_PARAM_CHILDREN: Attribute[] = [
 // ============================================
 
 const CHARGE_OBJECT_JSON = `{
-  "id": "ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a",
+  "id": "ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a",
   "object": "charge",
   "amount": 2500,
   "amount_captured": 2500,
@@ -193,7 +193,7 @@ const CHARGE_OBJECT_JSON = `{
   "application": null,
   "application_fee": null,
   "application_fee_amount": null,
-  "balance_transaction": "txn_z_3NqR2xLkdIwHu7ix2bR9nT4c",
+  "balance_transaction": "txn_fd_3NqR2xLkdIwHu7ix2bR9nT4c",
   "billing_details": {
     "address": {
       "city": null,
@@ -212,7 +212,7 @@ const CHARGE_OBJECT_JSON = `{
   "captured": true,
   "created": 1716234567,
   "currency": "usdc",
-  "customer": "cus_z_NffrFeUfNV2Hib",
+  "customer": "cus_fd_NffrFeUfNV2Hib",
   "description": "Order #4821",
   "disputed": false,
   "failure_balance_transaction": null,
@@ -235,8 +235,8 @@ const CHARGE_OBJECT_JSON = `{
     "type": "authorized"
   },
   "paid": true,
-  "payment_intent": "pi_z_3NqR2xLkdIwHu7ix1aK8vL3d",
-  "payment_method": "pm_z_1NqR2xLkdIwHu7ixWallet9",
+  "payment_intent": "pi_fd_3NqR2xLkdIwHu7ix1aK8vL3d",
+  "payment_method": "pm_fd_1NqR2xLkdIwHu7ixWallet9",
   "payment_method_details": {
     "type": "crypto",
     "crypto": {
@@ -257,7 +257,7 @@ const CHARGE_OBJECT_JSON = `{
     "object": "list",
     "data": [],
     "has_more": false,
-    "url": "/v1/charges/ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
+    "url": "/v1/charges/ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
   },
   "review": null,
   "shipping": null,
@@ -268,11 +268,11 @@ const CHARGE_OBJECT_JSON = `{
   "transfer": null,
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const CHARGE_UPDATE_RESPONSE_JSON = `{
-  "id": "ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a",
+  "id": "ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a",
   "object": "charge",
   "amount": 2500,
   "amount_captured": 2500,
@@ -280,7 +280,7 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
   "application": null,
   "application_fee": null,
   "application_fee_amount": null,
-  "balance_transaction": "txn_z_3NqR2xLkdIwHu7ix2bR9nT4c",
+  "balance_transaction": "txn_fd_3NqR2xLkdIwHu7ix2bR9nT4c",
   "billing_details": {
     "address": {
       "city": null,
@@ -299,7 +299,7 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
   "captured": true,
   "created": 1716234567,
   "currency": "usdc",
-  "customer": "cus_z_NffrFeUfNV2Hib",
+  "customer": "cus_fd_NffrFeUfNV2Hib",
   "description": "Order #4821",
   "disputed": false,
   "failure_balance_transaction": null,
@@ -324,8 +324,8 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
     "type": "authorized"
   },
   "paid": true,
-  "payment_intent": "pi_z_3NqR2xLkdIwHu7ix1aK8vL3d",
-  "payment_method": "pm_z_1NqR2xLkdIwHu7ixWallet9",
+  "payment_intent": "pi_fd_3NqR2xLkdIwHu7ix1aK8vL3d",
+  "payment_method": "pm_fd_1NqR2xLkdIwHu7ixWallet9",
   "payment_method_details": {
     "type": "crypto",
     "crypto": {
@@ -346,7 +346,7 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
     "object": "list",
     "data": [],
     "has_more": false,
-    "url": "/v1/charges/ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
+    "url": "/v1/charges/ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
   },
   "review": null,
   "shipping": null,
@@ -357,11 +357,11 @@ const CHARGE_UPDATE_RESPONSE_JSON = `{
   "transfer": null,
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const CHARGE_CAPTURE_RESPONSE_JSON = `{
-  "id": "ch_z_3NrW8kLkdIwHu7ix4mH2pL9b",
+  "id": "ch_fd_3NrW8kLkdIwHu7ix4mH2pL9b",
   "object": "charge",
   "amount": 2500,
   "amount_captured": 2500,
@@ -369,7 +369,7 @@ const CHARGE_CAPTURE_RESPONSE_JSON = `{
   "application": null,
   "application_fee": null,
   "application_fee_amount": null,
-  "balance_transaction": "txn_z_3NrW8kLkdIwHu7ix7cN1qR5e",
+  "balance_transaction": "txn_fd_3NrW8kLkdIwHu7ix7cN1qR5e",
   "billing_details": {
     "address": {
       "city": null,
@@ -412,7 +412,7 @@ const CHARGE_CAPTURE_RESPONSE_JSON = `{
   },
   "paid": true,
   "payment_intent": null,
-  "payment_method": "pm_z_1NrW8kLkdIwHu7ixWallet3",
+  "payment_method": "pm_fd_1NrW8kLkdIwHu7ixWallet3",
   "payment_method_details": {
     "type": "crypto",
     "crypto": {
@@ -433,7 +433,7 @@ const CHARGE_CAPTURE_RESPONSE_JSON = `{
     "object": "list",
     "data": [],
     "has_more": false,
-    "url": "/v1/charges/ch_z_3NrW8kLkdIwHu7ix4mH2pL9b/refunds"
+    "url": "/v1/charges/ch_fd_3NrW8kLkdIwHu7ix4mH2pL9b/refunds"
   },
   "review": null,
   "shipping": null,
@@ -444,7 +444,7 @@ const CHARGE_CAPTURE_RESPONSE_JSON = `{
   "transfer": null,
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const LIST_CHARGES_RESPONSE_JSON = `{
@@ -453,7 +453,7 @@ const LIST_CHARGES_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a",
+      "id": "ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a",
       "object": "charge",
       "amount": 2500,
       "amount_captured": 2500,
@@ -461,7 +461,7 @@ const LIST_CHARGES_RESPONSE_JSON = `{
       "application": null,
       "application_fee": null,
       "application_fee_amount": null,
-      "balance_transaction": "txn_z_3NqR2xLkdIwHu7ix2bR9nT4c",
+      "balance_transaction": "txn_fd_3NqR2xLkdIwHu7ix2bR9nT4c",
       "billing_details": {
         "address": {
           "city": null,
@@ -480,7 +480,7 @@ const LIST_CHARGES_RESPONSE_JSON = `{
       "captured": true,
       "created": 1716234567,
       "currency": "usdc",
-      "customer": "cus_z_NffrFeUfNV2Hib",
+      "customer": "cus_fd_NffrFeUfNV2Hib",
       "description": "Order #4821",
       "disputed": false,
       "failure_balance_transaction": null,
@@ -503,8 +503,8 @@ const LIST_CHARGES_RESPONSE_JSON = `{
         "type": "authorized"
       },
       "paid": true,
-      "payment_intent": "pi_z_3NqR2xLkdIwHu7ix1aK8vL3d",
-      "payment_method": "pm_z_1NqR2xLkdIwHu7ixWallet9",
+      "payment_intent": "pi_fd_3NqR2xLkdIwHu7ix1aK8vL3d",
+      "payment_method": "pm_fd_1NqR2xLkdIwHu7ixWallet9",
       "payment_method_details": {
         "type": "crypto",
         "crypto": {
@@ -525,7 +525,7 @@ const LIST_CHARGES_RESPONSE_JSON = `{
         "object": "list",
         "data": [],
         "has_more": false,
-        "url": "/v1/charges/ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
+        "url": "/v1/charges/ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a/refunds"
       },
       "review": null,
       "shipping": null,
@@ -536,7 +536,7 @@ const LIST_CHARGES_RESPONSE_JSON = `{
       "transfer": null,
       "transfer_data": null,
       "transfer_group": null,
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
@@ -550,7 +550,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless charge IDs are prefixed with <code>ch_z_</code>.',
+      'Unique identifier for the object. FiatDesk charge IDs are prefixed with <code>ch_fd_</code>.',
   },
   {
     name: 'object',
@@ -671,7 +671,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -877,14 +877,14 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     description:
       'Details about the payment method at the time of the transaction.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless charges typically use <code>type: "crypto"</code> with USDC wallet details. Other payment method hashes may appear for API compatibility but are not used for settlement.',
+      '<strong>Difference from Stripe:</strong> FiatDesk charges typically use <code>type: "crypto"</code> with USDC wallet details. Other payment method hashes may appear for API compatibility but are not used for settlement.',
     expandable: true,
     children: [
       {
         name: 'type',
         type: 'string',
         description:
-          'The type of transaction-specific details. For Zoneless, this is typically <code>crypto</code>. An additional hash is included with a name matching this value.',
+          'The type of transaction-specific details. For FiatDesk, this is typically <code>crypto</code>. An additional hash is included with a name matching this value.',
       },
       {
         name: 'crypto',
@@ -916,7 +916,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
             enumValues: [
               {
                 value: 'ethereum',
-                description: 'Ethereum (primary network for Zoneless).',
+                description: 'Ethereum (primary network for FiatDesk).',
               },
               {
                 value: 'simulated',
@@ -928,7 +928,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
               { value: 'tempo' },
             ],
             enumNote:
-              '<strong>Difference from Stripe:</strong> Zoneless settles on Ethereum. Other networks are accepted for schema compatibility.',
+              '<strong>Difference from Stripe:</strong> FiatDesk settles on Ethereum. Other networks are accepted for schema compatibility.',
           },
           {
             name: 'token_currency',
@@ -939,7 +939,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
             enumValues: [
               {
                 value: 'usdc',
-                description: 'USDC (primary currency for Zoneless).',
+                description: 'USDC (primary currency for FiatDesk).',
               },
               { value: 'usdt' },
               { value: 'usdg' },
@@ -1101,7 +1101,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
                 name: 'type',
                 type: 'string',
                 description:
-                  'The type of refund destination details. For Zoneless, this is typically <code>crypto</code>.',
+                  'The type of refund destination details. For FiatDesk, this is typically <code>crypto</code>.',
               },
               {
                 name: 'crypto',
@@ -1235,7 +1235,7 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
     nullable: true,
     tooltip: EXPAND_TOOLTIP,
     description:
-      'The transfer ID which created this charge. Only present if the charge came from another Zoneless account.',
+      'The transfer ID which created this charge. Only present if the charge came from another FiatDesk account.',
   },
   {
     name: 'statement_descriptor',
@@ -1313,7 +1313,7 @@ const CHARGE_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -1325,7 +1325,7 @@ export const CHARGES_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Charge object',
   description:
-    'The Charge object represents a single attempt to move money into your Zoneless account. PaymentIntent confirmation is the most common way to create Charges. Some legacy payment flows create Charges directly, which is not recommended for new integrations.',
+    'The Charge object represents a single attempt to move money into your FiatDesk account. PaymentIntent confirmation is the most common way to create Charges. Some legacy payment flows create Charges directly, which is not recommended for new integrations.',
   stripeDocsUrl: 'https://docs.stripe.com/api/charges',
   endpoints: BuildEndpointSummaries(CHARGES_SUBSECTION, [
     { method: 'POST', path: '/v1/charges', pageId: 'create' },
@@ -1379,7 +1379,7 @@ const CREATE_CHARGE_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currencies.',
   },
@@ -1538,11 +1538,11 @@ export const CHARGES_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/charges \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d amount=2500 \\
   -d currency=usdc \\
-  -d source=pm_z_1NqR2xLkdIwHu7ixWallet9 \\
-  -d customer=cus_z_NffrFeUfNV2Hib \\
+  -d source=pm_fd_1NqR2xLkdIwHu7ixWallet9 \\
+  -d customer=cus_fd_NffrFeUfNV2Hib \\
   -d description="Order #4821"`,
             },
             {
@@ -1550,11 +1550,11 @@ export const CHARGES_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const charge = await zoneless.charges.create({
+const charge = await fiatdesk.charges.create({
   amount: 2500,
   currency: 'usdc',
-  source: 'pm_z_1NqR2xLkdIwHu7ixWallet9',
-  customer: 'cus_z_NffrFeUfNV2Hib',
+  source: 'pm_fd_1NqR2xLkdIwHu7ixWallet9',
+  customer: 'cus_fd_NffrFeUfNV2Hib',
   description: 'Order #4821',
 });`,
             },
@@ -1655,8 +1655,8 @@ export const CHARGES_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/charges/ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/charges/ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[shipping]"=express`,
             },
             {
@@ -1664,8 +1664,8 @@ export const CHARGES_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const charge = await zoneless.charges.update(
-  'ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a',
+const charge = await fiatdesk.charges.update(
+  'ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a',
   {
     metadata: {
       shipping: 'express',
@@ -1693,7 +1693,7 @@ export const CHARGES_RETRIEVE_PAGE: DocPage = {
   id: 'retrieve',
   title: 'Retrieve a charge',
   description:
-    'Retrieves the details of a charge that has previously been created. Supply the unique charge ID that was returned from your previous request, and Zoneless will return the corresponding charge information. The same information is returned when creating or refunding the charge.',
+    'Retrieves the details of a charge that has previously been created. Supply the unique charge ID that was returned from your previous request, and FiatDesk will return the corresponding charge information. The same information is returned when creating or refunding the charge.',
   endpoints: [{ method: 'GET', path: '/v1/charges/:id' }],
   sections: [
     {
@@ -1714,16 +1714,16 @@ export const CHARGES_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/charges/ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/charges/ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const charge = await zoneless.charges.retrieve(
-  'ch_z_3NqR2xLkdIwHu7ix8kP4mQ2a'
+const charge = await fiatdesk.charges.retrieve(
+  'ch_fd_3NqR2xLkdIwHu7ix8kP4mQ2a'
 );`,
             },
           ],
@@ -1771,7 +1771,7 @@ const LIST_CHARGES_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>ch_z_bar</code>, your subsequent call can include <code>ending_before=ch_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>ch_fd_bar</code>, your subsequent call can include <code>ending_before=ch_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -1783,7 +1783,7 @@ const LIST_CHARGES_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>ch_z_foo</code>, your subsequent call can include <code>starting_after=ch_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>ch_fd_foo</code>, your subsequent call can include <code>starting_after=ch_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -1818,7 +1818,7 @@ export const CHARGES_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/charges \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -1826,7 +1826,7 @@ export const CHARGES_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const charges = await zoneless.charges.list({
+const charges = await fiatdesk.charges.list({
   limit: 3,
 });`,
             },
@@ -1931,8 +1931,8 @@ export const CHARGES_CAPTURE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/charges/ch_z_3NrW8kLkdIwHu7ix4mH2pL9b/capture \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/charges/ch_fd_3NrW8kLkdIwHu7ix4mH2pL9b/capture \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -1940,8 +1940,8 @@ export const CHARGES_CAPTURE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const charge = await zoneless.charges.capture(
-  'ch_z_3NrW8kLkdIwHu7ix4mH2pL9b'
+const charge = await fiatdesk.charges.capture(
+  'ch_fd_3NrW8kLkdIwHu7ix4mH2pL9b'
 );`,
             },
           ],

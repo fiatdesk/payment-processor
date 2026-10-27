@@ -1,11 +1,11 @@
 ---
-name: zoneless-marketplace
-description: Adds Zoneless Cloud as an optional USDC marketplace payout method while preserving existing checkout and payout providers. Use when integrating seller onboarding, connected accounts, transfers, payouts, or migrating payout infrastructure to Zoneless.
+name: fiatdesk-marketplace
+description: Adds FiatDesk Cloud as an optional USDC marketplace payout method while preserving existing checkout and payout providers. Use when integrating seller onboarding, connected accounts, transfers, payouts, or migrating payout infrastructure to FiatDesk.
 ---
 
-# Add Zoneless marketplace payouts
+# Add FiatDesk marketplace payouts
 
-Add Zoneless as a separate payout provider. Do not replace checkout or remove an
+Add FiatDesk as a separate payout provider. Do not replace checkout or remove an
 existing Stripe, PayPal, Payoneer, wire-transfer, or custom payout path unless
 the human explicitly asks for that additional work.
 
@@ -33,7 +33,7 @@ pays the network fee (gas) for each payout transaction, a wallet address (it
 starts with `0x`) is safe to share, and a wallet private key authorizes
 spending and must remain private. Explain that test mode uses fake USDC so they
 can onboard sellers and run payouts without a wallet, a faucet, or the live
-Ethereum network. Live mode is when real USDC moves on Ethereum. Zoneless takes
+Ethereum network. Live mode is when real USDC moves on Ethereum. FiatDesk takes
 no platform fee or percentage cut; the only cost is Ethereum gas, typically a
 few cents to a few dollars per transaction depending on network load (see
 `https://docs.yourdomain.com/gas-and-fees.md`). Do not use terms such as
@@ -58,14 +58,14 @@ when using the explicit payout-ID workflow described below.
 Run:
 
 ```bash
-npx @zoneless/cli@latest doctor --json
+npx @fiatdesk/cli@latest doctor --json
 ```
 
 If no profile exists, run the setup command with a platform name inferred from
 the project:
 
 ```bash
-npx @zoneless/cli@latest agent setup \
+npx @fiatdesk/cli@latest agent setup \
   --platform-name "<marketplace name>" \
   --skill marketplace \
   --json
@@ -78,14 +78,14 @@ this marketplace; do not create duplicates.
 Show the returned `verification_url` and `user_code`, then wait. Do not approve
 the request for the human. Setup stores test and live credentials in the
 operating-system credential store without printing them and binds this
-repository to those profiles in `.zoneless/project.json`. Continue with the
+repository to those profiles in `.fiatdesk/project.json`. Continue with the
 bound test profile after approval.
 
 Setup validates stored keys before reusing them. If it reports
 `credentials_invalid`, run:
 
 ```bash
-npx @zoneless/cli@latest auth reconnect --json
+npx @fiatdesk/cli@latest auth reconnect --json
 ```
 
 Show the new authorization prompt to the human, then retry setup after
@@ -95,7 +95,7 @@ For local test execution, inject the bound test credentials into the project's
 local env file without displaying or reading them:
 
 ```bash
-npx @zoneless/cli@latest env sync --include-wallet --json
+npx @fiatdesk/cli@latest env sync --include-wallet --json
 ```
 
 If the command reports multiple environment files, infer the server's actual
@@ -107,8 +107,8 @@ and secret-manager references; the human supplies live values during handoff.
 
 ## Configure test webhook delivery when used
 
-If the integration implements a Zoneless webhook route, determine its public
-HTTPS URL. For localhost, explain that Zoneless cannot reach `localhost`; the
+If the integration implements a FiatDesk webhook route, determine its public
+HTTPS URL. For localhost, explain that FiatDesk cannot reach `localhost`; the
 human must run a tunnel such as `ngrok http <port>` or Cloudflare Tunnel and
 provide its public URL. Do not silently install or leave a tunnel running.
 
@@ -120,7 +120,7 @@ For the standard marketplace flow, sync the onboarding, transfer, and payout
 events without displaying the signing secret:
 
 ```bash
-npx @zoneless/cli@latest webhook sync \
+npx @fiatdesk/cli@latest webhook sync \
   --url "https://<public-host>/<server-webhook-route>" \
   --events "account.updated,transfer.created,payout.paid,payout.failed" \
   --json
@@ -128,13 +128,13 @@ npx @zoneless/cli@latest webhook sync \
 
 Add `--target <relative-path>` when the server uses a non-default env file.
 `webhook sync` replaces the managed endpoint's event list, so if the application
-already handles other Zoneless events, pass the union of its existing events
+already handles other FiatDesk events, pass the union of its existing events
 and the marketplace events it needs. Restart the application afterward so it
-loads `ZONELESS_WEBHOOK_SECRET`.
+loads `FIATDESK_WEBHOOK_SECRET`.
 
 If the implementation intentionally retrieves account and payout status instead
 of using webhooks, do not create an unused endpoint or require
-`ZONELESS_WEBHOOK_SECRET`.
+`FIATDESK_WEBHOOK_SECRET`.
 
 ## Use test mode, then hand off live promotion
 
@@ -155,12 +155,12 @@ Inspect checkout separately from payouts, then choose the matching path:
 1. **Existing payout ledger:** seller earnings already accrue in a balance and
    an existing job or withdrawal flow pays them. Stripe separate charges and
    transfers usually belong here when the platform charges first and transfers
-   to the seller later. Add Zoneless as another branch in that flow.
+   to the seller later. Add FiatDesk as another branch in that flow.
 2. **Immediate seller payment at checkout:** Stripe destination charges, direct
    charges, PayPal split payments, or similar pay the seller as part of the
    sale. Preserve that behavior for existing providers. For a seller who opts
-   into Zoneless, collect the charge on the platform instead, record only that
-   seller's net earnings, and pay those earnings once through Zoneless. Pin the
+   into FiatDesk, collect the charge on the platform instead, record only that
+   seller's net earnings, and pay those earnings once through FiatDesk. Pin the
    provider on each sale so it cannot be paid twice.
 3. **Small or file-backed app:** no real database, job queue, withdrawal model,
    or webhook infrastructure. Add the smallest coherent implementation using
@@ -177,14 +177,14 @@ unrelated parts of the application.
 
 ### JavaScript or TypeScript backend
 
-Install `@zoneless/node` with the project's package manager. Create one
-server-side Zoneless client in the existing payments/integrations layer using:
+Install `@fiatdesk/node` with the project's package manager. Create one
+server-side FiatDesk client in the existing payments/integrations layer using:
 
-- `ZONELESS_API_KEY`
-- `ZONELESS_API_URL`, using `https://api.yourdomain.com` during integration
+- `FIATDESK_API_KEY`
+- `FIATDESK_API_URL`, using `https://api.yourdomain.com` during integration
 - `WALLET_PRIVATE_KEY` (`0x` plus 64 hex characters) only in the server-side
   payout processor
-- `ZONELESS_WEBHOOK_SECRET` only when the app implements a webhook route
+- `FIATDESK_WEBHOOK_SECRET` only when the app implements a webhook route
 
 Use the SDK for accounts, account links, transfers, payouts, and webhook
 verification.
@@ -203,22 +203,22 @@ The SDK already builds and signs Ethereum transactions. In simulated test mode
 it passes dummy `sim_tx` payloads through without signing. Do not install a
 chain library, or add USDC address, RPC, or platform-account configuration to a
 Node application. Those are
-Zoneless implementation details. The marketplace app needs only the relevant
+FiatDesk implementation details. The marketplace app needs only the relevant
 environment variables listed above.
 
 ### Other backend runtimes
 
-Use the project's existing HTTP client and create one small Zoneless adapter.
+Use the project's existing HTTP client and create one small FiatDesk adapter.
 Do not add Node as an application runtime dependency.
 
 The adapter must:
 
-- require an explicit `ZONELESS_API_URL` and normalize it to exactly one `/v1`
+- require an explicit `FIATDESK_API_URL` and normalize it to exactly one `/v1`
   suffix;
 - use `https://api.yourdomain.com` with the test profile during integration;
 - authenticate with `X-Api-Key`;
 - send `Idempotency-Key` for every mutating request;
-- send `Zoneless-Account: acct_z_...` for connected-account requests;
+- send `FiatDesk-Account: acct_fd_...` for connected-account requests;
 - preserve structured API errors and request IDs;
 - set timeouts and use the project's retry conventions;
 - never retry a mutating request with a new idempotency key.
@@ -228,18 +228,18 @@ maintained Ethereum signer for that backend language (it must sign EIP-1559
 transactions), then call
 `/v1/payouts/broadcast`. Confirm the build response contains the payout IDs and
 total expected by the claimed marketplace operation. Do not invent USDC
-address or RPC configuration; Zoneless builds the transaction.
+address or RPC configuration; FiatDesk builds the transaction.
 If the runtime cannot sign it, stop and ask before adding a sidecar or changing
 runtimes.
 
 ## Match the existing payout trigger
 
 Do not invent a universal payout schedule. Preserve the marketplace's existing
-trigger and choose the matching Zoneless processor:
+trigger and choose the matching FiatDesk processor:
 
 - **Scheduled platform payout:** create transfers as earnings become eligible,
   create pending payouts in the existing daily/weekly worker, then use
-  `processAll()` when that worker owns every pending Zoneless payout.
+  `processAll()` when that worker owns every pending FiatDesk payout.
 - **Bounded worker batch:** use `processBatch()` when the existing worker
   deliberately processes one platform-wide batch of up to 100. Batching shares
   the per-transaction cost, saving roughly 15 to 25 percent per payout, so
@@ -260,8 +260,8 @@ Follow the project's architecture, but preserve these invariants:
 
 1. **Provider state**
 
-   - Add `zoneless` as a distinct payout-method value.
-   - Store a separate connected account ID such as `zonelessAccountId`.
+   - Add `fiatdesk` as a distinct payout-method value.
+   - Store a separate connected account ID such as `fiatdeskAccountId`.
    - Keep account ID, onboarding completion, current `payouts_enabled`, and the
      seller's active preference separate.
    - Pin the provider on each sale or payout attempt. A preference change
@@ -274,10 +274,10 @@ Follow the project's architecture, but preserve these invariants:
 
 2. **Seller opt-in and onboarding**
 
-   - Add Zoneless to the existing payout-method selection UI.
+   - Add FiatDesk to the existing payout-method selection UI.
    - Create and persist one Express connected account, then create an Account
      Link for onboarding. Use a Login Link for an existing seller's dashboard.
-   - Treat `payouts_enabled`, retrieved from Zoneless or received in a verified
+   - Treat `payouts_enabled`, retrieved from FiatDesk or received in a verified
      `account.updated` webhook, as the capability truth. A return redirect alone
      does not prove onboarding completed.
    - Validate preference changes on the server and preserve all existing
@@ -287,38 +287,38 @@ Follow the project's architecture, but preserve these invariants:
 
    - Reuse the marketplace ledger and worker if they exist.
    - For immediate-payment checkout, keep destination charges unchanged for
-     Stripe sellers. For a Zoneless seller, omit the destination transfer,
+     Stripe sellers. For a FiatDesk seller, omit the destination transfer,
      collect on the platform, and record the seller's net earnings only after
      payment succeeds.
    - Reserve each earning or sale once and pin it to one provider before calling
-     Zoneless. Never pay the same sale through both the checkout provider and
-     Zoneless.
+     FiatDesk. Never pay the same sale through both the checkout provider and
+     FiatDesk.
    - Create a transfer to the connected account, then create its payout. Use a
      stable idempotency key for each operation and reuse it on retry.
 
 4. **Payout creation and processing**
 
    - Create the payout on behalf of the connected account using the
-     `Zoneless-Account` context; `destination` is an optional external wallet
+     `FiatDesk-Account` context; `destination` is an optional external wallet
      ID, not the connected account ID.
    - Process it with the Node SDK helper or explicit-ID flow chosen above.
      Remember that `processAll()` and `processBatch()` select pending payouts
      platform-wide; use explicit `build`/`sign`/`broadcast` when the worker must
      process one claimed payout.
    - If a broadcast response is lost or times out, treat the payout as
-     `unknown`, retrieve its current Zoneless status, and do not create another
-     transfer or payout. If Zoneless reports it paid, reconcile locally. If it
+     `unknown`, retrieve its current FiatDesk status, and do not create another
+     transfer or payout. If FiatDesk reports it paid, reconcile locally. If it
      remains pending, rebroadcast the same retained signed transaction when
      possible; otherwise stop for reconciliation rather than rebuilding
      blindly.
-   - Do not mark local earnings paid until Zoneless reports the payout paid.
+   - Do not mark local earnings paid until FiatDesk reports the payout paid.
 
 5. **Status updates**
 
    - Reuse existing webhook infrastructure. Preserve the raw body, verify
-     `Zoneless-Signature`, and make duplicate events safe.
+     `FiatDesk-Signature`, and make duplicate events safe.
    - If a small test app has no webhook infrastructure, retrieve account and
-     payout status from Zoneless instead of building a new event system. Note
+     payout status from FiatDesk instead of building a new event system. Note
      live webhook setup in the human handoff.
    - Keep every existing provider webhook unchanged.
 
@@ -340,12 +340,12 @@ Use mocks or test credentials; never send a payout. Add tests for:
 - the existing checkout and payout path remaining unchanged;
 - seller opt-in, account reuse, and provider switching;
 - one sale or earning never being paid through two providers;
-- the Zoneless transfer/payout path using the connected-account context and
+- the FiatDesk transfer/payout path using the connected-account context and
   stable idempotency keys;
 - no secret values reaching browser code, logs, fixtures, or snapshots.
 
 For destination-charge marketplaces, explicitly test that Stripe sellers still
-use the destination charge and Zoneless sellers do not.
+use the destination charge and FiatDesk sellers do not.
 
 Run the project's formatter, focused tests, linter, type checker, and build.
 Fix regressions introduced by the integration.
@@ -372,7 +372,7 @@ Report:
   setup, wallet funding, and one supervised payout;
 - that setup created a platform wallet and, before enabling live payouts, the
   human should run
-  `npx @zoneless/cli@latest wallet backup --profile <live-profile> --output <private-path>`
+  `npx @fiatdesk/cli@latest wallet backup --profile <live-profile> --output <private-path>`
   in an interactive terminal and keep the resulting file somewhere private;
   when the deployed payout worker needs wallet signing, they should use its
   `privateKey` value as `WALLET_PRIVATE_KEY` in the deployment secret

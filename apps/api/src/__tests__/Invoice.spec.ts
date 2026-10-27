@@ -3,7 +3,7 @@ import { Database } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import { CustomerModule } from '../modules/Customer';
 import { InvoiceItemModule } from '../modules/InvoiceItem';
-import { Invoice, InvoiceItem } from '@zoneless/shared-types';
+import { Invoice, InvoiceItem } from '@fiatdesk/shared-types';
 import { ListHelper } from '../utils/ListHelper';
 import {
   CreateMockDatabase,
@@ -37,8 +37,8 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const CUSTOMER_ID = 'cus_z_1';
+const PLATFORM = 'acct_fd_platform';
+const CUSTOMER_ID = 'cus_fd_1';
 
 function MockCustomer(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,7 +59,7 @@ function MockCustomer(overrides: Record<string, unknown> = {}) {
 
 function DraftInvoice(overrides: Partial<Invoice> = {}): Invoice {
   return {
-    id: 'in_z_test001',
+    id: 'in_fd_test001',
     object: 'invoice',
     account_country: null,
     account_name: null,
@@ -117,7 +117,7 @@ function DraftInvoice(overrides: Partial<Invoice> = {}): Invoice {
       data: [],
       has_more: false,
       total_count: 0,
-      url: '/v1/invoices/in_z_test001/lines',
+      url: '/v1/invoices/in_fd_test001/lines',
     },
     livemode: false,
     metadata: {},
@@ -135,7 +135,7 @@ function DraftInvoice(overrides: Partial<Invoice> = {}): Invoice {
       data: [],
       has_more: false,
       total_count: 0,
-      url: '/v1/invoices/in_z_test001/payments',
+      url: '/v1/invoices/in_fd_test001/payments',
     },
     period_end: GetFixedTimestamp(),
     period_start: GetFixedTimestamp(),
@@ -241,7 +241,7 @@ describe('InvoiceModule', () => {
 
     it('should include pending invoice items and recalculate totals', async () => {
       const pendingItem = {
-        id: 'ii_z_1',
+        id: 'ii_fd_1',
         object: 'invoiceitem',
         amount: 1099,
         currency: 'usdc',
@@ -286,7 +286,7 @@ describe('InvoiceModule', () => {
         CUSTOMER_ID
       );
       expect(invoiceItemModule.AttachInvoiceItems).toHaveBeenCalledWith(
-        ['ii_z_1'],
+        ['ii_fd_1'],
         invoice.id
       );
       expect(invoice.lines.data).toHaveLength(1);
@@ -301,7 +301,7 @@ describe('InvoiceModule', () => {
     it('should reject customers that do not belong to the platform', async () => {
       customerModule.GetCustomer = jest.fn().mockResolvedValue({
         id: CUSTOMER_ID,
-        platform_account: 'acct_z_other',
+        platform_account: 'acct_fd_other',
       });
 
       await expect(
@@ -355,7 +355,7 @@ describe('InvoiceModule', () => {
         .mockResolvedValue(DraftInvoice({ status: 'open' }));
 
       await expect(
-        module.UpdateInvoice('in_z_test001', {
+        module.UpdateInvoice('in_fd_test001', {
           collection_method: 'send_invoice',
         })
       ).rejects.toThrow(
@@ -389,7 +389,7 @@ describe('InvoiceModule', () => {
         .fn()
         .mockResolvedValue(DraftInvoice({ status: 'open' }));
 
-      await expect(module.DeleteInvoice('in_z_test001')).rejects.toThrow(
+      await expect(module.DeleteInvoice('in_fd_test001')).rejects.toThrow(
         "Cannot delete invoice with status 'open'"
       );
     });
@@ -466,8 +466,8 @@ describe('InvoiceModule', () => {
       });
       const paymentIntentModule = {
         CreatePaymentIntent: jest.fn().mockResolvedValue({
-          id: 'pi_z_1',
-          client_secret: 'pi_z_1_secret_abc',
+          id: 'pi_fd_1',
+          client_secret: 'pi_fd_1_secret_abc',
           amount: 1099,
         }),
       };
@@ -488,7 +488,7 @@ describe('InvoiceModule', () => {
           status: 'open',
           confirmation_secret: {
             type: 'payment_intent',
-            client_secret: 'pi_z_1_secret_abc',
+            client_secret: 'pi_fd_1_secret_abc',
           },
         });
 
@@ -509,7 +509,7 @@ describe('InvoiceModule', () => {
           status: 'open',
           confirmation_secret: {
             type: 'payment_intent',
-            client_secret: 'pi_z_1_secret_abc',
+            client_secret: 'pi_fd_1_secret_abc',
           },
           payments: expect.objectContaining({
             total_count: 1,
@@ -523,7 +523,7 @@ describe('InvoiceModule', () => {
         .fn()
         .mockResolvedValue(DraftInvoice({ status: 'open', amount_due: 0 }));
 
-      await expect(module.FinalizeInvoice('in_z_test001')).rejects.toThrow(
+      await expect(module.FinalizeInvoice('in_fd_test001')).rejects.toThrow(
         "Cannot finalize invoice with status 'open'"
       );
     });
@@ -561,7 +561,7 @@ describe('InvoiceModule', () => {
         .fn()
         .mockResolvedValue(DraftInvoice({ status: 'open', amount_due: 1099 }));
 
-      await expect(module.PayInvoice('in_z_test001', {})).rejects.toThrow(
+      await expect(module.PayInvoice('in_fd_test001', {})).rejects.toThrow(
         'Invoice has no PaymentIntent'
       );
     });
@@ -618,18 +618,18 @@ describe('InvoiceModule', () => {
           object: 'list',
           data: [
             {
-              id: 'inpay_z_1',
+              id: 'inpay_fd_1',
               object: 'invoice_payment',
               amount_paid: null,
               amount_requested: 1099,
               created: GetFixedTimestamp(),
               currency: 'usdc',
-              invoice: 'in_z_test001',
+              invoice: 'in_fd_test001',
               is_default: true,
               livemode: false,
               payment: {
                 charge: null,
-                payment_intent: 'pi_z_1',
+                payment_intent: 'pi_fd_1',
                 payment_record: null,
                 type: 'payment_intent',
               },
@@ -640,21 +640,21 @@ describe('InvoiceModule', () => {
           ],
           has_more: false,
           total_count: 1,
-          url: '/v1/invoices/in_z_test001/payments',
+          url: '/v1/invoices/in_fd_test001/payments',
         },
       });
 
       const paymentIntentModule = {
-        MarkSucceeded: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
+        MarkSucceeded: jest.fn().mockResolvedValue({ id: 'pi_fd_1' }),
         MarkPaymentFailed: jest.fn(),
       };
       const chargeModule = {
         CreateFromPaymentAttempt: jest.fn().mockResolvedValue({
-          id: 'ch_z_1',
+          id: 'ch_fd_1',
         }),
         AttachBalanceTransaction: jest.fn().mockResolvedValue({
-          id: 'ch_z_1',
-          balance_transaction: 'txn_z_1',
+          id: 'ch_fd_1',
+          balance_transaction: 'txn_fd_1',
         }),
       };
 
@@ -699,14 +699,14 @@ describe('InvoiceModule', () => {
         })
       );
       expect(chargeModule.AttachBalanceTransaction).toHaveBeenCalledWith(
-        'ch_z_1',
+        'ch_fd_1',
         expect.any(String)
       );
       expect(paymentIntentModule.MarkSucceeded).toHaveBeenCalledWith(
-        'pi_z_1',
+        'pi_fd_1',
         expect.objectContaining({
           amountReceived: 1099,
-          latestCharge: 'ch_z_1',
+          latestCharge: 'ch_fd_1',
         })
       );
       expect(result.status).toBe('paid');
@@ -748,7 +748,7 @@ describe('InvoiceModule', () => {
             parent: {
               type: 'subscription_details',
               subscription_details: {
-                subscription: 'sub_z_1',
+                subscription: 'sub_fd_1',
                 metadata: null,
                 subscription_proration_date: null,
               },
@@ -758,18 +758,18 @@ describe('InvoiceModule', () => {
               object: 'list',
               data: [
                 {
-                  id: 'inpay_z_1',
+                  id: 'inpay_fd_1',
                   object: 'invoice_payment',
                   amount_paid: null,
                   amount_requested: 1099,
                   created: NOW,
                   currency: 'usdc',
-                  invoice: 'in_z_test001',
+                  invoice: 'in_fd_test001',
                   is_default: true,
                   livemode: false,
                   payment: {
                     charge: null,
-                    payment_intent: 'pi_z_1',
+                    payment_intent: 'pi_fd_1',
                     payment_record: null,
                     type: 'payment_intent',
                   },
@@ -780,12 +780,12 @@ describe('InvoiceModule', () => {
               ],
               has_more: false,
               total_count: 1,
-              url: '/v1/invoices/in_z_test001/payments',
+              url: '/v1/invoices/in_fd_test001/payments',
             },
           }) as unknown as Record<string, unknown>
         );
         memory.Seed('Subscriptions', {
-          id: 'sub_z_1',
+          id: 'sub_fd_1',
           object: 'subscription',
           platform_account: PLATFORM,
           subscription_onchain_id: SUB_ONCHAIN,
@@ -793,12 +793,12 @@ describe('InvoiceModule', () => {
           metadata: {},
         });
         memory.Seed('SubscriptionItems', {
-          id: 'si_z_1',
-          subscription: 'sub_z_1',
-          price: 'price_z_1',
+          id: 'si_fd_1',
+          subscription: 'sub_fd_1',
+          price: 'price_fd_1',
         });
         memory.Seed('Prices', {
-          id: 'price_z_1',
+          id: 'price_fd_1',
           platform_account: PLATFORM,
           subscription_plan_id: PLAN_KEY,
           unit_amount: 1099,
@@ -807,8 +807,8 @@ describe('InvoiceModule', () => {
 
         paymentIntentModule = {
           MarkSucceeded: jest.fn(),
-          MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
-          MarkProcessing: jest.fn().mockResolvedValue({ id: 'pi_z_1' }),
+          MarkPaymentFailed: jest.fn().mockResolvedValue({ id: 'pi_fd_1' }),
+          MarkProcessing: jest.fn().mockResolvedValue({ id: 'pi_fd_1' }),
           SetPendingChargeHash: jest.fn().mockResolvedValue(true),
           ClearPendingChargeHash: jest.fn(),
           GetPaymentIntent: jest.fn().mockResolvedValue(null),
@@ -816,7 +816,7 @@ describe('InvoiceModule', () => {
         chargeModule = {
           CreateFromPaymentAttempt: jest
             .fn()
-            .mockResolvedValue({ id: 'ch_z_1' }),
+            .mockResolvedValue({ id: 'ch_fd_1' }),
           AttachBalanceTransaction: jest.fn(),
         };
         settlement = CreateMockSettlement();
@@ -833,7 +833,7 @@ describe('InvoiceModule', () => {
       });
 
       function Pay(): Promise<Invoice> {
-        return module.PayInvoice('in_z_test001', {});
+        return module.PayInvoice('in_fd_test001', {});
       }
 
       function Claim(): Record<string, unknown> {
@@ -846,7 +846,7 @@ describe('InvoiceModule', () => {
           id: CLAIM,
           subscription_onchain_id: SUB_ONCHAIN,
           due_at: NOW,
-          owner: 'in_z_test001',
+          owner: 'in_fd_test001',
           charge_hash: CHARGE,
           charge_hashes: [CHARGE],
           charge_nonce: 7,
@@ -906,15 +906,15 @@ describe('InvoiceModule', () => {
           })
         );
         expect(seen.claim).toMatchObject({
-          owner: 'in_z_test001',
+          owner: 'in_fd_test001',
           due_at: NOW,
           charge_hash: CHARGE,
           charge_hashes: [CHARGE],
           charge_nonce: 7,
         });
-        expect(seen.processing).toEqual([['pi_z_1']]);
+        expect(seen.processing).toEqual([['pi_fd_1']]);
         expect(paymentIntentModule.SetPendingChargeHash).toHaveBeenCalledWith(
-          'pi_z_1',
+          'pi_fd_1',
           CHARGE,
           null
         );
@@ -928,7 +928,7 @@ describe('InvoiceModule', () => {
         // The settled charge is no longer pending on the PaymentIntent, and
         // the period it paid comes from its Charged event.
         expect(paymentIntentModule.ClearPendingChargeHash).toHaveBeenCalledWith(
-          'pi_z_1'
+          'pi_fd_1'
         );
         expect(Claim()).toMatchObject({
           paid_period: { start: NOW, end: NOW + PERIOD },
@@ -1052,7 +1052,7 @@ describe('InvoiceModule', () => {
           id: `${SUB_ONCHAIN}:${NOW + PERIOD}`,
           subscription_onchain_id: SUB_ONCHAIN,
           due_at: NOW + PERIOD,
-          owner: 'in_z_next',
+          owner: 'in_fd_next',
           charge_hash: null,
           charge_hashes: [CHARGE],
         });
@@ -1070,7 +1070,7 @@ describe('InvoiceModule', () => {
       it('follows the claim when the PaymentIntent holds another pending hash', async () => {
         paymentIntentModule.SetPendingChargeHash.mockResolvedValueOnce(false);
         paymentIntentModule.GetPaymentIntent.mockResolvedValue({
-          id: 'pi_z_1',
+          id: 'pi_fd_1',
           pending_charge_hash: `0x${'ee'.repeat(32)}`,
         });
 
@@ -1078,26 +1078,26 @@ describe('InvoiceModule', () => {
 
         expect(
           paymentIntentModule.SetPendingChargeHash
-        ).toHaveBeenNthCalledWith(2, 'pi_z_1', CHARGE, `0x${'ee'.repeat(32)}`);
+        ).toHaveBeenNthCalledWith(2, 'pi_fd_1', CHARGE, `0x${'ee'.repeat(32)}`);
         expect(result.status).toBe('paid');
       });
 
       it('keeps a decline’s retry time over a pause and a resume', async () => {
         SeedClaim({ charge_hash: null });
         memory.Seed('Invoices', {
-          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_fd_test001'),
           next_payment_attempt: NOW + 3 * 86_400,
         });
 
-        await module.ScheduleOpenSubscriptionInvoices('sub_z_1', null);
+        await module.ScheduleOpenSubscriptionInvoices('sub_fd_1', null);
         expect(
-          memory.Doc<Invoice>('Invoices', 'in_z_test001').next_payment_attempt
+          memory.Doc<Invoice>('Invoices', 'in_fd_test001').next_payment_attempt
         ).toBeNull();
         expect(Claim()).toMatchObject({ paused_retry_at: NOW + 3 * 86_400 });
 
-        await module.ScheduleOpenSubscriptionInvoices('sub_z_1', NOW + 60);
+        await module.ScheduleOpenSubscriptionInvoices('sub_fd_1', NOW + 60);
         expect(
-          memory.Doc<Invoice>('Invoices', 'in_z_test001').next_payment_attempt
+          memory.Doc<Invoice>('Invoices', 'in_fd_test001').next_payment_attempt
         ).toBe(NOW + 3 * 86_400);
         expect(Claim()).toMatchObject({ paused_retry_at: null });
       });
@@ -1107,7 +1107,7 @@ describe('InvoiceModule', () => {
           id: CLAIM,
           subscription_onchain_id: SUB_ONCHAIN,
           due_at: NOW,
-          owner: 'in_z_test001',
+          owner: 'in_fd_test001',
           charge_hash: `0x${'dd'.repeat(32)}`,
           charge_sent_at: NOW - 60,
         });
@@ -1127,7 +1127,7 @@ describe('InvoiceModule', () => {
           id: CLAIM,
           subscription_onchain_id: SUB_ONCHAIN,
           due_at: NOW,
-          owner: 'in_z_test001',
+          owner: 'in_fd_test001',
           charge_hash: CHARGE,
           charge_sent_at: NOW - 60,
         });
@@ -1144,7 +1144,7 @@ describe('InvoiceModule', () => {
           COLLECTION_FAILED_ALLOWANCE
         );
         expect(paymentIntentModule.MarkPaymentFailed).toHaveBeenCalledWith(
-          'pi_z_1',
+          'pi_fd_1',
           expect.objectContaining({
             code: COLLECTION_FAILED_ALLOWANCE,
             decline_code: COLLECTION_FAILED_ALLOWANCE,
@@ -1167,7 +1167,7 @@ describe('InvoiceModule', () => {
           chain_time: NOW + 10,
         });
         memory.Seed('Invoices', {
-          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_fd_test001'),
           period_start: NOW + PERIOD,
         });
 
@@ -1229,7 +1229,7 @@ describe('InvoiceModule', () => {
           id: CLAIM,
           subscription_onchain_id: SUB_ONCHAIN,
           due_at: NOW,
-          owner: 'cs_z_checkout',
+          owner: 'cs_fd_checkout',
           charge_hash: null,
           charge_sent_at: null,
         });
@@ -1260,7 +1260,7 @@ describe('InvoiceModule', () => {
 
       it('refuses an amount above what the plan collects, without a decline', async () => {
         memory.Seed('Invoices', {
-          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_fd_test001'),
           amount_due: 5000,
         });
 
@@ -1285,8 +1285,8 @@ describe('InvoiceModule', () => {
 
       it('emits allowance_exhausted only for the invoice platform’s subscription', async () => {
         memory.Seed('Subscriptions', {
-          ...memory.Doc<Record<string, unknown>>('Subscriptions', 'sub_z_1'),
-          platform_account: 'acct_z_other',
+          ...memory.Doc<Record<string, unknown>>('Subscriptions', 'sub_fd_1'),
+          platform_account: 'acct_fd_other',
         });
         settlement.CollectSubscriptionPayment.mockRejectedValue(
           new AppError('allowance', 402, COLLECTION_FAILED_ALLOWANCE)
@@ -1301,7 +1301,7 @@ describe('InvoiceModule', () => {
 
       it('clears the error code of an earlier attempt when another error follows', async () => {
         memory.Seed('Invoices', {
-          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_z_test001'),
+          ...memory.Doc<Record<string, unknown>>('Invoices', 'in_fd_test001'),
           metadata: { last_payment_error_code: PAUSED_ON_CHAIN },
         });
         settlement.CollectSubscriptionPayment.mockRejectedValue(
@@ -1346,7 +1346,7 @@ describe('InvoiceModule', () => {
         .fn()
         .mockResolvedValue(DraftInvoice({ status: 'draft' }));
 
-      await expect(module.VoidInvoice('in_z_test001')).rejects.toThrow(
+      await expect(module.VoidInvoice('in_fd_test001')).rejects.toThrow(
         "Cannot void invoice with status 'draft'"
       );
     });

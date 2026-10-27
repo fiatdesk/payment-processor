@@ -1,7 +1,7 @@
 import { Injectable, inject, WritableSignal, signal } from '@angular/core';
 import { AuthService, ExchangeContext, ApiService } from '../../core';
-import type { AccountLink } from '@zoneless/shared-types';
-import type { CreateAccountLinkInput } from '@zoneless/shared-schemas';
+import type { AccountLink } from '@fiatdesk/shared-types';
+import type { CreateAccountLinkInput } from '@fiatdesk/shared-schemas';
 
 export interface LinkError {
   type: string;

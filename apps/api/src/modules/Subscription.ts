@@ -35,7 +35,7 @@ import {
   SubscriptionItem as SubscriptionItemType,
   SubscriptionItemList,
   SubscriptionStatus,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CancelSubscriptionInput,
   CancelSubscriptionSchema,
@@ -51,7 +51,7 @@ import {
   CreateSubscriptionItemSchema,
   UpdateSubscriptionItemSchema,
   DeleteSubscriptionItemSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { z } from 'zod';
 import {
   AddRecurringInterval,
@@ -59,10 +59,10 @@ import {
 } from '../utils/RecurringInterval';
 
 type CreateItemInput = z.infer<
-  typeof import('@zoneless/shared-schemas').SubscriptionCreateItemSchema
+  typeof import('@fiatdesk/shared-schemas').SubscriptionCreateItemSchema
 >;
 type UpdateItemInput = z.infer<
-  typeof import('@zoneless/shared-schemas').SubscriptionUpdateItemSchema
+  typeof import('@fiatdesk/shared-schemas').SubscriptionUpdateItemSchema
 >;
 
 const THREE_DAYS_SECONDS = 3 * SECONDS_PER_DAY;

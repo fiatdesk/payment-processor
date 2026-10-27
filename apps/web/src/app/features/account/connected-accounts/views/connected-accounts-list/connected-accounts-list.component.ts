@@ -19,8 +19,8 @@ import { ConnectedAccountActionsService } from '../../services/connected-account
 
 import { AccountService } from '../../../../../data';
 
-import type { Account } from '@zoneless/shared-types';
-import type { ConnectedAccountListStatus } from '@zoneless/shared-schemas';
+import type { Account } from '@fiatdesk/shared-types';
+import type { ConnectedAccountListStatus } from '@fiatdesk/shared-schemas';
 import { Subscription } from 'rxjs';
 import {
   FormatAccountCountry,

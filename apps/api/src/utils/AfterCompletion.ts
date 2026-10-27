@@ -1,4 +1,4 @@
-import { CheckoutAfterCompletion } from '@zoneless/shared-types';
+import { CheckoutAfterCompletion } from '@fiatdesk/shared-types';
 
 type AfterCompletionInput = {
   type: CheckoutAfterCompletion['type'];

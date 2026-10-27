@@ -7,7 +7,7 @@ import type {
   InvoicePayment,
   Price,
   Subscription,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { FormatIntervalLabel } from '../../products/util/price-display';
 import {
   FormatMediumDate,

@@ -247,7 +247,7 @@
         [columns]="transferColumns"
         [limit]="5"
         [queryParams]="transferQueryParams"
-        [zonelessAccount]="a.id"
+        [fiatdeskAccount]="a.id"
         [paginationEnabled]="false"
         [showResultCount]="true"
       ></app-paginated-list>
@@ -264,7 +264,7 @@
         endpoint="payouts"
         [columns]="payoutColumns"
         [limit]="5"
-        [zonelessAccount]="a.id"
+        [fiatdeskAccount]="a.id"
         [paginationEnabled]="false"
         [showResultCount]="true"
       ></app-paginated-list>
@@ -559,7 +559,7 @@
     [columns]="transferColumns"
     [limit]="20"
     [queryParams]="transferQueryParams"
-    [zonelessAccount]="a.id"
+    [fiatdeskAccount]="a.id"
   ></app-paginated-list>
   } @else {
   <app-paginated-list
@@ -567,7 +567,7 @@
     endpoint="payouts"
     [columns]="payoutColumns"
     [limit]="20"
-    [zonelessAccount]="a.id"
+    [fiatdeskAccount]="a.id"
   ></app-paginated-list>
   }
 </div>

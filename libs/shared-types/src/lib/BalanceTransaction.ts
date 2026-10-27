@@ -1,5 +1,5 @@
 /**
- * Stripe-compatible Balance Transaction object for Zoneless Connect.
+ * Stripe-compatible Balance Transaction object for FiatDesk Connect.
  * Represents funds moving through an account balance.
  *
  * @see https://docs.stripe.com/api/balance_transactions/object
@@ -105,12 +105,12 @@ export interface BalanceTransaction {
   type: BalanceTransactionType;
   /**
    * The account ID this balance transaction belongs to.
-   * @zoneless_extension - Not in Stripe API, used for internal storage.
+   * @fiatdesk_extension - Not in Stripe API, used for internal storage.
    */
   account: string;
   /**
    * Metadata key-value pairs.
-   * @zoneless_extension - Not in Stripe API, used for internal storage.
+   * @fiatdesk_extension - Not in Stripe API, used for internal storage.
    */
   metadata?: Record<string, string>;
 
@@ -118,7 +118,7 @@ export interface BalanceTransaction {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

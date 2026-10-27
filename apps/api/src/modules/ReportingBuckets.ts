@@ -7,7 +7,7 @@
  * @module ReportingBuckets
  */
 
-import { MetricInterval, MetricPoint } from '@zoneless/shared-types';
+import { MetricInterval, MetricPoint } from '@fiatdesk/shared-types';
 
 interface ZonedParts {
   year: number;

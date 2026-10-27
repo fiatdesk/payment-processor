@@ -4,7 +4,7 @@ import {
   SetupStatus,
   SetupRequest,
   SetupResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 @Injectable({
   providedIn: 'root',

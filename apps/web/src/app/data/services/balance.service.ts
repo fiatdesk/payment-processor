@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService, AuthService } from '../../core';
-import { Balance, BalanceDetails } from '@zoneless/shared-types';
+import { Balance, BalanceDetails } from '@fiatdesk/shared-types';
 import { ConfigService } from './config.service';
 
 @Injectable({
@@ -22,16 +22,16 @@ export class BalanceService {
     this.balanceDetails.set(null);
   }
 
-  async GetBalance(zonelessAccount?: string): Promise<Balance> {
+  async GetBalance(fiatdeskAccount?: string): Promise<Balance> {
     this.loading.set(true);
     try {
       const balance = await this.api.Call<Balance>(
         'GET',
         'balance',
         {},
-        zonelessAccount ? { zonelessAccount } : undefined
+        fiatdeskAccount ? { fiatdeskAccount } : undefined
       );
-      if (!zonelessAccount) {
+      if (!fiatdeskAccount) {
         this.balance.set(balance);
       }
       return balance;

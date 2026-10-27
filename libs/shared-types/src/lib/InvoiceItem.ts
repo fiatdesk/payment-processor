@@ -2,7 +2,7 @@ import { Customer, CustomerDiscount, CustomerTaxRate } from './Customer';
 import { Price } from './Price';
 
 /**
- * Stripe-compatible Invoice Item object for Zoneless.
+ * Stripe-compatible Invoice Item object for FiatDesk.
  * Represents an item to be added to an invoice, covering one-off charges and prorations.
  *
  * @see https://docs.stripe.com/api/invoiceitems/object
@@ -25,7 +25,7 @@ export interface InvoiceItem {
   /**
    * Creation timestamp used for list ordering and `created` filters.
    * Mirrors `date`. Stripe’s invoice item object exposes `date` only.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   created: number;
   /** An arbitrary string attached to the object. Often useful for displaying to users. */
@@ -82,7 +82,7 @@ export interface InvoiceItem {
   test_clock: string | null;
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

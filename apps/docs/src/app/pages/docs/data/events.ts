@@ -17,15 +17,15 @@ export const EVENTS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const EVENT_OBJECT_JSON = `{
-  "id": "evt_z_1Nv0FGQ9RKHgCVdK",
+  "id": "evt_fd_1Nv0FGQ9RKHgCVdK",
   "object": "event",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "api_version": null,
   "context": null,
   "created": 1704067200,
   "data": {
     "object": {
-      "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "object": "account",
       "business_profile": {
         "mcc": null,
@@ -54,9 +54,9 @@ const EVENT_OBJECT_JSON = `{
   },
   "livemode": true,
   "pending_webhooks": 1,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "request": {
-    "id": "req_z_abc123",
+    "id": "req_fd_abc123",
     "idempotency_key": null
   },
   "type": "account.updated"
@@ -67,7 +67,7 @@ const EVENT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless event IDs are prefixed with <code>evt_z_</code>.',
+      'Unique identifier for the object. FiatDesk event IDs are prefixed with <code>evt_fd_</code>.',
   },
   {
     name: 'object',
@@ -172,7 +172,7 @@ const EVENT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -183,7 +183,7 @@ export const EVENTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Event object',
   description:
-    'Events allow you to track and react to activity in your Zoneless integration. When the state of another API resource changes, Zoneless creates an Event object that contains all the relevant information associated with that action, including the affected API resource.',
+    'Events allow you to track and react to activity in your FiatDesk integration. When the state of another API resource changes, FiatDesk creates an Event object that contains all the relevant information associated with that action, including the affected API resource.',
   stripeDocsUrl: 'https://docs.stripe.com/api/events',
   endpoints: BuildEndpointSummaries(EVENTS_SUBSECTION, [
     { method: 'GET', path: '/v1/events/:id', pageId: 'retrieve' },
@@ -226,15 +226,15 @@ export const EVENTS_OVERVIEW_PAGE: DocPage = {
 // Retrieve Event
 // ============================================
 const RETRIEVE_EVENT_RESPONSE_JSON = `{
-  "id": "evt_z_1Nv0FGQ9RKHgCVdK",
+  "id": "evt_fd_1Nv0FGQ9RKHgCVdK",
   "object": "event",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "api_version": null,
   "context": null,
   "created": 1704067200,
   "data": {
     "object": {
-      "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "object": "account",
       "business_profile": {
         "mcc": null,
@@ -263,9 +263,9 @@ const RETRIEVE_EVENT_RESPONSE_JSON = `{
   },
   "livemode": true,
   "pending_webhooks": 1,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "request": {
-    "id": "req_z_abc123",
+    "id": "req_fd_abc123",
     "idempotency_key": null
   },
   "type": "account.updated"
@@ -307,15 +307,15 @@ export const EVENTS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/events/evt_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/events/evt_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const event = await zoneless.events.retrieve('evt_z_1Nv0FGQ9RKHgCVdK');`,
+const event = await fiatdesk.events.retrieve('evt_fd_1Nv0FGQ9RKHgCVdK');`,
             },
           ],
         },
@@ -366,7 +366,7 @@ const LIST_EVENTS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>evt_z_bar</code>, your subsequent call can include <code>ending_before=evt_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>evt_fd_bar</code>, your subsequent call can include <code>ending_before=evt_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -378,13 +378,13 @@ const LIST_EVENTS_PARAMETERS: Attribute[] = [
     name: 'related_object',
     type: 'string',
     description:
-      'Only return the events for this object, for example <code>related_object=pi_z_7shF2nVcbQrLm4Xd</code> to list the events of one payment intent. Events match when their <code>data.object.id</code> is this ID. <strong>Zoneless extension:</strong> Stripe does not document this parameter for v1 events.',
+      'Only return the events for this object, for example <code>related_object=pi_fd_7shF2nVcbQrLm4Xd</code> to list the events of one payment intent. Events match when their <code>data.object.id</code> is this ID. <strong>FiatDesk extension:</strong> Stripe does not document this parameter for v1 events.',
   },
   {
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>evt_z_foo</code>, your subsequent call can include <code>starting_after=evt_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>evt_fd_foo</code>, your subsequent call can include <code>starting_after=evt_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'type',
@@ -406,15 +406,15 @@ const LIST_EVENTS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "evt_z_1Nv0FGQ9RKHgCVdK",
+      "id": "evt_fd_1Nv0FGQ9RKHgCVdK",
       "object": "event",
-      "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "api_version": null,
       "context": null,
       "created": 1704067200,
       "data": {
         "object": {
-          "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+          "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
           "object": "account",
           "business_type": "individual",
           "capabilities": {
@@ -434,9 +434,9 @@ const LIST_EVENTS_RESPONSE_JSON = `{
       },
       "livemode": true,
       "pending_webhooks": 0,
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "request": {
-        "id": "req_z_abc123",
+        "id": "req_fd_abc123",
         "idempotency_key": null
       },
       "type": "account.created"
@@ -476,7 +476,7 @@ export const EVENTS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/events \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -484,7 +484,7 @@ export const EVENTS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const events = await zoneless.events.list({
+const events = await fiatdesk.events.list({
   limit: 3,
 });`,
             },
@@ -503,7 +503,7 @@ export const EVENTS_TYPES_PAGE: DocPage = {
   id: 'types',
   title: 'Types of events',
   description:
-    'This is a list of all the event types currently supported by Zoneless. Events use the resource.event naming convention.',
+    'This is a list of all the event types currently supported by FiatDesk. Events use the resource.event naming convention.',
   sections: [
     {
       left: [

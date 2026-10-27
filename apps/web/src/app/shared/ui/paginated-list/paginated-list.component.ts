@@ -15,7 +15,7 @@ import { DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { ApiService } from '../../../core';
-import { ListResponse } from '@zoneless/shared-types';
+import { ListResponse } from '@fiatdesk/shared-types';
 import { StatusChipComponent } from '../status-chip/status-chip.component';
 import {
   PopupMenuComponent,
@@ -111,8 +111,8 @@ export class PaginatedListComponent<T extends ListItem>
   /** Which fields to expand */
   @Input() expand: string[] = [];
 
-  /** Act on behalf of a connected account (Zoneless-Account header) */
-  @Input() zonelessAccount = '';
+  /** Act on behalf of a connected account (FiatDesk-Account header) */
+  @Input() fiatdeskAccount = '';
 
   /**
    * Router path prefix for each row (e.g. `/account/customers`).
@@ -158,8 +158,8 @@ export class PaginatedListComponent<T extends ListItem>
       await this.Reset();
     }
     if (
-      changes['zonelessAccount'] &&
-      !changes['zonelessAccount'].firstChange &&
+      changes['fiatdeskAccount'] &&
+      !changes['fiatdeskAccount'].firstChange &&
       this.initialLoadComplete()
     ) {
       await this.Reset();
@@ -216,8 +216,8 @@ export class PaginatedListComponent<T extends ListItem>
         'GET',
         url,
         {},
-        this.zonelessAccount
-          ? { zonelessAccount: this.zonelessAccount }
+        this.fiatdeskAccount
+          ? { fiatdeskAccount: this.fiatdeskAccount }
           : undefined
       );
 

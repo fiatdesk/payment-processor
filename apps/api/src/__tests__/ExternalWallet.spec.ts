@@ -1,6 +1,6 @@
 import { ExternalWalletModule } from '../modules/ExternalWallet';
 import { Database } from '../modules/Database';
-import { ExternalWallet } from '@zoneless/shared-types';
+import { ExternalWallet } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -52,16 +52,16 @@ describe('ExternalWalletModule', () => {
   describe('ExternalWalletObject', () => {
     it('should create a wallet object with correct defaults', () => {
       const wallet = module.ExternalWalletObject(
-        'acct_z_1',
-        'acct_z_platform',
+        'acct_fd_1',
+        'acct_fd_platform',
         {
           wallet_address: VALID_WALLET,
         }
       );
 
       expect(wallet.object).toBe('wallet');
-      expect(wallet.account).toBe('acct_z_1');
-      expect(wallet.platform_account).toBe('acct_z_platform');
+      expect(wallet.account).toBe('acct_fd_1');
+      expect(wallet.platform_account).toBe('acct_fd_platform');
       expect(wallet.wallet_address).toBe(VALID_WALLET);
       expect(wallet.network).toBe('ethereum');
       expect(wallet.currency).toBe('usdc');
@@ -72,8 +72,8 @@ describe('ExternalWalletModule', () => {
 
     it('should use the last 4 characters of the wallet address', () => {
       const wallet = module.ExternalWalletObject(
-        'acct_z_1',
-        'acct_z_platform',
+        'acct_fd_1',
+        'acct_fd_platform',
         { wallet_address: VALID_WALLET_2 }
       );
 
@@ -82,8 +82,8 @@ describe('ExternalWalletModule', () => {
 
     it('should keep an explicit network', () => {
       const wallet = module.ExternalWalletObject(
-        'acct_z_1',
-        'acct_z_platform',
+        'acct_fd_1',
+        'acct_fd_platform',
         { wallet_address: VALID_WALLET, network: 'simulated' }
       );
 
@@ -94,11 +94,11 @@ describe('ExternalWalletModule', () => {
   describe('CreateExternalWallet', () => {
     it('should screen, persist, and return the wallet', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
       });
 
-      const wallet = await module.CreateExternalWallet('acct_z_1', {
+      const wallet = await module.CreateExternalWallet('acct_fd_1', {
         wallet_address: VALID_WALLET,
       });
 
@@ -115,11 +115,11 @@ describe('ExternalWalletModule', () => {
 
     it('should accept a lowercase address and store it checksummed', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
       });
 
-      const wallet = await module.CreateExternalWallet('acct_z_1', {
+      const wallet = await module.CreateExternalWallet('acct_fd_1', {
         wallet_address: VALID_WALLET.toLowerCase(),
       });
 
@@ -140,7 +140,7 @@ describe('ExternalWalletModule', () => {
       ['a truncated address', VALID_WALLET.slice(0, -1)],
     ])('should reject %s', async (_label, walletAddress) => {
       await expect(
-        module.CreateExternalWallet('acct_z_1', {
+        module.CreateExternalWallet('acct_fd_1', {
           wallet_address: walletAddress,
         })
       ).rejects.toThrow('wallet_address: Must be a valid Ethereum address');
@@ -159,12 +159,12 @@ describe('ExternalWalletModule', () => {
   describe('GetExternalWallet', () => {
     it('should return the wallet when found', async () => {
       const mockWallet = {
-        id: 'wa_z_1',
+        id: 'wa_fd_1',
         object: 'wallet',
       } as ExternalWallet;
       mockDb.Get = jest.fn().mockResolvedValue(mockWallet);
 
-      const result = await module.GetExternalWallet('wa_z_1');
+      const result = await module.GetExternalWallet('wa_fd_1');
       expect(result).toEqual(mockWallet);
     });
 
@@ -177,18 +177,18 @@ describe('ExternalWalletModule', () => {
   describe('DeleteExternalWallet', () => {
     it('should archive the wallet (soft delete)', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'wa_z_1',
+        id: 'wa_fd_1',
         object: 'wallet',
-        account: 'acct_z_1',
+        account: 'acct_fd_1',
       });
 
-      const result = await module.DeleteExternalWallet('wa_z_1');
+      const result = await module.DeleteExternalWallet('wa_fd_1');
 
-      expect(mockDb.Update).toHaveBeenCalledWith('ExternalWallets', 'wa_z_1', {
+      expect(mockDb.Update).toHaveBeenCalledWith('ExternalWallets', 'wa_fd_1', {
         status: 'archived',
       });
       expect(result).toEqual({
-        id: 'wa_z_1',
+        id: 'wa_fd_1',
         object: 'wallet',
         deleted: true,
       });
@@ -204,19 +204,19 @@ describe('ExternalWalletModule', () => {
   describe('GetExternalWalletsByAccount', () => {
     it('should exclude archived wallets by default', async () => {
       const wallets = [
-        { id: 'wa_z_1', status: 'new' },
-        { id: 'wa_z_2', status: 'verified' },
+        { id: 'wa_fd_1', status: 'new' },
+        { id: 'wa_fd_2', status: 'verified' },
       ] as ExternalWallet[];
       mockDb.Find2Custom = jest.fn().mockResolvedValue(wallets);
 
-      const result = await module.GetExternalWalletsByAccount('acct_z_1');
+      const result = await module.GetExternalWalletsByAccount('acct_fd_1');
 
       expect(result).toHaveLength(2);
       expect(mockDb.Find2Custom).toHaveBeenCalledWith(
         'ExternalWallets',
         'account',
         '==',
-        'acct_z_1',
+        'acct_fd_1',
         'status',
         '!=',
         'archived'
@@ -225,18 +225,21 @@ describe('ExternalWalletModule', () => {
 
     it('should include archived wallets when requested', async () => {
       const wallets = [
-        { id: 'wa_z_1', status: 'new' },
-        { id: 'wa_z_2', status: 'archived' },
+        { id: 'wa_fd_1', status: 'new' },
+        { id: 'wa_fd_2', status: 'archived' },
       ] as ExternalWallet[];
       mockDb.Find = jest.fn().mockResolvedValue(wallets);
 
-      const result = await module.GetExternalWalletsByAccount('acct_z_1', true);
+      const result = await module.GetExternalWalletsByAccount(
+        'acct_fd_1',
+        true
+      );
 
       expect(result).toHaveLength(2);
       expect(mockDb.Find).toHaveBeenCalledWith(
         'ExternalWallets',
         'account',
-        'acct_z_1'
+        'acct_fd_1'
       );
     });
   });

@@ -2,17 +2,17 @@ import { DocPage } from './types';
 import { NODE_INIT } from './shared';
 
 const EXPANDED_RESPONSE_JSON = `{
-  "id": "price_z_yXmLn04Bpw9Wbjx2",
+  "id": "price_fd_yXmLn04Bpw9Wbjx2",
   "object": "price",
   "active": true,
   "currency": "usdc",
   "unit_amount": 1000,
   "product": {
-    "id": "prod_z_oJaYlHpf6YmRzCMm",
+    "id": "prod_fd_oJaYlHpf6YmRzCMm",
     "object": "product",
     "name": "Pro Plan",
     "default_price": {
-      "id": "price_z_yXmLn04Bpw9Wbjx2",
+      "id": "price_fd_yXmLn04Bpw9Wbjx2",
       "object": "price"
       // ...
     }
@@ -95,8 +95,8 @@ export const EXPANDING_RESPONSES_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/prices/price_z_yXmLn04Bpw9Wbjx2 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/prices/price_fd_yXmLn04Bpw9Wbjx2 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "expand[]"=product \\
   -d "expand[]"="product.default_price" \\
   -G`,
@@ -106,8 +106,8 @@ export const EXPANDING_RESPONSES_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const price = await zoneless.prices.retrieve(
-  'price_z_yXmLn04Bpw9Wbjx2',
+const price = await fiatdesk.prices.retrieve(
+  'price_fd_yXmLn04Bpw9Wbjx2',
   {
     expand: ['product', 'product.default_price'],
   }

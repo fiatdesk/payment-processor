@@ -16,7 +16,7 @@ import { DecimalPipe, DatePipe } from '@angular/common';
 
 import { TopupService, ConfigService } from '../../../../../data';
 import { LoaderComponent, StatusChipComponent } from '../../../../../shared';
-import { DepositInfo, TopUp } from '@zoneless/shared-types';
+import { DepositInfo, TopUp } from '@fiatdesk/shared-types';
 
 type PanelState = 'loading' | 'info' | 'waiting' | 'success';
 

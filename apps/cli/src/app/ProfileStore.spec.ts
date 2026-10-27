@@ -10,7 +10,7 @@ describe('Profile store multi-platform behavior', () => {
   let secretStore: SecretStore;
 
   beforeEach(async () => {
-    configRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'zoneless-profiles-'));
+    configRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'fiatdesk-profiles-'));
     secrets = new Map();
     secretStore = {
       Delete: async (account) => {
@@ -152,7 +152,7 @@ function CreateProfile(mode: 'live' | 'test'): AgentProfile {
 describe('Profile store', () => {
   it('writes only non-secret metadata to an owner-readable config', async () => {
     const configRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'zoneless-cli-')
+      path.join(os.tmpdir(), 'fiatdesk-cli-')
     );
     const secrets = new Map<string, string>();
     const secretStore: SecretStore = {
@@ -183,7 +183,7 @@ describe('Profile store', () => {
       { test: 'zk_test_secret' }
     );
 
-    const configPath = path.join(configRoot, 'zoneless', 'config.json');
+    const configPath = path.join(configRoot, 'fiatdesk', 'config.json');
     const contents = await fs.readFile(configPath, 'utf8');
     const fileMode = (await fs.stat(configPath)).mode & 0o777;
     expect(contents).toContain('wallet-public-key');

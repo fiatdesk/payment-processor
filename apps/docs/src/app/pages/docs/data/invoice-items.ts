@@ -83,7 +83,7 @@ const PRICE_DATA_CHILDREN: Attribute[] = [
     type: 'enum',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -207,7 +207,7 @@ const TAX_RATE_CHILDREN: Attribute[] = [
     description:
       'The high-level tax type, such as <code>vat</code> or <code>sales_tax</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe supports many jurisdiction-specific <code>tax_type</code> values. Zoneless keeps this as a plain string for maintainability.',
+      '<strong>Difference from Stripe:</strong> Stripe supports many jurisdiction-specific <code>tax_type</code> values. FiatDesk keeps this as a plain string for maintainability.',
   },
 ];
 
@@ -216,11 +216,11 @@ const TAX_RATE_CHILDREN: Attribute[] = [
 // ============================================
 
 const INVOICE_ITEM_OBJECT_JSON = `{
-  "id": "ii_z_1QfGHtLkdIwHu7ixBYwjAM42",
+  "id": "ii_fd_1QfGHtLkdIwHu7ixBYwjAM42",
   "object": "invoiceitem",
   "amount": 2500,
   "currency": "usdc",
-  "customer": "cus_z_KmR4eUfNV2Hib",
+  "customer": "cus_fd_KmR4eUfNV2Hib",
   "customer_account": null,
   "date": 1721415600,
   "created": 1721415600,
@@ -238,8 +238,8 @@ const INVOICE_ITEM_OBJECT_JSON = `{
   },
   "pricing": {
     "price_details": {
-      "price": "price_z_1QfGHsLkdIwHu7ix1be5Ljaj",
-      "product": "prod_z_KmR47xbBdJT8EN"
+      "price": "price_fd_1QfGHsLkdIwHu7ix1be5Ljaj",
+      "product": "prod_fd_KmR47xbBdJT8EN"
     },
     "type": "price_details",
     "unit_amount_decimal": "2500"
@@ -250,15 +250,15 @@ const INVOICE_ITEM_OBJECT_JSON = `{
   "quantity_decimal": "1",
   "tax_rates": [],
   "test_clock": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_ITEM_UPDATED_JSON = `{
-  "id": "ii_z_1QfGHtLkdIwHu7ixBYwjAM42",
+  "id": "ii_fd_1QfGHtLkdIwHu7ixBYwjAM42",
   "object": "invoiceitem",
   "amount": 2500,
   "currency": "usdc",
-  "customer": "cus_z_KmR4eUfNV2Hib",
+  "customer": "cus_fd_KmR4eUfNV2Hib",
   "customer_account": null,
   "date": 1721415600,
   "created": 1721415600,
@@ -278,8 +278,8 @@ const INVOICE_ITEM_UPDATED_JSON = `{
   },
   "pricing": {
     "price_details": {
-      "price": "price_z_1QfGHsLkdIwHu7ix1be5Ljaj",
-      "product": "prod_z_KmR47xbBdJT8EN"
+      "price": "price_fd_1QfGHsLkdIwHu7ix1be5Ljaj",
+      "product": "prod_fd_KmR47xbBdJT8EN"
     },
     "type": "price_details",
     "unit_amount_decimal": "2500"
@@ -290,11 +290,11 @@ const INVOICE_ITEM_UPDATED_JSON = `{
   "quantity_decimal": "1",
   "tax_rates": [],
   "test_clock": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_ITEM_DELETED_JSON = `{
-  "id": "ii_z_1QfGHtLkdIwHu7ixBYwjAM42",
+  "id": "ii_fd_1QfGHtLkdIwHu7ixBYwjAM42",
   "object": "invoiceitem",
   "deleted": true
 }`;
@@ -305,11 +305,11 @@ const LIST_INVOICE_ITEMS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "ii_z_1QfGHtLkdIwHu7ixBYwjAM42",
+      "id": "ii_fd_1QfGHtLkdIwHu7ixBYwjAM42",
       "object": "invoiceitem",
       "amount": 2500,
       "currency": "usdc",
-      "customer": "cus_z_KmR4eUfNV2Hib",
+      "customer": "cus_fd_KmR4eUfNV2Hib",
       "customer_account": null,
       "date": 1721415600,
       "created": 1721415600,
@@ -327,8 +327,8 @@ const LIST_INVOICE_ITEMS_RESPONSE_JSON = `{
       },
       "pricing": {
         "price_details": {
-          "price": "price_z_1QfGHsLkdIwHu7ix1be5Ljaj",
-          "product": "prod_z_KmR47xbBdJT8EN"
+          "price": "price_fd_1QfGHsLkdIwHu7ix1be5Ljaj",
+          "product": "prod_fd_KmR47xbBdJT8EN"
         },
         "type": "price_details",
         "unit_amount_decimal": "2500"
@@ -339,7 +339,7 @@ const LIST_INVOICE_ITEMS_RESPONSE_JSON = `{
       "quantity_decimal": "1",
       "tax_rates": [],
       "test_clock": null,
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
@@ -353,7 +353,7 @@ const INVOICE_ITEM_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless invoice item IDs are prefixed with <code>ii_z_</code>.',
+      'Unique identifier for the object. FiatDesk invoice item IDs are prefixed with <code>ii_fd_</code>.',
   },
   {
     name: 'object',
@@ -371,7 +371,7 @@ const INVOICE_ITEM_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'enum',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -526,7 +526,7 @@ const INVOICE_ITEM_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Creation timestamp used for list ordering and <code>created</code> filters. Mirrors <code>date</code>.',
     enumNote:
-      "<strong>Zoneless extension:</strong> Stripe's invoice item object exposes <code>date</code> only. Zoneless also returns <code>created</code> for consistency with other list filters.",
+      "<strong>FiatDesk extension:</strong> Stripe's invoice item object exposes <code>date</code> only. FiatDesk also returns <code>created</code> for consistency with other list filters.",
   },
   {
     name: 'net_amount',
@@ -680,7 +680,7 @@ const INVOICE_ITEM_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -753,7 +753,7 @@ const CREATE_INVOICE_ITEM_PARAMETERS: Attribute[] = [
     name: 'currency',
     type: 'enum',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -899,19 +899,19 @@ export const INVOICE_ITEMS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/invoiceitems \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d customer=cus_z_KmR4eUfNV2Hib \\
-  -d "pricing[price]"=price_z_1QfGHsLkdIwHu7ix1be5Ljaj`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d customer=cus_fd_KmR4eUfNV2Hib \\
+  -d "pricing[price]"=price_fd_1QfGHsLkdIwHu7ix1be5Ljaj`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoiceItem = await zoneless.invoiceItems.create({
-  customer: 'cus_z_KmR4eUfNV2Hib',
+const invoiceItem = await fiatdesk.invoiceItems.create({
+  customer: 'cus_fd_KmR4eUfNV2Hib',
   pricing: {
-    price: 'price_z_1QfGHsLkdIwHu7ix1be5Ljaj',
+    price: 'price_fd_1QfGHsLkdIwHu7ix1be5Ljaj',
   },
 });`,
             },
@@ -1063,8 +1063,8 @@ export const INVOICE_ITEMS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoiceitems/ii_z_1QfGHtLkdIwHu7ixBYwjAM42 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoiceitems/ii_fd_1QfGHtLkdIwHu7ixBYwjAM42 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=9284`,
             },
             {
@@ -1072,8 +1072,8 @@ export const INVOICE_ITEMS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoiceItem = await zoneless.invoiceItems.update(
-  'ii_z_1QfGHtLkdIwHu7ixBYwjAM42',
+const invoiceItem = await fiatdesk.invoiceItems.update(
+  'ii_fd_1QfGHtLkdIwHu7ixBYwjAM42',
   {
     metadata: {
       order_id: '9284',
@@ -1118,16 +1118,16 @@ export const INVOICE_ITEMS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoiceitems/ii_z_1QfGHtLkdIwHu7ixBYwjAM42 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/invoiceitems/ii_fd_1QfGHtLkdIwHu7ixBYwjAM42 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoiceItem = await zoneless.invoiceItems.retrieve(
-  'ii_z_1QfGHtLkdIwHu7ixBYwjAM42'
+const invoiceItem = await fiatdesk.invoiceItems.retrieve(
+  'ii_fd_1QfGHtLkdIwHu7ixBYwjAM42'
 );`,
             },
           ],
@@ -1188,13 +1188,13 @@ const LIST_INVOICE_ITEMS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>ii_z_bar</code>, your subsequent call can include <code>ending_before=ii_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>ii_fd_bar</code>, your subsequent call can include <code>ending_before=ii_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>ii_z_foo</code>, your subsequent call can include <code>starting_after=ii_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>ii_fd_foo</code>, your subsequent call can include <code>starting_after=ii_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -1230,7 +1230,7 @@ export const INVOICE_ITEMS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/invoiceitems \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -1238,7 +1238,7 @@ export const INVOICE_ITEMS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoiceItems = await zoneless.invoiceItems.list({
+const invoiceItems = await fiatdesk.invoiceItems.list({
   limit: 3,
 });`,
             },
@@ -1284,16 +1284,16 @@ export const INVOICE_ITEMS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/invoiceitems/ii_z_1QfGHtLkdIwHu7ixBYwjAM42 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/invoiceitems/ii_fd_1QfGHtLkdIwHu7ixBYwjAM42 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.invoiceItems.del(
-  'ii_z_1QfGHtLkdIwHu7ixBYwjAM42'
+const deleted = await fiatdesk.invoiceItems.del(
+  'ii_fd_1QfGHtLkdIwHu7ixBYwjAM42'
 );`,
             },
           ],

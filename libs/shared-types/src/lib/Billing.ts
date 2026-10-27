@@ -1,10 +1,10 @@
 /**
- * Zoneless subscription billing helpers.
+ * FiatDesk subscription billing helpers.
  *
  * Used to poll for subscriptions that need to recur and create cycle invoices.
- * Not a Stripe public API — Zoneless extension for self-hosted platforms.
+ * Not a Stripe public API — FiatDesk extension for self-hosted platforms.
  *
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 
 /** A per-subscription error from a billing run. */

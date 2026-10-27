@@ -3,8 +3,8 @@ import { ApiService } from '../../core/services/api.service';
 import type {
   IdentityVerificationSession,
   ListResponse,
-} from '@zoneless/shared-types';
-import type { CreateIdentityVerificationSessionInput } from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-types';
+import type { CreateIdentityVerificationSessionInput } from '@fiatdesk/shared-schemas';
 
 @Injectable({
   providedIn: 'root',

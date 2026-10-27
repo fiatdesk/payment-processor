@@ -28,9 +28,9 @@ import {
   SetChargesEnabledSchema,
   SetPayoutsEnabledSchema,
   IsConnectedAccountStatusFilter,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
-import { Account as AccountType } from '@zoneless/shared-types';
+import { Account as AccountType } from '@fiatdesk/shared-types';
 
 const router = express.Router();
 
@@ -235,7 +235,7 @@ router.get(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /v1/accounts/me - Retrieve the authenticated account
-// This is a Zoneless extension, not in Stripe API
+// This is a FiatDesk extension, not in Stripe API
 // ─────────────────────────────────────────────────────────────────────────────
 router.get(
   '/me',
@@ -259,7 +259,7 @@ router.get(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /v1/accounts/search - Search connected accounts
-// Zoneless extension for the platform dashboard search bar
+// FiatDesk extension for the platform dashboard search bar
 // ─────────────────────────────────────────────────────────────────────────────
 router.get(
   '/search',
@@ -415,7 +415,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/unreject - Unreject an account
-// Zoneless platform operator control
+// FiatDesk platform operator control
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/unreject',
@@ -440,7 +440,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/charges_enabled - Pause or resume payments
-// Platform operator control (Zoneless extension)
+// Platform operator control (FiatDesk extension)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/charges_enabled',
@@ -466,7 +466,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/payouts_enabled - Pause or resume payouts
-// Platform operator control (Zoneless extension)
+// Platform operator control (FiatDesk extension)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/payouts_enabled',
@@ -495,7 +495,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/approve_identity - Dismiss lite identity review flags
-// Zoneless extension: operator accepts risk; does not block payouts by itself
+// FiatDesk extension: operator accepts risk; does not block payouts by itself
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/approve_identity',
@@ -517,7 +517,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/refresh_identity - Rebuild currently_due from live rules
-// Zoneless extension: does not persist an IDV exemption
+// FiatDesk extension: does not persist an IDV exemption
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/refresh_identity',
@@ -541,7 +541,7 @@ router.post(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /v1/accounts/:id/agree_terms - Agree to terms of service
-// This is a Zoneless extension that handles TOS acceptance from the frontend
+// This is a FiatDesk extension that handles TOS acceptance from the frontend
 // ─────────────────────────────────────────────────────────────────────────────
 router.post(
   '/:id/agree_terms',

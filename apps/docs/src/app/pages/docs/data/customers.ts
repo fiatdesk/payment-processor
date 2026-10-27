@@ -23,7 +23,7 @@ export const CUSTOMERS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const CUSTOMER_OBJECT_JSON = `{
-  "id": "cus_z_NffrFeUfNV2Hib",
+  "id": "cus_fd_NffrFeUfNV2Hib",
   "object": "customer",
   "address": null,
   "balance": 0,
@@ -49,7 +49,7 @@ const CUSTOMER_OBJECT_JSON = `{
   "shipping": null,
   "tax_exempt": "none",
   "test_clock": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const CUSTOMER_ATTRIBUTES: Attribute[] = [
@@ -57,7 +57,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless customer IDs are prefixed with <code>cus_z_</code>.',
+      'Unique identifier for the object. FiatDesk customer IDs are prefixed with <code>cus_fd_</code>.',
   },
   {
     name: 'address',
@@ -110,7 +110,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     name: 'balance',
     type: 'number',
     description:
-      "The current balance, if any, that's stored on the customer in their default currency. If negative, the customer has credit to apply to their next invoice. If positive, the customer has an amount owed that's added to their next invoice. The balance only considers amounts that Zoneless hasn't successfully applied to any invoice. It doesn't reflect unpaid invoices. This balance is only taken into account after invoices finalize. For multi-currency balances, see <code>invoice_credit_balance</code>.",
+      "The current balance, if any, that's stored on the customer in their default currency. If negative, the customer has credit to apply to their next invoice. If positive, the customer has an amount owed that's added to their next invoice. The balance only considers amounts that FiatDesk hasn't successfully applied to any invoice. It doesn't reflect unpaid invoices. This balance is only taken into account after invoices finalize. For multi-currency balances, see <code>invoice_credit_balance</code>.",
   },
   {
     name: 'created',
@@ -125,7 +125,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     description:
       'Three-letter ISO code for the currency the customer can be charged in for recurring billing purposes.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only settles in <code>usdc</code>, so this field is either <code>null</code> or <code>usdc</code>.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only settles in <code>usdc</code>, so this field is either <code>null</code> or <code>usdc</code>.',
   },
   {
     name: 'default_source',
@@ -135,7 +135,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     description:
       'ID of the default payment source for the customer. If you use payment methods created through the PaymentMethods API, see the <code>invoice_settings.default_payment_method</code> field instead.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Stripe's default source is a bank account or card ID. Zoneless's default source is a linked Ethereum wallet ID (<code>src_z_</code> prefix).",
+      "<strong>Difference from Stripe:</strong> Stripe's default source is a bank account or card ID. FiatDesk's default source is a linked Ethereum wallet ID (<code>src_fd_</code> prefix).",
   },
   {
     name: 'delinquent',
@@ -449,7 +449,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     description: "The customer's payment sources, if any.",
     expandable: true,
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless customers pay from linked Ethereum wallets rather than bank accounts, so each item in <code>sources.data</code> represents a wallet rather than a bank account. See <a href="/external-wallets">External Wallets</a> for the equivalent object sellers use to receive USDC payouts.',
+      '<strong>Difference from Stripe:</strong> FiatDesk customers pay from linked Ethereum wallets rather than bank accounts, so each item in <code>sources.data</code> represents a wallet rather than a bank account. See <a href="/external-wallets">External Wallets</a> for the equivalent object sellers use to receive USDC payouts.',
     children: [
       {
         name: 'object',
@@ -511,7 +511,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             description:
               'Not used for Ethereum wallets; retained for Stripe API parity.',
             enumNote:
-              "<strong>Zoneless extension:</strong> Equivalent to Stripe's bank account <code>account_type</code>.",
+              "<strong>FiatDesk extension:</strong> Equivalent to Stripe's bank account <code>account_type</code>.",
           },
           {
             name: 'available_payout_methods',
@@ -534,7 +534,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             description:
               'Name of the wallet provider associated with the address (e.g., <code>METAMASK</code>).',
             enumNote:
-              "<strong>Zoneless extension:</strong> Equivalent to Stripe's <code>bank_name</code>.",
+              "<strong>FiatDesk extension:</strong> Equivalent to Stripe's <code>bank_name</code>.",
           },
           {
             name: 'country',
@@ -584,13 +584,13 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             description:
               'Not applicable to Ethereum wallets; retained for Stripe API parity.',
             enumNote:
-              '<strong>Zoneless extension:</strong> Always <code>null</code>. Ethereum wallets have no equivalent of a routing number.',
+              '<strong>FiatDesk extension:</strong> Always <code>null</code>. Ethereum wallets have no equivalent of a routing number.',
           },
           {
             name: 'status',
             type: 'enum',
             description:
-              "A wallet that hasn't had any activity or validation performed is <code>new</code>. If Zoneless can determine that the wallet exists, its status is <code>validated</code>. If customer wallet ownership verification succeeds, the status is <code>verified</code>. If a payout sent to this wallet fails, we set the status to <code>errored</code> and stop sending scheduled payouts until the wallet details are updated.",
+              "A wallet that hasn't had any activity or validation performed is <code>new</code>. If FiatDesk can determine that the wallet exists, its status is <code>validated</code>. If customer wallet ownership verification succeeds, the status is <code>verified</code>. If a payout sent to this wallet fails, we set the status to <code>errored</code> and stop sending scheduled payouts until the wallet details are updated.",
             enumValues: [
               { value: 'new' },
               { value: 'validated' },
@@ -789,7 +789,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             description:
               'Type of the tax ID, e.g. <code>us_ein</code>, <code>eu_vat</code>, <code>gb_vat</code>, <code>jp_trn</code>.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific values. Zoneless keeps this as a plain string for maintainability.',
+              '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific values. FiatDesk keeps this as a plain string for maintainability.',
           },
           {
             name: 'value',
@@ -872,7 +872,7 @@ const CUSTOMER_MORE_ATTRIBUTES: Attribute[] = [
       'The current funds being held on behalf of the customer. You can apply these funds towards payment intents when the source is <code>cash_balance</code>. The <code>settings.reconciliation_mode</code> field describes whether these funds apply to those payment intents manually or automatically.',
     expandable: true,
     enumNote:
-      "<strong>Difference from Stripe:</strong> Stripe's cash balance can hold any supported fiat currency. Zoneless cash balances are always denominated in USDC.",
+      "<strong>Difference from Stripe:</strong> Stripe's cash balance can hold any supported fiat currency. FiatDesk cash balances are always denominated in USDC.",
     children: [
       {
         name: 'object',
@@ -952,7 +952,7 @@ const CUSTOMER_MORE_ATTRIBUTES: Attribute[] = [
     name: 'invoice_credit_balance',
     type: 'object',
     description:
-      "The current multi-currency balances, if any, that are stored on the customer, keyed by three-letter currency code. If positive in a currency, the customer has a credit to apply to their next invoice denominated in that currency. If negative, the customer has an amount owed that's added to their next invoice denominated in that currency. These balances don't apply to unpaid invoices — they solely track amounts that Zoneless hasn't successfully applied to any invoice.",
+      "The current multi-currency balances, if any, that are stored on the customer, keyed by three-letter currency code. If positive in a currency, the customer has a credit to apply to their next invoice denominated in that currency. If negative, the customer has an amount owed that's added to their next invoice denominated in that currency. These balances don't apply to unpaid invoices — they solely track amounts that FiatDesk hasn't successfully applied to any invoice.",
   },
   {
     name: 'livemode',
@@ -1033,9 +1033,9 @@ const CUSTOMER_MORE_ATTRIBUTES: Attribute[] = [
         type: 'enum',
         description:
           'The tax calculation provider used for location resolution.',
-        enumValues: [{ value: 'zoneless' }],
+        enumValues: [{ value: 'fiatdesk' }],
         enumNote:
-          "<strong>Difference from Stripe:</strong> Stripe supports third-party tax providers. Zoneless doesn't, so this is always <code>zoneless</code>.",
+          "<strong>Difference from Stripe:</strong> Stripe supports third-party tax providers. FiatDesk doesn't, so this is always <code>fiatdesk</code>.",
       },
     ],
   },
@@ -1044,7 +1044,7 @@ const CUSTOMER_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The platform account that owns this resource.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -1398,13 +1398,13 @@ const CREATE_CUSTOMER_MORE_PARAMETERS: Attribute[] = [
         name: 'ip_address',
         type: 'string',
         description:
-          'A recent IP address of the customer used for tax reporting and tax location inference. Zoneless recommends updating the IP address when a new payment method is attached or the <code>address</code> field on the customer is updated.',
+          'A recent IP address of the customer used for tax reporting and tax location inference. FiatDesk recommends updating the IP address when a new payment method is attached or the <code>address</code> field on the customer is updated.',
       },
       {
         name: 'validate_location',
         type: 'enum',
         description:
-          'A flag that indicates when Zoneless should validate the customer tax location. Defaults to <code>deferred</code>.',
+          'A flag that indicates when FiatDesk should validate the customer tax location. Defaults to <code>deferred</code>.',
         enumValues: [
           {
             value: 'deferred',
@@ -1433,7 +1433,7 @@ const CREATE_CUSTOMER_MORE_PARAMETERS: Attribute[] = [
         description:
           'Type of the tax ID, e.g. <code>us_ein</code>, <code>eu_vat</code>, <code>gb_vat</code>, <code>jp_trn</code>.',
         enumNote:
-          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific values. Zoneless keeps this as a free-form string for maintainability.',
+          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific values. FiatDesk keeps this as a free-form string for maintainability.',
       },
       {
         name: 'value',
@@ -1481,7 +1481,7 @@ export const CUSTOMERS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/customers \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d name="Tom Jones" \\
   -d email=tomjones@example.com`,
             },
@@ -1490,7 +1490,7 @@ export const CUSTOMERS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const customer = await zoneless.customers.create({
+const customer = await fiatdesk.customers.create({
   name: 'Tom Jones',
   email: 'tomjones@example.com',
 });`,
@@ -1809,13 +1809,13 @@ const UPDATE_CUSTOMER_MORE_PARAMETERS: Attribute[] = [
         name: 'ip_address',
         type: 'string',
         description:
-          'A recent IP address of the customer used for tax reporting and tax location inference. Zoneless recommends updating the IP address when a new payment method is attached or the <code>address</code> field on the customer is updated. We recommend against updating this field more frequently since it could result in unexpected tax location/reporting outcomes.',
+          'A recent IP address of the customer used for tax reporting and tax location inference. FiatDesk recommends updating the IP address when a new payment method is attached or the <code>address</code> field on the customer is updated. We recommend against updating this field more frequently since it could result in unexpected tax location/reporting outcomes.',
       },
       {
         name: 'validate_location',
         type: 'enum',
         description:
-          'A flag that indicates when Zoneless should validate the customer tax location. Defaults to <code>auto</code>.',
+          'A flag that indicates when FiatDesk should validate the customer tax location. Defaults to <code>auto</code>.',
         enumValues: [
           {
             value: 'auto',
@@ -1839,7 +1839,7 @@ const UPDATE_CUSTOMER_MORE_PARAMETERS: Attribute[] = [
 ];
 
 const UPDATE_CUSTOMER_RESPONSE_JSON = `{
-  "id": "cus_z_NffrFeUfNV2Hib",
+  "id": "cus_fd_NffrFeUfNV2Hib",
   "object": "customer",
   "address": null,
   "balance": 0,
@@ -1867,7 +1867,7 @@ const UPDATE_CUSTOMER_RESPONSE_JSON = `{
   "shipping": null,
   "tax_exempt": "none",
   "test_clock": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 export const CUSTOMERS_UPDATE_PAGE: DocPage = {
@@ -1901,8 +1901,8 @@ export const CUSTOMERS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/customers/cus_z_NffrFeUfNV2Hib \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/customers/cus_fd_NffrFeUfNV2Hib \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -1910,7 +1910,7 @@ export const CUSTOMERS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const customer = await zoneless.customers.update('cus_z_NffrFeUfNV2Hib', {
+const customer = await fiatdesk.customers.update('cus_fd_NffrFeUfNV2Hib', {
   metadata: {
     order_id: '6735',
   },
@@ -1957,15 +1957,15 @@ export const CUSTOMERS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/customers/cus_z_NffrFeUfNV2Hib \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/customers/cus_fd_NffrFeUfNV2Hib \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const customer = await zoneless.customers.retrieve('cus_z_NffrFeUfNV2Hib');`,
+const customer = await fiatdesk.customers.retrieve('cus_fd_NffrFeUfNV2Hib');`,
             },
           ],
         },
@@ -2027,7 +2027,7 @@ const LIST_CUSTOMERS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>cus_z_bar</code>, your subsequent call can include <code>ending_before=cus_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>cus_fd_bar</code>, your subsequent call can include <code>ending_before=cus_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -2039,7 +2039,7 @@ const LIST_CUSTOMERS_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>cus_z_foo</code>, your subsequent call can include <code>starting_after=cus_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>cus_fd_foo</code>, your subsequent call can include <code>starting_after=cus_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -2049,7 +2049,7 @@ const LIST_CUSTOMERS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "cus_z_NffrFeUfNV2Hib",
+      "id": "cus_fd_NffrFeUfNV2Hib",
       "object": "customer",
       "address": null,
       "balance": 0,
@@ -2075,7 +2075,7 @@ const LIST_CUSTOMERS_RESPONSE_JSON = `{
       "shipping": null,
       "tax_exempt": "none",
       "test_clock": null,
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
@@ -2111,7 +2111,7 @@ export const CUSTOMERS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/customers \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -2119,7 +2119,7 @@ export const CUSTOMERS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const customers = await zoneless.customers.list({
+const customers = await fiatdesk.customers.list({
   limit: 3,
 });`,
             },
@@ -2139,7 +2139,7 @@ const customers = await zoneless.customers.list({
 // Delete Customer
 // ============================================
 const DELETE_CUSTOMER_RESPONSE_JSON = `{
-  "id": "cus_z_NffrFeUfNV2Hib",
+  "id": "cus_fd_NffrFeUfNV2Hib",
   "object": "customer",
   "deleted": true
 }`;
@@ -2170,15 +2170,15 @@ export const CUSTOMERS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/customers/cus_z_NffrFeUfNV2Hib \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/customers/cus_fd_NffrFeUfNV2Hib \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.customers.del('cus_z_NffrFeUfNV2Hib');`,
+const deleted = await fiatdesk.customers.del('cus_fd_NffrFeUfNV2Hib');`,
             },
           ],
         },

@@ -14,7 +14,7 @@ import { RequirePlatform } from '../middleware/Authorization';
 import {
   CreateWebhookEndpointSchema,
   UpdateWebhookEndpointSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 

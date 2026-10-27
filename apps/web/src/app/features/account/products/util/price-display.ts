@@ -1,4 +1,4 @@
-import type { Price, RecurringInterval } from '@zoneless/shared-types';
+import type { Price, RecurringInterval } from '@fiatdesk/shared-types';
 
 /**
  * Formats a unit amount (cents) with an optional recurring interval suffix.

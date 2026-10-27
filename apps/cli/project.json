@@ -17,13 +17,13 @@
           "NOTICE",
           {
             "glob": "SKILL.md",
-            "input": ".agents/skills/zoneless-payments",
-            "output": "skills/zoneless-payments"
+            "input": ".agents/skills/fiatdesk-payments",
+            "output": "skills/fiatdesk-payments"
           },
           {
             "glob": "SKILL.md",
-            "input": ".agents/skills/zoneless-marketplace",
-            "output": "skills/zoneless-marketplace"
+            "input": ".agents/skills/fiatdesk-marketplace",
+            "output": "skills/fiatdesk-marketplace"
           }
         ]
       }

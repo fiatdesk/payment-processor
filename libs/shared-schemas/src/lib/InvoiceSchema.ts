@@ -33,7 +33,7 @@ const InvoiceIssuerSchema = z
 /**
  * Configuration settings for the PaymentIntent generated when the invoice is finalized.
  * @remarks Stripe's `payment_method_options` also define option bags for many fiat rails
- * (ACH, cards, iDEAL, etc.). Zoneless only accepts USDC wallet payments, so only the
+ * (ACH, cards, iDEAL, etc.). FiatDesk only accepts USDC wallet payments, so only the
  * `crypto` bag is exposed — matching PaymentIntent / Checkout Session / Payment Link.
  */
 const InvoicePaymentSettingsSchema = z.object({
@@ -432,7 +432,7 @@ export const PayInvoiceSchema = z
     /**
      * When set, skip on-chain collect and record settlement with this
      * transaction hash (e.g. checkout already collected the first period).
-     * @zoneless_extension
+     * @fiatdesk_extension
      */
     settlement_transaction_hash: z.string().optional(),
   })

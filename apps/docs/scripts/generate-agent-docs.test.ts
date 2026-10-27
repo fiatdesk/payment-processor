@@ -51,7 +51,7 @@ const testPage: DocPage = {
             {
               id: 'node',
               label: 'Node.js',
-              code: 'zoneless.products.create({});',
+              code: 'fiatdesk.products.create({});',
             },
           ],
         },
@@ -79,14 +79,14 @@ test('GeneratePageMarkdown serializes nested attributes, links, and code', () =>
   assert.match(markdown, /### Request — cURL/);
   assert.match(markdown, /### Request — Node\.js/);
   assert.match(markdown, /curl \/v1\/products/);
-  assert.match(markdown, /zoneless\.products\.create/);
+  assert.match(markdown, /fiatdesk\.products\.create/);
 });
 
 test('BuildLlmsTxt uses canonical Markdown URLs and plain descriptions', () => {
   const contents = BuildLlmsTxt([testRoute], 'https://docs.example.com');
 
   assert.match(contents, /## Products/);
-  assert.match(contents, /when integrating with Zoneless\.\n\n## Products/);
+  assert.match(contents, /when integrating with FiatDesk\.\n\n## Products/);
   assert.match(
     contents,
     /\[Create a product\]\(https:\/\/docs\.example\.com\/products\/create\.md\)/
@@ -133,7 +133,7 @@ test('agent guides use a dedicated final sidebar section', () => {
 
 test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (context) => {
   const outputDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'zoneless-marketplace-agent-docs-')
+    path.join(os.tmpdir(), 'fiatdesk-marketplace-agent-docs-')
   );
   context.after(() => fs.rm(outputDir, { recursive: true, force: true }));
 
@@ -164,9 +164,9 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   assert.match(markdown, /Assume no crypto knowledge/);
   assert.match(markdown, /USDC is a digital dollar/);
   assert.match(markdown, /fake USDC/);
-  assert.match(markdown, /`\.zoneless\/project\.json`/);
-  assert.match(markdown, /`zoneless auth reconnect --json`/);
-  assert.match(markdown, /`zoneless env sync --include-wallet --json`/);
+  assert.match(markdown, /`\.fiatdesk\/project\.json`/);
+  assert.match(markdown, /`fiatdesk auth reconnect --json`/);
+  assert.match(markdown, /`fiatdesk env sync --include-wallet --json`/);
   assert.match(markdown, /`payouts\.processAll\(\)`/);
   assert.match(markdown, /broadcast response is lost/);
   assert.match(markdown, /do not add chain libraries/);
@@ -193,7 +193,7 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
 
 test('GenerateAgentDocs maps documentation routes to files', async (context) => {
   const outputDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'zoneless-agent-docs-')
+    path.join(os.tmpdir(), 'fiatdesk-agent-docs-')
   );
   context.after(() => fs.rm(outputDir, { recursive: true, force: true }));
 

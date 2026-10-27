@@ -51,7 +51,7 @@ export interface WebhookDelivery {
 
   /**
    * The platform account that owns the Event this delivery belongs to.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

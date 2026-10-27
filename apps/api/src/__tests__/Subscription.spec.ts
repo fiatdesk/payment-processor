@@ -32,9 +32,9 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const CUSTOMER_ID = 'cus_z_1';
-const PRICE_ID = 'price_z_1';
+const PLATFORM = 'acct_fd_platform';
+const CUSTOMER_ID = 'cus_fd_1';
+const PRICE_ID = 'price_fd_1';
 
 function MockCustomer(overrides: Record<string, unknown> = {}) {
   return {
@@ -56,7 +56,7 @@ function MockRecurringPrice(overrides: Record<string, unknown> = {}) {
     id: PRICE_ID,
     object: 'price',
     platform_account: PLATFORM,
-    product: 'prod_z_1',
+    product: 'prod_fd_1',
     unit_amount: 2000,
     unit_amount_decimal: '2000',
     currency: 'usdc',
@@ -136,13 +136,13 @@ describe('SubscriptionModule', () => {
 
     invoiceModule = {
       CreateSubscriptionInvoice: jest.fn().mockResolvedValue({
-        id: 'in_z_1',
+        id: 'in_fd_1',
         object: 'invoice',
         status: 'paid',
         billing_reason: 'subscription_create',
         parent: {
           type: 'subscription_details',
-          subscription_details: { subscription: 'sub_z_test001' },
+          subscription_details: { subscription: 'sub_fd_test001' },
         },
       }),
       GetInvoice: jest.fn(),
@@ -170,7 +170,7 @@ describe('SubscriptionModule', () => {
       expect(subscription.customer).toBe(CUSTOMER_ID);
       expect(subscription.currency).toBe('usdc');
       expect(subscription.status).toBe('active');
-      expect(subscription.latest_invoice).toBe('in_z_1');
+      expect(subscription.latest_invoice).toBe('in_fd_1');
       expect(subscription.platform_account).toBe(PLATFORM);
       expect(subscription.subscription_onchain_id).toBeNull();
       expect(subscription.items.data).toHaveLength(1);
@@ -250,7 +250,7 @@ describe('SubscriptionModule', () => {
 
     it('should finalize without collecting when payment_behavior is default_incomplete', async () => {
       invoiceModule.CreateSubscriptionInvoice = jest.fn().mockResolvedValue({
-        id: 'in_z_open',
+        id: 'in_fd_open',
         object: 'invoice',
         status: 'open',
       });
@@ -262,7 +262,7 @@ describe('SubscriptionModule', () => {
       });
 
       expect(subscription.status).toBe('incomplete');
-      expect(subscription.latest_invoice).toBe('in_z_open');
+      expect(subscription.latest_invoice).toBe('in_fd_open');
       expect(invoiceModule.CreateSubscriptionInvoice).toHaveBeenCalledWith(
         PLATFORM,
         expect.objectContaining({
@@ -275,7 +275,7 @@ describe('SubscriptionModule', () => {
     it('should reject customers that do not belong to the platform', async () => {
       customerModule.GetCustomer = jest.fn().mockResolvedValue({
         id: CUSTOMER_ID,
-        platform_account: 'acct_z_other',
+        platform_account: 'acct_fd_other',
       });
 
       await expect(
@@ -428,7 +428,7 @@ describe('SubscriptionModule', () => {
       });
 
       invoiceModule.CreateSubscriptionInvoice = jest.fn().mockResolvedValue({
-        id: 'in_z_final',
+        id: 'in_fd_final',
         object: 'invoice',
         status: 'paid',
       });
@@ -445,7 +445,7 @@ describe('SubscriptionModule', () => {
           collect: true,
         })
       );
-      expect(canceled.latest_invoice).toBe('in_z_final');
+      expect(canceled.latest_invoice).toBe('in_fd_final');
     });
   });
 
@@ -516,7 +516,7 @@ describe('SubscriptionModule', () => {
       await mockDb.Update('Subscriptions', created.id, { status: 'paused' });
 
       invoiceModule.CreateSubscriptionInvoice = jest.fn().mockResolvedValue({
-        id: 'in_z_resume',
+        id: 'in_fd_resume',
         object: 'invoice',
         status: 'paid',
       });
@@ -526,7 +526,7 @@ describe('SubscriptionModule', () => {
       });
 
       expect(resumed.status).toBe('active');
-      expect(resumed.latest_invoice).toBe('in_z_resume');
+      expect(resumed.latest_invoice).toBe('in_fd_resume');
       expect(invoiceModule.CreateSubscriptionInvoice).toHaveBeenCalledWith(
         PLATFORM,
         expect.objectContaining({
@@ -813,11 +813,11 @@ describe('SubscriptionModule', () => {
       const created = await CreateOnchain();
       jest
         .mocked(invoiceModule.ListOpenSubscriptionInvoices)
-        .mockResolvedValue([{ id: 'in_z_open' }] as never);
+        .mockResolvedValue([{ id: 'in_fd_open' }] as never);
 
       const canceled = await module.CancelFromChain(created.id);
 
-      expect(invoiceModule.VoidInvoice).toHaveBeenCalledWith('in_z_open');
+      expect(invoiceModule.VoidInvoice).toHaveBeenCalledWith('in_fd_open');
       expect(canceled).toMatchObject({
         status: 'canceled',
         canceled_at: GetFixedTimestamp(),
@@ -875,7 +875,7 @@ describe('SubscriptionModule', () => {
 
       const advanced = await module.AdvanceSubscriptionPeriod(
         created.id,
-        'in_z_paid',
+        'in_fd_paid',
         period
       );
 
@@ -885,7 +885,7 @@ describe('SubscriptionModule', () => {
       });
       expect(advanced).toMatchObject({
         status: 'active',
-        latest_invoice: 'in_z_paid',
+        latest_invoice: 'in_fd_paid',
       });
     });
 

@@ -16,7 +16,7 @@ import { RequirePlatform } from '../middleware/Authorization';
 import {
   CreateIdentityVerificationSessionSchema,
   UpdateIdentityVerificationSessionSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 

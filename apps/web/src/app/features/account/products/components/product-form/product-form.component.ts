@@ -18,12 +18,12 @@ import {
   Price,
   MarketingFeature,
   RecurringInterval,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ConfigService } from '../../../../../data';
 import {
   CreateProductInput,
   UpdateProductInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import {
   PaginatedListComponent,
   PaginatedListColumn,

@@ -1,5 +1,5 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { Invoice } from '@zoneless/shared-types';
+import type { Invoice } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { InvoiceService } from '../../../../data';
 

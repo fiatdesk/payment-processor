@@ -5,7 +5,7 @@ import {
   Payout,
   TopUp,
   ExternalWallet,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 export type TransactionType = 'transfer' | 'payout' | 'topup';
 

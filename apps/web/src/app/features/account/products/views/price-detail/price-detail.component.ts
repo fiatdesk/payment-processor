@@ -6,7 +6,7 @@ import {
   WritableSignal,
 } from '@angular/core';
 import { DecimalPipe, UpperCasePipe } from '@angular/common';
-import type { Price, Product } from '@zoneless/shared-types';
+import type { Price, Product } from '@fiatdesk/shared-types';
 import { PriceService } from '../../../../../data';
 import { PriceActionsService } from '../../services/price-actions.service';
 import { PriceActionsHostComponent } from '../../components/price-actions-host/price-actions-host.component';

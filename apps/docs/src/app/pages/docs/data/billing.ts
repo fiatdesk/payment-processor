@@ -22,7 +22,7 @@ const BILLING_RUN_OBJECT_JSON = `{
   "skipped": 1,
   "errors": [
     {
-      "subscription": "sub_z_1NGQwV2eZvKYlo2CjrVqXzAb",
+      "subscription": "sub_fd_1NGQwV2eZvKYlo2CjrVqXzAb",
       "error": "The subscriber's USDC allowance for this subscription is used up; the subscriber must approve more USDC (subscribe again) for renewals to resume."
     }
   ]
@@ -32,7 +32,7 @@ const BILLING_MONITOR_STATUS_JSON = `{
   "running": false,
   "enabled": false,
   "poll_interval_ms": 60000,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 // ============================================
@@ -122,7 +122,7 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Billing run object',
   description:
-    'Billing helpers process due subscription renewals and invoice retries for your platform. Recurring USDC collection is not a shared Stripe-like backend job you ignore — on Zoneless Cloud the operator runs billing on a schedule; self-hosters trigger it themselves (or enable the optional in-process monitor).',
+    'Billing helpers process due subscription renewals and invoice retries for your platform. Recurring USDC collection is not a shared Stripe-like backend job you ignore — on FiatDesk Cloud the operator runs billing on a schedule; self-hosters trigger it themselves (or enable the optional in-process monitor).',
   endpoints: BuildEndpointSummaries(BILLING_SUBSECTION, [
     {
       method: 'POST',
@@ -141,14 +141,14 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
-          text: "These endpoints are specific to Zoneless and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Ethereum.",
+          title: 'FiatDesk extension: ',
+          text: "These endpoints are specific to FiatDesk and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Ethereum.",
         },
         {
           type: 'callout',
           variant: 'info',
           title: 'How billing works: ',
-          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>Zoneless Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects each one with a <code>charge</code> on the Subscriptions contract, sent from <code>SUBSCRIPTION_OPERATOR_KEY</code>.',
+          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>FiatDesk Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects each one with a <code>charge</code> on the Subscriptions contract, sent from <code>SUBSCRIPTION_OPERATOR_KEY</code>.',
           html: true,
         },
         {
@@ -168,7 +168,7 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The chain decides whether a subscription can be charged. A subscription paused on-chain gets <code>pause_collection</code> and <code>paused_on_chain=true</code>, and is collected on the first run after it resumes on-chain; a period that came due during the pause is collected right away. A subscription canceled on-chain is canceled here for good: its open invoices are voided (<code>invoice.voided</code>), it gets <code>cancellation_details.comment=canceled_on_chain</code> and <code>customer.subscription.deleted</code> is emitted, with no retries or <code>past_due</code>. When the subscriber’s USDC allowance to the Subscriptions contract cannot cover a period, the invoice payment fails with <code>metadata.last_payment_error_code=collection_failed_allowance</code>, the subscription becomes <code>past_due</code> after the first failed attempt, and Zoneless emits <code>customer.subscription.allowance_exhausted</code>. There is no hosted page for the subscriber to renew the authorization: they raise the allowance themselves from their wallet (an <code>approve</code> to the Subscriptions contract), or you ask them to subscribe again through a new Checkout Session. The invoice is attempted again only at its <code>next_payment_attempt</code> (1, 3 and 5 days after the first, second and third failed attempts). If the allowance covers it by then, the charge succeeds and the subscription returns to <code>active</code>. After the fourth failed attempt the invoice is <code>uncollectible</code>, the subscription is <code>unpaid</code> and there are no more retries. Revoking the allowance stops every pull.',
+          text: 'The chain decides whether a subscription can be charged. A subscription paused on-chain gets <code>pause_collection</code> and <code>paused_on_chain=true</code>, and is collected on the first run after it resumes on-chain; a period that came due during the pause is collected right away. A subscription canceled on-chain is canceled here for good: its open invoices are voided (<code>invoice.voided</code>), it gets <code>cancellation_details.comment=canceled_on_chain</code> and <code>customer.subscription.deleted</code> is emitted, with no retries or <code>past_due</code>. When the subscriber’s USDC allowance to the Subscriptions contract cannot cover a period, the invoice payment fails with <code>metadata.last_payment_error_code=collection_failed_allowance</code>, the subscription becomes <code>past_due</code> after the first failed attempt, and FiatDesk emits <code>customer.subscription.allowance_exhausted</code>. There is no hosted page for the subscriber to renew the authorization: they raise the allowance themselves from their wallet (an <code>approve</code> to the Subscriptions contract), or you ask them to subscribe again through a new Checkout Session. The invoice is attempted again only at its <code>next_payment_attempt</code> (1, 3 and 5 days after the first, second and third failed attempts). If the allowance covers it by then, the charge succeeds and the subscription returns to <code>active</code>. After the fourth failed attempt the invoice is <code>uncollectible</code>, the subscription is <code>unpaid</code> and there are no more retries. Revoking the allowance stops every pull.',
           html: true,
         },
         {
@@ -246,7 +246,7 @@ export const BILLING_RUN_FOR_PLATFORM_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/billing/run_for_platform \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d batch_size=25`,
             },
             {
@@ -254,7 +254,7 @@ export const BILLING_RUN_FOR_PLATFORM_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const result = await zoneless.billing.runForPlatform({
+const result = await fiatdesk.billing.runForPlatform({
   batch_size: 25,
 });
 
@@ -334,14 +334,14 @@ export const BILLING_MONITOR_STATUS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/billing/monitor/status \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const status = await zoneless.billing.monitorStatus();
+const status = await fiatdesk.billing.monitorStatus();
 
 console.log(\`enabled=\${status.enabled} running=\${status.running}\`);
 console.log(\`interval=\${status.poll_interval_ms}ms\`);`,

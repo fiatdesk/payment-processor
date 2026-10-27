@@ -356,7 +356,7 @@ export const SubscriptionInvoiceSettingsSchema = z.object({
 /**
  * Payment settings to pass to invoices created by the subscription.
  * @remarks Stripe's `payment_method_options` also define option bags for many fiat rails
- * (ACH, cards, iDEAL, etc.). Zoneless only accepts USDC wallet payments, so only the
+ * (ACH, cards, iDEAL, etc.). FiatDesk only accepts USDC wallet payments, so only the
  * `crypto` bag is exposed — matching Invoice / PaymentIntent / Checkout Session / Payment Link.
  */
 export const SubscriptionPaymentSettingsSchema = z.object({

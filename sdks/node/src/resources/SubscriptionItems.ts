@@ -3,7 +3,7 @@ import {
   SubscriptionItem,
   SubscriptionItemDeleted,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateSubscriptionItemInput,
   ListSubscriptionItemsInput,

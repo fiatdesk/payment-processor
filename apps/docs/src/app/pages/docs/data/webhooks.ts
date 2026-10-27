@@ -2,21 +2,21 @@ import { DocPage } from './types';
 import { NODE_INIT } from './shared';
 
 const WEBHOOK_EVENT_HANDLER = `import express from 'express';
-import { Zoneless } from '@zoneless/node';
+import { FiatDesk } from '@fiatdesk/node';
 
 const app = express();
-const zoneless = new Zoneless(
-  process.env.ZONELESS_API_KEY,
-  process.env.ZONELESS_API_URL
+const fiatdesk = new FiatDesk(
+  process.env.FIATDESK_API_KEY,
+  process.env.FIATDESK_API_URL
 );
-const endpointSecret = process.env.ZONELESS_WEBHOOK_SECRET;
+const endpointSecret = process.env.FIATDESK_WEBHOOK_SECRET;
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.headers['zoneless-signature'];
+  const sig = req.headers['fiatdesk-signature'];
   let event;
 
   try {
-    event = zoneless.webhooks.constructEvent(req.body, sig, endpointSecret);
+    event = fiatdesk.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
     console.log('Webhook signature verification failed.', err.message);
     return res.sendStatus(400);
@@ -67,22 +67,22 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 app.listen(4242, () => console.log('Running on port 4242'));`;
 
 const WEBHOOK_VERIFY_EXAMPLE = `import express from 'express';
-import { Zoneless } from '@zoneless/node';
+import { FiatDesk } from '@fiatdesk/node';
 
 const app = express();
-const zoneless = new Zoneless(
-  process.env.ZONELESS_API_KEY,
-  process.env.ZONELESS_API_URL
+const fiatdesk = new FiatDesk(
+  process.env.FIATDESK_API_KEY,
+  process.env.FIATDESK_API_URL
 );
 
-const endpointSecret = process.env.ZONELESS_WEBHOOK_SECRET;
+const endpointSecret = process.env.FIATDESK_WEBHOOK_SECRET;
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.headers['zoneless-signature'];
+  const sig = req.headers['fiatdesk-signature'];
   let event;
 
   try {
-    event = zoneless.webhooks.constructEvent(req.body, sig, endpointSecret);
+    event = fiatdesk.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
     res.status(400).send('Webhook Error: ' + err.message);
     return;
@@ -105,13 +105,13 @@ export const WEBHOOKS_PAGE: DocPage = {
   id: 'webhooks',
   title: 'Webhooks',
   description:
-    'Listen for events from your Zoneless instance so your application can automatically react to payments, subscriptions, account changes, and payouts.',
+    'Listen for events from your FiatDesk instance so your application can automatically react to payments, subscriptions, account changes, and payouts.',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'Zoneless sends webhook events to your application as HTTP POST requests containing a JSON <code>Event</code> object. This lets you respond to asynchronous events such as completed checkout, subscription renewals, account status changes, and payouts without continuously polling the API.',
+          text: 'FiatDesk sends webhook events to your application as HTTP POST requests containing a JSON <code>Event</code> object. This lets you respond to asynchronous events such as completed checkout, subscription renewals, account status changes, and payouts without continuously polling the API.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'How it works' },
@@ -123,7 +123,7 @@ export const WEBHOOKS_PAGE: DocPage = {
               html: true,
             },
             {
-              text: 'Zoneless sends a POST request to your URL whenever a subscribed event occurs.',
+              text: 'FiatDesk sends a POST request to your URL whenever a subscribed event occurs.',
             },
             {
               text: 'Your handler verifies the signature, processes the event, and returns a <code>2xx</code> response.',
@@ -138,7 +138,7 @@ export const WEBHOOKS_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Register an endpoint' },
         {
           type: 'paragraph',
-          text: 'Register the public URL that should receive events in the Zoneless dashboard, or create it with the Webhook Endpoints API.',
+          text: 'Register the public URL that should receive events in the FiatDesk dashboard, or create it with the Webhook Endpoints API.',
         },
         {
           type: 'list',
@@ -155,7 +155,7 @@ export const WEBHOOKS_PAGE: DocPage = {
               text: 'Enter the public endpoint URL and select the events it should receive.',
             },
             {
-              text: 'Choose <strong>Create</strong>. Zoneless displays the signing secret once; copy it directly into the server secret manager or local environment.',
+              text: 'Choose <strong>Create</strong>. FiatDesk displays the signing secret once; copy it directly into the server secret manager or local environment.',
               html: true,
             },
           ],
@@ -170,7 +170,7 @@ export const WEBHOOKS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/webhook_endpoints \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "url": "https://yoursite.com/webhook",
@@ -182,7 +182,7 @@ export const WEBHOOKS_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const webhookEndpoint = await zoneless.webhookEndpoints.create({
+const webhookEndpoint = await fiatdesk.webhookEndpoints.create({
   url: 'https://yoursite.com/webhook',
   enabled_events: [
     'checkout.session.completed',
@@ -208,7 +208,7 @@ const webhookEndpoint = await zoneless.webhookEndpoints.create({
           type: 'list',
           items: [
             {
-              text: 'Verify the webhook signature using the <code>Zoneless-Signature</code> header.',
+              text: 'Verify the webhook signature using the <code>FiatDesk-Signature</code> header.',
               html: true,
             },
             {
@@ -248,7 +248,7 @@ const webhookEndpoint = await zoneless.webhookEndpoints.create({
         { type: 'heading', level: 2, text: 'Verify signatures' },
         {
           type: 'paragraph',
-          text: 'Zoneless signs every webhook event by including a signature in the <code>Zoneless-Signature</code> header. Always verify this signature to confirm the event was sent by your Zoneless instance and not a third party.',
+          text: 'FiatDesk signs every webhook event by including a signature in the <code>FiatDesk-Signature</code> header. Always verify this signature to confirm the event was sent by your FiatDesk instance and not a third party.',
           html: true,
         },
         {
@@ -277,7 +277,7 @@ const webhookEndpoint = await zoneless.webhookEndpoints.create({
             {
               id: 'curl',
               label: 'cURL',
-              code: `# The Zoneless-Signature header format:
+              code: `# The FiatDesk-Signature header format:
 # t={timestamp},v1={signature}
 #
 # To verify manually:
@@ -338,7 +338,7 @@ const webhookEndpoint = await zoneless.webhookEndpoints.create({
               html: true,
             },
             {
-              text: '<strong>Verify every request.</strong> Always verify the <code>Zoneless-Signature</code> header to confirm events originate from your Zoneless instance.',
+              text: '<strong>Verify every request.</strong> Always verify the <code>FiatDesk-Signature</code> header to confirm events originate from your FiatDesk instance.',
               html: true,
             },
           ],

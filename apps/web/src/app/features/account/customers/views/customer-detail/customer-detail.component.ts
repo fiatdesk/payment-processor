@@ -13,8 +13,8 @@ import type {
   Invoice,
   PaymentIntent,
   Subscription as SubscriptionType,
-} from '@zoneless/shared-types';
-import { GetPaymentIntentListStatus } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
+import { GetPaymentIntentListStatus } from '@fiatdesk/shared-types';
 import { CustomerService } from '../../../../../data';
 import { CustomerActionsService } from '../../services/customer-actions.service';
 import { ActivatedRoute, Router } from '@angular/router';

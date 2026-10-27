@@ -12,7 +12,7 @@ import {
   CheckoutSession,
   Eip712TypedData,
   SameAddress,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 import {
   GetApiErrorCode,

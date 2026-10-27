@@ -25,7 +25,7 @@ import { ERRORS } from '../utils/Errors';
 import {
   Transfer as TransferType,
   TransferSourceType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { ValidateUpdate } from './Util';
 import {
@@ -33,7 +33,7 @@ import {
   CreateTransferInput,
   UpdateTransferSchema,
   UpdateTransferInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 /**
  * Extended list options for transfers with additional filters

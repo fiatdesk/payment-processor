@@ -29,8 +29,8 @@ import { RequirePlatform } from '../middleware/Authorization';
 import {
   CreateInvoiceItemSchema,
   UpdateInvoiceItemSchema,
-} from '@zoneless/shared-schemas';
-import { InvoiceItem } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-schemas';
+import { InvoiceItem } from '@fiatdesk/shared-types';
 import { ApplyExpand, RegisterExpansions } from '../utils/Expand';
 
 const router = express.Router();

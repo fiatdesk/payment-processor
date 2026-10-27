@@ -13,7 +13,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import type {
   CheckoutSessionLineItem,
   PaymentLink,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Subscription } from 'rxjs';
 import { PaymentLinkService } from '../../../../../data';
 import { MetaService } from '../../../../../core';

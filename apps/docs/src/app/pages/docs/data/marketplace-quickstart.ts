@@ -10,7 +10,7 @@ export const QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'Start by <a href="https://pay.yourdomain.com">creating a Zoneless account</a> and opening your dashboard.',
+          text: 'Start by <a href="https://pay.yourdomain.com">creating a FiatDesk account</a> and opening your dashboard.',
           html: true,
         },
         {
@@ -255,7 +255,7 @@ export const QUICKSTART_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Keep your private key safe. ',
-          text: 'Only enter it in your own Zoneless instance. Never share it or store it in client-side code.',
+          text: 'Only enter it in your own FiatDesk instance. Never share it or store it in client-side code.',
         },
       ],
       right: [

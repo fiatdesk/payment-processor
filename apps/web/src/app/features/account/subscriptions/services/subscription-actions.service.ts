@@ -1,5 +1,5 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { Subscription } from '@zoneless/shared-types';
+import type { Subscription } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { SubscriptionService } from '../../../../data';
 import type { PopupMenuAction } from '../../../../shared';

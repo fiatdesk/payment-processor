@@ -1,7 +1,7 @@
 {
-  "name": "@zoneless/cli",
+  "name": "@fiatdesk/cli",
   "version": "0.2.1",
-  "description": "Provision and manage an agent-operated Zoneless store",
+  "description": "Provision and manage an agent-operated FiatDesk store",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -13,7 +13,7 @@
     "access": "public"
   },
   "bin": {
-    "zoneless": "src/main.js"
+    "fiatdesk": "src/main.js"
   },
   "files": [
     "README.md",

@@ -12,13 +12,13 @@ import { ProductModule } from '../modules/Product';
 import { ValidateRequest } from '../middleware/ValidateRequest';
 import { RequirePlatform } from '../middleware/Authorization';
 
-import { CreatePriceSchema, UpdatePriceSchema } from '@zoneless/shared-schemas';
+import { CreatePriceSchema, UpdatePriceSchema } from '@fiatdesk/shared-schemas';
 import {
   ParseCreatedFilter,
   ParseOptionalQueryBoolean,
 } from '../utils/ListHelper';
 import { ApplyExpand, RegisterExpansions } from '../utils/Expand';
-import type { RecurringInterval } from '@zoneless/shared-types';
+import type { RecurringInterval } from '@fiatdesk/shared-types';
 
 const router = express.Router();
 

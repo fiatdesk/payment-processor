@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { InvalidInput } from './Errors';
 
-const bindingDirectoryName = '.zoneless';
+const bindingDirectoryName = '.fiatdesk';
 const bindingFileName = 'project.json';
 
 export interface ProjectBinding {
@@ -94,7 +94,7 @@ function ParseProjectBinding(
   try {
     binding = JSON.parse(contents) as ProjectBinding;
   } catch {
-    throw InvalidInput(`Invalid Zoneless project binding at ${bindingPath}.`);
+    throw InvalidInput(`Invalid FiatDesk project binding at ${bindingPath}.`);
   }
   ValidateProjectBinding(binding);
   return binding;
@@ -108,6 +108,6 @@ function ValidateProjectBinding(binding: ProjectBinding): void {
     !binding.testProfile ||
     !binding.liveProfile
   ) {
-    throw InvalidInput('The Zoneless project binding is incomplete.');
+    throw InvalidInput('The FiatDesk project binding is incomplete.');
   }
 }

@@ -74,7 +74,7 @@ const PRICE_DATA_PARAM_CHILDREN: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
   },
   {
     name: 'product',
@@ -902,7 +902,7 @@ const PAYMENT_METHOD_OPTIONS_PARAM_CHILDREN: Attribute[] = [
 // ============================================
 
 const PAYMENT_LINK_OBJECT_JSON = `{
-  "id": "plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA",
+  "id": "plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA",
   "object": "payment_link",
   "active": true,
   "created": 1725123600,
@@ -971,11 +971,11 @@ const PAYMENT_LINK_OBJECT_JSON = `{
   "transfer_data": null,
   "url": "https://pay.yourdomain.com/b/n4k8m2p7q1",
   "url_slug": "n4k8m2p7q1",
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const PAYMENT_LINK_UPDATE_RESPONSE_JSON = `{
-  "id": "plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA",
+  "id": "plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA",
   "object": "payment_link",
   "active": true,
   "created": 1725123600,
@@ -1046,7 +1046,7 @@ const PAYMENT_LINK_UPDATE_RESPONSE_JSON = `{
   "transfer_data": null,
   "url": "https://pay.yourdomain.com/b/n4k8m2p7q1",
   "url_slug": "n4k8m2p7q1",
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const LIST_PAYMENT_LINKS_RESPONSE_JSON = `{
@@ -1064,7 +1064,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
   "object": "list",
   "data": [
     {
-      "id": "li_z_8mKpQ2vRxWnJc4bYt",
+      "id": "li_fd_8mKpQ2vRxWnJc4bYt",
       "object": "item",
       "amount_discount": 0,
       "amount_subtotal": 2500,
@@ -1073,7 +1073,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
       "currency": "usdc",
       "description": "Studio Hoodie",
       "price": {
-        "id": "price_z_4HsWnJc8mKpQ2vRx",
+        "id": "price_fd_4HsWnJc8mKpQ2vRx",
         "object": "price",
         "active": true,
         "billing_scheme": "per_unit",
@@ -1084,7 +1084,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
         "lookup_key": null,
         "metadata": {},
         "nickname": null,
-        "product": "prod_z_2vRxWnJc8mKpQ4Hs",
+        "product": "prod_fd_2vRxWnJc8mKpQ4Hs",
         "recurring": null,
         "tax_behavior": "unspecified",
         "tiers_mode": null,
@@ -1097,7 +1097,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
     }
   ],
   "has_more": false,
-  "url": "/v1/payment_links/plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA/line_items"
+  "url": "/v1/payment_links/plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA/line_items"
 }`;
 
 // ============================================
@@ -1109,7 +1109,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless Payment Link IDs are prefixed with <code>plink_z_</code>.',
+      'Unique identifier for the object. FiatDesk Payment Link IDs are prefixed with <code>plink_fd_</code>.',
   },
   {
     name: 'object',
@@ -1189,9 +1189,9 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter ISO currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter ISO currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'line_items',
@@ -1306,7 +1306,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     description:
       'The list of payment method types that customers can use. When <code>null</code>, relevant payment methods enabled in your payment method settings are shown dynamically.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'url',
@@ -1319,7 +1319,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
     name: 'url_slug',
@@ -1327,7 +1327,7 @@ const PAYMENT_LINK_ATTRIBUTES: Attribute[] = [
     description:
       'Opaque slug used in the public payment link URL (<code>/b/{url_slug}</code>). Distinct from <code>id</code> so shareable links do not expose the API object ID.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
@@ -1457,7 +1457,7 @@ const PAYMENT_LINK_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Time at which the object was created. Measured in seconds since the Unix epoch.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present on Stripe's Payment Link object. It is used for list pagination and consistency with other resources.",
+      "<strong>FiatDesk extension:</strong> This field is not present on Stripe's Payment Link object. It is used for list pagination and consistency with other resources.",
   },
   {
     name: 'custom_fields',
@@ -1794,7 +1794,7 @@ const PAYMENT_LINK_MORE_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles USDC wallet payments. Card option bags are retained for API parity and have no effect on crypto checkout.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settles USDC wallet payments. Card option bags are retained for API parity and have no effect on crypto checkout.',
   },
   {
     name: 'phone_number_collection',
@@ -2035,7 +2035,7 @@ export const PAYMENT_LINKS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Payment Link object',
   description:
-    'A payment link is a shareable URL that takes your customers to a hosted payment page. A payment link can be shared and used multiple times. When a customer opens a payment link, Zoneless creates a new <a href="#checkout-sessions-object">Checkout Session</a> to render the payment page. Use <a href="#checkout-sessions-object-events">Checkout Session events</a> such as <code>checkout.session.completed</code> to track payments made through payment links.',
+    'A payment link is a shareable URL that takes your customers to a hosted payment page. A payment link can be shared and used multiple times. When a customer opens a payment link, FiatDesk creates a new <a href="#checkout-sessions-object">Checkout Session</a> to render the payment page. Use <a href="#checkout-sessions-object-events">Checkout Session events</a> such as <code>checkout.session.completed</code> to track payments made through payment links.',
   stripeDocsUrl: 'https://docs.stripe.com/api/payment-link',
   endpoints: BuildEndpointSummaries(PAYMENT_LINKS_SUBSECTION, [
     { method: 'POST', path: '/v1/payment_links', pageId: 'create' },
@@ -2109,7 +2109,7 @@ const CREATE_PAYMENT_LINK_PARAMETERS: Attribute[] = [
     description:
       "Three-letter currency code, in lowercase. Must be supported by each line item's price. Defaults to <code>usdc</code>.",
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts only <code>usdc</code>.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts only <code>usdc</code>.',
   },
   {
     name: 'metadata',
@@ -2292,7 +2292,7 @@ const CREATE_PAYMENT_LINK_MORE_PARAMETERS: Attribute[] = [
     expandable: true,
     children: PAYMENT_METHOD_OPTIONS_PARAM_CHILDREN,
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless exposes <code>crypto</code> for USDC wallet payments. The <code>card</code> bag is retained for API parity.',
+      '<strong>Difference from Stripe:</strong> FiatDesk exposes <code>crypto</code> for USDC wallet payments. The <code>card</code> bag is retained for API parity.',
   },
   {
     name: 'phone_number_collection',
@@ -2469,8 +2469,8 @@ export const PAYMENT_LINKS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/payment_links \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d "line_items[0][price]"=price_z_4HsWnJc8mKpQ2vRx \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d "line_items[0][price]"=price_fd_4HsWnJc8mKpQ2vRx \\
   -d "line_items[0][quantity]"=1`,
             },
             {
@@ -2478,10 +2478,10 @@ export const PAYMENT_LINKS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentLink = await zoneless.paymentLinks.create({
+const paymentLink = await fiatdesk.paymentLinks.create({
   line_items: [
     {
-      price: 'price_z_4HsWnJc8mKpQ2vRx',
+      price: 'price_fd_4HsWnJc8mKpQ2vRx',
       quantity: 1,
     },
   ],
@@ -2623,7 +2623,7 @@ const UPDATE_PAYMENT_LINK_MORE_PARAMETERS: Attribute[] = [
     expandable: true,
     children: PAYMENT_METHOD_OPTIONS_PARAM_CHILDREN,
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless exposes <code>crypto</code> for USDC wallet payments. The <code>card</code> bag is retained for API parity.',
+      '<strong>Difference from Stripe:</strong> FiatDesk exposes <code>crypto</code> for USDC wallet payments. The <code>card</code> bag is retained for API parity.',
   },
   {
     name: 'payment_method_types',
@@ -2768,8 +2768,8 @@ export const PAYMENT_LINKS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payment_links/plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/payment_links/plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=8492`,
             },
             {
@@ -2777,8 +2777,8 @@ export const PAYMENT_LINKS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentLink = await zoneless.paymentLinks.update(
-  'plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA',
+const paymentLink = await fiatdesk.paymentLinks.update(
+  'plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA',
   {
     metadata: {
       order_id: '8492',
@@ -2830,16 +2830,16 @@ export const PAYMENT_LINKS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payment_links/plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/payment_links/plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentLink = await zoneless.paymentLinks.retrieve(
-  'plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA'
+const paymentLink = await fiatdesk.paymentLinks.retrieve(
+  'plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA'
 );`,
             },
           ],
@@ -2905,16 +2905,16 @@ export const PAYMENT_LINKS_LIST_LINE_ITEMS_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -G https://api.yourdomain.com/v1/payment_links/plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA/line_items \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -G https://api.yourdomain.com/v1/payment_links/plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA/line_items \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const lineItems = await zoneless.paymentLinks.listLineItems(
-  'plink_z_7nQ2wKpR9xVmHc4bYtLsJ8fA'
+const lineItems = await fiatdesk.paymentLinks.listLineItems(
+  'plink_fd_7nQ2wKpR9xVmHc4bYtLsJ8fA'
 );`,
             },
           ],
@@ -2990,7 +2990,7 @@ export const PAYMENT_LINKS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/payment_links \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -2998,7 +2998,7 @@ export const PAYMENT_LINKS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentLinks = await zoneless.paymentLinks.list({
+const paymentLinks = await fiatdesk.paymentLinks.list({
   limit: 3,
 });`,
             },

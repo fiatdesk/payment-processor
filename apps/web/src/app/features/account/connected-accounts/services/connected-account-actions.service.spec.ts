@@ -13,7 +13,7 @@ import type {
   Account,
   PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   AccountLinkService,
   AccountService,
@@ -38,7 +38,7 @@ const CHAIN_ID = 11155111;
 const WALLET_HASH = `0x${'cd'.repeat(32)}`;
 
 const ACCOUNT = {
-  id: 'acct_z_1',
+  id: 'acct_fd_1',
   payouts_enabled: true,
   settings: {},
 } as unknown as Account;
@@ -60,7 +60,7 @@ function Unsigned(to: Hex, data: Hex): string {
 function PayoutBuild(): PayoutBatchBuildResponse {
   return {
     object: 'payout_batch_build',
-    payout_batch: 'pob_z_1',
+    payout_batch: 'pob_fd_1',
     replaced_payout_batch: null,
     unsigned_transaction: Unsigned(PAYOUT_BATCH, '0x1234'),
     estimated_fee: '3000000000000000',
@@ -75,7 +75,7 @@ function PayoutBuild(): PayoutBatchBuildResponse {
     release_after: Math.floor(Date.now() / 1000) + 324,
     transaction_type: 'payout',
     batch_id: `0x${'11'.repeat(32)}`,
-    payouts: [{ id: 'po_z_1', amount: 2500 }] as never,
+    payouts: [{ id: 'po_fd_1', amount: 2500 }] as never,
     total_amount: 2500,
     recipients_count: 1,
   };
@@ -84,7 +84,7 @@ function PayoutBuild(): PayoutBatchBuildResponse {
 function ApprovalBuild(): PayoutBatchBuildResponse {
   return {
     ...PayoutBuild(),
-    payout_batch: 'pob_z_approval',
+    payout_batch: 'pob_fd_approval',
     unsigned_transaction: Unsigned(USDC, '0x095ea7b3'),
     to: USDC,
     deadline: null,
@@ -209,7 +209,7 @@ describe('ConnectedAccountActionsService payouts', () => {
           useValue: {
             GetExternalWallets: jest.fn().mockResolvedValue([
               {
-                id: 'wa_z_1',
+                id: 'wa_fd_1',
                 default_for_currency: true,
                 last4: '9abc',
                 network: 'ethereum',
@@ -245,7 +245,7 @@ describe('ConnectedAccountActionsService payouts', () => {
     jest.useFakeTimers();
     for (const mock of Object.values(payoutService)) mock.mockReset();
     payoutService.CreatePayoutForConnectedAccount.mockResolvedValue({
-      id: 'po_z_1',
+      id: 'po_fd_1',
     });
     configService.IsSimulatedSettlement.mockReturnValue(false);
     provider = FakeWallet();
@@ -271,7 +271,7 @@ describe('ConnectedAccountActionsService payouts', () => {
       await service.ConfirmPayout();
 
       expect(payoutService.BuildPayoutsBatch).toHaveBeenCalledWith({
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
         deadline_seconds: 300,
       });
       expect(service.payoutStep()).toBe('review');
@@ -289,7 +289,7 @@ describe('ConnectedAccountActionsService payouts', () => {
       expect(payoutService.BroadcastPayoutsBatch).toHaveBeenCalledTimes(1);
       expect(
         payoutService.BroadcastPayoutsBatch.mock.calls[0][0]
-      ).toStrictEqual({ transaction_hash: WALLET_HASH, payouts: ['po_z_1'] });
+      ).toStrictEqual({ transaction_hash: WALLET_HASH, payouts: ['po_fd_1'] });
       expect(service.payoutOpen()).toBe(false);
       expect(payoutService.CancelPayout).not.toHaveBeenCalled();
     });
@@ -356,7 +356,7 @@ describe('ConnectedAccountActionsService payouts', () => {
         pending: 0,
       });
       payoutService.GetPayout.mockResolvedValue({
-        id: 'po_z_1',
+        id: 'po_fd_1',
         status: 'paid',
       });
 
@@ -372,7 +372,7 @@ describe('ConnectedAccountActionsService payouts', () => {
       await service.ConfirmPayout();
 
       expect(payoutService.Reconcile).toHaveBeenCalledTimes(1);
-      expect(payoutService.GetPayout).toHaveBeenCalledWith('po_z_1');
+      expect(payoutService.GetPayout).toHaveBeenCalledWith('po_fd_1');
       expect(Sent(provider)).toHaveLength(1);
       expect(payoutService.BroadcastPayoutsBatch).toHaveBeenCalledTimes(1);
       expect(service.payoutOpen()).toBe(false);
@@ -498,7 +498,7 @@ describe('ConnectedAccountActionsService payouts', () => {
 
       it('returns to details for a fresh build once the batch released the payout', async () => {
         payoutService.GetPayout.mockResolvedValue({
-          id: 'po_z_1',
+          id: 'po_fd_1',
           status: 'pending',
           payout_batch: null,
         });
@@ -518,7 +518,7 @@ describe('ConnectedAccountActionsService payouts', () => {
 
       it('reports a failed payout', async () => {
         payoutService.GetPayout.mockResolvedValue({
-          id: 'po_z_1',
+          id: 'po_fd_1',
           status: 'failed',
           failure_message: 'Recipient is blacklisted',
         });
@@ -533,9 +533,9 @@ describe('ConnectedAccountActionsService payouts', () => {
 
       it('keeps waiting while the batch still holds the payout', async () => {
         payoutService.GetPayout.mockResolvedValue({
-          id: 'po_z_1',
+          id: 'po_fd_1',
           status: 'in_transit',
-          payout_batch: 'pob_z_1',
+          payout_batch: 'pob_fd_1',
         });
 
         await service.ConfirmPayout();
@@ -554,7 +554,7 @@ describe('ConnectedAccountActionsService payouts', () => {
         ApprovalBuild()
       ).mockRejectedValueOnce(
         ApiFailure(
-          'Payout batch pob_z_approval is broadcast',
+          'Payout batch pob_fd_approval is broadcast',
           409,
           'payout_batch_in_progress'
         )
@@ -612,7 +612,7 @@ describe('ConnectedAccountActionsService payouts', () => {
         'payouts',
         'signed_transaction',
       ]);
-      expect(body.payouts).toEqual(['po_z_1']);
+      expect(body.payouts).toEqual(['po_fd_1']);
       await expect(
         recoverTransactionAddress({
           serializedTransaction:
@@ -673,7 +673,7 @@ describe('ConnectedAccountActionsService payouts', () => {
       await service.ConnectPayoutWallet();
       payoutService.BuildPayoutsBatch.mockRejectedValueOnce(
         ApiFailure(
-          'Payout batch pob_z_9 for wallet 0x7099 is built',
+          'Payout batch pob_fd_9 for wallet 0x7099 is built',
           409,
           'payout_batch_in_progress'
         )
@@ -690,7 +690,7 @@ describe('ConnectedAccountActionsService payouts', () => {
         payoutService.CreatePayoutForConnectedAccount
       ).toHaveBeenCalledTimes(1);
       expect(payoutService.BuildPayoutsBatch).toHaveBeenLastCalledWith({
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
         deadline_seconds: 300,
         replace: true,
       });
@@ -707,7 +707,7 @@ describe('ConnectedAccountActionsService payouts', () => {
       await service.ConfirmPayout();
       await service.ClosePayout();
 
-      expect(payoutService.CancelPayout).toHaveBeenCalledWith('po_z_1');
+      expect(payoutService.CancelPayout).toHaveBeenCalledWith('po_fd_1');
     });
   });
 
@@ -726,12 +726,12 @@ describe('ConnectedAccountActionsService payouts', () => {
       await service.ConfirmPayout();
 
       expect(payoutService.BuildPayoutsBatch).toHaveBeenCalledWith({
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
         deadline_seconds: 300,
       });
       expect(
         payoutService.BroadcastPayoutsBatch.mock.calls[0][0]
-      ).toStrictEqual({ signed_transaction: 'sim_tx', payouts: ['po_z_1'] });
+      ).toStrictEqual({ signed_transaction: 'sim_tx', payouts: ['po_fd_1'] });
       expect(service.payoutOpen()).toBe(false);
     });
   });

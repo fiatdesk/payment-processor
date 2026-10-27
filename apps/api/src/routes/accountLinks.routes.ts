@@ -8,7 +8,7 @@ import { AccountLinkModule } from '../modules/AccountLink';
 import { AccountModule } from '../modules/Account';
 import { ValidateRequest } from '../middleware/ValidateRequest';
 import { RequirePlatform } from '../middleware/Authorization';
-import { CreateAccountLinkSchema } from '@zoneless/shared-schemas';
+import { CreateAccountLinkSchema } from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 const db = new Database();
@@ -18,7 +18,7 @@ const accountModule = new AccountModule(db);
 /**
  * POST /v1/account_links
  *
- * Creates an AccountLink object that includes a single-use Zoneless URL
+ * Creates an AccountLink object that includes a single-use FiatDesk URL
  * that the platform can redirect their user to in order to take them
  * through the Connect Onboarding flow.
  *

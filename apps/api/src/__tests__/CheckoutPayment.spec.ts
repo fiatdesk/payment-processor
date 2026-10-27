@@ -35,7 +35,7 @@ import {
   PaymentIntent,
   Price,
   Subscription,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -96,12 +96,12 @@ const OTHER_HASH = `0x${'0b'.repeat(32)}`;
 
 function BuildPrice(overrides: Partial<Price> = {}): Price {
   return {
-    id: 'price_z_1',
+    id: 'price_fd_1',
     active: true,
     currency: 'usdc',
     metadata: {},
     nickname: null,
-    product: 'prod_z_1',
+    product: 'prod_fd_1',
     recurring: null,
     tax_behavior: 'unspecified',
     type: 'one_time',
@@ -117,7 +117,7 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     tiers_mode: null,
     transform_quantity: null,
     unit_amount_decimal: '1000',
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     subscription_plan_id: null,
     ...overrides,
   };
@@ -141,7 +141,7 @@ function BuildLineItem(
   overrides: Partial<CheckoutSessionLineItem> = {}
 ): CheckoutSessionLineItem {
   return {
-    id: 'li_z_1',
+    id: 'li_fd_1',
     object: 'item',
     amount_discount: 0,
     amount_subtotal: 1000,
@@ -159,9 +159,9 @@ function BuildLineItem(
 }
 
 const merchantWallet = {
-  id: 'ew_z_1',
+  id: 'ew_fd_1',
   object: 'wallet' as const,
-  account: 'acct_z_platform',
+  account: 'acct_fd_platform',
   wallet_address: MERCHANT_WALLET,
   network: 'ethereum',
   currency: 'usdc',
@@ -169,7 +169,7 @@ const merchantWallet = {
   status: 'verified' as const,
   created: 1700000000,
   metadata: {},
-  platform_account: 'acct_z_platform',
+  platform_account: 'acct_fd_platform',
 } as unknown as ExternalWallet;
 
 function Verified(
@@ -234,7 +234,7 @@ describe('CheckoutPaymentModule', () => {
     // The prepare write is conditional on no relay being recorded.
     mockDb.FindOneAndUpdateByFilter = jest
       .fn()
-      .mockResolvedValue({ id: 'cs_z_updated' });
+      .mockResolvedValue({ id: 'cs_fd_updated' });
 
     module = new CheckoutPaymentModule(
       mockDb,
@@ -253,11 +253,11 @@ describe('CheckoutPaymentModule', () => {
   ): CheckoutSession {
     return {
       ...checkoutSessionModule.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         { mode: 'payment', success_url: 'https://example.com/success' },
         [BuildLineItem()]
       ),
-      payment_intent: 'pi_z_1',
+      payment_intent: 'pi_fd_1',
       ...overrides,
     };
   }
@@ -269,11 +269,11 @@ describe('CheckoutPaymentModule', () => {
       | 'processing' = 'requires_payment_method'
   ) {
     return {
-      ...paymentIntentModule.PaymentIntentObject('acct_z_platform', {
+      ...paymentIntentModule.PaymentIntentObject('acct_fd_platform', {
         amount: 1000,
         currency: 'usdc',
       }),
-      id: 'pi_z_1',
+      id: 'pi_fd_1',
       status,
       payment_method: PAYER_WALLET,
     };
@@ -337,7 +337,7 @@ describe('CheckoutPaymentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.updated',
-        'acct_z_platform',
+        'acct_fd_platform',
         requiresConfirmation,
         expect.objectContaining({
           previousAttributes: expect.objectContaining({
@@ -474,7 +474,7 @@ describe('CheckoutPaymentModule', () => {
             object: 'list',
             data: [BuildLineItem({ price: RecurringPrice() })],
             has_more: false,
-            url: '/v1/checkout/sessions/cs_z_1/line_items',
+            url: '/v1/checkout/sessions/cs_fd_1/line_items',
           },
         });
         jest
@@ -625,13 +625,13 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
 
     session = {
       ...checkoutSessionModule.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         { mode: 'payment', success_url: 'https://example.com/success' },
         [BuildLineItem()]
       ),
-      id: 'cs_z_pay',
+      id: 'cs_fd_pay',
       url_slug: SLUG,
-      payment_intent: 'pi_z_1',
+      payment_intent: 'pi_fd_1',
       payment_details: {
         transaction_hash: null,
         payer_wallet: PAYER_WALLET,
@@ -640,11 +640,11 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     };
     memory.Seed('CheckoutSessions', { ...session });
     memory.Seed('PaymentIntents', {
-      ...paymentIntentModule.PaymentIntentObject('acct_z_platform', {
+      ...paymentIntentModule.PaymentIntentObject('acct_fd_platform', {
         amount: 1000,
         currency: 'usdc',
       }),
-      id: 'pi_z_1',
+      id: 'pi_fd_1',
       status: 'requires_confirmation',
       payment_method: PAYER_WALLET,
     });
@@ -671,12 +671,12 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     );
   }
 
-  function Session(id = 'cs_z_pay'): CheckoutSession {
+  function Session(id = 'cs_fd_pay'): CheckoutSession {
     return memory.Doc<CheckoutSession>('CheckoutSessions', id);
   }
 
   function Intent(): PaymentIntent {
-    return memory.Doc<PaymentIntent>('PaymentIntents', 'pi_z_1');
+    return memory.Doc<PaymentIntent>('PaymentIntents', 'pi_fd_1');
   }
 
   function Seed(overrides: Partial<CheckoutSession>): void {
@@ -720,7 +720,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         payer: PAYER_WALLET,
         merchant: MERCHANT_WALLET,
         amountCents: 1000,
-        sessionId: 'cs_z_pay',
+        sessionId: 'cs_fd_pay',
         expiresAt: session.expires_at,
       }),
       SIGNATURE,
@@ -735,7 +735,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       {
         merchantWalletAddress: MERCHANT_WALLET,
         amountInCents: 1000,
-        checkoutSessionId: 'cs_z_pay',
+        checkoutSessionId: 'cs_fd_pay',
         payerAddress: PAYER_WALLET,
         createdAt: session.created,
       },
@@ -775,7 +775,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       expect.objectContaining({
         type: 'payment',
         amount: 1000,
-        source: 'cs_z_pay',
+        source: 'cs_fd_pay',
         metadata: expect.objectContaining({ blockchain_tx: MOCK_RELAY_HASH }),
       }),
     ]);
@@ -817,7 +817,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledTimes(1);
     expect(settlement.VerifyCheckoutPayment).toHaveBeenLastCalledWith(
       MOCK_RELAY_HASH,
-      expect.objectContaining({ checkoutSessionId: 'cs_z_pay' }),
+      expect.objectContaining({ checkoutSessionId: 'cs_fd_pay' }),
       { timeoutMs: 90_000 }
     );
     expect(result).toMatchObject({
@@ -854,7 +854,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
   it('rejects a transaction_hash that already paid another Checkout Session and completes nothing', async () => {
     memory.Seed('CheckoutSessions', {
       ...session,
-      id: 'cs_z_other',
+      id: 'cs_fd_other',
       url_slug: 'slug_other',
       status: 'complete',
       payment_status: 'paid',
@@ -883,7 +883,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
   it('rejects a verified payment whose transaction already paid another Checkout Session', async () => {
     memory.Seed('CheckoutSessions', {
       ...session,
-      id: 'cs_z_other',
+      id: 'cs_fd_other',
       url_slug: 'slug_other',
       status: 'complete',
       payment_status: 'paid',
@@ -1325,11 +1325,11 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         } as CheckoutSession['payment_details'],
       });
       memory.Seed('Charges', {
-        id: 'ch_z_crashed',
+        id: 'ch_fd_crashed',
         object: 'charge',
         status: 'succeeded',
-        payment_intent: 'pi_z_1',
-        platform_account: 'acct_z_platform',
+        payment_intent: 'pi_fd_1',
+        platform_account: 'acct_fd_platform',
         payment_method_details: {
           type: 'crypto',
           crypto: { transaction_hash: MOCK_RELAY_HASH },
@@ -1343,7 +1343,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       expect(memory.All<Charge>('Charges')).toHaveLength(1);
       expect(Intent()).toMatchObject({
         status: 'succeeded',
-        latest_charge: 'ch_z_crashed',
+        latest_charge: 'ch_fd_crashed',
       });
       expect(events).not.toContain('charge.succeeded');
     });
@@ -1475,7 +1475,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           payer: PAYER_WALLET,
           merchant: MERCHANT_WALLET,
           amountCents: 1000,
-          sessionId: 'cs_z_pay',
+          sessionId: 'cs_fd_pay',
           expiresAt: session.expires_at,
         })
       );
@@ -1517,7 +1517,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           fee_currency: 'none',
         });
 
-        const reference = SimulatedSignature('cs_z_pay', PAYER_WALLET);
+        const reference = SimulatedSignature('cs_fd_pay', PAYER_WALLET);
         const result = await module.ConfirmPayment(SLUG, {
           [field]: reference,
         });
@@ -1543,7 +1543,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           object: 'list',
           data: [BuildLineItem({ price: RecurringPrice() })],
           has_more: false,
-          url: '/v1/checkout/sessions/cs_z_pay/line_items',
+          url: '/v1/checkout/sessions/cs_fd_pay/line_items',
         },
       });
     });
@@ -1564,10 +1564,10 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
 
     beforeEach(() => {
       customers = {
-        CreateCustomer: jest.fn().mockResolvedValue({ id: 'cus_z_1' }),
+        CreateCustomer: jest.fn().mockResolvedValue({ id: 'cus_fd_1' }),
       } as unknown as typeof customers;
       subscriptions = {
-        CreateSubscription: jest.fn().mockResolvedValue({ id: 'sub_z_1' }),
+        CreateSubscription: jest.fn().mockResolvedValue({ id: 'sub_fd_1' }),
       } as unknown as typeof subscriptions;
       module = Module(settlement, {
         customerModule: customers as unknown as CustomerModule,
@@ -1585,7 +1585,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         object: 'subscription_cycle_claim',
         subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
         due_at: NOW,
-        owner: 'cs_z_pay',
+        owner: 'cs_fd_pay',
         charge_hash: MOCK_CHARGE_HASH,
         charge_sent_at: NOW - 30,
         created: NOW - 30,
@@ -1650,16 +1650,16 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       // The cycle was claimed for this session and the charge recorded.
       expect(Claims()).toEqual([
         expect.objectContaining({
-          owner: 'cs_z_pay',
+          owner: 'cs_fd_pay',
           due_at: NOW,
           charge_hash: MOCK_CHARGE_HASH,
         }),
       ]);
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.objectContaining({
           default_payment_method: PAYER_WALLET,
-          items: [{ price: 'price_z_1', quantity: 1 }],
+          items: [{ price: 'price_fd_1', quantity: 1 }],
         }),
         {
           settlementTransactionHash: MOCK_CHARGE_HASH,
@@ -1669,7 +1669,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       );
       expect(result).toMatchObject({
         status: 'complete',
-        subscription: 'sub_z_1',
+        subscription: 'sub_fd_1',
         payment_details: {
           transaction_hash: MOCK_SUBSCRIBE_HASH,
           payer_wallet: PAYER_WALLET,
@@ -1924,7 +1924,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       );
       expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.anything(),
         expect.objectContaining({ settlementTransactionHash: MOCK_CHARGE_HASH })
       );
@@ -1932,7 +1932,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     });
 
     it('refuses the cycle another session holds', async () => {
-      SeedClaim({ owner: 'cs_z_other', charge_hash: null });
+      SeedClaim({ owner: 'cs_fd_other', charge_hash: null });
 
       await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
         statusCode: 409,
@@ -1952,7 +1952,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       'refuses an on-chain subscription when %s',
       async (_label, overrides) => {
         memory.Seed('Subscriptions', {
-          id: 'sub_z_other',
+          id: 'sub_fd_other',
           subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
           ...overrides,
         });
@@ -1968,18 +1968,18 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     it('asks for a permit covering the wallet’s other live on-chain plans too', async () => {
       Seed({ payment_details: null });
       memory.Seed('Subscriptions', {
-        id: 'sub_z_b',
+        id: 'sub_fd_b',
         status: 'active',
         subscription_onchain_id: `0x${'bb'.repeat(32)}`,
         default_payment_method: PAYER_WALLET,
       });
       memory.Seed('SubscriptionItems', {
-        id: 'si_z_b',
-        subscription: 'sub_z_b',
-        price: 'price_z_b',
+        id: 'si_fd_b',
+        subscription: 'sub_fd_b',
+        price: 'price_fd_b',
       });
       memory.Seed('Prices', {
-        id: 'price_z_b',
+        id: 'price_fd_b',
         subscription_plan_id: `0x${'b0'.repeat(32)}`,
         unit_amount: 2000,
         recurring: { interval: 'month', interval_count: 1 },
@@ -2005,7 +2005,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           object: 'list',
           data: [BuildLineItem({ price: RecurringPrice(), quantity: 2 })],
           has_more: false,
-          url: '/v1/checkout/sessions/cs_z_pay/line_items',
+          url: '/v1/checkout/sessions/cs_fd_pay/line_items',
         },
       });
 
@@ -2068,14 +2068,14 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       Seed({ payment_details: null });
       memory.Seed('CheckoutSessions', {
         ...Session(),
-        id: 'cs_z_second',
+        id: 'cs_fd_second',
         url_slug: 'slug_second',
       });
 
       // Every simulated checkout pays from the same test wallet.
       for (const [id, slug] of [
-        ['cs_z_pay', SLUG],
-        ['cs_z_second', 'slug_second'],
+        ['cs_fd_pay', SLUG],
+        ['cs_fd_second', 'slug_second'],
       ]) {
         await module.PreparePayment(slug, PAYER_WALLET, {
           email: 'buyer@example.com',
@@ -2089,8 +2089,8 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
 
       const created = memory.All<Subscription>('Subscriptions');
       expect(created.map((s) => s.subscription_onchain_id).sort()).toEqual([
-        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_z_pay`,
-        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_z_second`,
+        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_fd_pay`,
+        `sim_sub_${MOCK_PLAN_KEY}_${PAYER_WALLET}_cs_fd_second`,
       ]);
       expect(created.map((s) => s.status)).toEqual(['active', 'active']);
     });
@@ -2115,7 +2115,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
               }),
             ],
             has_more: false,
-            url: '/v1/checkout/sessions/cs_z_pay/line_items',
+            url: '/v1/checkout/sessions/cs_fd_pay/line_items',
           },
         });
       });
@@ -2166,7 +2166,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
 
         expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
         expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
-          'acct_z_platform',
+          'acct_fd_platform',
           expect.objectContaining({ trial_end: NOW + WEEK - 30 }),
           {
             settlementTransactionHash: undefined,
@@ -2232,7 +2232,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       );
       expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.anything(),
         expect.objectContaining({
           settlementTransactionHash: MOCK_CHARGE_HASH,
@@ -2290,7 +2290,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           PAYER_WALLET
         );
         expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
-          'acct_z_platform',
+          'acct_fd_platform',
           expect.anything(),
           expect.objectContaining({
             subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,

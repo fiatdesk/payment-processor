@@ -3,7 +3,7 @@ import { DocPage } from './types';
 export const SELF_HOSTING_PAGE: DocPage = {
   id: 'self-hosting',
   title: 'Self-hosting',
-  description: 'Run the Zoneless API, dashboard, and database with Docker.',
+  description: 'Run the FiatDesk API, dashboard, and database with Docker.',
   sections: [
     {
       left: [
@@ -37,7 +37,7 @@ export const SELF_HOSTING_PAGE: DocPage = {
         {
           type: 'heading',
           level: 2,
-          text: '1. Run Zoneless with Docker',
+          text: '1. Run FiatDesk with Docker',
         },
         {
           type: 'paragraph',
@@ -47,7 +47,7 @@ export const SELF_HOSTING_PAGE: DocPage = {
       right: [
         {
           type: 'code',
-          title: 'Start Zoneless',
+          title: 'Start FiatDesk',
           tabs: [
             {
               id: 'docker',
@@ -135,23 +135,23 @@ curl http://localhost/api/health`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `import { Zoneless } from '@zoneless/node';
+              code: `import { FiatDesk } from '@fiatdesk/node';
 
-const apiKey = process.env.ZONELESS_API_KEY;
+const apiKey = process.env.FIATDESK_API_KEY;
 
 if (!apiKey) {
-  throw new Error('Missing Zoneless API key');
+  throw new Error('Missing FiatDesk API key');
 }
 
-const zoneless = new Zoneless(apiKey, 'http://localhost');`,
+const fiatdesk = new FiatDesk(apiKey, 'http://localhost');`,
             },
             {
               id: 'curl',
               label: 'cURL',
-              code: `export ZONELESS_API_KEY="sk_test_z_YOUR_API_KEY"
+              code: `export FIATDESK_API_KEY="sk_test_fd_YOUR_API_KEY"
 
 curl http://localhost/v1/balance \\
-  -H "x-api-key: $ZONELESS_API_KEY"`,
+  -H "x-api-key: $FIATDESK_API_KEY"`,
             },
           ],
         },
@@ -180,7 +180,7 @@ curl http://localhost/v1/balance \\
               html: true,
             },
             {
-              text: '<strong><a href="/deployment">Deployment</a>:</strong> Run Zoneless on a VPS in production',
+              text: '<strong><a href="/deployment">Deployment</a>:</strong> Run FiatDesk on a VPS in production',
               html: true,
             },
             {

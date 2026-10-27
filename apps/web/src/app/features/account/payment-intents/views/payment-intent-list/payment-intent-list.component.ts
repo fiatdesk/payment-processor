@@ -11,8 +11,8 @@ import {
   PaginatedListColumn,
 } from '../../../../../shared';
 import { ActivatedRoute } from '@angular/router';
-import type { Customer, PaymentIntent } from '@zoneless/shared-types';
-import { GetPaymentIntentListStatus } from '@zoneless/shared-types';
+import type { Customer, PaymentIntent } from '@fiatdesk/shared-types';
+import { GetPaymentIntentListStatus } from '@fiatdesk/shared-types';
 import { MetaService } from '../../../../../core';
 import { PaymentIntentActionsHostComponent } from '../../components/payment-intent-actions-host/payment-intent-actions-host.component';
 import { TransactionListComponent } from '../../../components';

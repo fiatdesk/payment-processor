@@ -12,8 +12,8 @@ export class MetaService {
   SetMetaTitle(title: string): void {
     const platformName = this.configService.GetPlatformName();
     const platformString =
-      platformName === 'Zoneless' ? '' : `– ${platformName}`;
-    let fullTitle = `${title} ${platformString} – Zoneless`;
+      platformName === 'FiatDesk' ? '' : `– ${platformName}`;
+    let fullTitle = `${title} ${platformString} – FiatDesk`;
     if (this.configService.IsTestMode()) {
       fullTitle += ` [Test]`;
     }

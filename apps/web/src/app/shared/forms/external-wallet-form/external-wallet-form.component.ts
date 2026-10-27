@@ -12,7 +12,7 @@ import {
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ExternalWallet } from '@zoneless/shared-types';
+import { ExternalWallet } from '@fiatdesk/shared-types';
 
 import { TestModeBannerComponent, WalletGuideComponent } from '../../ui';
 import { ConfigService } from '../../../data';

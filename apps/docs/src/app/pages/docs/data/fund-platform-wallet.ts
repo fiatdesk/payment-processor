@@ -14,13 +14,13 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
   id: 'fund-platform-wallet',
   title: 'Fund your platform wallet',
   description:
-    'Turn money from your sales into USDC on Ethereum, then add it to your Zoneless balance for seller payouts.',
+    'Turn money from your sales into USDC on Ethereum, then add it to your FiatDesk balance for seller payouts.',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'With Stripe, payouts usually come from money Stripe has already collected for you. Zoneless works differently. Your seller payouts are sent from your own platform wallet, so that wallet needs enough USDC before you can pay anyone.',
+          text: 'With Stripe, payouts usually come from money Stripe has already collected for you. FiatDesk works differently. Your seller payouts are sent from your own platform wallet, so that wallet needs enough USDC before you can pay anyone.',
         },
         {
           type: 'paragraph',
@@ -30,7 +30,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           )} or ${ExternalLink(
             krakenUrl,
             'Kraken'
-          )} to buy USDC and send it to your Zoneless wallet.`,
+          )} to buy USDC and send it to your FiatDesk wallet.`,
           html: true,
         },
         {
@@ -60,7 +60,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'For your first deposit, consider sending a small amount first. Once it appears in Zoneless, you can send the rest using the same saved address.',
+          text: 'For your first deposit, consider sending a small amount first. Once it appears in FiatDesk, you can send the rest using the same saved address.',
         },
       ],
     },
@@ -91,14 +91,14 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         {
           type: 'heading',
           level: 2,
-          text: '3. Copy your Zoneless deposit address',
+          text: '3. Copy your FiatDesk deposit address',
         },
         {
           type: 'paragraph',
           text: `Open ${ExternalLink(
             dashboardBalanceUrl,
             'Balance'
-          )} in the managed Zoneless dashboard and click <strong>Add funds</strong>. Copy the deposit address shown in the panel. If you self-host Zoneless, open the same page on your own dashboard.`,
+          )} in the managed FiatDesk dashboard and click <strong>Add funds</strong>. Copy the deposit address shown in the panel. If you self-host FiatDesk, open the same page on your own dashboard.`,
           html: true,
         },
         {
@@ -130,7 +130,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '4. Set up the withdrawal' },
         {
           type: 'paragraph',
-          text: 'Back on the exchange, choose to send or withdraw <strong>USDC</strong>. Paste your Zoneless deposit address as the recipient.',
+          text: 'Back on the exchange, choose to send or withdraw <strong>USDC</strong>. Paste your FiatDesk deposit address as the recipient.',
           html: true,
         },
         {
@@ -142,7 +142,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'The network must be Ethereum. ',
-          text: 'Deposits are detected on Ethereum only. USDC sent over another network does not reach your Zoneless balance and may be hard or impossible to recover. The asset should be USDC and the withdrawal network should be Ethereum.',
+          text: 'Deposits are detected on Ethereum only. USDC sent over another network does not reach your FiatDesk balance and may be hard or impossible to recover. The asset should be USDC and the withdrawal network should be Ethereum.',
         },
       ],
     },
@@ -155,7 +155,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: "Return to the Zoneless Add funds panel, scroll down to the bottom and click <strong>I've sent my funds</strong>. Zoneless will watch the wallet for the transfer.",
+          text: "Return to the FiatDesk Add funds panel, scroll down to the bottom and click <strong>I've sent my funds</strong>. FiatDesk will watch the wallet for the transfer.",
           html: true,
         },
       ],
@@ -165,7 +165,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         { type: 'heading', level: 2, text: '6. Wait for confirmation' },
         {
           type: 'paragraph',
-          text: 'Once the exchange sends the transfer, it usually reaches Zoneless within a few minutes, after a couple of block confirmations. The exchange may take longer to review and release a withdrawal.',
+          text: 'Once the exchange sends the transfer, it usually reaches FiatDesk within a few minutes, after a couple of block confirmations. The exchange may take longer to review and release a withdrawal.',
         },
         {
           type: 'paragraph',

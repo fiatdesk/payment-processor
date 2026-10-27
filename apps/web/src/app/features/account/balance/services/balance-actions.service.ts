@@ -1,6 +1,6 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
 import { Subject } from 'rxjs';
-import type { TopUp } from '@zoneless/shared-types';
+import type { TopUp } from '@fiatdesk/shared-types';
 import { BalanceService, TopupService } from '../../../../data';
 
 export type BalanceActionEvent =

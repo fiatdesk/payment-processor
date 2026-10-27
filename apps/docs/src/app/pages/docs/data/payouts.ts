@@ -22,23 +22,23 @@ export const PAYOUTS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const PAYOUT_OBJECT_JSON = `{
-  "id": "po_z_1Nv0FGQ9RKHgCVdK",
+  "id": "po_fd_1Nv0FGQ9RKHgCVdK",
   "object": "payout",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "amount": 110000,
   "arrival_date": 1704067200,
   "automatic": false,
-  "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+  "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
   "created": 1704067200,
   "currency": "usdc",
   "description": "Weekly seller payout",
-  "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "failure_code": null,
   "failure_message": null,
   "livemode": true,
   "metadata": {},
   "method": "instant",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source_type": "wallet",
   "statement_descriptor": null,
   "status": "paid",
@@ -46,17 +46,17 @@ const PAYOUT_OBJECT_JSON = `{
 }`;
 
 const PAYOUT_PAID_OBJECT_JSON = `{
-  "id": "po_z_1Nv0FGQ9RKHgCVdK",
+  "id": "po_fd_1Nv0FGQ9RKHgCVdK",
   "object": "payout",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "amount": 110000,
   "arrival_date": 1704067200,
   "automatic": false,
-  "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+  "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
   "created": 1704067200,
   "currency": "usdc",
   "description": "Weekly seller payout",
-  "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "failure_code": null,
   "failure_message": null,
   "livemode": true,
@@ -68,7 +68,7 @@ const PAYOUT_PAID_OBJECT_JSON = `{
     "gas_fee_currency": "eth"
   },
   "method": "instant",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source_type": "wallet",
   "statement_descriptor": null,
   "status": "paid",
@@ -76,23 +76,23 @@ const PAYOUT_PAID_OBJECT_JSON = `{
 }`;
 
 const PAYOUT_PENDING_OBJECT_JSON = `{
-  "id": "po_z_1Nv0FGQ9RKHgCVdK",
+  "id": "po_fd_1Nv0FGQ9RKHgCVdK",
   "object": "payout",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "amount": 110000,
   "arrival_date": 1704067200,
   "automatic": false,
-  "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+  "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
   "created": 1704067200,
   "currency": "usdc",
   "description": null,
-  "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "failure_code": null,
   "failure_message": null,
   "livemode": true,
   "metadata": {},
   "method": "instant",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source_type": "wallet",
   "statement_descriptor": null,
   "status": "pending",
@@ -104,7 +104,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless payout IDs are prefixed with <code>po_z_</code>.',
+      'Unique identifier for the object. FiatDesk payout IDs are prefixed with <code>po_fd_</code>.',
   },
   {
     name: 'object',
@@ -117,7 +117,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The connected account ID this payout belongs to.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's payout object. It identifies which connected account's balance is being debited.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's payout object. It identifies which connected account's balance is being debited.",
   },
   {
     name: 'amount',
@@ -131,7 +131,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     description:
       'Date when the payout arrived at the destination wallet. Once the transaction has the required confirmations this is typically within a minute of the payout being broadcast.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe payouts can take days to arrive at a bank account. Zoneless payouts on Ethereum typically complete within about a minute of being broadcast.',
+      '<strong>Difference from Stripe:</strong> Stripe payouts can take days to arrive at a bank account. FiatDesk payouts on Ethereum typically complete within about a minute of being broadcast.',
   },
   {
     name: 'automatic',
@@ -156,9 +156,9 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses ISO currency codes like <code>usd</code>. Zoneless uses <code>usdc</code> for USDC stablecoin payouts.',
+      '<strong>Difference from Stripe:</strong> Stripe uses ISO currency codes like <code>usd</code>. FiatDesk uses <code>usdc</code> for USDC stablecoin payouts.',
   },
   {
     name: 'description',
@@ -172,7 +172,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'ID of the external wallet the payout is sent to.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Stripe's destination is a bank account or card ID. Zoneless uses an external wallet ID (<code>wa_z_</code> prefix) representing an Ethereum wallet address.",
+      "<strong>Difference from Stripe:</strong> Stripe's destination is a bank account or card ID. FiatDesk uses an external wallet ID (<code>wa_fd_</code> prefix) representing an Ethereum wallet address.",
   },
   {
     name: 'failure_code',
@@ -228,7 +228,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     description:
       'Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format.',
     enumNote:
-      '<strong>Zoneless extension:</strong> After a successful payout, this object is populated with blockchain transaction details: <code>network</code>, <code>blockchain_tx</code>, <code>viewer_url</code>, <code>gas_fee</code>, and <code>gas_fee_currency</code>.',
+      '<strong>FiatDesk extension:</strong> After a successful payout, this object is populated with blockchain transaction details: <code>network</code>, <code>blockchain_tx</code>, <code>viewer_url</code>, <code>gas_fee</code>, and <code>gas_fee_currency</code>.',
   },
   {
     name: 'method',
@@ -238,20 +238,20 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
       {
         value: 'instant',
         description:
-          'Immediate transfer to the destination wallet. Default for Zoneless.',
+          'Immediate transfer to the destination wallet. Default for FiatDesk.',
       },
       { value: 'standard', description: 'Standard transfer timing.' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless defaults to <code>instant</code> since Ethereum transactions settle within about a minute. Stripe defaults to <code>standard</code> for bank transfers.',
+      '<strong>Difference from Stripe:</strong> FiatDesk defaults to <code>instant</code> since Ethereum transactions settle within about a minute. Stripe defaults to <code>standard</code> for bank transfers.',
   },
   {
     name: 'source_type',
     type: 'string',
     description:
-      'The source balance this payout came from. Always <code>wallet</code> for Zoneless.',
+      'The source balance this payout came from. Always <code>wallet</code> for FiatDesk.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses <code>card</code>, <code>bank_account</code>, or <code>fpx</code>. Zoneless uses <code>wallet</code> representing the USDC balance.',
+      '<strong>Difference from Stripe:</strong> Stripe uses <code>card</code>, <code>bank_account</code>, or <code>fpx</code>. FiatDesk uses <code>wallet</code> representing the USDC balance.',
   },
   {
     name: 'statement_descriptor',
@@ -299,9 +299,9 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     name: 'type',
     type: 'string',
     description:
-      'The destination type. Always <code>wallet</code> for Zoneless USDC payouts.',
+      'The destination type. Always <code>wallet</code> for FiatDesk USDC payouts.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses <code>bank_account</code> or <code>card</code>. Zoneless uses <code>wallet</code> for Ethereum wallets.',
+      '<strong>Difference from Stripe:</strong> Stripe uses <code>bank_account</code> or <code>card</code>. FiatDesk uses <code>wallet</code> for Ethereum wallets.',
   },
 ];
 
@@ -313,7 +313,7 @@ const PAYOUT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'The payout batch that holds this payout while its transaction is built or broadcast, or that paid it. A held payout cannot be canceled or added to another batch.',
     enumNote:
-      '<strong>Zoneless extension:</strong> Set by the <a href="#payouts-build">build endpoint</a>.',
+      '<strong>FiatDesk extension:</strong> Set by the <a href="#payouts-build">build endpoint</a>.',
   },
   {
     name: 'platform_account',
@@ -321,7 +321,7 @@ const PAYOUT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -332,7 +332,7 @@ export const PAYOUTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Payout object',
   description:
-    "A Payout object is created when you send funds from a connected account's Zoneless balance to their external Ethereum wallet. Payouts transfer USDC when you process them with .processAll() or .processBatch(), and typically complete within about a minute once the transaction has the required confirmations.",
+    "A Payout object is created when you send funds from a connected account's FiatDesk balance to their external Ethereum wallet. Payouts transfer USDC when you process them with .processAll() or .processBatch(), and typically complete within about a minute once the transaction has the required confirmations.",
   stripeDocsUrl: 'https://docs.stripe.com/api/payouts',
   endpoints: BuildEndpointSummaries(PAYOUTS_SUBSECTION, [
     { method: 'POST', path: '/v1/payouts', pageId: 'create' },
@@ -359,7 +359,7 @@ export const PAYOUTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Processing payouts: ',
-          text: 'Unlike Stripe where bank transfers happen automatically, Zoneless payouts stay <code>pending</code> until you process them. After creating payouts, call <code>payouts.processAll()</code> or <code>payouts.processBatch()</code>, or the lower-level <code>build</code> and <code>broadcast</code> endpoints. Live mode requires your platform wallet secret key to sign. Simulated test mode uses the same endpoints without a real signature: pass the unsigned transaction through to broadcast.',
+          text: 'Unlike Stripe where bank transfers happen automatically, FiatDesk payouts stay <code>pending</code> until you process them. After creating payouts, call <code>payouts.processAll()</code> or <code>payouts.processBatch()</code>, or the lower-level <code>build</code> and <code>broadcast</code> endpoints. Live mode requires your platform wallet secret key to sign. Simulated test mode uses the same endpoints without a real signature: pass the unsigned transaction through to broadcast.',
           html: true,
         },
         {
@@ -403,7 +403,7 @@ const CREATE_PAYOUT_PARAMETERS: Attribute[] = [
     description:
       'Three-letter currency code, in lowercase. Defaults to <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless uses <code>usdc</code> for USDC stablecoin payouts.',
+      '<strong>Difference from Stripe:</strong> FiatDesk uses <code>usdc</code> for USDC stablecoin payouts.',
   },
   {
     name: 'description',
@@ -417,7 +417,7 @@ const CREATE_PAYOUT_PARAMETERS: Attribute[] = [
     description:
       "The ID of an external wallet to send the payout to. If not provided, uses the account's default external wallet.",
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses bank account or card IDs. Zoneless uses external wallet IDs (<code>wa_z_</code> prefix).',
+      '<strong>Difference from Stripe:</strong> Stripe uses bank account or card IDs. FiatDesk uses external wallet IDs (<code>wa_fd_</code> prefix).',
   },
   {
     name: 'metadata',
@@ -456,7 +456,7 @@ export const PAYOUTS_CREATE_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Platform requirements: ',
-          text: "Your platform's wallet must have sufficient USDC to cover the payout amount, plus ETH for Ethereum network gas (see <a href='/gas-and-fees'>Gas and fees</a>). Zoneless transfers USDC from the platform wallet to the connected account's wallet.",
+          text: "Your platform's wallet must have sufficient USDC to cover the payout amount, plus ETH for Ethereum network gas (see <a href='/gas-and-fees'>Gas and fees</a>). FiatDesk transfers USDC from the platform wallet to the connected account's wallet.",
         },
         { type: 'heading', level: 2, text: 'Parameters' },
         {
@@ -479,8 +479,8 @@ export const PAYOUTS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/payouts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1Nv0FGQ9RKHgCVdK" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1Nv0FGQ9RKHgCVdK" \\
   -d amount=110000 \\
   -d currency=usdc`,
             },
@@ -489,11 +489,11 @@ export const PAYOUTS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const payout = await zoneless.payouts.create({
+const payout = await fiatdesk.payouts.create({
   amount: 110000,
   currency: 'usdc',
 }, {
-  zonelessAccount: 'acct_z_1Nv0FGQ9RKHgCVdK',
+  fiatdeskAccount: 'acct_fd_1Nv0FGQ9RKHgCVdK',
 });`,
             },
           ],
@@ -517,17 +517,17 @@ const UPDATE_PAYOUT_PARAMETERS: Attribute[] = [
 ];
 
 const PAYOUT_UPDATE_RESPONSE_JSON = `{
-  "id": "po_z_1Nv0FGQ9RKHgCVdK",
+  "id": "po_fd_1Nv0FGQ9RKHgCVdK",
   "object": "payout",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "amount": 110000,
   "arrival_date": 1704067200,
   "automatic": false,
-  "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+  "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
   "created": 1704067200,
   "currency": "usdc",
   "description": null,
-  "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "failure_code": null,
   "failure_message": null,
   "livemode": true,
@@ -535,7 +535,7 @@ const PAYOUT_UPDATE_RESPONSE_JSON = `{
     "order_id": "6735"
   },
   "method": "instant",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source_type": "wallet",
   "statement_descriptor": null,
   "status": "paid",
@@ -571,8 +571,8 @@ export const PAYOUTS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payouts/po_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/payouts/po_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -580,8 +580,8 @@ export const PAYOUTS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const payout = await zoneless.payouts.update(
-  'po_z_1Nv0FGQ9RKHgCVdK',
+const payout = await fiatdesk.payouts.update(
+  'po_fd_1Nv0FGQ9RKHgCVdK',
   {
     metadata: {
       order_id: '6735',
@@ -608,7 +608,7 @@ export const PAYOUTS_RETRIEVE_PAGE: DocPage = {
   id: 'retrieve',
   title: 'Retrieve a payout',
   description:
-    'Retrieves the details of an existing payout. Supply the unique payout ID from either a payout creation request or the payout list. Zoneless returns the corresponding payout information.',
+    'Retrieves the details of an existing payout. Supply the unique payout ID from either a payout creation request or the payout list. FiatDesk returns the corresponding payout information.',
   endpoints: [{ method: 'GET', path: '/v1/payouts/:id' }],
   sections: [
     {
@@ -630,15 +630,15 @@ export const PAYOUTS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payouts/po_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/payouts/po_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const payout = await zoneless.payouts.retrieve('po_z_1Nv0FGQ9RKHgCVdK');`,
+const payout = await fiatdesk.payouts.retrieve('po_fd_1Nv0FGQ9RKHgCVdK');`,
             },
           ],
         },
@@ -720,7 +720,7 @@ const LIST_PAYOUTS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>po_z_bar</code>, your subsequent call can include <code>ending_before=po_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>po_fd_bar</code>, your subsequent call can include <code>ending_before=po_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -732,7 +732,7 @@ const LIST_PAYOUTS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>po_z_foo</code>, your subsequent call can include <code>starting_after=po_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>po_fd_foo</code>, your subsequent call can include <code>starting_after=po_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'status',
@@ -755,23 +755,23 @@ const LIST_PAYOUTS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "po_z_1Nv0FGQ9RKHgCVdK",
+      "id": "po_fd_1Nv0FGQ9RKHgCVdK",
       "object": "payout",
-      "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "amount": 110000,
       "arrival_date": 1704067200,
       "automatic": false,
-      "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+      "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
       "created": 1704067200,
       "currency": "usdc",
       "description": null,
-      "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+      "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
       "failure_code": null,
       "failure_message": null,
       "livemode": true,
       "metadata": {},
       "method": "instant",
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "source_type": "wallet",
       "statement_descriptor": null,
       "status": "paid",
@@ -810,7 +810,7 @@ export const PAYOUTS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/payouts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -818,7 +818,7 @@ export const PAYOUTS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const payouts = await zoneless.payouts.list({
+const payouts = await fiatdesk.payouts.list({
   limit: 3,
 });`,
             },
@@ -834,23 +834,23 @@ const payouts = await zoneless.payouts.list({
 // Cancel Payout
 // ============================================
 const PAYOUT_CANCELED_RESPONSE_JSON = `{
-  "id": "po_z_1Nv0FGQ9RKHgCVdK",
+  "id": "po_fd_1Nv0FGQ9RKHgCVdK",
   "object": "payout",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "amount": 110000,
   "arrival_date": 1704067200,
   "automatic": false,
-  "balance_transaction": "txn_z_1Nv0FGQ9RKHgCVdK",
+  "balance_transaction": "txn_fd_1Nv0FGQ9RKHgCVdK",
   "created": 1704067200,
   "currency": "usdc",
   "description": null,
-  "destination": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "destination": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "failure_code": null,
   "failure_message": null,
   "livemode": true,
   "metadata": {},
   "method": "instant",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source_type": "wallet",
   "statement_descriptor": null,
   "status": "canceled",
@@ -861,7 +861,7 @@ export const PAYOUTS_CANCEL_PAGE: DocPage = {
   id: 'cancel',
   title: 'Cancel a payout',
   description:
-    "You can cancel a previously created payout if its status is pending. Zoneless refunds the funds to the connected account's available balance. You cannot cancel payouts that have already been sent to the blockchain.",
+    "You can cancel a previously created payout if its status is pending. FiatDesk refunds the funds to the connected account's available balance. You cannot cancel payouts that have already been sent to the blockchain.",
   endpoints: [{ method: 'POST', path: '/v1/payouts/:id/cancel' }],
   sections: [
     {
@@ -890,15 +890,15 @@ export const PAYOUTS_CANCEL_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X POST https://api.yourdomain.com/v1/payouts/po_z_1Nv0FGQ9RKHgCVdK/cancel \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X POST https://api.yourdomain.com/v1/payouts/po_fd_1Nv0FGQ9RKHgCVdK/cancel \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const payout = await zoneless.payouts.cancel('po_z_1Nv0FGQ9RKHgCVdK');`,
+const payout = await fiatdesk.payouts.cancel('po_fd_1Nv0FGQ9RKHgCVdK');`,
             },
           ],
         },
@@ -923,13 +923,13 @@ const BUILD_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     description:
       'Array of pending payout IDs to pay in one transaction. Maximum 100 payouts per batch.',
     enumNote:
-      '<strong>Zoneless-specific:</strong> This endpoint is unique to Zoneless and enables self-custodial payout processing where your platform signs transactions locally.',
+      '<strong>FiatDesk-specific:</strong> This endpoint is unique to FiatDesk and enables self-custodial payout processing where your platform signs transactions locally.',
   },
   {
     name: 'replace',
     type: 'boolean',
     description:
-      '<strong>Zoneless extension:</strong> Re-price the platform wallet’s outstanding batch: the same payouts under the same batch id and nonce, with fees at least 1.125× the original and a fresh deadline. A batch broadcast from a wallet with <code>transaction_hash</code> cannot be re-priced here (<code>400 use_wallet_speed_up</code>); speed it up in the wallet instead. A different set of payouts cannot replace a batch that can still execute (<code>409 payout_batch_in_flight</code>): wait until it is paid or its deadline has passed, when reconcile releases it.',
+      '<strong>FiatDesk extension:</strong> Re-price the platform wallet’s outstanding batch: the same payouts under the same batch id and nonce, with fees at least 1.125× the original and a fresh deadline. A batch broadcast from a wallet with <code>transaction_hash</code> cannot be re-priced here (<code>400 use_wallet_speed_up</code>); speed it up in the wallet instead. A different set of payouts cannot replace a batch that can still execute (<code>409 payout_batch_in_flight</code>): wait until it is paid or its deadline has passed, when reconcile releases it.',
     enumNote:
       '<strong>Why a different set has to wait:</strong> it gets its own batch id, so if the first transaction was already sent it could still be mined, and payouts in both could be paid twice. The deadline ends that risk.',
   },
@@ -937,13 +937,13 @@ const BUILD_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     name: 'deadline_seconds',
     type: 'integer',
     description:
-      '<strong>Zoneless extension:</strong> Seconds, from <code>120</code> to <code>86400</code>, that the transaction stays executable on-chain. The batch holds its payouts until it is paid or this deadline has passed; a shorter window recovers faster from a rejected signature. Defaults to <code>PAYOUT_BUILD_DEADLINE_SECONDS</code> (1800).',
+      '<strong>FiatDesk extension:</strong> Seconds, from <code>120</code> to <code>86400</code>, that the transaction stays executable on-chain. The batch holds its payouts until it is paid or this deadline has passed; a shorter window recovers faster from a rejected signature. Defaults to <code>PAYOUT_BUILD_DEADLINE_SECONDS</code> (1800).',
   },
 ];
 
 const BUILD_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "object": "payout_batch_build",
-  "payout_batch": "pob_z_7Kq2LmN4pRsT8vWx",
+  "payout_batch": "pob_fd_7Kq2LmN4pRsT8vWx",
   "replaced_payout_batch": null,
   "unsigned_transaction": "0x02f083aa36a7058459682f0085037e11d6008301d4c0947b1822e76a3c...",
   "estimated_fee": "1800000000000000",
@@ -960,16 +960,16 @@ const BUILD_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "batch_id": "0x970dccf67e9501c2cc95d6a962be9d77f8779bc54a1c30cf1541726095af7dbd",
   "payouts": [
     {
-      "id": "po_z_1Nv0FGQ9RKHgCVdK",
+      "id": "po_fd_1Nv0FGQ9RKHgCVdK",
       "object": "payout",
-      "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "amount": 110000,
       "status": "pending"
     },
     {
-      "id": "po_z_2Xw1GHR0SKIiDWeL",
+      "id": "po_fd_2Xw1GHR0SKIiDWeL",
       "object": "payout",
-      "account": "acct_z_2Xw1GHR0SKIiDWeL",
+      "account": "acct_fd_2Xw1GHR0SKIiDWeL",
       "amount": 50000,
       "status": "pending"
     }
@@ -1048,12 +1048,12 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/payouts/build \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "payouts": [
-      "po_z_1Nv0FGQ9RKHgCVdK",
-      "po_z_2Xw1GHR0SKIiDWeL"
+      "po_fd_1Nv0FGQ9RKHgCVdK",
+      "po_fd_2Xw1GHR0SKIiDWeL"
     ]
   }'`,
             },
@@ -1063,29 +1063,29 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
               code: `${NODE_INIT}
 
 const key = process.env.WALLET_PRIVATE_KEY;
-const payouts = ['po_z_1Nv0FGQ9RKHgCVdK', 'po_z_2Xw1GHR0SKIiDWeL'];
+const payouts = ['po_fd_1Nv0FGQ9RKHgCVdK', 'po_fd_2Xw1GHR0SKIiDWeL'];
 
 // Build an unsigned transaction for multiple payouts
-let build = await zoneless.payouts.build({ payouts });
+let build = await fiatdesk.payouts.build({ payouts });
 
 if (build.transaction_type === 'approval') {
   // One-time: sign and broadcast the approval, then build again.
   // (payouts.ensureAllowance() does both.)
-  const approval = await zoneless.payouts.broadcast({
-    signed_transaction: await zoneless.payouts.sign(build, key),
+  const approval = await fiatdesk.payouts.broadcast({
+    signed_transaction: await fiatdesk.payouts.sign(build, key),
     payouts: [],
   });
   if (approval.status !== 'paid') {
     throw new Error('Approval not confirmed yet; reconcile, then retry');
   }
-  build = await zoneless.payouts.build({ payouts });
+  build = await fiatdesk.payouts.build({ payouts });
 }
 
 console.log(build.estimated_fee); // upper bound in wei
 console.log(build.total_amount); // 160000 cents
 
 // Sign the payout; sign() checks build.to and build.chain_id first
-const signedTransaction = await zoneless.payouts.sign(build, key);`,
+const signedTransaction = await fiatdesk.payouts.sign(build, key);`,
             },
           ],
         },
@@ -1117,7 +1117,7 @@ const BROADCAST_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     required: true,
     requiredText: 'Required unless signed_transaction is set',
     description:
-      '<strong>Zoneless extension:</strong> Hash of a transaction your wallet already submitted, for example with <code>eth_sendTransaction</code> from a browser wallet. The API checks that it comes from the platform wallet and calls the built contract with the built calldata, then waits for it. Posting the same hash again returns the current state; the hash of a wallet speed-up of the same transaction is tracked as well.',
+      '<strong>FiatDesk extension:</strong> Hash of a transaction your wallet already submitted, for example with <code>eth_sendTransaction</code> from a browser wallet. The API checks that it comes from the platform wallet and calls the built contract with the built calldata, then waits for it. Posting the same hash again returns the current state; the hash of a wallet speed-up of the same transaction is tracked as well.',
   },
   {
     name: 'payouts',
@@ -1138,9 +1138,9 @@ const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "viewer_url": "https://sepolia.etherscan.io/tx/0xe86804bada783cd65ad9f73137c39d5548741ce943da0d453d546137548fbdc4",
   "payouts": [
     {
-      "id": "po_z_1Nv0FGQ9RKHgCVdK",
+      "id": "po_fd_1Nv0FGQ9RKHgCVdK",
       "object": "payout",
-      "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "amount": 110000,
       "status": "paid",
       "metadata": {
@@ -1150,9 +1150,9 @@ const BROADCAST_PAYOUTS_BATCH_RESPONSE_JSON = `{
       }
     },
     {
-      "id": "po_z_2Xw1GHR0SKIiDWeL",
+      "id": "po_fd_2Xw1GHR0SKIiDWeL",
       "object": "payout",
-      "account": "acct_z_2Xw1GHR0SKIiDWeL",
+      "account": "acct_fd_2Xw1GHR0SKIiDWeL",
       "amount": 50000,
       "status": "paid",
       "metadata": {
@@ -1224,13 +1224,13 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/payouts/broadcast \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "signed_transaction": "0x02f8b383aa36a7058459682f0085037e11d6008301d4c0947b1822e7...",
     "payouts": [
-      "po_z_1Nv0FGQ9RKHgCVdK",
-      "po_z_2Xw1GHR0SKIiDWeL"
+      "po_fd_1Nv0FGQ9RKHgCVdK",
+      "po_fd_2Xw1GHR0SKIiDWeL"
     ]
   }'`,
             },
@@ -1240,11 +1240,11 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
               code: `${NODE_INIT}
 
 // Sign the build() result locally, then broadcast it
-const signedTransaction = await zoneless.payouts.sign(
+const signedTransaction = await fiatdesk.payouts.sign(
   build,
   process.env.WALLET_PRIVATE_KEY
 );
-const result = await zoneless.payouts.broadcast({
+const result = await fiatdesk.payouts.broadcast({
   signed_transaction: signedTransaction,
   payouts: build.payouts.map((payout) => payout.id),
 });
@@ -1278,7 +1278,7 @@ console.log(result.viewer_url); // Link to Etherscan`,
         { type: 'heading', level: 3, text: 'processAll()' },
         {
           type: 'paragraph',
-          text: 'Process all pending payouts automatically, handling multiple batches until none remain. Returns an array of results, one per batch. It stops at the first batch that is not <code>paid</code> and returns it last, with <code>has_more: true</code>. Batch conflicts throw a <code>ZonelessPayoutBatchError</code> whose <code>code</code> is the API error, such as <code>payout_batch_in_progress</code>.',
+          text: 'Process all pending payouts automatically, handling multiple batches until none remain. Returns an array of results, one per batch. It stops at the first batch that is not <code>paid</code> and returns it last, with <code>has_more: true</code>. Batch conflicts throw a <code>FiatDeskPayoutBatchError</code> whose <code>code</code> is the API error, such as <code>payout_batch_in_progress</code>.',
           html: true,
         },
       ],
@@ -1293,7 +1293,7 @@ console.log(result.viewer_url); // Link to Etherscan`,
               code: `${NODE_INIT}
 
 // Process up to 100 pending payouts
-const result = await zoneless.payouts.processBatch(
+const result = await fiatdesk.payouts.processBatch(
   process.env.WALLET_PRIVATE_KEY
 );
 
@@ -1312,7 +1312,7 @@ if (result.status === 'pending') {
               code: `${NODE_INIT}
 
 // Process ALL pending payouts (multiple batches)
-const results = await zoneless.payouts.processAll(
+const results = await fiatdesk.payouts.processAll(
   process.env.WALLET_PRIVATE_KEY
 );
 
@@ -1326,7 +1326,7 @@ console.log(
 
 const last = results[results.length - 1];
 if (last && last.status !== 'paid') {
-  await zoneless.payouts.reconcile(); // later, then processAll again
+  await fiatdesk.payouts.reconcile(); // later, then processAll again
 }`,
             },
           ],
@@ -1390,7 +1390,7 @@ export const PAYOUTS_RECONCILE_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
+          title: 'FiatDesk extension: ',
           text: 'Build, broadcast and cancel also reconcile first. All checks read one block, the newest with <code>ETH_CONFIRMATIONS</code> confirmations. A batch is <strong>paid</strong> when PayoutBatch shows its <code>batch_id</code> paid by the platform wallet; its transaction is then located by receipt or <code>BatchPaid</code> log. A batch is released only once that block is past its latest deadline and the batch is not paid there, so no signed copy can pay any more: a built batch becomes <strong>replaced</strong> and its payouts are pending again; a broadcast batch is <strong>replaced</strong> and a reverted one <strong>failed</strong>, and their payouts are refunded. When the chain cannot be read, nothing changes.',
           html: true,
         },
@@ -1419,14 +1419,14 @@ export const PAYOUTS_RECONCILE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -X POST https://api.yourdomain.com/v1/payouts/reconcile \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const result = await zoneless.payouts.reconcile();
+const result = await fiatdesk.payouts.reconcile();
 
 console.log(\`\${result.paid} paid, \${result.pending} still pending\`);`,
             },

@@ -27,7 +27,7 @@ import {
   OperatorPlatform,
   SetupRequest,
   SetupResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AsyncHandler } from '../utils/AsyncHandler';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -344,7 +344,7 @@ router.post(
 
     const result = await apiKeyModule.CreateApiKey(
       platform.id,
-      'Zoneless Agent Store',
+      'FiatDesk Agent Store',
       {
         agent_slot: slot,
         credential_type: 'agent_store',

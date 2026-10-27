@@ -1,7 +1,7 @@
 import { EventModule, ExtractChangedFields } from '../modules/Event';
 import { Database } from '../modules/Database';
 import { ListHelper } from '../utils/ListHelper';
-import { Event } from '@zoneless/shared-types';
+import { Event } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -37,31 +37,31 @@ describe('EventModule', () => {
 
   describe('EventObject', () => {
     it('should create an event with correct fields', () => {
-      const dataObject = { id: 'acct_z_1', object: 'account' };
+      const dataObject = { id: 'acct_fd_1', object: 'account' };
       const event = module.EventObject(
         'account.created',
-        'acct_z_1',
-        'acct_z_platform',
+        'acct_fd_1',
+        'acct_fd_platform',
         dataObject
       );
 
       expect(event.object).toBe('event');
       expect(event.type).toBe('account.created');
-      expect(event.account).toBe('acct_z_1');
-      expect(event.platform_account).toBe('acct_z_platform');
+      expect(event.account).toBe('acct_fd_1');
+      expect(event.platform_account).toBe('acct_fd_platform');
       expect(event.data.object).toEqual(dataObject);
       expect(event.data.previous_attributes).toBeNull();
       expect(event.livemode).toBe(false);
       expect(event.pending_webhooks).toBe(0);
-      expect(event.id).toMatch(/^evt_z_test/);
+      expect(event.id).toMatch(/^evt_fd_test/);
     });
 
     it('should include previous_attributes when provided', () => {
       const event = module.EventObject(
         'account.updated',
-        'acct_z_1',
-        'acct_z_platform',
-        { id: 'acct_z_1', object: 'account', email: 'new@example.com' },
+        'acct_fd_1',
+        'acct_fd_platform',
+        { id: 'acct_fd_1', object: 'account', email: 'new@example.com' },
         { previousAttributes: { email: 'old@example.com' } }
       );
 
@@ -73,9 +73,9 @@ describe('EventModule', () => {
     it('should include request metadata when provided', () => {
       const event = module.EventObject(
         'account.created',
-        'acct_z_1',
-        'acct_z_platform',
-        { id: 'acct_z_1', object: 'account' },
+        'acct_fd_1',
+        'acct_fd_platform',
+        { id: 'acct_fd_1', object: 'account' },
         { requestId: 'req_123', idempotencyKey: 'idem_456' }
       );
 
@@ -89,12 +89,12 @@ describe('EventModule', () => {
   describe('CreateEvent', () => {
     it('should persist the event to the database', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
       });
 
-      const event = await module.CreateEvent('account.created', 'acct_z_1', {
-        id: 'acct_z_1',
+      const event = await module.CreateEvent('account.created', 'acct_fd_1', {
+        id: 'acct_fd_1',
         object: 'account',
       });
 
@@ -119,11 +119,11 @@ describe('EventModule', () => {
         .spyOn(ListHelper.prototype, 'List')
         .mockResolvedValue(listResult);
 
-      await module.ListEvents({ relatedObject: 'prod_z_1' });
+      await module.ListEvents({ relatedObject: 'prod_fd_1' });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          filters: { 'data.object.id': 'prod_z_1' },
+          filters: { 'data.object.id': 'prod_fd_1' },
         })
       );
 
@@ -150,7 +150,7 @@ describe('EventModule', () => {
         .mockResolvedValue(listResult);
 
       await module.ListEvents({
-        relatedObject: 'prod_z_1',
+        relatedObject: 'prod_fd_1',
         type: 'product.updated',
       });
 
@@ -158,7 +158,7 @@ describe('EventModule', () => {
         expect.objectContaining({
           filters: {
             type: 'product.updated',
-            'data.object.id': 'prod_z_1',
+            'data.object.id': 'prod_fd_1',
           },
         })
       );
@@ -177,14 +177,14 @@ describe('EventModule', () => {
         .mockResolvedValue({ ...listResult, data: events });
 
       const result = await module.ListEvents({
-        relatedObject: 'prod_z_1',
+        relatedObject: 'prod_fd_1',
         type: 'product.*',
       });
 
       // The wildcard must not reach the database query as an equality filter
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          filters: { 'data.object.id': 'prod_z_1' },
+          filters: { 'data.object.id': 'prod_fd_1' },
         })
       );
       expect(result.data.map((event) => event.type)).toEqual([
@@ -210,14 +210,14 @@ describe('EventModule', () => {
         .mockResolvedValue(listResult);
 
       await module.ListEventsByPlatform({
-        platformAccount: 'acct_z_platform',
-        relatedObject: 'pi_z_1',
+        platformAccount: 'acct_fd_platform',
+        relatedObject: 'pi_fd_1',
       });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
-          filters: { 'data.object.id': 'pi_z_1' },
+          account: 'acct_fd_platform',
+          filters: { 'data.object.id': 'pi_fd_1' },
         })
       );
 
@@ -229,11 +229,13 @@ describe('EventModule', () => {
         .spyOn(ListHelper.prototype, 'List')
         .mockResolvedValue(listResult);
 
-      await module.ListEventsByPlatform({ platformAccount: 'acct_z_platform' });
+      await module.ListEventsByPlatform({
+        platformAccount: 'acct_fd_platform',
+      });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           filters: {},
         })
       );
@@ -244,10 +246,10 @@ describe('EventModule', () => {
 
   describe('GetEvent', () => {
     it('should return the event when found', async () => {
-      const mockEvent = { id: 'evt_z_1', object: 'event' } as Event;
+      const mockEvent = { id: 'evt_fd_1', object: 'event' } as Event;
       mockDb.Get = jest.fn().mockResolvedValue(mockEvent);
 
-      const result = await module.GetEvent('evt_z_1');
+      const result = await module.GetEvent('evt_fd_1');
       expect(result).toEqual(mockEvent);
     });
 

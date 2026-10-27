@@ -34,7 +34,7 @@ import {
   Price,
   Product,
   SameAddress,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CheckoutCollectionOptions,
   CustomFieldLabel,

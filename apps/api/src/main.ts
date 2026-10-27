@@ -1,5 +1,5 @@
 /**
- * Zoneless API Server
+ * FiatDesk API Server
  * Express + MongoDB backend
  *
  * Multi-tenant architecture supporting multiple independent platforms.
@@ -17,7 +17,7 @@ import { RequestLoggerWithSkip } from './middleware/RequestLogger';
 import { RequestContextMiddleware } from './middleware/RequestContext';
 import { AppError } from './utils/AppError';
 import { ERRORS } from './utils/Errors';
-import { AuthenticatedUser } from '@zoneless/shared-types';
+import { AuthenticatedUser } from '@fiatdesk/shared-types';
 import {
   InitializeAppConfig,
   GetAppConfig,

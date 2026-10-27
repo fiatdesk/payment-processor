@@ -4,7 +4,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
   id: 'agent-marketplace-quickstart',
   title: 'Agent Marketplace Quickstart',
   description:
-    'Give a coding agent a secure, additive path for adding optional Zoneless USDC seller payouts to an existing marketplace.',
+    'Give a coding agent a secure, additive path for adding optional FiatDesk USDC seller payouts to an existing marketplace.',
   sections: [
     {
       left: [
@@ -49,7 +49,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
             {
               id: 'shell',
               label: 'Shell',
-              code: `npx @zoneless/cli@latest agent setup \\
+              code: `npx @fiatdesk/cli@latest agent setup \\
   --platform-name "<marketplace name>" \\
   --skill marketplace \\
   --json`,
@@ -71,12 +71,12 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
+          text: 'The CLI binds this repository to the provisioned profiles in <code>.fiatdesk/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'Setup validates stored keys before reuse. If it reports <code>credentials_invalid</code>, run <code>zoneless auth reconnect --json</code> and show the new authorization prompt to the human. For local testing, run <code>zoneless env sync --include-wallet --json</code>; it finds an unambiguous env file, preserves unrelated values, and writes the bound test credentials without displaying them. Use <code>--target</code> only when the project has multiple env files.',
+          text: 'Setup validates stored keys before reuse. If it reports <code>credentials_invalid</code>, run <code>fiatdesk auth reconnect --json</code> and show the new authorization prompt to the human. For local testing, run <code>fiatdesk env sync --include-wallet --json</code>; it finds an unambiguous env file, preserves unrelated values, and writes the bound test credentials without displaying them. Use <code>--target</code> only when the project has multiple env files.',
           html: true,
         },
         {
@@ -96,7 +96,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'After approval, parse the successful JSON response and read the file at <code>skill_path</code> before changing application code. The CLI installs the versioned <code>zoneless-marketplace</code> skill locally and returns its exact path, so this flow does not depend on automatic skill discovery.',
+          text: 'After approval, parse the successful JSON response and read the file at <code>skill_path</code> before changing application code. The CLI installs the versioned <code>fiatdesk-marketplace</code> skill locally and returns its exact path, so this flow does not depend on automatic skill discovery.',
           html: true,
         },
         {
@@ -119,7 +119,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Preserve every existing provider. If sellers are paid during checkout, keep that path unchanged for existing providers; for a Zoneless seller, collect on the platform and accrue that sale once for a later Zoneless payout. For a small app, use its existing storage and process model rather than adding queues, locks, authentication, or production infrastructure.',
+          text: 'Preserve every existing provider. If sellers are paid during checkout, keep that path unchanged for existing providers; for a FiatDesk seller, collect on the platform and accrue that sale once for a later FiatDesk payout. For a small app, use its existing storage and process model rather than adding queues, locks, authentication, or production infrastructure.',
         },
       ],
     },
@@ -134,7 +134,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: '<strong>JavaScript or TypeScript backend:</strong> centralize one server-side <code>@zoneless/node</code> client. Use <code>payouts.processAll()</code> or <code>processBatch()</code> for platform-wide pending payouts, or the SDK&rsquo;s <code>build</code>, <code>sign</code>, and <code>broadcast</code> methods when processing explicit payout IDs.',
+              text: '<strong>JavaScript or TypeScript backend:</strong> centralize one server-side <code>@fiatdesk/node</code> client. Use <code>payouts.processAll()</code> or <code>processBatch()</code> for platform-wide pending payouts, or the SDK&rsquo;s <code>build</code>, <code>sign</code>, and <code>broadcast</code> methods when processing explicit payout IDs.',
               html: true,
             },
             {
@@ -150,7 +150,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Match the existing payout trigger: use <code>processAll()</code> for a scheduled worker that owns every pending Zoneless payout, <code>processBatch()</code> for one bounded platform batch, and explicit <code>build</code>/<code>sign</code>/<code>broadcast</code> for a seller claim or admin-selected payout ID. Do not add both a claim route and a scheduler unless the marketplace already supports both.',
+          text: 'Match the existing payout trigger: use <code>processAll()</code> for a scheduled worker that owns every pending FiatDesk payout, <code>processBatch()</code> for one bounded platform batch, and explicit <code>build</code>/<code>sign</code>/<code>broadcast</code> for a seller claim or admin-selected payout ID. Do not add both a claim route and a scheduler unless the marketplace already supports both.',
           html: true,
         },
       ],
@@ -160,13 +160,13 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         {
           type: 'heading',
           level: 2,
-          text: '6. Add Zoneless without replacing anything',
+          text: '6. Add FiatDesk without replacing anything',
         },
         {
           type: 'list',
           items: [
             {
-              text: 'Add <code>zoneless</code> as a separate opt-in payout method and store a dedicated <code>zonelessAccountId</code>.',
+              text: 'Add <code>fiatdesk</code> as a separate opt-in payout method and store a dedicated <code>fiatdeskAccountId</code>.',
               html: true,
             },
             {
@@ -178,11 +178,11 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
               html: true,
             },
             {
-              text: 'Pin each sale or earning to one provider. If the existing checkout pays sellers immediately, leave that behavior unchanged for existing providers and omit the destination transfer only for Zoneless sellers. Never pay one sale through both checkout and Zoneless.',
+              text: 'Pin each sale or earning to one provider. If the existing checkout pays sellers immediately, leave that behavior unchanged for existing providers and omit the destination transfer only for FiatDesk sellers. Never pay one sale through both checkout and FiatDesk.',
               html: true,
             },
             {
-              text: "Transfer the seller's accrued earnings to their connected-account balance, then create the payout with <code>zonelessAccount</code> or the <code>Zoneless-Account</code> header. Do not use <code>destination</code> for the connected account ID.",
+              text: "Transfer the seller's accrued earnings to their connected-account balance, then create the payout with <code>fiatdeskAccount</code> or the <code>FiatDesk-Account</code> header. Do not use <code>destination</code> for the connected account ID.",
               html: true,
             },
             {
@@ -206,7 +206,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Add focused tests that prove the existing checkout and payout path is unchanged, seller opt-in works, one sale cannot be paid through two providers, connected-account context and stable idempotency keys are used, and no secrets reach browser code or fixtures. For destination charges, test that Stripe sellers still use them and Zoneless sellers do not.',
+          text: 'Add focused tests that prove the existing checkout and payout path is unchanged, seller opt-in works, one sale cannot be paid through two providers, connected-account context and stable idempotency keys are used, and no secrets reach browser code or fixtures. For destination charges, test that Stripe sellers still use them and FiatDesk sellers do not.',
         },
         {
           type: 'paragraph',
@@ -255,7 +255,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
             {
               id: 'shell',
               label: 'Shell',
-              code: 'npx @zoneless/cli@latest wallet backup --output <secure-path>',
+              code: 'npx @fiatdesk/cli@latest wallet backup --output <secure-path>',
             },
           ],
         },

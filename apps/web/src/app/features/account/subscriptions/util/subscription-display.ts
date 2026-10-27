@@ -4,7 +4,7 @@ import type {
   RecurringInterval,
   Subscription,
   SubscriptionItem,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   FormatPriceWithInterval,
   FormatIntervalLabel,

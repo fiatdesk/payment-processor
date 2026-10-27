@@ -3,13 +3,13 @@ import type {
   BroadcastPayoutsBatchInput,
   BuildPayoutsBatchInput,
   CreatePayoutInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import type {
   Payout,
   PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
   ReconcileResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ApiService } from '../../core';
 
 /**
@@ -29,7 +29,7 @@ export class PayoutService {
     input: CreatePayoutInput
   ): Promise<Payout> {
     return this.api.Call<Payout>('POST', 'payouts', input, {
-      zonelessAccount: connectedAccountId,
+      fiatdeskAccount: connectedAccountId,
     });
   }
 

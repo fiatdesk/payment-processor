@@ -4,7 +4,7 @@
  */
 
 import mongoose, { ClientSession } from 'mongoose';
-import { QueryParameters, QueryOperators } from '@zoneless/shared-types';
+import { QueryParameters, QueryOperators } from '@fiatdesk/shared-types';
 import {
   IsDuplicateKey,
   LIVE_SUBSCRIPTION_STATUSES,

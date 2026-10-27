@@ -68,7 +68,7 @@ export async function RunDoctor(client: StoreClient): Promise<DoctorResult> {
   const config = await client.GetConfig();
   if (typeof config.livemode !== 'boolean') {
     throw new ApiError(
-      'Zoneless returned a config response without a livemode flag.',
+      'FiatDesk returned a config response without a livemode flag.',
       0
     );
   }
@@ -177,7 +177,7 @@ function BuildRecurring(command: StoreInitCommand): RecurringPlan | undefined {
 
 function RequireValue(value: string | undefined, label: string): string {
   if (!value) {
-    throw new ApiError(`Zoneless returned a response without a ${label}.`, 0);
+    throw new ApiError(`FiatDesk returned a response without a ${label}.`, 0);
   }
   return value;
 }

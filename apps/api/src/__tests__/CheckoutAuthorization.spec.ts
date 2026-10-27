@@ -35,7 +35,7 @@ const DOMAIN: UsdcDomain = {
   chainId: 31337,
   verifyingContract: USDC,
 };
-const SESSION = 'cs_z_1';
+const SESSION = 'cs_fd_1';
 const EXPECTED = {
   usdc: USDC,
   merchant: MERCHANT,
@@ -46,8 +46,8 @@ const EXPECTED = {
 describe('CheckoutAuthorization', () => {
   describe('SessionNonce', () => {
     it('is keccak256 of the UTF-8 session id', () => {
-      expect(SessionNonce('cs_z_1')).toBe(keccak256(toBytes('cs_z_1')));
-      expect(SessionNonce('cs_z_2')).not.toBe(SessionNonce('cs_z_1'));
+      expect(SessionNonce('cs_fd_1')).toBe(keccak256(toBytes('cs_fd_1')));
+      expect(SessionNonce('cs_fd_2')).not.toBe(SessionNonce('cs_fd_1'));
     });
   });
 
@@ -153,7 +153,7 @@ describe('CheckoutAuthorization', () => {
     it.each([
       ['a short signature', `${r}${s.slice(2)}`],
       ['non-hex characters', `0x${'zz'.repeat(65)}`],
-      ['a simulated reference', 'sim_sig:cs_z_1:0xabc'],
+      ['a simulated reference', 'sim_sig:cs_fd_1:0xabc'],
       ['an invalid recovery byte', `${r}${s.slice(2)}05`],
     ])('rejects %s with a 400', (_label, signature) => {
       expect(() => SplitSignature(signature)).toThrow(
@@ -257,7 +257,7 @@ describe('CheckoutAuthorization', () => {
       expect(
         VerifyCheckoutReceipt(
           Receipt([
-            AuthorizationUsed(SessionNonce('cs_z_other')),
+            AuthorizationUsed(SessionNonce('cs_fd_other')),
             Transfer(MERCHANT, 12_340_000n),
           ]),
           EXPECTED

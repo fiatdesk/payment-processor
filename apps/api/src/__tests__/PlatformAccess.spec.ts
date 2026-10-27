@@ -4,7 +4,7 @@ import {
   CanAccessAccount,
   IsPlatformOwner,
 } from '../modules/PlatformAccess';
-import { Account } from '@zoneless/shared-types';
+import { Account } from '@fiatdesk/shared-types';
 
 function MakeAccount(id: string, platformAccount: string): Account {
   return {
@@ -27,64 +27,64 @@ function MakeAccount(id: string, platformAccount: string): Account {
 describe('PlatformAccess', () => {
   describe('IsPlatformAccount', () => {
     it('should return true for a self-referential platform account', () => {
-      const platform = MakeAccount('acct_z_1', 'acct_z_1');
+      const platform = MakeAccount('acct_fd_1', 'acct_fd_1');
       expect(IsPlatformAccount(platform)).toBe(true);
     });
 
     it('should return false for a connected account', () => {
-      const connected = MakeAccount('acct_z_2', 'acct_z_1');
+      const connected = MakeAccount('acct_fd_2', 'acct_fd_1');
       expect(IsPlatformAccount(connected)).toBe(false);
     });
   });
 
   describe('GetPlatformAccountId', () => {
     it('should return own ID for a platform account', () => {
-      const platform = MakeAccount('acct_z_1', 'acct_z_1');
-      expect(GetPlatformAccountId(platform)).toBe('acct_z_1');
+      const platform = MakeAccount('acct_fd_1', 'acct_fd_1');
+      expect(GetPlatformAccountId(platform)).toBe('acct_fd_1');
     });
 
     it('should return the parent platform ID for a connected account', () => {
-      const connected = MakeAccount('acct_z_2', 'acct_z_1');
-      expect(GetPlatformAccountId(connected)).toBe('acct_z_1');
+      const connected = MakeAccount('acct_fd_2', 'acct_fd_1');
+      expect(GetPlatformAccountId(connected)).toBe('acct_fd_1');
     });
   });
 
   describe('CanAccessAccount', () => {
     it('should allow self-access', () => {
-      const account = MakeAccount('acct_z_1', 'acct_z_platform');
-      expect(CanAccessAccount('acct_z_1', account)).toBe(true);
+      const account = MakeAccount('acct_fd_1', 'acct_fd_platform');
+      expect(CanAccessAccount('acct_fd_1', account)).toBe(true);
     });
 
     it('should allow platform to access its connected accounts', () => {
-      const connected = MakeAccount('acct_z_seller', 'acct_z_platform');
-      expect(CanAccessAccount('acct_z_platform', connected)).toBe(true);
+      const connected = MakeAccount('acct_fd_seller', 'acct_fd_platform');
+      expect(CanAccessAccount('acct_fd_platform', connected)).toBe(true);
     });
 
     it('should deny access from unrelated accounts', () => {
-      const connected = MakeAccount('acct_z_seller', 'acct_z_platform');
-      expect(CanAccessAccount('acct_z_other', connected)).toBe(false);
+      const connected = MakeAccount('acct_fd_seller', 'acct_fd_platform');
+      expect(CanAccessAccount('acct_fd_other', connected)).toBe(false);
     });
 
     it('should deny connected accounts from accessing the platform', () => {
-      const platform = MakeAccount('acct_z_platform', 'acct_z_platform');
-      expect(CanAccessAccount('acct_z_seller', platform)).toBe(false);
+      const platform = MakeAccount('acct_fd_platform', 'acct_fd_platform');
+      expect(CanAccessAccount('acct_fd_seller', platform)).toBe(false);
     });
   });
 
   describe('IsPlatformOwner', () => {
     it('should return true when user is the owning platform', () => {
-      const connected = MakeAccount('acct_z_seller', 'acct_z_platform');
-      expect(IsPlatformOwner('acct_z_platform', connected)).toBe(true);
+      const connected = MakeAccount('acct_fd_seller', 'acct_fd_platform');
+      expect(IsPlatformOwner('acct_fd_platform', connected)).toBe(true);
     });
 
     it('should return false for self-ownership (platform accessing itself)', () => {
-      const platform = MakeAccount('acct_z_platform', 'acct_z_platform');
-      expect(IsPlatformOwner('acct_z_platform', platform)).toBe(false);
+      const platform = MakeAccount('acct_fd_platform', 'acct_fd_platform');
+      expect(IsPlatformOwner('acct_fd_platform', platform)).toBe(false);
     });
 
     it('should return false for unrelated accounts', () => {
-      const connected = MakeAccount('acct_z_seller', 'acct_z_platform');
-      expect(IsPlatformOwner('acct_z_other', connected)).toBe(false);
+      const connected = MakeAccount('acct_fd_seller', 'acct_fd_platform');
+      expect(IsPlatformOwner('acct_fd_other', connected)).toBe(false);
     });
   });
 });

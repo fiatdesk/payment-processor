@@ -1,6 +1,6 @@
 import { PriceModule } from '../modules/Price';
 import { Database } from '../modules/Database';
-import { Price, Product, QueryOperators } from '@zoneless/shared-types';
+import { Price, Product, QueryOperators } from '@fiatdesk/shared-types';
 import { ProductModule } from '../modules/Product';
 import { ListHelper } from '../utils/ListHelper';
 import {
@@ -67,10 +67,10 @@ describe('PriceModule', () => {
 
   describe('PriceObject', () => {
     it('should create a price with sensible defaults', () => {
-      const price = module.PriceObject('acct_z_platform', {
+      const price = module.PriceObject('acct_fd_platform', {
         unit_amount: 1000,
         currency: 'usdc',
-        product: 'prod_z_1',
+        product: 'prod_fd_1',
         tax_behavior: 'exclusive',
         billing_scheme: 'per_unit',
         currency_options: {
@@ -83,7 +83,7 @@ describe('PriceModule', () => {
       expect(price.object).toBe('price');
       expect(price.unit_amount).toBe(1000);
       expect(price.currency).toBe('usdc');
-      expect(price.product).toBe('prod_z_1');
+      expect(price.product).toBe('prod_fd_1');
       expect(price.tax_behavior).toBe('exclusive');
       expect(price.billing_scheme).toBe('per_unit');
       expect(price.currency_options).toEqual({ usdc: { unit_amount: 1000 } });
@@ -91,10 +91,10 @@ describe('PriceModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const price = module.PriceObject('acct_z_platform', {
+      const price = module.PriceObject('acct_fd_platform', {
         unit_amount: 1000,
         currency: 'usdc',
-        product: 'prod_z_1',
+        product: 'prod_fd_1',
         tax_behavior: 'exclusive',
         billing_scheme: 'per_unit',
         currency_options: {
@@ -106,7 +106,7 @@ describe('PriceModule', () => {
 
       expect(price.unit_amount).toBe(1000);
       expect(price.currency).toBe('usdc');
-      expect(price.product).toBe('prod_z_1');
+      expect(price.product).toBe('prod_fd_1');
       expect(price.tax_behavior).toBe('exclusive');
       expect(price.billing_scheme).toBe('per_unit');
       expect(price.currency_options).toEqual({ usdc: { unit_amount: 1000 } });
@@ -115,11 +115,11 @@ describe('PriceModule', () => {
 
   describe('CreatePrice', () => {
     it('should persist the price to the database', async () => {
-      const product = await productModule.CreateProduct('acct_z_platform', {
+      const product = await productModule.CreateProduct('acct_fd_platform', {
         name: 'Test Product',
       });
       mockDb.Get.mockResolvedValueOnce(product);
-      const price = await module.CreatePrice('acct_z_platform', {
+      const price = await module.CreatePrice('acct_fd_platform', {
         unit_amount: 1000,
         currency: 'usdc',
         product: product.id,
@@ -143,7 +143,7 @@ describe('PriceModule', () => {
     ] as const)(
       'registers a %s × %i plan with its period in seconds and stores the plan key',
       async (interval, intervalCount, periodSeconds) => {
-        const product = await productModule.CreateProduct('acct_z_platform', {
+        const product = await productModule.CreateProduct('acct_fd_platform', {
           name: 'Pro',
         });
         mockDb.Get.mockResolvedValueOnce(product);
@@ -151,7 +151,7 @@ describe('PriceModule', () => {
           { wallet_address: PLATFORM_WALLET, default_for_currency: true },
         ]);
 
-        const price = await module.CreatePrice('acct_z_platform', {
+        const price = await module.CreatePrice('acct_fd_platform', {
           unit_amount: 2000,
           currency: 'usdc',
           product: product.id,
@@ -178,20 +178,20 @@ describe('PriceModule', () => {
   describe('UpdatePrice', () => {
     it('should update price metadata', async () => {
       const existingPrice = {
-        id: 'price_z_1',
+        id: 'price_fd_1',
         object: 'price',
-        platform_account: 'acct_z_1',
+        platform_account: 'acct_fd_1',
         metadata: {},
       } as Price;
       mockDb.Get = jest.fn().mockResolvedValue(existingPrice);
 
-      const result = await module.UpdatePrice('price_z_1', {
+      const result = await module.UpdatePrice('price_fd_1', {
         metadata: { tracking_number: '12345' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Prices',
-        'price_z_1',
+        'price_fd_1',
         expect.objectContaining({ metadata: { tracking_number: '12345' } })
       );
       expect(result).toEqual(existingPrice);
@@ -206,10 +206,10 @@ describe('PriceModule', () => {
 
   describe('GetPrice', () => {
     it('should return the price when found', async () => {
-      const mockPrice = { id: 'price_z_1', object: 'price' } as Price;
+      const mockPrice = { id: 'price_fd_1', object: 'price' } as Price;
       mockDb.Get = jest.fn().mockResolvedValue(mockPrice);
 
-      const result = await module.GetPrice('price_z_1');
+      const result = await module.GetPrice('price_fd_1');
       expect(result).toEqual(mockPrice);
     });
 
@@ -230,11 +230,11 @@ describe('PriceModule', () => {
           url: '/v1/prices',
         });
       await module.ListPrices({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
         active: true,
         currency: 'usdc',
-        product: 'prod_z_1',
+        product: 'prod_fd_1',
         type: 'recurring',
         lookup_keys: ['lookup_key_1', 'lookup_key_2'],
         recurring: {
@@ -245,12 +245,12 @@ describe('PriceModule', () => {
       });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
             active: true,
             currency: 'usdc',
-            product: 'prod_z_1',
+            product: 'prod_fd_1',
             type: 'recurring',
             lookup_key: {
               operator: QueryOperators['in'],
@@ -273,7 +273,7 @@ describe('PriceModule', () => {
           has_more: false,
           url: '/v1/prices',
         });
-      await module.ListPrices({ account: 'acct_z_platform' });
+      await module.ListPrices({ account: 'acct_fd_platform' });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           filters: {},

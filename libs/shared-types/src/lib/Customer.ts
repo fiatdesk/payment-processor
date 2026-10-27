@@ -1,7 +1,7 @@
 import type { SubscriptionList } from './Subscription';
 
 /**
- * Stripe-compatible Customer object for Zoneless.
+ * Stripe-compatible Customer object for FiatDesk.
  * Represents a customer of the business.
  *
  * @see https://docs.stripe.com/api/customers/object
@@ -17,7 +17,7 @@ export interface Customer {
    * The current balance, if any, that's stored on the customer in their default currency. If
    * negative, the customer has credit to apply to their next invoice. If positive, the customer
    * has an amount owed that's added to their next invoice. The balance only considers amounts
-   * that Zoneless hasn't successfully applied to any invoice. It doesn't reflect unpaid
+   * that FiatDesk hasn't successfully applied to any invoice. It doesn't reflect unpaid
    * invoices. This balance is only taken into account after invoices finalize. For
    * multi-currency balances, see `invoice_credit_balance`.
    */
@@ -92,7 +92,7 @@ export interface Customer {
   shipping: CustomerShipping | null;
   /**
    * The customer's payment sources, if any.
-   * @remarks For Zoneless these represent linked wallets, equivalent to Stripe's bank account sources.
+   * @remarks For FiatDesk these represent linked wallets, equivalent to Stripe's bank account sources.
    */
   sources: CustomerSourceList | null;
   /** The customer's current subscriptions, if any. */
@@ -111,7 +111,7 @@ export interface Customer {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }
@@ -272,7 +272,7 @@ export interface CustomerSourceList {
 
 /**
  * A payment source attached to a customer.
- * @remarks Zoneless customers pay from linked crypto wallets rather than bank accounts, so
+ * @remarks FiatDesk customers pay from linked crypto wallets rather than bank accounts, so
  * this shape mirrors Stripe's bank account source with wallet-specific field meanings noted below.
  */
 export interface CustomerSource {
@@ -286,11 +286,11 @@ export interface CustomerSource {
   account_holder_name: string | null;
   /** The type of entity that holds the account. This can be either individual or company. */
   account_holder_type: 'individual' | 'company' | null;
-  /** @zoneless_extension The wallet account type. Equivalent to Stripe's bank account_type. */
+  /** @fiatdesk_extension The wallet account type. Equivalent to Stripe's bank account_type. */
   account_type: string | null;
   /** A set of available payout methods for this wallet. Only values from this set should be passed as the method when creating a payout. */
   available_payout_methods: ['standard' | 'instant'] | null;
-  /** @zoneless_extension Name of the wallet provider associated with the address (e.g., METAMASK). Equivalent to Stripe's bank_name. */
+  /** @fiatdesk_extension Name of the wallet provider associated with the address (e.g., METAMASK). Equivalent to Stripe's bank_name. */
   bank_name: string | null;
   /** Two-letter ISO code representing the country the wallet's owner is located in. */
   country: string;
@@ -304,12 +304,12 @@ export interface CustomerSource {
   last4: string;
   /** Set of key-value pairs that you can attach to an object. This can be useful for storing additional information about the object in a structured format. */
   metadata: Record<string, string> | null;
-  /** @zoneless_extension Not applicable to crypto wallets; retained for Stripe API parity. */
+  /** @fiatdesk_extension Not applicable to crypto wallets; retained for Stripe API parity. */
   routing_number: string | null;
   /**
    * For wallets, possible values are new, validated, verified, verification_failed,
    * tokenized_account_number_deactivated or errored. A wallet that hasn't had any activity or
-   * validation performed is new. If Zoneless can determine that the wallet exists, its status
+   * validation performed is new. If FiatDesk can determine that the wallet exists, its status
    * will be validated. If customer wallet ownership verification has succeeded, the status will
    * be verified. If the verification failed for any reason, the status will be
    * verification_failed. If a payout sent to this wallet fails, we'll set the status to errored
@@ -347,8 +347,8 @@ export interface CustomerTax {
     /** The identified tax state, county, province, or region of the customer. */
     state: string | null;
   } | null;
-  /** The tax calculation provider used for location resolution. Always zoneless, since Zoneless does not support third-party tax providers. */
-  provider: 'zoneless';
+  /** The tax calculation provider used for location resolution. Always fiatdesk, since FiatDesk does not support third-party tax providers. */
+  provider: 'fiatdesk';
 }
 
 /**

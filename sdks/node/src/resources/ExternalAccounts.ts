@@ -1,5 +1,5 @@
 import { BaseResource } from './Base';
-import { ExternalWallet, ListResponse } from '@zoneless/shared-types';
+import { ExternalWallet, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CreateExternalWalletInput,
   UpdateExternalWalletInput,

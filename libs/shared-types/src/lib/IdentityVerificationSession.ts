@@ -45,7 +45,7 @@ export interface IdentityVerificationSessionRedaction {
  * The `url` field is the provider-hosted verification link (e.g. Didit).
  */
 export interface IdentityVerificationSession {
-  /** Unique identifier (e.g. "vs_z...") */
+  /** Unique identifier (e.g. "vs_fd...") */
   id: string;
 
   /** Always "identity.verification_session" */
@@ -92,32 +92,32 @@ export interface IdentityVerificationSession {
 
   /**
    * Connected account this session verifies.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   related_account: string;
 
   /**
    * Person on the connected account this session verifies.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   related_person: string;
 
   /**
    * Platform that owns this session.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
   /**
    * Identity provider that fulfills this session.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   provider: 'didit';
 
   /**
    * Provider's session ID (e.g. Didit session_id).
    * Used for webhook correlation; not part of Stripe's public shape.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   provider_session_id: string;
 }

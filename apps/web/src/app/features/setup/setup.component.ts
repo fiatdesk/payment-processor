@@ -18,7 +18,7 @@ import {
   PageLoaderComponent,
   LoaderComponent,
 } from '../../shared';
-import { SetupResponse } from '@zoneless/shared-types';
+import { SetupResponse } from '@fiatdesk/shared-types';
 import { GetEthereumAddressError, NormalizeEthereumAddress } from '../../utils';
 
 enum SetupStep {

@@ -1,5 +1,5 @@
 /**
- * Stripe-compatible Balance object for Zoneless Connect.
+ * Stripe-compatible Balance object for FiatDesk Connect.
  * Represents the balance of funds in an account.
  *
  * @see https://docs.stripe.com/api/balance/balance_object
@@ -13,7 +13,7 @@
  * Extended balance view combining on-chain wallet data with
  * internal balance records. Used by the platform dashboard
  * to show a full breakdown of funds.
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 export interface BalanceDetails {
   object: 'balance_details';
@@ -39,7 +39,7 @@ export interface BalanceDetails {
 
 /**
  * Breakdown of balance by source types.
- * For Zoneless, we use `wallet` instead of Stripe's `card`.
+ * For FiatDesk, we use `wallet` instead of Stripe's `card`.
  */
 export interface BalanceSourceTypes {
   /**
@@ -62,7 +62,7 @@ export interface BalanceAmount {
 
   /**
    * Three-letter currency code, in lowercase.
-   * For Zoneless, this is typically 'usdc'.
+   * For FiatDesk, this is typically 'usdc'.
    */
   currency: string;
 
@@ -81,12 +81,12 @@ export interface BalanceAmount {
  * The Balance object represents the current balance of an account.
  *
  * Note: Stripe's Balance object doesn't have `id`, `account`, or `created` fields.
- * These are Zoneless extensions for internal storage and are marked as such.
+ * These are FiatDesk extensions for internal storage and are marked as such.
  */
 export interface Balance {
   /**
    * Unique identifier for the balance record.
-   * @zoneless_extension - Not in Stripe API, used for internal storage.
+   * @fiatdesk_extension - Not in Stripe API, used for internal storage.
    */
   id: string;
 
@@ -95,7 +95,7 @@ export interface Balance {
 
   /**
    * The account ID this balance belongs to.
-   * @zoneless_extension - Not in Stripe API, used for internal storage.
+   * @fiatdesk_extension - Not in Stripe API, used for internal storage.
    */
   account: string;
 
@@ -121,7 +121,7 @@ export interface Balance {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

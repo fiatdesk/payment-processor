@@ -1,5 +1,5 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { PaymentIntent } from '@zoneless/shared-types';
+import type { PaymentIntent } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { PaymentIntentService } from '../../../../data';
 import { ApiService } from '../../../../core';

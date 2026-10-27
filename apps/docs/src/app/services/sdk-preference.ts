@@ -1,7 +1,7 @@
 import { Injectable, signal, Inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
-const STORAGE_KEY = 'zoneless_sdk_preference';
+const STORAGE_KEY = 'fiatdesk_sdk_preference';
 const DEFAULT_SDK = 'node';
 
 @Injectable({

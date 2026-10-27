@@ -1,6 +1,6 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import type { NextFunction, Request, Response } from 'express';
-import type { AuthenticatedUser } from '@zoneless/shared-types';
+import type { AuthenticatedUser } from '@fiatdesk/shared-types';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { AppError } from '../utils/AppError';
 

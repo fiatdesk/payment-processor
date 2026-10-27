@@ -4,7 +4,7 @@ import {
   WebhookDeliveryAttempt,
   WebhookDeliveryStatus,
   WebhookEndpointRecord,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from './Database';
 import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';

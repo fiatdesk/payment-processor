@@ -16,7 +16,7 @@ export const BALANCE_TRANSACTIONS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const BALANCE_TRANSACTION_OBJECT_JSON = `{
-  "id": "txn_z_1MiN3gLkdIwHu7ixxapQrznl",
+  "id": "txn_fd_1MiN3gLkdIwHu7ixxapQrznl",
   "object": "balance_transaction",
   "amount": -40000,
   "available_on": 1678043844,
@@ -27,9 +27,9 @@ const BALANCE_TRANSACTION_OBJECT_JSON = `{
   "fee": 0,
   "fee_details": [],
   "net": -40000,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "reporting_category": "transfer",
-  "source": "tr_z_1MiN3gLkdIwHu7ixNCZvFdgA",
+  "source": "tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA",
   "status": "available",
   "type": "transfer"
 }`;
@@ -42,7 +42,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless balance transaction IDs are prefixed with <code>txn_z_</code>.',
+      'Unique identifier for the object. FiatDesk balance transaction IDs are prefixed with <code>txn_fd_</code>.',
   },
   {
     name: 'object',
@@ -60,13 +60,13 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
     name: 'available_on',
     type: 'timestamp',
     description:
-      "The date that the transaction's net funds become available in the Zoneless balance.",
+      "The date that the transaction's net funds become available in the FiatDesk balance.",
   },
   {
     name: 'balance_type',
     type: 'enum',
     description:
-      'The balance that this transaction impacts. For most Zoneless transactions, this is <code>payments</code>.',
+      'The balance that this transaction impacts. For most FiatDesk transactions, this is <code>payments</code>.',
     enumValues: [
       {
         value: 'payments',
@@ -74,7 +74,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      "<strong>Difference from Stripe:</strong> Zoneless only uses the <code>payments</code> balance type. Stripe's <code>issuing</code> and <code>refund_and_dispute_prefunding</code> types are not applicable.",
+      "<strong>Difference from Stripe:</strong> FiatDesk only uses the <code>payments</code> balance type. Stripe's <code>issuing</code> and <code>refund_and_dispute_prefunding</code> types are not applicable.",
   },
   {
     name: 'created',
@@ -86,7 +86,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Always <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -125,7 +125,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
         name: 'currency',
         type: 'string',
         description:
-          'Currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+          'Currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
       },
       {
         name: 'description',
@@ -146,7 +146,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
     name: 'net',
     type: 'integer',
     description:
-      'Net impact to your Zoneless balance (in cents). A positive value represents incrementing a balance, and a negative value decrementing a balance. You can calculate the net impact of a transaction on a balance by <code>amount</code> - <code>fee</code>.',
+      'Net impact to your FiatDesk balance (in cents). A positive value represents incrementing a balance, and a negative value decrementing a balance. You can calculate the net impact of a transaction on a balance by <code>amount</code> - <code>fee</code>.',
   },
   {
     name: 'reporting_category',
@@ -164,7 +164,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
   {
     name: 'status',
     type: 'enum',
-    description: "The transaction's net funds status in the Zoneless balance.",
+    description: "The transaction's net funds status in the FiatDesk balance.",
     enumValues: [
       { value: 'available', description: 'Funds are available for use.' },
       { value: 'pending', description: 'Funds are not yet available.' },
@@ -174,7 +174,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
     name: 'type',
     type: 'enum',
     description:
-      'Transaction type. The most common types for Zoneless are <code>transfer</code>, <code>payout</code>, and <code>topup</code>.',
+      'Transaction type. The most common types for FiatDesk are <code>transfer</code>, <code>payout</code>, and <code>topup</code>.',
     enumValues: [
       { value: 'transfer', description: 'Funds transferred to an account.' },
       { value: 'transfer_cancel', description: 'A transfer was canceled.' },
@@ -193,7 +193,7 @@ const BALANCE_TRANSACTION_ATTRIBUTES: Attribute[] = [
       { value: 'adjustment', description: 'Manual balance adjustment.' },
     ],
     enumNote:
-      "<strong>Difference from Stripe:</strong> Zoneless supports a focused subset of transaction types relevant to USDC payouts. Stripe's issuing, climate, and other product-specific types are not included.",
+      "<strong>Difference from Stripe:</strong> FiatDesk supports a focused subset of transaction types relevant to USDC payouts. Stripe's issuing, climate, and other product-specific types are not included.",
   },
 ];
 
@@ -204,7 +204,7 @@ const BALANCE_TRANSACTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -215,7 +215,7 @@ export const BALANCE_TRANSACTIONS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Balance Transaction object',
   description:
-    'Balance transactions represent funds moving through your Zoneless account. Zoneless creates them for every type of transaction that enters or leaves your Zoneless account balance.',
+    'Balance transactions represent funds moving through your FiatDesk account. FiatDesk creates them for every type of transaction that enters or leaves your FiatDesk account balance.',
   stripeDocsUrl: 'https://docs.stripe.com/api/balance_transactions',
   endpoints: BuildEndpointSummaries(BALANCE_TRANSACTIONS_SUBSECTION, [
     { method: 'GET', path: '/v1/balance_transactions/:id', pageId: 'retrieve' },
@@ -275,16 +275,16 @@ export const BALANCE_TRANSACTIONS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/balance_transactions/txn_z_1MiN3gLkdIwHu7ixxapQrznl \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/balance_transactions/txn_fd_1MiN3gLkdIwHu7ixxapQrznl \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balanceTransaction = await zoneless.balanceTransactions.retrieve(
-  'txn_z_1MiN3gLkdIwHu7ixxapQrznl'
+const balanceTransaction = await fiatdesk.balanceTransactions.retrieve(
+  'txn_fd_1MiN3gLkdIwHu7ixxapQrznl'
 );`,
             },
           ],
@@ -317,19 +317,19 @@ const balanceTransaction = await zoneless.balanceTransactions.retrieve(
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/balance_transactions/txn_z_1MiN3gLkdIwHu7ixxapQrznl \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1Nv0FGQ9RKHgCVdK"`,
+              code: `curl https://api.yourdomain.com/v1/balance_transactions/txn_fd_1MiN3gLkdIwHu7ixxapQrznl \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1Nv0FGQ9RKHgCVdK"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balanceTransaction = await zoneless.balanceTransactions.retrieve(
-  'txn_z_1MiN3gLkdIwHu7ixxapQrznl',
+const balanceTransaction = await fiatdesk.balanceTransactions.retrieve(
+  'txn_fd_1MiN3gLkdIwHu7ixxapQrznl',
   {
-    zonelessAccount: 'acct_z_1Nv0FGQ9RKHgCVdK',
+    fiatdeskAccount: 'acct_fd_1Nv0FGQ9RKHgCVdK',
   }
 );`,
             },
@@ -377,13 +377,13 @@ const LIST_BALANCE_TRANSACTIONS_PARAMETERS: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Only return transactions in a certain currency. For Zoneless, use <code>usdc</code>.',
+      'Only return transactions in a certain currency. For FiatDesk, use <code>usdc</code>.',
   },
   {
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>txn_z_bar</code>, your subsequent call can include <code>ending_before=txn_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>txn_fd_bar</code>, your subsequent call can include <code>ending_before=txn_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -407,7 +407,7 @@ const LIST_BALANCE_TRANSACTIONS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>txn_z_foo</code>, your subsequent call can include <code>starting_after=txn_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>txn_fd_foo</code>, your subsequent call can include <code>starting_after=txn_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'type',
@@ -423,7 +423,7 @@ const LIST_BALANCE_TRANSACTIONS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "txn_z_1MiN3gLkdIwHu7ixxapQrznl",
+      "id": "txn_fd_1MiN3gLkdIwHu7ixxapQrznl",
       "object": "balance_transaction",
       "amount": -40000,
       "available_on": 1678043844,
@@ -434,9 +434,9 @@ const LIST_BALANCE_TRANSACTIONS_RESPONSE_JSON = `{
       "fee": 0,
       "fee_details": [],
       "net": -40000,
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "reporting_category": "transfer",
-      "source": "tr_z_1MiN3gLkdIwHu7ixNCZvFdgA",
+      "source": "tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA",
       "status": "available",
       "type": "transfer"
     }
@@ -447,7 +447,7 @@ export const BALANCE_TRANSACTIONS_LIST_PAGE: DocPage = {
   id: 'list',
   title: 'List all balance transactions',
   description:
-    'Returns a list of transactions that have contributed to the Zoneless account balance (e.g., transfers, payouts, topups). The transactions are returned in sorted order, with the most recent transactions appearing first.',
+    'Returns a list of transactions that have contributed to the FiatDesk account balance (e.g., transfers, payouts, topups). The transactions are returned in sorted order, with the most recent transactions appearing first.',
   endpoints: [{ method: 'GET', path: '/v1/balance_transactions' }],
   sections: [
     {
@@ -475,7 +475,7 @@ export const BALANCE_TRANSACTIONS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/balance_transactions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -483,7 +483,7 @@ export const BALANCE_TRANSACTIONS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balanceTransactions = await zoneless.balanceTransactions.list({
+const balanceTransactions = await fiatdesk.balanceTransactions.list({
   limit: 3,
 });`,
             },
@@ -514,7 +514,7 @@ const balanceTransactions = await zoneless.balanceTransactions.list({
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/balance_transactions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d type=transfer \\
   -d limit=10`,
             },
@@ -523,7 +523,7 @@ const balanceTransactions = await zoneless.balanceTransactions.list({
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transfers = await zoneless.balanceTransactions.list({
+const transfers = await fiatdesk.balanceTransactions.list({
   type: 'transfer',
   limit: 10,
 });`,
@@ -550,7 +550,7 @@ const transfers = await zoneless.balanceTransactions.list({
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/balance_transactions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "created[gte]"=1609459200 \\
   -d "created[lt]"=1612137600`,
             },
@@ -559,7 +559,7 @@ const transfers = await zoneless.balanceTransactions.list({
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transactions = await zoneless.balanceTransactions.list({
+const transactions = await fiatdesk.balanceTransactions.list({
   created: {
     gte: 1704067200, // Jan 1, 2024
     lt: 1706745600,  // Feb 1, 2024

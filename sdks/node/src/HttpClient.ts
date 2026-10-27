@@ -1,4 +1,4 @@
-import { BRAND } from '@zoneless/shared-types';
+import { BRAND } from '@fiatdesk/shared-types';
 
 export interface HttpClientConfig {
   apiKey: string;
@@ -18,7 +18,7 @@ export interface RequestOptions {
   /** Idempotency key for POST requests to prevent duplicate operations */
   idempotencyKey?: string;
   /** Connected account ID to act on behalf of (for platform operations) */
-  zonelessAccount?: string;
+  fiatdeskAccount?: string;
   /** Milliseconds before this request is aborted (default: the client timeout) */
   timeout?: number;
 }
@@ -32,7 +32,7 @@ export interface RequestExtraOptions {
   /** Idempotency key for POST requests to prevent duplicate operations */
   idempotencyKey?: string;
   /** Connected account ID to act on behalf of (for platform operations) */
-  zonelessAccount?: string;
+  fiatdeskAccount?: string;
   /**
    * Milliseconds before this request is aborted. Defaults to the client's
    * `timeout`; payout broadcasts wait at least 90 s (150 s for a hash).
@@ -40,7 +40,7 @@ export interface RequestExtraOptions {
   timeout?: number;
 }
 
-export interface ZonelessError {
+export interface FiatDeskError {
   type: string;
   message: string;
   code?: string;
@@ -48,15 +48,15 @@ export interface ZonelessError {
   statusCode: number;
 }
 
-export class ZonelessApiError extends Error {
+export class FiatDeskApiError extends Error {
   readonly type: string;
   readonly code?: string;
   readonly param?: string;
   readonly statusCode: number;
 
-  constructor(error: ZonelessError) {
+  constructor(error: FiatDeskError) {
     super(error.message);
-    this.name = 'ZonelessApiError';
+    this.name = 'FiatDeskApiError';
     this.type = error.type;
     this.code = error.code;
     this.param = error.param;
@@ -95,20 +95,20 @@ export type PayoutBatchErrorCode = (typeof PAYOUT_BATCH_ERROR_CODES)[number];
  * A payout batch error from the API, with its code in `code`. The API sends
  * these codes as the error `type`, which is kept as well.
  */
-export class ZonelessPayoutBatchError extends ZonelessApiError {
+export class FiatDeskPayoutBatchError extends FiatDeskApiError {
   declare readonly code: PayoutBatchErrorCode;
 
-  constructor(error: ZonelessError & { code: PayoutBatchErrorCode }) {
+  constructor(error: FiatDeskError & { code: PayoutBatchErrorCode }) {
     super(error);
-    this.name = 'ZonelessPayoutBatchError';
+    this.name = 'FiatDeskPayoutBatchError';
   }
 
   /** The typed form of `error` when it carries a payout batch code. */
   static From(error: unknown): unknown {
-    if (!(error instanceof ZonelessApiError)) return error;
+    if (!(error instanceof FiatDeskApiError)) return error;
     const code = [error.code, error.type].find(IsPayoutBatchErrorCode);
     if (!code) return error;
-    return new ZonelessPayoutBatchError({
+    return new FiatDeskPayoutBatchError({
       type: error.type,
       message: error.message,
       code,
@@ -125,7 +125,7 @@ function IsPayoutBatchErrorCode(
 }
 
 /**
- * HTTP client for making requests to the Zoneless API.
+ * HTTP client for making requests to the FiatDesk API.
  * Uses native fetch API (Node 18+).
  */
 export class HttpClient {
@@ -140,7 +140,7 @@ export class HttpClient {
   }
 
   /**
-   * Makes a request to the Zoneless API.
+   * Makes a request to the FiatDesk API.
    */
   /** Default request timeout in milliseconds. */
   GetTimeout(): number {
@@ -162,8 +162,8 @@ export class HttpClient {
     }
 
     // Add connected account header for platform operations
-    if (options.zonelessAccount) {
-      headers[BRAND.connectedAccountHeader] = options.zonelessAccount;
+    if (options.fiatdeskAccount) {
+      headers[BRAND.connectedAccountHeader] = options.fiatdeskAccount;
     }
 
     const fetchOptions: RequestInit = {
@@ -183,7 +183,7 @@ export class HttpClient {
     try {
       data = (await response.json()) as Record<string, unknown>;
     } catch {
-      throw new ZonelessApiError({
+      throw new FiatDeskApiError({
         type: 'api_error',
         message: `Invalid response from API: ${response.status} ${response.statusText}`,
         statusCode: response.status,
@@ -192,7 +192,7 @@ export class HttpClient {
 
     if (!response.ok) {
       const errorData = data['error'] as Record<string, unknown> | undefined;
-      throw new ZonelessApiError({
+      throw new FiatDeskApiError({
         type: (errorData?.['type'] as string) || 'api_error',
         message:
           (errorData?.['message'] as string) ||
@@ -223,7 +223,7 @@ export class HttpClient {
       path,
       query,
       headers: options?.headers,
-      zonelessAccount: options?.zonelessAccount,
+      fiatdeskAccount: options?.fiatdeskAccount,
       timeout: options?.timeout,
     });
   }
@@ -242,7 +242,7 @@ export class HttpClient {
       body,
       headers: options?.headers,
       idempotencyKey: options?.idempotencyKey,
-      zonelessAccount: options?.zonelessAccount,
+      fiatdeskAccount: options?.fiatdeskAccount,
       timeout: options?.timeout,
     });
   }
@@ -260,7 +260,7 @@ export class HttpClient {
       path,
       body,
       headers: options?.headers,
-      zonelessAccount: options?.zonelessAccount,
+      fiatdeskAccount: options?.fiatdeskAccount,
       timeout: options?.timeout,
     });
   }

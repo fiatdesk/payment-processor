@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug to help us improve Zoneless
+about: Report a bug to help us improve FiatDesk
 title: '[BUG] '
 labels: 'bug'
 assignees: ''
@@ -36,7 +36,7 @@ If applicable, add screenshots to help explain your problem.
 - **OS**: [e.g., macOS 14, Ubuntu 22.04, Windows 11]
 - **Node.js Version**: [e.g., 18.17.0]
 - **Browser** (if applicable): [e.g., Chrome 120, Safari 17]
-- **Zoneless Version/Commit**: [e.g., v0.1.0 or commit hash]
+- **FiatDesk Version/Commit**: [e.g., v0.1.0 or commit hash]
 
 ## Logs
 

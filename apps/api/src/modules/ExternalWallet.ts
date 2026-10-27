@@ -17,7 +17,7 @@ import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import {
   ExternalWallet as ExternalWalletType,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { SanctionsScreeningModule } from './SanctionsScreening';
 import { GetSettlement } from './chains/Settlement';
@@ -28,7 +28,7 @@ import {
   CreateExternalWalletInput,
   UpdateExternalWalletSchema,
   UpdateExternalWalletInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 /** Response object for deleted external wallet */
 export interface DeletedExternalWallet {

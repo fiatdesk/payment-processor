@@ -39,7 +39,7 @@ import {
   IsTransactionHash,
   SameAddress,
   type CheckoutTransferAuthorization,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AppError } from '../../utils/AppError';
 import { WithKeyedLock } from '../../utils/KeyedLock';
 import { Logger } from '../../utils/Logger';

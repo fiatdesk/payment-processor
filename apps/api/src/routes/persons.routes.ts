@@ -29,9 +29,9 @@ import {
   CreatePersonSchema,
   UpdatePersonSchema,
   ParseRelationshipFilters,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
-import { Person as PersonType } from '@zoneless/shared-types';
+import { Person as PersonType } from '@fiatdesk/shared-types';
 
 const router = express.Router();
 

@@ -1,10 +1,10 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { ListResponse, Product } from '@zoneless/shared-types';
+import { ListResponse, Product } from '@fiatdesk/shared-types';
 import {
   CreateProductInput,
   UpdateProductInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 @Injectable({
   providedIn: 'root',

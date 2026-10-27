@@ -5,7 +5,7 @@
  * It allows a managed-hosting operator to provision and manage platform
  * accounts on a shared multi-tenant instance.
  *
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 
 /**

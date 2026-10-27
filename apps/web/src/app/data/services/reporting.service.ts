@@ -5,7 +5,7 @@ import {
   MetricId,
   MetricInterval,
   ReportingMetrics,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 export interface FetchMetricsOptions {
   start?: number;

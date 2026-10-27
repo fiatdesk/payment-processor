@@ -2,7 +2,7 @@ import {
   WebhookDelivery,
   WebhookDeliveryAttempt,
   WebhookDeliveryBatch,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from './Database';
 import { EventModule } from './Event';
 import { WebhookDeliveryModule } from './WebhookDelivery';

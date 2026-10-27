@@ -8,13 +8,13 @@ RunCli(
   {
     HOME: process.env['HOME'],
     XDG_CONFIG_HOME: process.env['XDG_CONFIG_HOME'],
-    ZONELESS_ACTIVATION_URL: process.env['ZONELESS_ACTIVATION_URL'],
-    ZONELESS_AUTH_POLL_INTERVAL_MS:
-      process.env['ZONELESS_AUTH_POLL_INTERVAL_MS'],
-    ZONELESS_AUTH_URL: process.env['ZONELESS_AUTH_URL'],
-    ZONELESS_API_KEY: process.env['ZONELESS_API_KEY'],
-    ZONELESS_API_URL: process.env['ZONELESS_API_URL'],
-    ZONELESS_PROFILE: process.env['ZONELESS_PROFILE'],
+    FIATDESK_ACTIVATION_URL: process.env['FIATDESK_ACTIVATION_URL'],
+    FIATDESK_AUTH_POLL_INTERVAL_MS:
+      process.env['FIATDESK_AUTH_POLL_INTERVAL_MS'],
+    FIATDESK_AUTH_URL: process.env['FIATDESK_AUTH_URL'],
+    FIATDESK_API_KEY: process.env['FIATDESK_API_KEY'],
+    FIATDESK_API_URL: process.env['FIATDESK_API_URL'],
+    FIATDESK_PROFILE: process.env['FIATDESK_PROFILE'],
   },
   {
     isInteractive: Boolean(process.stdin.isTTY && process.stderr.isTTY),

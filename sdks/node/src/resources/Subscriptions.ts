@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter } from '../utils';
-import { Subscription, ListResponse } from '@zoneless/shared-types';
+import { Subscription, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CancelSubscriptionInput,
   CreateSubscriptionInput,

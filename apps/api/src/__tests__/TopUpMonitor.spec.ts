@@ -1,5 +1,5 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
-import type { Balance, TopUp } from '@zoneless/shared-types';
+import type { Balance, TopUp } from '@fiatdesk/shared-types';
 import type { ChainCursor } from '../modules/ChainCursorStore';
 import { TopUpModule } from '../modules/TopUp';
 import { TopUpMonitor } from '../modules/TopUpMonitor';
@@ -41,8 +41,8 @@ jest.mock('../modules/EventService', () => ({
   EventService: jest.fn().mockImplementation(() => ({ Emit: mockEmit })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const WALLET_ID = 'wa_z_platform';
+const PLATFORM = 'acct_fd_platform';
+const WALLET_ID = 'wa_fd_platform';
 const WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 const BUYER = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
 const TX = `0x${'ab'.repeat(32)}`;
@@ -92,7 +92,7 @@ describe('TopUpMonitor deposit scanning', () => {
       status: 'new',
     });
     memory.Seed('Balances', {
-      id: 'bal_z_platform',
+      id: 'bal_fd_platform',
       account: PLATFORM,
       available: [{ amount: 0, currency: 'usdc' }],
       pending: [{ amount: 0, currency: 'usdc' }],
@@ -123,7 +123,7 @@ describe('TopUpMonitor deposit scanning', () => {
   }
 
   function Available(): number {
-    return memory.Doc<Balance>('Balances', 'bal_z_platform').available[0]
+    return memory.Doc<Balance>('Balances', 'bal_fd_platform').available[0]
       .amount;
   }
 

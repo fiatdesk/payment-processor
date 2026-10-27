@@ -1,7 +1,7 @@
 {
-  "name": "@zoneless/node",
+  "name": "@fiatdesk/node",
   "version": "0.1.12",
-  "description": "Zoneless SDK for Node.js",
+  "description": "FiatDesk SDK for Node.js",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -28,7 +28,7 @@
     "NOTICE"
   ],
   "keywords": [
-    "zoneless",
+    "fiatdesk",
     "usdc",
     "ethereum",
     "crypto",
@@ -37,7 +37,7 @@
     "payouts",
     "sdk"
   ],
-  "author": "Zoneless",
+  "author": "FiatDesk",
   "engines": {
     "node": ">=18.0.0"
   },

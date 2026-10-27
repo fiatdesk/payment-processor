@@ -3,7 +3,7 @@ import {
   WebhookEndpoint,
   WebhookEndpointDeletedResponse,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateWebhookEndpointInput,
   UpdateWebhookEndpointInput,

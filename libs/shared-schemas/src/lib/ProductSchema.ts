@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { MarketingFeature } from '@zoneless/shared-types';
+import type { MarketingFeature } from '@fiatdesk/shared-types';
 import { ExpandableSchema } from './ExpandableSchema';
 import { RecurringIntervalSchema } from './PriceSchema';
 

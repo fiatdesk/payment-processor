@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter } from '../utils';
-import { Invoice, InvoiceDeleted, ListResponse } from '@zoneless/shared-types';
+import { Invoice, InvoiceDeleted, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CreateInvoiceInput,
   FinalizeInvoiceInput,

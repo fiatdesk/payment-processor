@@ -22,7 +22,7 @@ import { TopUp } from './TopUp';
 import { Transfer, TransferReversal } from './Transfer';
 
 /**
- * All valid event types that can be emitted by Zoneless.
+ * All valid event types that can be emitted by FiatDesk.
  * These follow the Stripe event naming convention: `resource.action`
  *
  * Use '*' when subscribing to webhooks to receive all events.
@@ -65,7 +65,7 @@ export const EVENT_TYPES = [
   'customer.created',
   'customer.updated',
   'customer.deleted',
-  // Zoneless extension: the on-chain allowance cannot cover a period.
+  // FiatDesk extension: the on-chain allowance cannot cover a period.
   'customer.subscription.allowance_exhausted',
   'customer.subscription.created',
   'customer.subscription.deleted',
@@ -222,7 +222,7 @@ export interface Event {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

@@ -33,7 +33,7 @@ function JsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-describe('Zoneless CLI', () => {
+describe('FiatDesk CLI', () => {
   it('validates store amounts as positive integers', () => {
     expect(() =>
       ParseArguments(['store', 'init', '--name', 'Test', '--amount', '2.5'])
@@ -200,7 +200,7 @@ describe('Zoneless CLI', () => {
         'webhook',
         'sync',
         '--url',
-        'https://example.ngrok.app/api/webhooks/zoneless',
+        'https://example.ngrok.app/api/webhooks/fiatdesk',
         '--preset',
         'subscriptions',
         '--target',
@@ -244,14 +244,14 @@ describe('Zoneless CLI', () => {
 
   it('returns the selected installed skill path as JSON', async () => {
     const projectDirectory = await fs.realpath(
-      await fs.mkdtemp(path.join(os.tmpdir(), 'zoneless-cli-'))
+      await fs.mkdtemp(path.join(os.tmpdir(), 'fiatdesk-cli-'))
     );
     const originalDirectory = process.cwd();
     const skillPath = path.join(
       projectDirectory,
       '.agents',
       'skills',
-      'zoneless-marketplace',
+      'fiatdesk-marketplace',
       'SKILL.md'
     );
     await fs.mkdir(path.dirname(skillPath), { recursive: true });
@@ -281,7 +281,7 @@ describe('Zoneless CLI', () => {
 
   it('requires --auth-url and --activation-url for agent setup', async () => {
     const configRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'zoneless-setup-config-')
+      path.join(os.tmpdir(), 'fiatdesk-setup-config-')
     );
     const fetchRequest: FetchLike = jest.fn();
     const { io, stdout } = CreateIo();
@@ -306,10 +306,10 @@ describe('Zoneless CLI', () => {
 
   it('uses the project-bound test profile instead of the global current profile', async () => {
     const projectDirectory = await fs.realpath(
-      await fs.mkdtemp(path.join(os.tmpdir(), 'zoneless-bound-project-'))
+      await fs.mkdtemp(path.join(os.tmpdir(), 'fiatdesk-bound-project-'))
     );
     const configRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'zoneless-bound-config-')
+      path.join(os.tmpdir(), 'fiatdesk-bound-config-')
     );
     const originalDirectory = process.cwd();
     const secrets = new Map<string, string>();
@@ -430,8 +430,8 @@ describe('Zoneless CLI', () => {
         '--json',
       ],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest
@@ -508,8 +508,8 @@ describe('Zoneless CLI', () => {
         '--json',
       ],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest
@@ -559,8 +559,8 @@ describe('Zoneless CLI', () => {
         '--dry-run',
       ],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest
@@ -595,8 +595,8 @@ describe('Zoneless CLI', () => {
     const exitCode = await RunCli(
       ['store', 'init', '--name', 'Live product', '--amount', '200', '--json'],
       {
-        ZONELESS_API_KEY: 'zk_live_secret',
-        ZONELESS_API_URL: 'https://api.example/v1',
+        FIATDESK_API_KEY: 'zk_live_secret',
+        FIATDESK_API_URL: 'https://api.example/v1',
       },
       io,
       fetchRequest
@@ -634,8 +634,8 @@ describe('Zoneless CLI', () => {
         '--json',
       ],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest
@@ -676,8 +676,8 @@ describe('Zoneless CLI', () => {
         '--json',
       ],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest
@@ -702,8 +702,8 @@ describe('Zoneless CLI', () => {
     const exitCode = await RunCli(
       ['doctor', '--json'],
       {
-        ZONELESS_API_KEY: 'zk_test_secret',
-        ZONELESS_API_URL: 'https://api.example',
+        FIATDESK_API_KEY: 'zk_test_secret',
+        FIATDESK_API_URL: 'https://api.example',
       },
       io,
       fetchRequest

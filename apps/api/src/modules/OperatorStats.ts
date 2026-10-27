@@ -15,7 +15,7 @@ import {
   OperatorPlatformStats,
   OperatorSummary,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from './Database';
 import { Now } from '../utils/Timestamp';
 import { ListHelper } from '../utils/ListHelper';

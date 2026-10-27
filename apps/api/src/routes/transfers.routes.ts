@@ -27,8 +27,8 @@ import {
 import {
   CreateTransferSchema,
   UpdateTransferSchema,
-} from '@zoneless/shared-schemas';
-import { Transfer as TransferType } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-schemas';
+import { Transfer as TransferType } from '@fiatdesk/shared-types';
 
 const router = express.Router();
 
@@ -142,7 +142,7 @@ router.post(
     if (req.connectedAccount) {
       if (destination !== platformAccountId) {
         throw new AppError(
-          'When using Zoneless-Account, destination must be the platform account.',
+          'When using FiatDesk-Account, destination must be the platform account.',
           ERRORS.INVALID_REQUEST.status,
           ERRORS.INVALID_REQUEST.type
         );

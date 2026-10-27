@@ -8,7 +8,7 @@ import {
   Person,
   PersonDeleted,
   LoginLink,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateAccountInput,
   UpdateAccountInput,

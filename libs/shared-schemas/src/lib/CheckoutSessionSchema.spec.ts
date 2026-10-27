@@ -1,7 +1,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { ConfirmCheckoutPaymentSchema } from './CheckoutSessionSchema';
 
-const SIMULATED = 'sim_sig:cs_z_1:0x1111111111111111111111111111111111111111';
+const SIMULATED = 'sim_sig:cs_fd_1:0x1111111111111111111111111111111111111111';
 const SIGNATURE = `0x${'ab'.repeat(65)}`;
 
 describe('ConfirmCheckoutPaymentSchema', () => {

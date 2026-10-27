@@ -1,4 +1,4 @@
-<h1 align="center">Zoneless</h1>
+<h1 align="center">FiatDesk</h1>
 
 <p align="center">
   <strong>Your own open-source payments platform.<br>Accept payments, manage subscriptions, and pay sellers globally in USDC on Ethereum from infrastructure you control. No platform fees. You pay Ethereum network gas.</strong>
@@ -10,7 +10,7 @@
 
 ---
 
-Zoneless is an open-source payments stack for stablecoins.
+FiatDesk is an open-source payments stack for stablecoins.
 
 It includes checkout, subscriptions, marketplace accounts, and payouts through a Stripe-compatible API. Use the full platform or add it alongside your current payment setup.
 
@@ -46,13 +46,13 @@ Give each seller an Express-style dashboard for viewing earnings, payouts, and a
 
 ## A familiar API
 
-Zoneless uses familiar resources such as Checkout Sessions, Payment Links, Customers, Products, Subscriptions, Accounts, Transfers, and Payouts. It also follows Stripe's object shapes, webhook patterns, and idempotency model.
+FiatDesk uses familiar resources such as Checkout Sessions, Payment Links, Customers, Products, Subscriptions, Accounts, Transfers, and Payouts. It also follows Stripe's object shapes, webhook patterns, and idempotency model.
 
 If you have worked with Stripe before, the SDK should feel familiar:
 
 ```typescript
-import { Zoneless } from '@zoneless/node';
-const client = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');
+import { FiatDesk } from '@fiatdesk/node';
+const client = new FiatDesk('sk_live_fd_YOUR_API_KEY', 'https://api.yourdomain.com');
 
 const session = await client.checkout.sessions.create({
   success_url: 'https://yoursite.com/success',
@@ -87,7 +87,7 @@ See the self-hosting guide in [`apps/docs`](apps/docs) (served at http://localho
 
 ## Costs
 
-Zoneless charges no platform fee and takes no percentage cut. You pay Ethereum network gas for each on-chain transaction, typically a few cents to a few dollars depending on network load. Batching payouts shares part of that cost. See the gas and fees guide in [`apps/docs`](apps/docs) for estimates.
+FiatDesk charges no platform fee and takes no percentage cut. You pay Ethereum network gas for each on-chain transaction, typically a few cents to a few dollars depending on network load. Batching payouts shares part of that cost. See the gas and fees guide in [`apps/docs`](apps/docs) for estimates.
 
 ## Guides and documentation
 
@@ -129,7 +129,7 @@ npx nx run api:test-anvil   # API integration tests against a local Anvil chain
 ## Project structure
 
 ```
-zoneless/
+fiatdesk/
 ├── apps/
 │   ├── api/              # Express.js API backend
 │   ├── web/              # Angular dashboard, checkout and onboarding
@@ -140,7 +140,7 @@ zoneless/
 │   ├── shared-types/     # Shared TypeScript interfaces
 │   └── shared-schemas/   # Shared Zod schemas
 ├── sdks/
-│   └── node/             # @zoneless/node
+│   └── node/             # @fiatdesk/node
 ├── docker-compose.yml    # Full-stack Docker setup
 └── nx.json
 ```

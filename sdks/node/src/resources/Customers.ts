@@ -4,7 +4,7 @@ import {
   Customer,
   CustomerDeleted,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateCustomerInput,
   UpdateCustomerInput,

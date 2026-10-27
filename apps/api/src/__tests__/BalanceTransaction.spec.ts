@@ -38,10 +38,10 @@ describe('BalanceTransactionModule', () => {
       const txn = module.BalanceTransactionObject({
         amount: 5000,
         currency: 'usdc',
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         type: 'transfer',
-        source: 'tr_z_1',
+        source: 'tr_fd_1',
         description: 'Marketplace sale',
         metadata: {},
         status: 'available',
@@ -51,21 +51,21 @@ describe('BalanceTransactionModule', () => {
       expect(txn.object).toBe('balance_transaction');
       expect(txn.amount).toBe(5000);
       expect(txn.currency).toBe('usdc');
-      expect(txn.account).toBe('acct_z_1');
-      expect(txn.platform_account).toBe('acct_z_platform');
+      expect(txn.account).toBe('acct_fd_1');
+      expect(txn.platform_account).toBe('acct_fd_platform');
       expect(txn.type).toBe('transfer');
-      expect(txn.source).toBe('tr_z_1');
+      expect(txn.source).toBe('tr_fd_1');
       expect(txn.net).toBe(5000); // no fee
       expect(txn.fee).toBe(0);
-      expect(txn.id).toMatch(/^txn_z_test/);
+      expect(txn.id).toMatch(/^txn_fd_test/);
     });
 
     it('should calculate net after fee', () => {
       const txn = module.BalanceTransactionObject({
         amount: 10000,
         currency: 'usdc',
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         type: 'payout',
         fee: 250,
         status: 'pending',
@@ -79,8 +79,8 @@ describe('BalanceTransactionModule', () => {
       const txn = module.BalanceTransactionObject({
         amount: 1000,
         currency: 'usdc',
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         type: 'transfer_cancel',
         status: 'available',
       });
@@ -92,8 +92,8 @@ describe('BalanceTransactionModule', () => {
       const txn = module.BalanceTransactionObject({
         amount: -1000,
         currency: 'usdc',
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         type: 'payout_failure',
         status: 'available',
       });
@@ -104,12 +104,15 @@ describe('BalanceTransactionModule', () => {
 
   describe('GetBalanceTransaction', () => {
     it('should retrieve a transaction by ID', async () => {
-      const mockTxn = { id: 'txn_z_1', object: 'balance_transaction' };
+      const mockTxn = { id: 'txn_fd_1', object: 'balance_transaction' };
       mockDb.Get = jest.fn().mockResolvedValue(mockTxn);
 
-      const result = await module.GetBalanceTransaction('txn_z_1');
+      const result = await module.GetBalanceTransaction('txn_fd_1');
       expect(result).toEqual(mockTxn);
-      expect(mockDb.Get).toHaveBeenCalledWith('BalanceTransactions', 'txn_z_1');
+      expect(mockDb.Get).toHaveBeenCalledWith(
+        'BalanceTransactions',
+        'txn_fd_1'
+      );
     });
 
     it('should return null when not found', async () => {

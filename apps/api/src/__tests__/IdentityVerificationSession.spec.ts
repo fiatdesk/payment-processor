@@ -13,13 +13,13 @@ import {
   Account,
   IdentityVerificationSession,
   Person,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   IsBusinessAccount,
   ResolvedIdentityProvider,
   SelectIdentityWorkflow,
 } from '../modules/identity/ResolveIdentityProvider';
-import { IDENTITY_REQUIREMENT_FIELDS } from '@zoneless/shared-schemas';
+import { IDENTITY_REQUIREMENT_FIELDS } from '@fiatdesk/shared-schemas';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -102,7 +102,7 @@ describe('IdentitySettingsCrypto', () => {
     );
 
     const account = {
-      id: 'acct_z_platform',
+      id: 'acct_fd_platform',
       settings: { identity: encrypted },
     } as Account;
 
@@ -255,9 +255,9 @@ describe('IdentityVerificationSessionModule', () => {
   let storedPersons: Map<string, Person>;
   let storedSessions: Map<string, IdentityVerificationSession>;
 
-  const platformId = 'acct_z_platform';
-  const connectedId = 'acct_z_connected';
-  const personId = 'person_z_1';
+  const platformId = 'acct_fd_platform';
+  const connectedId = 'acct_fd_connected';
+  const personId = 'person_fd_1';
 
   function BuildPlatform(): Account {
     const encrypted = EncryptIdentitySettings({
@@ -467,7 +467,7 @@ describe('IdentityVerificationSessionModule', () => {
       related_account: connectedId,
     });
 
-    expect(session.id).toMatch(/^vs_z/);
+    expect(session.id).toMatch(/^vs_fd/);
     expect(session.object).toBe('identity.verification_session');
     expect(session.url).toBe('https://verify.didit.me/session/abc');
     expect(session.provider_session_id).toBe('didit_sess_abc');
@@ -734,8 +734,8 @@ describe('Identity volume threshold gating', () => {
   let storedAccounts: Map<string, Account>;
   let storedPersons: Map<string, Person>;
 
-  const platformId = 'acct_z_platform';
-  const connectedId = 'acct_z_connected';
+  const platformId = 'acct_fd_platform';
+  const connectedId = 'acct_fd_connected';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -795,8 +795,8 @@ describe('Identity volume threshold gating', () => {
       },
     } as Account);
 
-    storedPersons.set('person_z_1', {
-      id: 'person_z_1',
+    storedPersons.set('person_fd_1', {
+      id: 'person_fd_1',
       object: 'person',
       account: connectedId,
       platform_account: platformId,
@@ -907,7 +907,7 @@ describe('Identity volume threshold gating', () => {
 
   it('clears document requirement when person is verified', async () => {
     mockDb.Aggregate.mockResolvedValue([{ gross: 250_000 }]);
-    const person = storedPersons.get('person_z_1')!;
+    const person = storedPersons.get('person_fd_1')!;
     person.verification = {
       ...person.verification!,
       status: 'verified',
@@ -1122,11 +1122,11 @@ describe('AccountModule identity settings merge', () => {
     accountModule = new AccountModule(mockDb);
 
     mockDb.Get.mockImplementation(async (_c, id) => {
-      if (id === 'acct_z_platform') {
+      if (id === 'acct_fd_platform') {
         return {
-          id: 'acct_z_platform',
+          id: 'acct_fd_platform',
           object: 'account',
-          platform_account: 'acct_z_platform',
+          platform_account: 'acct_fd_platform',
           charges_enabled: true,
           payouts_enabled: true,
           details_submitted: true,
@@ -1156,9 +1156,9 @@ describe('AccountModule identity settings merge', () => {
     let stored: Account | null = null;
     mockDb.Update.mockImplementation(async (_c, _id, update) => {
       stored = {
-        id: 'acct_z_platform',
+        id: 'acct_fd_platform',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         charges_enabled: true,
         payouts_enabled: true,
         details_submitted: true,
@@ -1180,9 +1180,9 @@ describe('AccountModule identity settings merge', () => {
 
     // First Get for ProcessUpdateInput
     const base = {
-      id: 'acct_z_platform',
+      id: 'acct_fd_platform',
       object: 'account' as const,
-      platform_account: 'acct_z_platform',
+      platform_account: 'acct_fd_platform',
       charges_enabled: true,
       payouts_enabled: true,
       details_submitted: true,
@@ -1207,7 +1207,7 @@ describe('AccountModule identity settings merge', () => {
       return stored;
     });
 
-    const updated = await accountModule.UpdateAccount('acct_z_platform', {
+    const updated = await accountModule.UpdateAccount('acct_fd_platform', {
       settings: {
         identity: {
           provider: 'didit',

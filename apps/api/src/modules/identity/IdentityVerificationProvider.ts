@@ -1,7 +1,7 @@
 /**
  * @fileOverview Pluggable identity verification provider interface.
  *
- * Self-hosters and managed platforms BYO credentials; Zoneless maps provider
+ * Self-hosters and managed platforms BYO credentials; FiatDesk maps provider
  * sessions onto Stripe-shaped VerificationSessions. Didit is the first adapter.
  *
  * @module IdentityVerificationProvider
@@ -10,7 +10,7 @@
 import {
   IdentityVerificationSessionStatus,
   IdentityVerificationSessionType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 export interface ProviderExpectedDetails {
   company_name?: string;
@@ -20,7 +20,7 @@ export interface ProviderExpectedDetails {
 export interface ProviderCreateSessionInput {
   /** Provider workflow / flow ID */
   workflowId: string;
-  /** Opaque vendor data echoed by the provider (our vs_z id or related ids) */
+  /** Opaque vendor data echoed by the provider (our vs_fd id or related ids) */
   vendorData: string;
   /** Redirect URL after the user finishes */
   callbackUrl?: string;

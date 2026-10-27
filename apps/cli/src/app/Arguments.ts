@@ -168,7 +168,7 @@ export function ParseArguments(argumentsList: string[]): ParsedCommand {
   throw InvalidInput(
     `Unknown command "${argumentsList.join(
       ' '
-    )}". Run "zoneless --help" for usage.`
+    )}". Run "fiatdesk --help" for usage.`
   );
 }
 
@@ -283,7 +283,7 @@ function ParseWebhookSync(argumentsList: string[]): WebhookSyncCommand {
     throw InvalidInput('--url must be a valid public HTTPS URL.');
   }
   if (parsedUrl.protocol !== 'https:') {
-    throw InvalidInput('--url must use HTTPS so Zoneless can deliver events.');
+    throw InvalidInput('--url must use HTTPS so FiatDesk can deliver events.');
   }
 
   const presetValue = ReadOptionalOption(argumentsList, '--preset');
@@ -317,7 +317,7 @@ function ParseWebhookEvents(value: string): string[] {
     events.some((event) => !/^[a-z0-9_.]+$/.test(event))
   ) {
     throw InvalidInput(
-      '--events must be a comma-separated list of Zoneless event types.'
+      '--events must be a comma-separated list of FiatDesk event types.'
     );
   }
   return events;

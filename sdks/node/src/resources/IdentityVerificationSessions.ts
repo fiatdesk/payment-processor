@@ -3,7 +3,7 @@ import { ApplyDateFilter, type ListQuery } from '../utils';
 import {
   IdentityVerificationSession,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateIdentityVerificationSessionInput,
   UpdateIdentityVerificationSessionInput,

@@ -1,4 +1,4 @@
-import type { CheckoutSession, PaymentLink } from '@zoneless/shared-types';
+import type { CheckoutSession, PaymentLink } from '@fiatdesk/shared-types';
 
 export const DEFAULT_CHECKOUT_CONFIRMATION_MESSAGE = 'Thanks for your order';
 

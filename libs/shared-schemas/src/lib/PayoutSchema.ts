@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TRANSACTION_HASH_PATTERN } from '@zoneless/shared-types';
+import { TRANSACTION_HASH_PATTERN } from '@fiatdesk/shared-types';
 
 /**
  * Schema for creating a payout.

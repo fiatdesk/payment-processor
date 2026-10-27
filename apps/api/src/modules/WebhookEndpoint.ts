@@ -17,7 +17,7 @@ import { Now } from '../utils/Timestamp';
 import {
   WebhookEndpoint as WebhookEndpointType,
   WebhookEndpointRecord,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { GetAppConfig } from './AppConfig';
@@ -26,7 +26,7 @@ import {
   CreateWebhookEndpointInput,
   UpdateWebhookEndpointSchema,
   UpdateWebhookEndpointInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export class WebhookEndpointModule {
   private readonly db: Database;

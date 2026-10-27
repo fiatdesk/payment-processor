@@ -13,7 +13,7 @@ import {
   PaginatedListComponent,
   PaginatedListColumn,
 } from '../../../../../shared';
-import type { PaymentLink } from '@zoneless/shared-types';
+import type { PaymentLink } from '@fiatdesk/shared-types';
 import { MetaService } from '../../../../../core';
 import { Subscription } from 'rxjs';
 import { PaymentLinkActionsService } from '../../services/payment-link-actions.service';

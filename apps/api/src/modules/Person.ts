@@ -1,7 +1,7 @@
 /**
  * @fileOverview Methods for Persons
  *
- * Persons represent individuals associated with a Zoneless account,
+ * Persons represent individuals associated with a FiatDesk account,
  * such as business owners, directors, or representatives.
  *
  *
@@ -16,7 +16,7 @@ import {
   PersonRelationship,
   QueryOperators,
   Account as AccountType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { GetPlatformAccountId } from './PlatformAccess';
 import { AccountModule } from './Account';
 import { Database } from './Database';
@@ -34,7 +34,7 @@ import {
   UpdatePersonSchema,
   UpdatePersonInput,
   RelationshipFilters,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export class PersonModule {
   private readonly db: Database;

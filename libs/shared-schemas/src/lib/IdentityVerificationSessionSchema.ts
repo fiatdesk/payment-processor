@@ -39,7 +39,7 @@ const OptionsSchema = z
  */
 export const CreateIdentityVerificationSessionSchema = z.object({
   type: VerificationSessionTypeEnum.default('document'),
-  /** Connected account to verify (@zoneless_extension) */
+  /** Connected account to verify (@fiatdesk_extension) */
   related_account: z.string().min(1, 'related_account is required'),
   /** Person on the account; optional — defaults to the account's individual */
   related_person: z.string().min(1).optional(),

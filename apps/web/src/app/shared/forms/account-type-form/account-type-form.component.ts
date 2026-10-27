@@ -11,8 +11,8 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Account, AccountBusinessType } from '@zoneless/shared-types';
-import { UpdateAccountInput } from '@zoneless/shared-schemas';
+import { Account, AccountBusinessType } from '@fiatdesk/shared-types';
+import { UpdateAccountInput } from '@fiatdesk/shared-schemas';
 import {
   IsBusinessAccount,
   NAME_MAX_LENGTH,

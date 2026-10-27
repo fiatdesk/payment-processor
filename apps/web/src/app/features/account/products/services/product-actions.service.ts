@@ -1,12 +1,12 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { Product, Price } from '@zoneless/shared-types';
+import type { Product, Price } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { ProductService } from '../../../../data';
 import {
   CreateProductInput,
   UpdateProductInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export type ProductActionEvent =
   | { type: 'created'; product: Product }

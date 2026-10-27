@@ -8,7 +8,7 @@
 import {
   Event as EventType,
   WebhookDeliveryAttemptResult,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ComputeSignature } from '../utils/Signature';
 import { Now } from '../utils/Timestamp';
 import { Logger } from '../utils/Logger';
@@ -48,7 +48,7 @@ export class WebhookDispatcher {
 
     if (secret) {
       const signature = ComputeSignature(payload, secret, timestamp);
-      headers['Zoneless-Signature'] = signature;
+      headers['FiatDesk-Signature'] = signature;
     }
 
     try {

@@ -1,7 +1,7 @@
 /**
  * Unix timestamp utilities.
  *
- * All timestamps in the Zoneless API are in seconds since Unix epoch,
+ * All timestamps in the FiatDesk API are in seconds since Unix epoch,
  * matching Stripe's convention for consistency and compatibility.
  */
 

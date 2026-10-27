@@ -25,7 +25,7 @@ import type {
   Price,
   Subscription,
   SubscriptionItem,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ChargeModule } from '../../modules/Charge';
 import { CustomerModule } from '../../modules/Customer';
 import { EventService } from '../../modules/EventService';
@@ -87,7 +87,7 @@ const PERIOD_SECONDS = 30 * 24 * 3600;
 /** 20 USDC a period. */
 const AMOUNT_CENTS = 2000;
 const AMOUNT = 20_000_000n;
-const PLATFORM_ACCOUNT = 'acct_z_platform';
+const PLATFORM_ACCOUNT = 'acct_fd_platform';
 
 describe('Subscriptions on Anvil', () => {
   let anvil: AnvilContext | undefined;
@@ -211,7 +211,7 @@ describe('Subscriptions on Anvil', () => {
   /** A plan for a fresh price, created from the operator key. */
   async function Plan(
     amountCents = AMOUNT_CENTS,
-    priceId = `price_z_anvil_${++prices}`
+    priceId = `price_fd_anvil_${++prices}`
   ): Promise<Hex> {
     return (await ethereum.CreateSubscriptionPlan(
       priceId,
@@ -314,7 +314,7 @@ describe('Subscriptions on Anvil', () => {
     const operatorNonce = await SentFrom(operator);
     await expect(
       ethereum.CreateSubscriptionPlan(
-        `price_z_anvil_${prices}`,
+        `price_fd_anvil_${prices}`,
         PERIOD_SECONDS,
         AMOUNT_CENTS,
         platform,

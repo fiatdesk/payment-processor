@@ -10,7 +10,7 @@
  * @module PlatformAccess
  */
 
-import { Account as AccountType } from '@zoneless/shared-types';
+import { Account as AccountType } from '@fiatdesk/shared-types';
 
 /**
  * Determines if an account is a platform (root account).

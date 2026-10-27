@@ -19,8 +19,8 @@ import { EventService } from '../modules/EventService';
 import { GetTopUpMonitor, TopUpMonitor } from '../modules/TopUpMonitor';
 import { RequirePlatform } from '../middleware/Authorization';
 import { ValidateRequest } from '../middleware/ValidateRequest';
-import { CreateTopUpSchema, UpdateTopUpSchema } from '@zoneless/shared-schemas';
-import { TopUp as TopUpType } from '@zoneless/shared-types';
+import { CreateTopUpSchema, UpdateTopUpSchema } from '@fiatdesk/shared-schemas';
+import { TopUp as TopUpType } from '@fiatdesk/shared-types';
 
 const router = express.Router();
 

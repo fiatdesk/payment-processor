@@ -33,8 +33,8 @@ import {
   UpdateInvoiceSchema,
   FinalizeInvoiceSchema,
   PayInvoiceSchema,
-} from '@zoneless/shared-schemas';
-import { Invoice } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-schemas';
+import { Invoice } from '@fiatdesk/shared-types';
 import { ApplyExpand, RegisterExpansions } from '../utils/Expand';
 
 const router = express.Router();

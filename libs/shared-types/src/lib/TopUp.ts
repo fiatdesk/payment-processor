@@ -43,7 +43,7 @@ export interface TopUp {
   /** A string that identifies this top-up as part of a group */
   transfer_group: string | null;
 
-  // Zoneless extensions (not in Stripe)
+  // FiatDesk extensions (not in Stripe)
   /** The account this top-up belongs to */
   account: string;
   /** Unix timestamp in seconds when funds actually arrived (null if pending) */
@@ -53,7 +53,7 @@ export interface TopUp {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }
@@ -77,7 +77,7 @@ export interface TopUpSource {
   id: string;
   /** String representing the object's type */
   object: 'source';
-  /** The type of source - for Zoneless, this is crypto_deposit */
+  /** The type of source - for FiatDesk, this is crypto_deposit */
   type: 'crypto_deposit';
   /** Additional metadata about the source */
   metadata?: Record<string, string>;

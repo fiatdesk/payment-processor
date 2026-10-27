@@ -1,9 +1,9 @@
-import type { Account } from '@zoneless/shared-types';
+import type { Account } from '@fiatdesk/shared-types';
 import {
   FormatPayoutVolumeThresholdCents,
   IDENTITY_REQUIREMENT_FIELDS,
   ResolvePayoutVolumeThresholdCents,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export const VERIFICATION_DOCUMENT_FIELD =
   IDENTITY_REQUIREMENT_FIELDS.verificationDocument;

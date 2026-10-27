@@ -4,7 +4,7 @@
  * @module RecurringInterval
  */
 
-import type { RecurringInterval } from '@zoneless/shared-types';
+import type { RecurringInterval } from '@fiatdesk/shared-types';
 
 export const SECONDS_PER_HOUR = 60 * 60;
 export const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;

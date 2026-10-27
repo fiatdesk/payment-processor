@@ -4,12 +4,12 @@ import {
   BalanceTransaction,
   BRAND,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type { ListBalanceTransactionsInput } from '../generated/Inputs';
 
 export interface BalanceTransactionRequestOptions {
   /** Connected account ID to retrieve/list balance transactions for */
-  zonelessAccount?: string;
+  fiatdeskAccount?: string;
 }
 
 /**
@@ -46,8 +46,8 @@ export class BalanceTransactions extends BaseResource {
   private BuildHeaders(
     options: BalanceTransactionRequestOptions
   ): Record<string, string> | undefined {
-    if (options.zonelessAccount) {
-      return { [BRAND.connectedAccountHeader]: options.zonelessAccount };
+    if (options.fiatdeskAccount) {
+      return { [BRAND.connectedAccountHeader]: options.fiatdeskAccount };
     }
     return undefined;
   }

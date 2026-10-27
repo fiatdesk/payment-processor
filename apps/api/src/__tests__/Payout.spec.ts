@@ -1,7 +1,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { MAX_BATCH_RECIPIENTS, PayoutModule } from '../modules/Payout';
 import { Database } from '../modules/Database';
-import type { Balance, Payout, PayoutBatch } from '@zoneless/shared-types';
+import type { Balance, Payout, PayoutBatch } from '@fiatdesk/shared-types';
 import type { Settlement } from '../modules/chains/Settlement';
 import { ComputeBatchId } from '../modules/chains/PayoutEncoding';
 import { AppError } from '../utils/AppError';
@@ -69,11 +69,11 @@ describe('PayoutModule', () => {
   describe('PayoutObject', () => {
     it('should build a payout with correct fields', () => {
       const payout = module.PayoutObject({
-        account: 'acct_z_seller',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_seller',
+        platformAccountId: 'acct_fd_platform',
         amount: 5000,
         currency: 'usdc',
-        destination: 'wa_z_1',
+        destination: 'wa_fd_1',
         description: 'Weekly payout',
         method: 'instant',
         metadata: {},
@@ -82,23 +82,23 @@ describe('PayoutModule', () => {
       expect(payout.object).toBe('payout');
       expect(payout.amount).toBe(5000);
       expect(payout.currency).toBe('usdc');
-      expect(payout.account).toBe('acct_z_seller');
-      expect(payout.platform_account).toBe('acct_z_platform');
-      expect(payout.destination).toBe('wa_z_1');
+      expect(payout.account).toBe('acct_fd_seller');
+      expect(payout.platform_account).toBe('acct_fd_platform');
+      expect(payout.destination).toBe('wa_fd_1');
       expect(payout.status).toBe('pending');
       expect(payout.method).toBe('instant');
       expect(payout.type).toBe('wallet');
       expect(payout.source_type).toBe('wallet');
-      expect(payout.id).toMatch(/^po_z_test/);
+      expect(payout.id).toMatch(/^po_fd_test/);
     });
 
     it('should default to instant method', () => {
       const payout = module.PayoutObject({
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         amount: 100,
         currency: 'usdc',
-        destination: 'wa_z_1',
+        destination: 'wa_fd_1',
       });
 
       expect(payout.method).toBe('instant');
@@ -106,11 +106,11 @@ describe('PayoutModule', () => {
 
     it('should default automatic to false', () => {
       const payout = module.PayoutObject({
-        account: 'acct_z_1',
-        platformAccountId: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platformAccountId: 'acct_fd_platform',
         amount: 100,
         currency: 'usdc',
-        destination: 'wa_z_1',
+        destination: 'wa_fd_1',
       });
 
       expect(payout.automatic).toBe(false);
@@ -119,10 +119,10 @@ describe('PayoutModule', () => {
 
   describe('GetPayout', () => {
     it('should return the payout when found', async () => {
-      const mockPayout = { id: 'po_z_1', object: 'payout' } as Payout;
+      const mockPayout = { id: 'po_fd_1', object: 'payout' } as Payout;
       mockDb.Get = jest.fn().mockResolvedValue(mockPayout);
 
-      const result = await module.GetPayout('po_z_1');
+      const result = await module.GetPayout('po_fd_1');
       expect(result).toEqual(mockPayout);
     });
 
@@ -137,12 +137,12 @@ describe('PayoutModule', () => {
       jest
         .spyOn((module as any).accountModule, 'GetAccount')
         .mockResolvedValue({
-          id: 'acct_z_seller',
+          id: 'acct_fd_seller',
           payouts_enabled: false,
         });
 
       await expect(
-        module.CreatePayout('acct_z_seller', {
+        module.CreatePayout('acct_fd_seller', {
           amount: 1000,
           currency: 'usdc',
         })
@@ -153,20 +153,20 @@ describe('PayoutModule', () => {
   describe('UpdatePayout', () => {
     it('should update payout metadata', async () => {
       const existingPayout = {
-        id: 'po_z_1',
+        id: 'po_fd_1',
         object: 'payout',
-        account: 'acct_z_1',
+        account: 'acct_fd_1',
         metadata: {},
       } as Payout;
       mockDb.Get = jest.fn().mockResolvedValue(existingPayout);
 
-      const result = await module.UpdatePayout('po_z_1', {
+      const result = await module.UpdatePayout('po_fd_1', {
         metadata: { tracking: '12345' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Payouts',
-        'po_z_1',
+        'po_fd_1',
         expect.objectContaining({ metadata: { tracking: '12345' } })
       );
       expect(result).toEqual(existingPayout);
@@ -182,17 +182,17 @@ describe('PayoutModule', () => {
   describe('CancelPayout', () => {
     it('should cancel a pending payout and refund the balance', async () => {
       const pendingPayout = {
-        id: 'po_z_1',
+        id: 'po_fd_1',
         object: 'payout',
         status: 'pending',
         amount: 1000,
         currency: 'usdc',
-        account: 'acct_z_1',
-        balance_transaction: 'txn_z_1',
+        account: 'acct_fd_1',
+        balance_transaction: 'txn_fd_1',
       } as Payout;
 
       const balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         available: [{ amount: 0, currency: 'usdc' }],
         pending: [],
       };
@@ -203,17 +203,17 @@ describe('PayoutModule', () => {
         .fn()
         .mockResolvedValue({ ...pendingPayout, status: 'canceled' });
 
-      const result = await module.CancelPayout('po_z_1');
+      const result = await module.CancelPayout('po_fd_1');
 
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'Payouts',
-        { id: 'po_z_1', status: 'pending', payout_batch: null },
+        { id: 'po_fd_1', status: 'pending', payout_batch: null },
         { status: 'canceled' },
         expect.anything()
       );
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Balances',
-        'bal_z_1',
+        'bal_fd_1',
         { available: [{ amount: 1000, currency: 'usdc' }] },
         expect.anything()
       );
@@ -228,12 +228,12 @@ describe('PayoutModule', () => {
 
     it('should throw when payout is not pending', async () => {
       const paidPayout = {
-        id: 'po_z_1',
+        id: 'po_fd_1',
         status: 'paid',
       } as Payout;
       mockDb.Get = jest.fn().mockResolvedValue(paidPayout);
 
-      await expect(module.CancelPayout('po_z_1')).rejects.toThrow(
+      await expect(module.CancelPayout('po_fd_1')).rejects.toThrow(
         'Payout cannot be canceled'
       );
     });
@@ -256,7 +256,7 @@ describe('PayoutModule payout batches', () => {
   let sanctions: { CheckWalletAddresses: jest.Mock };
 
   /** Seller payouts of 1000, 2000, 3000 cents, each to its own wallet. */
-  const IDS = ['po_z_1', 'po_z_2', 'po_z_3'];
+  const IDS = ['po_fd_1', 'po_fd_2', 'po_fd_3'];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -264,28 +264,28 @@ describe('PayoutModule payout batches', () => {
     memory = new MemoryDatabase();
     memory.Seed(
       'Accounts',
-      { id: 'acct_z_platform', platform_account: 'acct_z_platform' },
-      { id: 'acct_z_seller', platform_account: 'acct_z_platform' }
+      { id: 'acct_fd_platform', platform_account: 'acct_fd_platform' },
+      { id: 'acct_fd_seller', platform_account: 'acct_fd_platform' }
     );
     memory.Seed(
       'ExternalWallets',
       {
-        id: 'wa_z_platform',
-        account: 'acct_z_platform',
+        id: 'wa_fd_platform',
+        account: 'acct_fd_platform',
         wallet_address: PLATFORM_WALLET,
         default_for_currency: true,
         status: 'new',
       },
       ...RECIPIENTS.map((address, i) => ({
-        id: `wa_z_${i + 1}`,
-        account: 'acct_z_seller',
+        id: `wa_fd_${i + 1}`,
+        account: 'acct_fd_seller',
         wallet_address: address,
         status: 'new',
       }))
     );
     memory.Seed('Balances', {
-      id: 'bal_z_seller',
-      account: 'acct_z_seller',
+      id: 'bal_fd_seller',
+      account: 'acct_fd_seller',
       available: [{ amount: 0, currency: 'usdc' }],
       pending: [],
     });
@@ -294,13 +294,13 @@ describe('PayoutModule payout batches', () => {
       ...IDS.map((id, i) => ({
         id,
         object: 'payout',
-        account: 'acct_z_seller',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_seller',
+        platform_account: 'acct_fd_platform',
         amount: 1000 * (i + 1),
         currency: 'usdc',
-        destination: `wa_z_${i + 1}`,
+        destination: `wa_fd_${i + 1}`,
         status: 'pending',
-        balance_transaction: `txn_z_${i + 1}`,
+        balance_transaction: `txn_fd_${i + 1}`,
         metadata: {},
       }))
     );
@@ -322,7 +322,7 @@ describe('PayoutModule payout batches', () => {
   }
 
   function AvailableBalance(): number {
-    return memory.Doc<Balance>('Balances', 'bal_z_seller').available[0].amount;
+    return memory.Doc<Balance>('Balances', 'bal_fd_seller').available[0].amount;
   }
 
   function Statuses(): Record<string, string> {
@@ -352,16 +352,16 @@ describe('PayoutModule payout batches', () => {
   }
 
   const Build = (payouts = IDS.slice(0, 2), replace?: boolean) =>
-    module.BuildPayoutsBatch('acct_z_platform', { payouts, replace });
+    module.BuildPayoutsBatch('acct_fd_platform', { payouts, replace });
 
   const BroadcastSigned = (payouts = IDS.slice(0, 2), signed = 'signed_tx') =>
-    module.BroadcastPayoutsBatch('acct_z_platform', {
+    module.BroadcastPayoutsBatch('acct_fd_platform', {
       signed_transaction: signed,
       payouts,
     });
 
   const BroadcastHash = (payouts = IDS.slice(0, 2), hash = WALLET_HASH) =>
-    module.BroadcastPayoutsBatch('acct_z_platform', {
+    module.BroadcastPayoutsBatch('acct_fd_platform', {
       transaction_hash: hash,
       payouts,
     });
@@ -372,11 +372,11 @@ describe('PayoutModule payout batches', () => {
 
       expect(result).toMatchObject({
         object: 'payout_batch_build',
-        payout_batch: 'pob_z_test001',
+        payout_batch: 'pob_fd_test001',
         replaced_payout_batch: null,
         unsigned_transaction: '0x02unsigned_payout',
         transaction_type: 'payout',
-        batch_id: ComputeBatchId(['po_z_1', 'po_z_2']),
+        batch_id: ComputeBatchId(['po_fd_1', 'po_fd_2']),
         chain_id: 11155111,
         nonce: MOCK_PAYOUT_NONCE,
         gas_limit: '60000',
@@ -387,22 +387,25 @@ describe('PayoutModule payout batches', () => {
         total_amount: 3000,
         recipients_count: 2,
       });
-      expect(result.payouts.map((p) => p.id)).toEqual(['po_z_1', 'po_z_2']);
+      expect(result.payouts.map((p) => p.id)).toEqual(['po_fd_1', 'po_fd_2']);
       expect(settlement.BuildBatchPayoutTransaction).toHaveBeenCalledWith(
         PLATFORM_WALLET,
         [
           { destinationAddress: RECIPIENTS[0], amountInCents: 1000 },
           { destinationAddress: RECIPIENTS[1], amountInCents: 2000 },
         ],
-        { batchId: ComputeBatchId(['po_z_1', 'po_z_2']), deadlineSeconds: 1800 }
+        {
+          batchId: ComputeBatchId(['po_fd_1', 'po_fd_2']),
+          deadlineSeconds: 1800,
+        }
       );
       expect(Batches()).toEqual([
         expect.objectContaining({
-          id: 'pob_z_test001',
+          id: 'pob_fd_test001',
           status: 'built',
           wallet_address: PLATFORM_WALLET,
           nonce: MOCK_PAYOUT_NONCE,
-          payouts: ['po_z_1', 'po_z_2'],
+          payouts: ['po_fd_1', 'po_fd_2'],
           total_amount: 3000,
           transaction_type: 'payout',
           build_block: 100,
@@ -410,9 +413,9 @@ describe('PayoutModule payout batches', () => {
         }),
       ]);
       expect(Statuses()).toEqual({
-        po_z_1: 'pending',
-        po_z_2: 'pending',
-        po_z_3: 'pending',
+        po_fd_1: 'pending',
+        po_fd_2: 'pending',
+        po_fd_3: 'pending',
       });
     });
 
@@ -445,7 +448,7 @@ describe('PayoutModule payout batches', () => {
     it('refuses a second build while a batch is outstanding for the wallet', async () => {
       await Build();
 
-      const error = await Rejection(Build(['po_z_3']));
+      const error = await Rejection(Build(['po_fd_3']));
 
       expect(error).toMatchObject({
         statusCode: 409,
@@ -456,7 +459,7 @@ describe('PayoutModule payout batches', () => {
     });
 
     it(`refuses more than ${MAX_BATCH_RECIPIENTS} payouts`, async () => {
-      const ids = Array.from({ length: 101 }, (_, i) => `po_z_x${i}`);
+      const ids = Array.from({ length: 101 }, (_, i) => `po_fd_x${i}`);
 
       const error = await Rejection(Build(ids));
 
@@ -471,7 +474,7 @@ describe('PayoutModule payout batches', () => {
 
       expect(error).toMatchObject({ statusCode: 400, type: 'account_frozen' });
       expect(error.message).toContain(RECIPIENTS[1]);
-      expect(error.message).toContain('po_z_2');
+      expect(error.message).toContain('po_fd_2');
       expect(settlement.IsBlacklisted).toHaveBeenCalledWith(
         RECIPIENTS.slice(0, 2)
       );
@@ -494,13 +497,13 @@ describe('PayoutModule payout batches', () => {
 
     it('refuses payouts held by an outstanding batch of another wallet', async () => {
       memory.Seed('PayoutBatches', {
-        id: 'pob_z_old',
-        platform_account: 'acct_z_platform',
+        id: 'pob_fd_old',
+        platform_account: 'acct_fd_platform',
         wallet_address: RECIPIENTS[2],
         chain_id: 11155111,
         nonce: MOCK_PAYOUT_NONCE,
         status: 'built',
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
         transaction_hashes: [],
         created: 1,
       });
@@ -514,9 +517,9 @@ describe('PayoutModule payout batches', () => {
     });
 
     it('refuses a different payout set while the built batch can still execute', async () => {
-      const first = await Build(['po_z_1']);
+      const first = await Build(['po_fd_1']);
 
-      const error = await Rejection(Build(['po_z_1', 'po_z_2'], true));
+      const error = await Rejection(Build(['po_fd_1', 'po_fd_2'], true));
 
       expect(error).toMatchObject({
         statusCode: 409,
@@ -530,16 +533,16 @@ describe('PayoutModule payout batches', () => {
 
     it('supersedes a built batch with a different payout set where batches cannot execute later', async () => {
       settlement.WaitsForExpiry.mockReturnValue(false);
-      const first = await Build(['po_z_1']);
+      const first = await Build(['po_fd_1']);
 
-      const second = await Build(['po_z_1', 'po_z_2'], true);
+      const second = await Build(['po_fd_1', 'po_fd_2'], true);
 
       expect(second.replaced_payout_batch).toBe(first.payout_batch);
       expect(settlement.BuildBatchPayoutTransaction).toHaveBeenLastCalledWith(
         PLATFORM_WALLET,
         expect.any(Array),
         {
-          batchId: ComputeBatchId(['po_z_1', 'po_z_2']),
+          batchId: ComputeBatchId(['po_fd_1', 'po_fd_2']),
           deadlineSeconds: 1800,
           nonce: MOCK_PAYOUT_NONCE,
           replacing: {
@@ -587,8 +590,8 @@ describe('PayoutModule payout batches', () => {
         }),
       ]);
       expect(Statuses()).toMatchObject({
-        po_z_1: 'in_transit',
-        po_z_2: 'in_transit',
+        po_fd_1: 'in_transit',
+        po_fd_2: 'in_transit',
       });
     });
 
@@ -612,8 +615,8 @@ describe('PayoutModule payout batches', () => {
         max_fee_per_gas: '3375000000',
       });
       expect(Statuses()).toMatchObject({
-        po_z_1: 'pending',
-        po_z_2: 'pending',
+        po_fd_1: 'pending',
+        po_fd_2: 'pending',
       });
     });
 
@@ -624,7 +627,7 @@ describe('PayoutModule payout batches', () => {
       );
       await BroadcastSigned();
 
-      const error = await Rejection(Build(['po_z_3'], true));
+      const error = await Rejection(Build(['po_fd_3'], true));
 
       expect(error).toMatchObject({
         statusCode: 409,
@@ -648,11 +651,11 @@ describe('PayoutModule payout batches', () => {
     });
 
     it('reconciles first, so an expired built batch no longer blocks', async () => {
-      await Build(['po_z_1']);
+      await Build(['po_fd_1']);
       Expire();
 
-      await expect(Build(['po_z_2'])).resolves.toMatchObject({
-        payout_batch: 'pob_z_test002',
+      await expect(Build(['po_fd_2'])).resolves.toMatchObject({
+        payout_batch: 'pob_fd_test002',
       });
       expect(Batches()[0].status).toBe('replaced');
     });
@@ -684,7 +687,7 @@ describe('PayoutModule payout batches', () => {
         transaction_type: 'payout',
       });
       expect(result.payouts.map((p) => p.status)).toEqual(['paid', 'paid']);
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').metadata).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').metadata).toMatchObject({
         network: 'ethereum',
         blockchain_tx: '0xhash_of_signed_tx',
         gas_fee_currency: 'eth',
@@ -703,8 +706,8 @@ describe('PayoutModule payout batches', () => {
           transaction_hash: '0xhash_of_signed_tx',
         });
         expect(Statuses()).toMatchObject({
-          po_z_1: 'in_transit',
-          po_z_2: 'in_transit',
+          po_fd_1: 'in_transit',
+          po_fd_2: 'in_transit',
         });
         return MockReceipt('paid', '0xhash_of_signed_tx');
       });
@@ -727,8 +730,8 @@ describe('PayoutModule payout batches', () => {
         transaction_hash: '0xhash_of_signed_tx',
       });
       expect(Statuses()).toMatchObject({
-        po_z_1: 'in_transit',
-        po_z_2: 'in_transit',
+        po_fd_1: 'in_transit',
+        po_fd_2: 'in_transit',
       });
       expect(AvailableBalance()).toBe(0);
       expect(Batches()[0]).toMatchObject({
@@ -755,7 +758,7 @@ describe('PayoutModule payout batches', () => {
         failure_message: 'Blacklistable: account is blacklisted',
       });
       // Another signed copy could still pay until the deadline: no refund.
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'in_transit',
         failure_code: 'account_frozen',
         failure_message: 'Blacklistable: account is blacklisted',
@@ -763,13 +766,13 @@ describe('PayoutModule payout batches', () => {
       expect(AvailableBalance()).toBe(0);
       expect(Batches()[0].status).toBe('reverted');
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
       expect(AvailableBalance()).toBe(0);
 
       Expire();
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'failed',
         failure_code: 'account_frozen',
       });
@@ -792,8 +795,8 @@ describe('PayoutModule payout batches', () => {
         transaction_hashes: ['0xhash_of_signed_tx'],
       });
       expect(Statuses()).toMatchObject({
-        po_z_1: 'pending',
-        po_z_2: 'pending',
+        po_fd_1: 'pending',
+        po_fd_2: 'pending',
       });
       expect(AvailableBalance()).toBe(0);
     });
@@ -814,13 +817,13 @@ describe('PayoutModule payout batches', () => {
       expect(error.message).toContain('nonce 3');
       expect(settlement.BroadcastSignedTransaction).not.toHaveBeenCalled();
       expect(Batches()[0].status).toBe('built');
-      expect(Statuses().po_z_1).toBe('pending');
+      expect(Statuses().po_fd_1).toBe('pending');
     });
 
     it('rejects payout ids that differ from the built batch', async () => {
       await Build();
 
-      const error = await Rejection(BroadcastSigned(['po_z_1']));
+      const error = await Rejection(BroadcastSigned(['po_fd_1']));
 
       expect(error).toMatchObject({
         statusCode: 409,
@@ -842,7 +845,7 @@ describe('PayoutModule payout batches', () => {
         type: 'transaction_not_found',
       });
       expect(Batches()[0].status).toBe('built');
-      expect(Statuses().po_z_1).toBe('pending');
+      expect(Statuses().po_fd_1).toBe('pending');
     });
 
     it('waits on a wallet hash and records the nonce the wallet used', async () => {
@@ -899,7 +902,7 @@ describe('PayoutModule payout batches', () => {
         transaction_hash: SPEED_UP_HASH,
         transaction_hashes: [WALLET_HASH, SPEED_UP_HASH],
       });
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
     });
 
     it('rejects a different hash that does not match the batch', async () => {
@@ -985,7 +988,7 @@ describe('PayoutModule payout batches', () => {
         expect.objectContaining({ batchId: Batches()[0].batch_id })
       );
       expect(again.status).toBe('paid');
-      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'paid' });
+      expect(Statuses()).toMatchObject({ po_fd_1: 'paid', po_fd_2: 'paid' });
     });
 
     it('broadcasts the approval with no payouts and releases the lock', async () => {
@@ -1035,7 +1038,7 @@ describe('PayoutModule payout batches', () => {
       settlement.IsBatchPaid.mockResolvedValue(true);
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toEqual({
         object: 'payout_reconcile',
         reconciled: 1,
@@ -1043,7 +1046,7 @@ describe('PayoutModule payout batches', () => {
         failed: 0,
         pending: 0,
       });
-      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'paid' });
+      expect(Statuses()).toMatchObject({ po_fd_1: 'paid', po_fd_2: 'paid' });
       expect(Batches()[0].status).toBe('paid');
     });
 
@@ -1054,18 +1057,18 @@ describe('PayoutModule payout batches', () => {
       );
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ pending: 1 });
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
     });
 
     it('leaves a batch pending while its nonce is not consumed', async () => {
       await BroadcastPending();
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ reconciled: 1, pending: 1 });
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
       expect(settlement.FindBatchPayment).not.toHaveBeenCalled();
     });
 
@@ -1085,7 +1088,7 @@ describe('PayoutModule payout batches', () => {
         timestamp: DEADLINE + 1,
       });
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(settlement.GetConfirmedBlock).toHaveBeenCalledTimes(1);
       expect(settlement.IsBatchPaid).toHaveBeenCalledWith(
@@ -1111,9 +1114,9 @@ describe('PayoutModule payout batches', () => {
       );
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ paid: 1 });
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'paid',
         metadata: expect.objectContaining({ blockchain_tx: SPEED_UP_HASH }),
       });
@@ -1125,16 +1128,16 @@ describe('PayoutModule payout batches', () => {
       settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ pending: 1 });
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
 
       Expire();
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ failed: 1 });
       expect(Batches()[0].status).toBe('replaced');
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'failed',
         failure_code: 'blockchain_error',
       });
@@ -1150,15 +1153,15 @@ describe('PayoutModule payout batches', () => {
         })
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
       expect(Batches()[0].status).toBe('reverted');
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
       expect(AvailableBalance()).toBe(0);
 
       Expire();
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
       expect(Batches()[0].status).toBe('failed');
-      expect(Statuses().po_z_1).toBe('failed');
+      expect(Statuses().po_fd_1).toBe('failed');
       expect(AvailableBalance()).toBe(3000);
     });
 
@@ -1166,10 +1169,10 @@ describe('PayoutModule payout batches', () => {
       await Build();
       settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(Batches()[0].status).toBe('built');
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').payout_batch).toBe(
         Batches()[0].id
       );
     });
@@ -1178,19 +1181,19 @@ describe('PayoutModule payout batches', () => {
       await Build();
       Expire();
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(Batches()[0].status).toBe('replaced');
       expect(Statuses()).toMatchObject({
-        po_z_1: 'pending',
-        po_z_2: 'pending',
+        po_fd_1: 'pending',
+        po_fd_2: 'pending',
       });
       expect(AvailableBalance()).toBe(0);
     });
 
     it('waits for the latest deadline of every signed copy', async () => {
       await BroadcastPending();
-      await module.BuildPayoutsBatch('acct_z_platform', {
+      await module.BuildPayoutsBatch('acct_fd_platform', {
         payouts: IDS.slice(0, 2),
         replace: true,
         deadline_seconds: 3600,
@@ -1201,12 +1204,12 @@ describe('PayoutModule payout batches', () => {
       ]);
 
       Expire(DEADLINE);
-      await module.ReconcilePayoutBatches('acct_z_platform');
-      expect(Statuses().po_z_1).toBe('in_transit');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
+      expect(Statuses().po_fd_1).toBe('in_transit');
 
       Expire(MOCK_BUILD_TIME + 3600);
-      await module.ReconcilePayoutBatches('acct_z_platform');
-      expect(Statuses().po_z_1).toBe('failed');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
+      expect(Statuses().po_fd_1).toBe('failed');
     });
 
     it('leaves every batch untouched when the chain cannot be read', async () => {
@@ -1215,10 +1218,10 @@ describe('PayoutModule payout batches', () => {
       settlement.IsBatchPaid.mockRejectedValue(new Error('header not found'));
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ reconciled: 1, pending: 1 });
       expect(Batches()[0].status).toBe('broadcast');
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
       expect(AvailableBalance()).toBe(0);
     });
   });
@@ -1233,24 +1236,24 @@ describe('PayoutModule payout batches', () => {
       settlement.IsBatchPaid.mockResolvedValue(true);
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ paid: 1 });
       expect(Batches()[0].status).toBe('paid');
-      const paid = memory.Doc<Payout>('Payouts', 'po_z_1');
+      const paid = memory.Doc<Payout>('Payouts', 'po_fd_1');
       expect(paid.status).toBe('paid');
       expect(paid.metadata.blockchain_tx).toBeUndefined();
       expect(AvailableBalance()).toBe(0);
     });
 
     it('settles a paid built batch before a build with other payouts, so they are never rebuilt', async () => {
-      await Build(['po_z_1']);
+      await Build(['po_fd_1']);
       settlement.IsBatchPaid.mockResolvedValue(true);
 
-      const next = await Build(['po_z_2', 'po_z_3'], true);
+      const next = await Build(['po_fd_2', 'po_fd_3'], true);
 
       expect(next.replaced_payout_batch).toBeNull();
-      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'pending' });
-      await expect(Build(['po_z_1'])).rejects.toMatchObject({
+      expect(Statuses()).toMatchObject({ po_fd_1: 'paid', po_fd_2: 'pending' });
+      await expect(Build(['po_fd_1'])).rejects.toMatchObject({
         statusCode: 400,
       });
     });
@@ -1269,22 +1272,22 @@ describe('PayoutModule payout batches', () => {
         MockReceipt('paid', SPEED_UP_HASH)
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
-      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'paid' });
+      expect(Statuses()).toMatchObject({ po_fd_1: 'paid', po_fd_2: 'paid' });
       expect(AvailableBalance()).toBe(0);
     });
   });
 
   describe('superseded batches', () => {
     it('refuses to supersede a built batch whose transaction may still be mined', async () => {
-      await Build(['po_z_1']);
+      await Build(['po_fd_1']);
       settlement.BroadcastSignedTransaction.mockRejectedValueOnce(
         new AppError('connection reset', 400, 'blockchain_error')
       );
-      await Rejection(BroadcastSigned(['po_z_1']));
+      await Rejection(BroadcastSigned(['po_fd_1']));
 
-      const error = await Rejection(Build(['po_z_1', 'po_z_2'], true));
+      const error = await Rejection(Build(['po_fd_1', 'po_fd_2'], true));
 
       expect(error).toMatchObject({
         statusCode: 409,
@@ -1301,8 +1304,8 @@ describe('PayoutModule payout batches', () => {
 
     it('settles a superseded batch that was mined anyway, never paying its payouts twice', async () => {
       settlement.WaitsForExpiry.mockReturnValue(false);
-      const first = await Build(['po_z_1']);
-      const second = await Build(['po_z_1', 'po_z_2'], true);
+      const first = await Build(['po_fd_1']);
+      const second = await Build(['po_fd_1', 'po_fd_2'], true);
       // The wallet had sent the first batch; it is mined and takes the nonce.
       const Paid = (expected: { batchId: string | null }) =>
         expected.batchId === first.batch_id;
@@ -1314,7 +1317,7 @@ describe('PayoutModule payout batches', () => {
         Paid(expected) ? MockReceipt('paid', SPEED_UP_HASH) : null
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(
         memory.Doc<PayoutBatch>('PayoutBatches', first.payout_batch)
@@ -1323,19 +1326,19 @@ describe('PayoutModule payout batches', () => {
       expect(
         memory.Doc<PayoutBatch>('PayoutBatches', second.payout_batch).status
       ).toBe('built');
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'paid',
         payout_batch: first.payout_batch,
         metadata: expect.objectContaining({ blockchain_tx: SPEED_UP_HASH }),
       });
-      // po_z_2 was only in the successor: still held by it, not refunded.
-      expect(memory.Doc<Payout>('Payouts', 'po_z_2')).toMatchObject({
+      // po_fd_2 was only in the successor: still held by it, not refunded.
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_2')).toMatchObject({
         status: 'pending',
         payout_batch: second.payout_batch,
       });
       expect(AvailableBalance()).toBe(0);
       // The successor still holds the wallet lock, so nothing is rebuilt.
-      await expect(Build(['po_z_1'])).rejects.toMatchObject({
+      await expect(Build(['po_fd_1'])).rejects.toMatchObject({
         statusCode: 409,
       });
     });
@@ -1345,7 +1348,7 @@ describe('PayoutModule payout batches', () => {
     it('loses a build to a cancel that lands between its checks and its claim', async () => {
       settlement.BuildBatchPayoutTransaction.mockImplementationOnce(
         async (_sender, recipients, options) => {
-          await module.CancelPayout('po_z_1');
+          await module.CancelPayout('po_fd_1');
           return MockPayoutBatch('payout', recipients.length, options);
         }
       );
@@ -1357,9 +1360,9 @@ describe('PayoutModule payout batches', () => {
         type: 'payout_batch_in_progress',
       });
       expect(Batches()).toEqual([]);
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').status).toBe('canceled');
-      // The claim on po_z_2 rolled back with the batch.
-      const unclaimed = memory.Doc<Payout>('Payouts', 'po_z_2');
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').status).toBe('canceled');
+      // The claim on po_fd_2 rolled back with the batch.
+      const unclaimed = memory.Doc<Payout>('Payouts', 'po_fd_2');
       expect(unclaimed.status).toBe('pending');
       expect(unclaimed.payout_batch ?? null).toBeNull();
       expect(AvailableBalance()).toBe(1000);
@@ -1367,48 +1370,48 @@ describe('PayoutModule payout batches', () => {
 
     it('refuses to cancel a payout a batch has claimed, without refunding it', async () => {
       memory.Seed('Payouts', {
-        ...memory.Doc<Payout>('Payouts', 'po_z_1'),
-        payout_batch: 'pob_z_claimed',
+        ...memory.Doc<Payout>('Payouts', 'po_fd_1'),
+        payout_batch: 'pob_fd_claimed',
       });
 
-      const error = await Rejection(module.CancelPayout('po_z_1'));
+      const error = await Rejection(module.CancelPayout('po_fd_1'));
 
       expect(error).toMatchObject({
         statusCode: 409,
         type: 'payout_batch_in_progress',
       });
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').status).toBe('pending');
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').status).toBe('pending');
       expect(AvailableBalance()).toBe(0);
     });
 
     it('refunds once when two cancels race', async () => {
       const results = await Promise.allSettled([
-        module.CancelPayout('po_z_1'),
-        module.CancelPayout('po_z_1'),
+        module.CancelPayout('po_fd_1'),
+        module.CancelPayout('po_fd_1'),
       ]);
 
       expect(results.map((r) => r.status).sort()).toEqual([
         'fulfilled',
         'rejected',
       ]);
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').status).toBe('canceled');
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').status).toBe('canceled');
       expect(AvailableBalance()).toBe(1000);
     });
 
     it('claims the payouts of a built batch and releases them when it is replaced', async () => {
       const built = await Build();
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').payout_batch).toBe(
         built.payout_batch
       );
       Expire();
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'pending',
         payout_batch: null,
       });
-      await expect(module.CancelPayout('po_z_1')).resolves.toMatchObject({
+      await expect(module.CancelPayout('po_fd_1')).resolves.toMatchObject({
         status: 'canceled',
       });
     });
@@ -1418,51 +1421,51 @@ describe('PayoutModule payout batches', () => {
     it('refuses to cancel a held payout, then cancels it once its batch has expired', async () => {
       await Build();
 
-      const held = await Rejection(module.CancelPayout('po_z_1'));
+      const held = await Rejection(module.CancelPayout('po_fd_1'));
       expect(held).toMatchObject({
         statusCode: 409,
         type: 'payout_batch_in_progress',
       });
 
       Expire();
-      await expect(module.CancelPayout('po_z_1')).resolves.toMatchObject({
+      await expect(module.CancelPayout('po_fd_1')).resolves.toMatchObject({
         status: 'canceled',
       });
       expect(AvailableBalance()).toBe(1000);
     });
 
     it('rebuilds a mixed payout set after an expired batch released its payouts', async () => {
-      const first = await Build(['po_z_1', 'po_z_2']);
+      const first = await Build(['po_fd_1', 'po_fd_2']);
       Expire();
 
-      const second = await Build(['po_z_2', 'po_z_3']);
+      const second = await Build(['po_fd_2', 'po_fd_3']);
 
       expect(second.payout_batch).not.toBe(first.payout_batch);
       expect(
         memory.Doc<PayoutBatch>('PayoutBatches', first.payout_batch).status
       ).toBe('replaced');
-      const released = memory.Doc<Payout>('Payouts', 'po_z_1');
+      const released = memory.Doc<Payout>('Payouts', 'po_fd_1');
       expect(released.status).toBe('pending');
       expect(released.payout_batch).toBeNull();
     });
 
     it('refuses to cancel or rebuild payouts of a released batch that has no deadline', async () => {
       memory.Seed('PayoutBatches', {
-        id: 'pob_z_legacy',
+        id: 'pob_fd_legacy',
         object: 'payout_batch',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         wallet_address: PLATFORM_WALLET,
         chain_id: 11155111,
         nonce: 3,
         transaction_type: 'payout',
         status: 'replaced',
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
         transaction_hashes: [],
         created: 1,
       });
 
-      const cancel = await Rejection(module.CancelPayout('po_z_1'));
-      const build = await Rejection(Build(['po_z_1', 'po_z_3']));
+      const cancel = await Rejection(module.CancelPayout('po_fd_1'));
+      const build = await Rejection(Build(['po_fd_1', 'po_fd_3']));
 
       for (const error of [cancel, build]) {
         expect(error).toMatchObject({
@@ -1471,7 +1474,7 @@ describe('PayoutModule payout batches', () => {
         });
       }
       expect(AvailableBalance()).toBe(0);
-      expect(Statuses().po_z_1).toBe('pending');
+      expect(Statuses().po_fd_1).toBe('pending');
     });
 
     it('never refunds from a re-sent transaction that reverted', async () => {
@@ -1489,7 +1492,7 @@ describe('PayoutModule payout batches', () => {
       });
 
       expect(Batches()[0].status).toBe('reverted');
-      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(Statuses().po_fd_1).toBe('in_transit');
       expect(AvailableBalance()).toBe(0);
     });
 
@@ -1506,7 +1509,7 @@ describe('PayoutModule payout batches', () => {
         reported_hashes: [WALLET_HASH],
         transaction_hashes: [],
       });
-      const error = await Rejection(Build(['po_z_3'], true));
+      const error = await Rejection(Build(['po_fd_3'], true));
       expect(error).toMatchObject({
         statusCode: 409,
         type: 'payout_batch_in_flight',
@@ -1524,7 +1527,7 @@ describe('PayoutModule payout batches', () => {
         MockReceipt(hash === WALLET_HASH ? 'paid' : 'pending', hash)
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(settlement.GetTransactionStatus).toHaveBeenCalledWith(
         WALLET_HASH,
@@ -1547,7 +1550,7 @@ describe('PayoutModule payout batches', () => {
       // A concurrent restore moved the batch back to built and its payouts
       // back to pending after reconcile read it.
       memory.Seed('PayoutBatches', { ...stale, status: 'built' });
-      for (const id of ['po_z_1', 'po_z_2']) {
+      for (const id of ['po_fd_1', 'po_fd_2']) {
         memory.Seed('Payouts', {
           ...memory.Doc<Payout>('Payouts', id),
           status: 'pending',
@@ -1562,11 +1565,11 @@ describe('PayoutModule payout batches', () => {
       Expire();
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ pending: 1 });
 
       expect(Batches()[0].status).toBe('built');
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'pending',
         payout_batch: stale.id,
       });
@@ -1580,25 +1583,25 @@ describe('PayoutModule payout batches', () => {
       );
       await BroadcastSigned();
       memory.Seed('Payouts', {
-        ...memory.Doc<Payout>('Payouts', 'po_z_1'),
+        ...memory.Doc<Payout>('Payouts', 'po_fd_1'),
         status: 'failed',
       });
       settlement.IsBatchPaid.mockResolvedValue(true);
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(Logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Double payment detected'),
         expect.objectContaining({
-          payoutId: 'po_z_1',
+          payoutId: 'po_fd_1',
           payoutBatch: Batches()[0].id,
         })
       );
     });
 
     it('builds with the requested deadline window', async () => {
-      const built = await module.BuildPayoutsBatch('acct_z_platform', {
-        payouts: ['po_z_1'],
+      const built = await module.BuildPayoutsBatch('acct_fd_platform', {
+        payouts: ['po_fd_1'],
         deadline_seconds: 600,
       });
 
@@ -1638,16 +1641,16 @@ describe('PayoutModule payout batches', () => {
       await BroadcastSigned();
       settlement.GetTransactionStatus.mockRejectedValue(PrunedNode());
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
       expect(Batches()[0].status).toBe('reverted');
       expect(AvailableBalance()).toBe(0);
 
       Expire();
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ failed: 1 });
       expect(Batches()[0].status).toBe('failed');
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'failed',
         failure_code: 'account_frozen',
       });
@@ -1663,8 +1666,8 @@ describe('PayoutModule payout batches', () => {
       settlement.GetTransactionStatus.mockRejectedValue(PrunedNode());
       Expire();
 
-      await expect(Build(['po_z_3'])).resolves.toMatchObject({
-        payout_batch: 'pob_z_test002',
+      await expect(Build(['po_fd_3'])).resolves.toMatchObject({
+        payout_batch: 'pob_fd_test002',
       });
       expect(Batches()[0].status).toBe('replaced');
     });
@@ -1677,9 +1680,9 @@ describe('PayoutModule payout batches', () => {
         MockReceipt('paid', SPEED_UP_HASH)
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
-      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'paid' });
+      expect(Statuses()).toMatchObject({ po_fd_1: 'paid', po_fd_2: 'paid' });
     });
 
     it('completes a refund that failed midway on the next reconcile, refunding once', async () => {
@@ -1697,21 +1700,24 @@ describe('PayoutModule payout batches', () => {
         });
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ pending: 1 });
       // Nothing half-done: the batch and both payouts rolled back together.
       expect(Batches()[0].status).toBe('broadcast');
       expect(Statuses()).toMatchObject({
-        po_z_1: 'in_transit',
-        po_z_2: 'in_transit',
+        po_fd_1: 'in_transit',
+        po_fd_2: 'in_transit',
       });
       expect(AvailableBalance()).toBe(0);
 
       spy.mockRestore();
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
       expect(Batches()[0].status).toBe('replaced');
-      expect(Statuses()).toMatchObject({ po_z_1: 'failed', po_z_2: 'failed' });
+      expect(Statuses()).toMatchObject({
+        po_fd_1: 'failed',
+        po_fd_2: 'failed',
+      });
       expect(AvailableBalance()).toBe(3000);
     });
 
@@ -1719,7 +1725,7 @@ describe('PayoutModule payout batches', () => {
       await Build();
       const stale = Batches()[0];
       // A same-set re-price lands after reconcile read the batch.
-      await module.BuildPayoutsBatch('acct_z_platform', {
+      await module.BuildPayoutsBatch('acct_fd_platform', {
         payouts: IDS.slice(0, 2),
         replace: true,
         deadline_seconds: 3600,
@@ -1733,14 +1739,14 @@ describe('PayoutModule payout batches', () => {
       Expire(DEADLINE);
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toMatchObject({ pending: 1 });
 
       expect(Batches()[0]).toMatchObject({
         status: 'built',
         deadlines: [DEADLINE, MOCK_BUILD_TIME + 3600],
       });
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1').payout_batch).toBe(
         stale.id
       );
     });
@@ -1759,9 +1765,9 @@ describe('PayoutModule payout batches', () => {
         MockReceipt('paid', SPEED_UP_HASH)
       );
 
-      await module.ReconcilePayoutBatches('acct_z_platform');
+      await module.ReconcilePayoutBatches('acct_fd_platform');
 
-      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+      expect(memory.Doc<Payout>('Payouts', 'po_fd_1')).toMatchObject({
         status: 'paid',
         failure_code: null,
         failure_message: null,
@@ -1772,14 +1778,14 @@ describe('PayoutModule payout batches', () => {
   describe('tenant isolation on a shared platform wallet', () => {
     /** Another platform's batch on the same wallet and chain. */
     const FOREIGN = {
-      id: 'pob_z_foreign',
+      id: 'pob_fd_foreign',
       object: 'payout_batch',
-      platform_account: 'acct_z_other',
+      platform_account: 'acct_fd_other',
       wallet_address: PLATFORM_WALLET,
       chain_id: 11155111,
       nonce: MOCK_PAYOUT_NONCE,
       batch_id: '0xforeign_batch',
-      payouts: ['po_z_foreign_1'],
+      payouts: ['po_fd_foreign_1'],
       total_amount: 500,
       transaction_type: 'payout',
       transaction_hash: WALLET_HASH,
@@ -1794,9 +1800,9 @@ describe('PayoutModule payout batches', () => {
 
     function ExpectNoForeignIds(error: AppError): void {
       for (const id of [
-        'pob_z_foreign',
-        'po_z_foreign_1',
-        'acct_z_other',
+        'pob_fd_foreign',
+        'po_fd_foreign_1',
+        'acct_fd_other',
         '0xforeign_batch',
       ]) {
         expect(error.message).not.toContain(id);
@@ -1827,11 +1833,11 @@ describe('PayoutModule payout batches', () => {
         ...FOREIGN,
         wallet_address: RECIPIENTS[2],
         status: 'built',
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
       });
 
-      const build = await Rejection(Build(['po_z_1']));
-      const cancel = await Rejection(module.CancelPayout('po_z_1'));
+      const build = await Rejection(Build(['po_fd_1']));
+      const cancel = await Rejection(module.CancelPayout('po_fd_1'));
 
       for (const error of [build, cancel]) {
         expect(error.statusCode).toBe(409);
@@ -1843,7 +1849,7 @@ describe('PayoutModule payout batches', () => {
       const foreign = {
         ...FOREIGN,
         status: 'broadcast',
-        payouts: ['po_z_1', 'po_z_2'],
+        payouts: ['po_fd_1', 'po_fd_2'],
       };
       memory.Seed('PayoutBatches', foreign);
 
@@ -1860,7 +1866,7 @@ describe('PayoutModule payout batches', () => {
       expect(settlement.MatchPayoutTransaction).not.toHaveBeenCalled();
       expect(settlement.BroadcastSignedTransaction).not.toHaveBeenCalled();
       expect(Batches()).toEqual([foreign]);
-      expect(Statuses().po_z_1).toBe('pending');
+      expect(Statuses().po_fd_1).toBe('pending');
     });
 
     it('reconcile ignores another platform’s batch', async () => {
@@ -1869,7 +1875,7 @@ describe('PayoutModule payout batches', () => {
       settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
 
       await expect(
-        module.ReconcilePayoutBatches('acct_z_platform')
+        module.ReconcilePayoutBatches('acct_fd_platform')
       ).resolves.toEqual({
         object: 'payout_reconcile',
         reconciled: 0,
@@ -1886,13 +1892,13 @@ describe('PayoutModule payout batches', () => {
     it('refuses to cancel a payout held by an outstanding batch', async () => {
       await Build();
 
-      const error = await Rejection(module.CancelPayout('po_z_1'));
+      const error = await Rejection(module.CancelPayout('po_fd_1'));
 
       expect(error).toMatchObject({
         statusCode: 409,
         type: 'payout_batch_in_progress',
       });
-      expect(Statuses().po_z_1).toBe('pending');
+      expect(Statuses().po_fd_1).toBe('pending');
       expect(AvailableBalance()).toBe(0);
     });
   });

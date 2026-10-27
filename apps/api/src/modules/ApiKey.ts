@@ -20,14 +20,14 @@ import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';
 import { ValidateUpdate } from './Util';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
-import { ApiKey, ApiKeyCreateResult } from '@zoneless/shared-types';
+import { ApiKey, ApiKeyCreateResult } from '@fiatdesk/shared-types';
 import { GetAppConfig } from './AppConfig';
 import {
   CreateApiKeySchema,
   CreateApiKeyInput,
   UpdateApiKeySchema,
   UpdateApiKeyInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 /**
  * Hash an API key token using SHA-256.

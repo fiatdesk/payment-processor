@@ -11,7 +11,7 @@ const virtualPath = join(root, 'sdks/node/scripts/__inputs-probe.ts');
 function CollectInputNames(): string[] {
   const names = new Set<string>();
   const importPattern =
-    /import type \{([^}]+)\} from '(?:@zoneless\/shared-schemas|\.\.\/generated\/Inputs)'/gs;
+    /import type \{([^}]+)\} from '(?:@fiatdesk\/shared-schemas|\.\.\/generated\/Inputs)'/gs;
   for (const file of readdirSync(resourcesDir)) {
     if (!file.endsWith('.ts') || file.endsWith('.spec.ts')) {
       continue;
@@ -82,7 +82,7 @@ if (inputNames.length === 0) {
 }
 
 const virtualContent = [
-  "import type * as S from '@zoneless/shared-schemas';",
+  "import type * as S from '@fiatdesk/shared-schemas';",
   ...inputNames.map((name) => `type ${name} = S.${name};`),
   '',
 ].join('\n');
@@ -96,8 +96,8 @@ const compilerOptions: ts.CompilerOptions = {
   esModuleInterop: true,
   baseUrl: root,
   paths: {
-    '@zoneless/shared-schemas': ['libs/shared-schemas/src/index.ts'],
-    '@zoneless/shared-types': ['libs/shared-types/src/index.ts'],
+    '@fiatdesk/shared-schemas': ['libs/shared-schemas/src/index.ts'],
+    '@fiatdesk/shared-types': ['libs/shared-types/src/index.ts'],
   },
 };
 

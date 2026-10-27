@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { WebhookEndpoint, EVENT_TYPES } from '@zoneless/shared-types';
+import { WebhookEndpoint, EVENT_TYPES } from '@fiatdesk/shared-types';
 import { SettingsCardRow } from '../../shared';
 
 /**

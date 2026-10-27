@@ -12,7 +12,7 @@ import {
   PaginatedListComponent,
   PaginatedListColumn,
 } from '../../../../../shared';
-import type { Subscription } from '@zoneless/shared-types';
+import type { Subscription } from '@fiatdesk/shared-types';
 import { Subscription as RxSubscription } from 'rxjs';
 import { MetaService } from '../../../../../core';
 import {

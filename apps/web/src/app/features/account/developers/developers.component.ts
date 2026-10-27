@@ -18,7 +18,7 @@ import {
   ApiKeyFormComponent,
   WebhookEndpointFormComponent,
 } from './components/index';
-import { ApiKey, WebhookEndpoint } from '@zoneless/shared-types';
+import { ApiKey, WebhookEndpoint } from '@fiatdesk/shared-types';
 import { ApiKeyService, WebhookEndpointService } from '../../../data';
 import { MetaService } from '../../../core';
 

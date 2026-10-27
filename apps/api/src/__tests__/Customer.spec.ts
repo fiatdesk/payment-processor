@@ -1,6 +1,6 @@
 import { CustomerModule } from '../modules/Customer';
 import { Database } from '../modules/Database';
-import { Customer } from '@zoneless/shared-types';
+import { Customer } from '@fiatdesk/shared-types';
 import { ListHelper } from '../utils/ListHelper';
 import {
   CreateMockDatabase,
@@ -38,10 +38,10 @@ describe('CustomerModule', () => {
 
   describe('CustomerObject', () => {
     it('should create a customer with sensible defaults', () => {
-      const customer = module.CustomerObject('acct_z_platform', {});
+      const customer = module.CustomerObject('acct_fd_platform', {});
 
       expect(customer.object).toBe('customer');
-      expect(customer.platform_account).toBe('acct_z_platform');
+      expect(customer.platform_account).toBe('acct_fd_platform');
       expect(customer.address).toBeNull();
       expect(customer.balance).toBe(0);
       expect(customer.business_name).toBeNull();
@@ -76,7 +76,7 @@ describe('CustomerModule', () => {
         automatic_tax: 'not_collecting',
         ip_address: null,
         location: null,
-        provider: 'zoneless',
+        provider: 'fiatdesk',
       });
 
       expect(customer.cash_balance).toEqual({
@@ -112,7 +112,7 @@ describe('CustomerModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const customer = module.CustomerObject('acct_z_platform', {
+      const customer = module.CustomerObject('acct_fd_platform', {
         address: {
           city: 'San Francisco',
           country: 'US',
@@ -134,7 +134,7 @@ describe('CustomerModule', () => {
         metadata: { external_id: '12345' },
         name: 'Test Customer',
         next_invoice_sequence: 10,
-        payment_method: 'pm_z_1',
+        payment_method: 'pm_fd_1',
         phone: '+15555550100',
         preferred_locales: ['en', 'fr'],
         shipping: {
@@ -142,10 +142,10 @@ describe('CustomerModule', () => {
           name: 'Shipping Name',
           phone: '+15555550199',
         },
-        source: 'src_z_1',
+        source: 'src_fd_1',
         tax: { ip_address: '127.0.0.1' },
         tax_exempt: 'exempt',
-        test_clock: 'clock_z_1',
+        test_clock: 'clock_fd_1',
       });
 
       expect(customer.address).toEqual({
@@ -164,7 +164,7 @@ describe('CustomerModule', () => {
       expect(customer.invoice_prefix).toBe('TESTPRE');
       expect(customer.invoice_settings).toEqual({
         custom_fields: [{ name: 'PO Number', value: '12345' }],
-        default_payment_method: 'pm_z_1',
+        default_payment_method: 'pm_fd_1',
         footer: 'Thanks for your business',
         rendering_options: {
           amount_tax_display: 'exclude_tax',
@@ -188,14 +188,14 @@ describe('CustomerModule', () => {
         name: 'Shipping Name',
         phone: '+15555550199',
       });
-      expect(customer.default_source).toBe('src_z_1');
+      expect(customer.default_source).toBe('src_fd_1');
       expect(customer.tax.ip_address).toBe('127.0.0.1');
       expect(customer.tax_exempt).toBe('exempt');
-      expect(customer.test_clock).toBe('clock_z_1');
+      expect(customer.test_clock).toBe('clock_fd_1');
     });
 
     it('should persist tax_id_data on create', () => {
-      const customer = module.CustomerObject('acct_z_platform', {
+      const customer = module.CustomerObject('acct_fd_platform', {
         tax_id_data: [
           { type: 'eu_vat', value: 'DE123456789' },
           { type: 'gb_vat', value: 'GB123456789' },
@@ -220,7 +220,7 @@ describe('CustomerModule', () => {
     });
 
     it('should respect an explicit cash_balance reconciliation_mode', () => {
-      const customer = module.CustomerObject('acct_z_platform', {
+      const customer = module.CustomerObject('acct_fd_platform', {
         cash_balance: {
           settings: { reconciliation_mode: 'manual' },
         },
@@ -237,22 +237,22 @@ describe('CustomerModule', () => {
     });
 
     it('should prefer invoice_settings.default_payment_method over payment_method', () => {
-      const customer = module.CustomerObject('acct_z_platform', {
-        payment_method: 'pm_z_legacy',
+      const customer = module.CustomerObject('acct_fd_platform', {
+        payment_method: 'pm_fd_legacy',
         invoice_settings: {
-          default_payment_method: 'pm_z_preferred',
+          default_payment_method: 'pm_fd_preferred',
         },
       });
 
       expect(customer.invoice_settings.default_payment_method).toBe(
-        'pm_z_preferred'
+        'pm_fd_preferred'
       );
     });
   });
 
   describe('CreateCustomer', () => {
     it('should persist the customer to the database', async () => {
-      const customer = await module.CreateCustomer('acct_z_platform', {
+      const customer = await module.CreateCustomer('acct_fd_platform', {
         name: 'Test Customer',
         email: 'test@example.com',
       });
@@ -265,12 +265,12 @@ describe('CustomerModule', () => {
       );
       expect(customer.name).toBe('Test Customer');
       expect(customer.email).toBe('test@example.com');
-      expect(customer.platform_account).toBe('acct_z_platform');
+      expect(customer.platform_account).toBe('acct_fd_platform');
     });
 
     it('should throw a validation error for invalid input', async () => {
       await expect(
-        module.CreateCustomer('acct_z_platform', {
+        module.CreateCustomer('acct_fd_platform', {
           email: 'not-an-email',
         })
       ).rejects.toThrow();
@@ -281,7 +281,7 @@ describe('CustomerModule', () => {
   describe('UpdateCustomer', () => {
     function BuildExistingCustomer(): Customer {
       return {
-        id: 'cus_z_1',
+        id: 'cus_fd_1',
         object: 'customer',
         address: null,
         balance: 0,
@@ -289,7 +289,7 @@ describe('CustomerModule', () => {
         cash_balance: {
           object: 'cash_balance',
           available: { usdc: 500 },
-          customer: 'cus_z_1',
+          customer: 'cus_fd_1',
           customer_account: null,
           livemode: false,
           settings: {
@@ -310,7 +310,7 @@ describe('CustomerModule', () => {
         invoice_prefix: null,
         invoice_settings: {
           custom_fields: [{ name: 'PO Number', value: '99999' }],
-          default_payment_method: 'pm_z_old',
+          default_payment_method: 'pm_fd_old',
           footer: 'Old footer',
           rendering_options: null,
         },
@@ -325,29 +325,29 @@ describe('CustomerModule', () => {
           object: 'list',
           data: [],
           has_more: false,
-          url: '/v1/customers/cus_z_1/sources',
+          url: '/v1/customers/cus_fd_1/sources',
         },
         subscriptions: {
           object: 'list',
           data: [],
           has_more: false,
-          url: '/v1/customers/cus_z_1/subscriptions',
+          url: '/v1/customers/cus_fd_1/subscriptions',
         },
         tax: {
           automatic_tax: 'supported',
           ip_address: '1.1.1.1',
           location: { country: 'US', source: 'billing_address', state: 'CA' },
-          provider: 'zoneless',
+          provider: 'fiatdesk',
         },
         tax_exempt: 'none',
         tax_ids: {
           object: 'list',
           data: [],
           has_more: false,
-          url: '/v1/customers/cus_z_1/tax_ids',
+          url: '/v1/customers/cus_fd_1/tax_ids',
         },
         test_clock: null,
-        platform_account: 'acct_z_1',
+        platform_account: 'acct_fd_1',
       };
     }
 
@@ -362,13 +362,13 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(updatedCustomer);
 
-      const result = await module.UpdateCustomer('cus_z_1', {
+      const result = await module.UpdateCustomer('cus_fd_1', {
         metadata: { tracking_number: '12345' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({ metadata: { tracking_number: '12345' } })
       );
       expect(result).toEqual(updatedCustomer);
@@ -390,13 +390,13 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', {
+      await module.UpdateCustomer('cus_fd_1', {
         address: { city: 'Los Angeles', country: 'US' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({
           address: {
             city: 'Los Angeles',
@@ -417,7 +417,7 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', {
+      await module.UpdateCustomer('cus_fd_1', {
         shipping: {
           address: { city: 'Chicago', country: 'US' },
           name: 'New Shipping Name',
@@ -426,7 +426,7 @@ describe('CustomerModule', () => {
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({
           shipping: {
             address: {
@@ -451,13 +451,13 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', {
+      await module.UpdateCustomer('cus_fd_1', {
         cash_balance: { settings: { reconciliation_mode: 'manual' } },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({
           cash_balance: {
             ...existingCustomer.cash_balance,
@@ -477,13 +477,13 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', {
+      await module.UpdateCustomer('cus_fd_1', {
         invoice_settings: { footer: 'New footer' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({
           invoice_settings: {
             custom_fields: existingCustomer.invoice_settings.custom_fields,
@@ -504,13 +504,13 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', {
+      await module.UpdateCustomer('cus_fd_1', {
         tax: { ip_address: '8.8.8.8' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
+        'cus_fd_1',
         expect.objectContaining({
           tax: { ...existingCustomer.tax, ip_address: '8.8.8.8' },
         })
@@ -524,22 +524,22 @@ describe('CustomerModule', () => {
         .mockResolvedValueOnce(existingCustomer)
         .mockResolvedValueOnce(existingCustomer);
 
-      await module.UpdateCustomer('cus_z_1', { source: 'src_z_9' });
+      await module.UpdateCustomer('cus_fd_1', { source: 'src_fd_9' });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Customers',
-        'cus_z_1',
-        expect.objectContaining({ default_source: 'src_z_9' })
+        'cus_fd_1',
+        expect.objectContaining({ default_source: 'src_fd_9' })
       );
     });
   });
 
   describe('GetCustomer', () => {
     it('should return the customer when found', async () => {
-      const mockCustomer = { id: 'cus_z_1', object: 'customer' } as Customer;
+      const mockCustomer = { id: 'cus_fd_1', object: 'customer' } as Customer;
       mockDb.Get = jest.fn().mockResolvedValue(mockCustomer);
 
-      const result = await module.GetCustomer('cus_z_1');
+      const result = await module.GetCustomer('cus_fd_1');
       expect(result).toEqual(mockCustomer);
     });
 
@@ -552,29 +552,29 @@ describe('CustomerModule', () => {
   describe('ClaimNextInvoiceNumber', () => {
     it('should allocate PREFIX-0001 and advance next_invoice_sequence', async () => {
       mockDb.FindOneAndUpdateByFilter = jest.fn().mockResolvedValue({
-        id: 'cus_z_1',
+        id: 'cus_fd_1',
         invoice_prefix: 'NO8CVRTT',
         next_invoice_sequence: 2,
       });
 
-      const number = await module.ClaimNextInvoiceNumber('cus_z_1');
+      const number = await module.ClaimNextInvoiceNumber('cus_fd_1');
 
       expect(number).toBe('NO8CVRTT-0001');
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'Customers',
-        { id: 'cus_z_1' },
+        { id: 'cus_fd_1' },
         { $inc: { next_invoice_sequence: 1 } }
       );
     });
 
     it('should format subsequent sequences as PREFIX-0002', async () => {
       mockDb.FindOneAndUpdateByFilter = jest.fn().mockResolvedValue({
-        id: 'cus_z_1',
+        id: 'cus_fd_1',
         invoice_prefix: 'NO8CVRTT',
         next_invoice_sequence: 3,
       });
 
-      await expect(module.ClaimNextInvoiceNumber('cus_z_1')).resolves.toBe(
+      await expect(module.ClaimNextInvoiceNumber('cus_fd_1')).resolves.toBe(
         'NO8CVRTT-0002'
       );
     });
@@ -590,13 +590,13 @@ describe('CustomerModule', () => {
     it('should delete the customer and return confirmation', async () => {
       mockDb.Get = jest
         .fn()
-        .mockResolvedValue({ id: 'cus_z_1', object: 'customer' });
+        .mockResolvedValue({ id: 'cus_fd_1', object: 'customer' });
 
-      const result = await module.DeleteCustomer('cus_z_1');
+      const result = await module.DeleteCustomer('cus_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('Customers', 'cus_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('Customers', 'cus_fd_1');
       expect(result).toEqual({
-        id: 'cus_z_1',
+        id: 'cus_fd_1',
         object: 'customer',
         deleted: true,
       });
@@ -620,18 +620,18 @@ describe('CustomerModule', () => {
           url: '/v1/customers',
         });
       await module.ListCustomers({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
         email: 'test@example.com',
-        test_clock: 'clock_z_1',
+        test_clock: 'clock_fd_1',
       });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
             email: 'test@example.com',
-            test_clock: 'clock_z_1',
+            test_clock: 'clock_fd_1',
           }),
         })
       );
@@ -647,7 +647,7 @@ describe('CustomerModule', () => {
           has_more: false,
           url: '/v1/customers',
         });
-      await module.ListCustomers({ account: 'acct_z_platform' });
+      await module.ListCustomers({ account: 'acct_fd_platform' });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           filters: {},

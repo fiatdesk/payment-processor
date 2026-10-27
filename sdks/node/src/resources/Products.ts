@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter, type ListQuery } from '../utils';
-import { Product, ProductDeleted, ListResponse } from '@zoneless/shared-types';
+import { Product, ProductDeleted, ListResponse } from '@fiatdesk/shared-types';
 import type {
   RetrieveProductInput,
   CreateProductInput,

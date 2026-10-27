@@ -4,7 +4,7 @@ import {
   WebhookDelivery,
   WebhookDeliveryAttemptResult,
   WebhookEndpointRecord,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import {
@@ -37,10 +37,10 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const EVENT_ID = 'evt_z_test001';
-const ENDPOINT_ID = 'we_z_test001';
-const OTHER_PLATFORM = 'acct_z_other';
+const PLATFORM = 'acct_fd_platform';
+const EVENT_ID = 'evt_fd_test001';
+const ENDPOINT_ID = 'we_fd_test001';
+const OTHER_PLATFORM = 'acct_fd_other';
 const COLLECTION = 'WebhookDeliveries';
 const RETRY_BACKOFF_SECONDS = WEBHOOK_RETRY_BACKOFF_SECONDS;
 
@@ -189,7 +189,7 @@ function MakeEvent(overrides: Partial<EventType> = {}): EventType {
     created: now,
     livemode: false,
     data: {
-      object: { id: 'prod_z_test001', object: 'product' },
+      object: { id: 'prod_fd_test001', object: 'product' },
       previous_attributes: null,
     },
     pending_webhooks: 1,
@@ -215,7 +215,7 @@ function MakeEndpoint(
     enabled_events: ['*'],
     livemode: false,
     metadata: {},
-    secret: 'whsec_z_testsecret',
+    secret: 'whsec_fd_testsecret',
     status: 'enabled',
     url: 'https://example.com/webhooks',
     ...overrides,
@@ -284,7 +284,7 @@ describe('WebhookDelivery', () => {
   describe('EventService', () => {
     it('should persist a delivery for every subscribed endpoint before the first request', async () => {
       const second = MakeEndpoint({
-        id: 'we_z_test002',
+        id: 'we_fd_test002',
         url: 'https://example.com/second',
       });
       endpointModule.GetWebhookEndpointsForEvent.mockResolvedValue([
@@ -314,13 +314,13 @@ describe('WebhookDelivery', () => {
       ).toEqual([ENDPOINT_ID, second.id].sort());
 
       for (const delivery of storedAtFirstRequest) {
-        expect(delivery.id).toMatch(/^whd_z/);
+        expect(delivery.id).toMatch(/^whd_fd/);
         expect(delivery.event_id).toBe(EVENT_ID);
         expect(delivery.status).toBe('pending');
         expect(delivery.next_attempt_at).toBe(now);
         expect(delivery.attempts).toEqual([]);
         expect(delivery.claim_until).toBeGreaterThan(now);
-        expect(delivery.claim_token).toMatch(/^claim_z/);
+        expect(delivery.claim_token).toMatch(/^claim_fd/);
       }
 
       expect(ReadEvent().pending_webhooks).toBe(0);
@@ -492,7 +492,7 @@ describe('WebhookDelivery', () => {
 
     it('should track multiple endpoints for the same event independently', async () => {
       const failing = MakeEndpoint({
-        id: 'we_z_test002',
+        id: 'we_fd_test002',
         url: 'https://example.com/failing',
       });
       let failingAttempts = 0;
@@ -540,13 +540,13 @@ describe('WebhookDelivery', () => {
 
     it('should only process deliveries for the requested platform', async () => {
       const otherEndpoint = MakeEndpoint({
-        id: 'we_z_test002',
+        id: 'we_fd_test002',
         account: OTHER_PLATFORM,
         platform_account: OTHER_PLATFORM,
         url: 'https://example.com/other',
       });
       const otherEvent = MakeEvent({
-        id: 'evt_z_test002',
+        id: 'evt_fd_test002',
         account: OTHER_PLATFORM,
         platform_account: OTHER_PLATFORM,
       });
@@ -587,8 +587,11 @@ describe('WebhookDelivery', () => {
     it('should claim one delivery at a time so a claim never expires mid-batch', async () => {
       const endpoints = [
         endpoint,
-        MakeEndpoint({ id: 'we_z_test002', url: 'https://example.com/second' }),
-        MakeEndpoint({ id: 'we_z_test003', url: 'https://example.com/third' }),
+        MakeEndpoint({
+          id: 'we_fd_test002',
+          url: 'https://example.com/second',
+        }),
+        MakeEndpoint({ id: 'we_fd_test003', url: 'https://example.com/third' }),
       ];
       endpointModule.GetWebhookEndpoint.mockImplementation(
         async (id) => endpoints.find((candidate) => candidate.id === id) ?? null
@@ -840,7 +843,7 @@ describe('WebhookDelivery', () => {
 
       const signatures = fetchMock.mock.calls.map(
         (call) =>
-          (call[1].headers as Record<string, string>)['Zoneless-Signature']
+          (call[1].headers as Record<string, string>)['FiatDesk-Signature']
       );
       expect(signatures[0]).not.toEqual(signatures[1]);
       expect(

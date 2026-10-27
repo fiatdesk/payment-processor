@@ -9,7 +9,7 @@ import {
   signal,
   WritableSignal,
 } from '@angular/core';
-import type { Subscription } from '@zoneless/shared-types';
+import type { Subscription } from '@fiatdesk/shared-types';
 import { ModalComponent } from '../../../../../shared';
 import {
   FormatMediumDate,

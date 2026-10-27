@@ -4,7 +4,7 @@
  * Powers Stripe-style overview charts (gross volume, net volume, new customers).
  * Not a 1:1 Stripe public API object — Stripe's dashboard uses internal aggregation.
  *
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 
 /** Supported metric identifiers. Extend this union as new overview cards are added. */

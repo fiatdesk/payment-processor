@@ -4,7 +4,7 @@ import {
   DepositInfo,
   TopUp,
   CheckDepositsResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 export interface TopUpListResponse {
   object: 'list';

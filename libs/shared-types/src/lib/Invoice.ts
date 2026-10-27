@@ -18,7 +18,7 @@ import { InvoicePaymentsList } from './InvoicePayment';
 import type { Subscription } from './Subscription';
 
 /**
- * Stripe-compatible Invoice object for Zoneless.
+ * Stripe-compatible Invoice object for FiatDesk.
  * Represents a statement of amounts owed by a customer, covering one-off charges and
  * subscription billing cycles. Settled in on-chain USDC.
  *
@@ -48,7 +48,7 @@ export interface Invoice {
   amount_overpaid: number;
   /** The amount, in the smallest currency unit, that was paid. */
   amount_paid: number;
-  /** Amount, in the smallest currency unit, that was paid on the invoice outside of Zoneless. */
+  /** Amount, in the smallest currency unit, that was paid on the invoice outside of FiatDesk. */
   amount_paid_off_stripe: number;
   /** The difference between amount_due and amount_paid, in the smallest currency unit. */
   amount_remaining: number;
@@ -68,7 +68,7 @@ export interface Invoice {
    */
   attempted: boolean;
   /**
-   * Controls whether Zoneless performs automatic collection of the invoice. If false, the
+   * Controls whether FiatDesk performs automatic collection of the invoice. If false, the
    * invoice's state doesn't automatically advance without an explicit action.
    */
   auto_advance: boolean;
@@ -82,14 +82,14 @@ export interface Invoice {
   /** Indicates the reason why the invoice was created. */
   billing_reason: InvoiceBillingReason | null;
   /**
-   * Either charge_automatically, or send_invoice. When charging automatically, Zoneless will
+   * Either charge_automatically, or send_invoice. When charging automatically, FiatDesk will
    * attempt to pay this invoice using the default source attached to the customer. When sending
-   * an invoice, Zoneless will email this invoice to the customer with payment instructions.
+   * an invoice, FiatDesk will email this invoice to the customer with payment instructions.
    */
   collection_method: 'charge_automatically' | 'send_invoice';
   /**
    * The confirmation secret associated with this invoice. Contains the client_secret of the
-   * PaymentIntent that Zoneless creates during invoice finalization. Expandable.
+   * PaymentIntent that FiatDesk creates during invoice finalization. Expandable.
    */
   confirmation_secret: InvoiceConfirmationSecret | null;
   /** Time at which the object was created. Measured in seconds since the Unix epoch. */
@@ -322,7 +322,7 @@ export interface Invoice {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }
@@ -365,13 +365,13 @@ export type InvoiceBillingReason =
 
 /** Settings and latest results for automatic tax lookup for an invoice. */
 export interface InvoiceAutomaticTax {
-  /** If Zoneless disabled automatic tax, this enum describes why. */
+  /** If FiatDesk disabled automatic tax, this enum describes why. */
   disabled_reason:
     | 'finalization_requires_location_inputs'
     | 'finalization_system_error'
     | null;
   /**
-   * Whether Zoneless automatically computes tax on this invoice. Note that incompatible invoice
+   * Whether FiatDesk automatically computes tax on this invoice. Note that incompatible invoice
    * items (invoice items with manually specified tax rates, negative amounts, or
    * tax_behavior=unspecified) cannot be added to automatic tax invoices.
    */
@@ -404,7 +404,7 @@ export interface InvoiceTaxLiability {
  * PaymentIntent created during invoice finalization.
  */
 export interface InvoiceConfirmationSecret {
-  /** The client_secret of the payment that Zoneless creates for the invoice after finalization. */
+  /** The client_secret of the payment that FiatDesk creates for the invoice after finalization. */
   client_secret: string;
   /**
    * The type of client_secret. Currently this is always payment_intent, referencing the default
@@ -549,7 +549,7 @@ export interface InvoiceSubscriptionDetails {
 /**
  * Configuration settings for the PaymentIntent that is generated when the invoice is finalized.
  * @remarks Simplified from Stripe's payment_settings, which also exposes
- * payment_method_options for many fiat rails (ACH, cards, iDEAL, etc.) that Zoneless doesn't
+ * payment_method_options for many fiat rails (ACH, cards, iDEAL, etc.) that FiatDesk doesn't
  * support since all payments are settled in USDC. Matches the simplification on Subscription.
  */
 export interface InvoicePaymentSettings {
@@ -560,12 +560,12 @@ export interface InvoicePaymentSettings {
   default_mandate: string | null;
   /**
    * Payment-method-specific configuration to provide to the invoice's PaymentIntent.
-   * Opaque stub for Stripe API parity; Zoneless settles invoices in USDC.
+   * Opaque stub for Stripe API parity; FiatDesk settles invoices in USDC.
    */
   payment_method_options: object | null;
   /**
    * The list of payment method types (e.g. crypto) to provide to the invoice's PaymentIntent.
-   * If not set, Zoneless attempts to automatically determine the types to use.
+   * If not set, FiatDesk attempts to automatically determine the types to use.
    */
   payment_method_types: string[] | null;
 }

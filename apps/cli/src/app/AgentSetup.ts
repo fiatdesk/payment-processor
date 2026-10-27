@@ -120,14 +120,14 @@ export class AgentSetupService {
     const activationUrl = options.activationUrl;
     if (!authUrl) {
       throw new CliError(
-        'No agent authorization endpoint is configured. Pass --auth-url <url> or set ZONELESS_AUTH_URL.',
+        'No agent authorization endpoint is configured. Pass --auth-url <url> or set FIATDESK_AUTH_URL.',
         'auth_url_required',
         exitCodes.invalidInput
       );
     }
     if (!activationUrl) {
       throw new CliError(
-        'No approval page is configured. Pass --activation-url <url> or set ZONELESS_ACTIVATION_URL.',
+        'No approval page is configured. Pass --activation-url <url> or set FIATDESK_ACTIVATION_URL.',
         'auth_url_required',
         exitCodes.invalidInput
       );
@@ -299,7 +299,7 @@ export class AgentSetupService {
       const message =
         error instanceof Error ? error.message : 'Unknown network error';
       throw new ApiError(
-        `Unable to reach Zoneless authorization: ${message}`,
+        `Unable to reach FiatDesk authorization: ${message}`,
         0
       );
     }
@@ -312,7 +312,7 @@ export class AgentSetupService {
       throw new ApiError(
         typeof callableError?.['message'] === 'string'
           ? callableError['message']
-          : `Zoneless authorization failed with status ${response.status}.`,
+          : `FiatDesk authorization failed with status ${response.status}.`,
         response.status
       );
     }

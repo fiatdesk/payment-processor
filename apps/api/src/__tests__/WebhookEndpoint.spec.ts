@@ -1,6 +1,6 @@
 import { WebhookEndpointModule } from '../modules/WebhookEndpoint';
 import { Database } from '../modules/Database';
-import { WebhookEndpointRecord } from '@zoneless/shared-types';
+import { WebhookEndpointRecord } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -36,22 +36,22 @@ describe('WebhookEndpointModule', () => {
 
   describe('CreateWebhookEndpointRecord', () => {
     it('should build a record with a generated secret', () => {
-      const record = module.CreateWebhookEndpointRecord('acct_z_platform', {
+      const record = module.CreateWebhookEndpointRecord('acct_fd_platform', {
         url: 'https://example.com/webhooks',
         enabled_events: ['account.created', 'payout.paid'],
       });
 
       expect(record.object).toBe('webhook_endpoint');
-      expect(record.account).toBe('acct_z_platform');
-      expect(record.platform_account).toBe('acct_z_platform');
+      expect(record.account).toBe('acct_fd_platform');
+      expect(record.platform_account).toBe('acct_fd_platform');
       expect(record.url).toBe('https://example.com/webhooks');
       expect(record.enabled_events).toEqual(['account.created', 'payout.paid']);
       expect(record.status).toBe('enabled');
-      expect(record.secret).toMatch(/^whsec_z_test/);
+      expect(record.secret).toMatch(/^whsec_fd_test/);
     });
 
     it('should support wildcard event subscription', () => {
-      const record = module.CreateWebhookEndpointRecord('acct_z_platform', {
+      const record = module.CreateWebhookEndpointRecord('acct_fd_platform', {
         url: 'https://example.com/webhooks',
         enabled_events: ['*'],
       });
@@ -62,7 +62,7 @@ describe('WebhookEndpointModule', () => {
 
   describe('CreateWebhookEndpoint', () => {
     it('should persist and return the endpoint with secret', async () => {
-      const endpoint = await module.CreateWebhookEndpoint('acct_z_platform', {
+      const endpoint = await module.CreateWebhookEndpoint('acct_fd_platform', {
         url: 'https://example.com/webhooks',
         enabled_events: ['*'],
       });
@@ -78,14 +78,14 @@ describe('WebhookEndpointModule', () => {
     it('should return endpoints subscribed to the exact event', async () => {
       const endpoints: WebhookEndpointRecord[] = [
         {
-          id: 'we_z_1',
+          id: 'we_fd_1',
           object: 'webhook_endpoint',
-          account: 'acct_z_platform',
-          platform_account: 'acct_z_platform',
+          account: 'acct_fd_platform',
+          platform_account: 'acct_fd_platform',
           url: 'https://example.com/webhooks',
           enabled_events: ['account.created'],
           status: 'enabled',
-          secret: 'whsec_z_abc',
+          secret: 'whsec_fd_abc',
           created: GetFixedTimestamp(),
           livemode: false,
           metadata: {},
@@ -97,7 +97,7 @@ describe('WebhookEndpointModule', () => {
       mockDb.Find = jest.fn().mockResolvedValue(endpoints);
 
       const result = await module.GetWebhookEndpointsForEvent(
-        'acct_z_platform',
+        'acct_fd_platform',
         'account.created'
       );
 
@@ -107,14 +107,14 @@ describe('WebhookEndpointModule', () => {
     it('should return endpoints with wildcard subscription', async () => {
       const endpoints: WebhookEndpointRecord[] = [
         {
-          id: 'we_z_1',
+          id: 'we_fd_1',
           object: 'webhook_endpoint',
-          account: 'acct_z_platform',
-          platform_account: 'acct_z_platform',
+          account: 'acct_fd_platform',
+          platform_account: 'acct_fd_platform',
           url: 'https://example.com/webhooks',
           enabled_events: ['*'],
           status: 'enabled',
-          secret: 'whsec_z_abc',
+          secret: 'whsec_fd_abc',
           created: GetFixedTimestamp(),
           livemode: false,
           metadata: {},
@@ -126,7 +126,7 @@ describe('WebhookEndpointModule', () => {
       mockDb.Find = jest.fn().mockResolvedValue(endpoints);
 
       const result = await module.GetWebhookEndpointsForEvent(
-        'acct_z_platform',
+        'acct_fd_platform',
         'payout.paid'
       );
 
@@ -136,14 +136,14 @@ describe('WebhookEndpointModule', () => {
     it('should exclude disabled endpoints', async () => {
       const endpoints: WebhookEndpointRecord[] = [
         {
-          id: 'we_z_1',
+          id: 'we_fd_1',
           object: 'webhook_endpoint',
-          account: 'acct_z_platform',
-          platform_account: 'acct_z_platform',
+          account: 'acct_fd_platform',
+          platform_account: 'acct_fd_platform',
           url: 'https://example.com/webhooks',
           enabled_events: ['*'],
           status: 'disabled',
-          secret: 'whsec_z_abc',
+          secret: 'whsec_fd_abc',
           created: GetFixedTimestamp(),
           livemode: false,
           metadata: {},
@@ -155,7 +155,7 @@ describe('WebhookEndpointModule', () => {
       mockDb.Find = jest.fn().mockResolvedValue(endpoints);
 
       const result = await module.GetWebhookEndpointsForEvent(
-        'acct_z_platform',
+        'acct_fd_platform',
         'account.created'
       );
 
@@ -165,14 +165,14 @@ describe('WebhookEndpointModule', () => {
     it('should exclude endpoints not subscribed to the event', async () => {
       const endpoints: WebhookEndpointRecord[] = [
         {
-          id: 'we_z_1',
+          id: 'we_fd_1',
           object: 'webhook_endpoint',
-          account: 'acct_z_platform',
-          platform_account: 'acct_z_platform',
+          account: 'acct_fd_platform',
+          platform_account: 'acct_fd_platform',
           url: 'https://example.com/webhooks',
           enabled_events: ['payout.paid'],
           status: 'enabled',
-          secret: 'whsec_z_abc',
+          secret: 'whsec_fd_abc',
           created: GetFixedTimestamp(),
           livemode: false,
           metadata: {},
@@ -184,7 +184,7 @@ describe('WebhookEndpointModule', () => {
       mockDb.Find = jest.fn().mockResolvedValue(endpoints);
 
       const result = await module.GetWebhookEndpointsForEvent(
-        'acct_z_platform',
+        'acct_fd_platform',
         'account.created'
       );
 
@@ -194,11 +194,11 @@ describe('WebhookEndpointModule', () => {
 
   describe('DeleteWebhookEndpoint', () => {
     it('should delete the endpoint and return confirmation', async () => {
-      const result = await module.DeleteWebhookEndpoint('we_z_1');
+      const result = await module.DeleteWebhookEndpoint('we_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('WebhookEndpoints', 'we_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('WebhookEndpoints', 'we_fd_1');
       expect(result).toEqual({
-        id: 'we_z_1',
+        id: 'we_fd_1',
         object: 'webhook_endpoint',
         deleted: true,
       });

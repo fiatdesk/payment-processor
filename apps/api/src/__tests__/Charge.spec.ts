@@ -59,14 +59,14 @@ describe('ChargeModule', () => {
 
   describe('ChargeObject', () => {
     it('should create a captured Charge with sensible defaults', () => {
-      const charge = module.ChargeObject('acct_z_platform', {
+      const charge = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
 
       expect(charge.object).toBe('charge');
-      expect(charge.platform_account).toBe('acct_z_platform');
+      expect(charge.platform_account).toBe('acct_fd_platform');
       expect(charge.amount).toBe(2000);
       expect(charge.amount_captured).toBe(2000);
       expect(charge.amount_refunded).toBe(0);
@@ -99,7 +99,7 @@ describe('ChargeModule', () => {
       expect(charge.metadata).toEqual({});
       expect(charge.paid).toBe(true);
       expect(charge.payment_intent).toBeNull();
-      expect(charge.payment_method).toBe('pm_z_wallet');
+      expect(charge.payment_method).toBe('pm_fd_wallet');
       expect(charge.payment_method_details).toEqual({
         type: 'crypto',
         crypto: {
@@ -120,14 +120,14 @@ describe('ChargeModule', () => {
       expect(charge.status).toBe('succeeded');
       expect(charge.transfer_data).toBeNull();
       expect(charge.transfer_group).toBeNull();
-      expect(charge.id).toMatch(/^ch_z_test/);
+      expect(charge.id).toMatch(/^ch_fd_test/);
     });
 
     it('should create an uncaptured Charge when capture is false', () => {
-      const charge = module.ChargeObject('acct_z_platform', {
+      const charge = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
         capture: false,
       });
 
@@ -139,15 +139,15 @@ describe('ChargeModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const charge = module.ChargeObject('acct_z_platform', {
+      const charge = module.ChargeObject('acct_fd_platform', {
         amount: 5000,
         currency: 'usdc',
         application_fee_amount: 100,
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
         description: 'Test charge',
         metadata: { order_id: '123' },
         receipt_email: 'buyer@example.com',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
         shipping: {
           address: {
             city: 'San Francisco',
@@ -157,17 +157,17 @@ describe('ChargeModule', () => {
           name: 'Jane Doe',
           phone: '+14155552671',
         },
-        statement_descriptor: 'ZONELESS',
+        statement_descriptor: 'FIATDESK',
         transfer_group: 'group_1',
         transfer_data: {
-          destination: 'acct_z_seller',
+          destination: 'acct_fd_seller',
           amount: 4500,
         },
       });
 
       expect(charge.amount).toBe(5000);
       expect(charge.application_fee_amount).toBe(100);
-      expect(charge.customer).toBe('cus_z_1');
+      expect(charge.customer).toBe('cus_fd_1');
       expect(charge.description).toBe('Test charge');
       expect(charge.metadata).toEqual({ order_id: '123' });
       expect(charge.receipt_email).toBe('buyer@example.com');
@@ -185,21 +185,21 @@ describe('ChargeModule', () => {
         phone: '+14155552671',
         tracking_number: null,
       });
-      expect(charge.statement_descriptor).toBe('ZONELESS');
+      expect(charge.statement_descriptor).toBe('FIATDESK');
       expect(charge.transfer_group).toBe('group_1');
       expect(charge.transfer_data).toEqual({
         amount: 4500,
-        destination: 'acct_z_seller',
+        destination: 'acct_fd_seller',
       });
     });
   });
 
   describe('CreateCharge', () => {
     it('should persist the Charge and emit charge.succeeded when captured', async () => {
-      const charge = await module.CreateCharge('acct_z_platform', {
+      const charge = await module.CreateCharge('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
 
       expect(mockDb.Set).toHaveBeenCalledTimes(1);
@@ -208,16 +208,16 @@ describe('ChargeModule', () => {
       expect(charge.captured).toBe(true);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.succeeded',
-        'acct_z_platform',
+        'acct_fd_platform',
         charge
       );
     });
 
     it('should emit charge.pending when capture is false', async () => {
-      const charge = await module.CreateCharge('acct_z_platform', {
+      const charge = await module.CreateCharge('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
         capture: false,
       });
 
@@ -225,15 +225,15 @@ describe('ChargeModule', () => {
       expect(charge.captured).toBe(false);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.pending',
-        'acct_z_platform',
+        'acct_fd_platform',
         charge
       );
     });
 
     it('should default currency to usdc when omitted', async () => {
-      const charge = await module.CreateCharge('acct_z_platform', {
+      const charge = await module.CreateCharge('acct_fd_platform', {
         amount: 2000,
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       } as Parameters<ChargeModule['CreateCharge']>[1]);
 
       expect(charge.currency).toBe('usdc');
@@ -241,17 +241,17 @@ describe('ChargeModule', () => {
 
     it('should reject unsupported currencies', async () => {
       await expect(
-        module.CreateCharge('acct_z_platform', {
+        module.CreateCharge('acct_fd_platform', {
           amount: 2000,
           currency: 'usd',
-          source: 'pm_z_wallet',
+          source: 'pm_fd_wallet',
         })
       ).rejects.toBeInstanceOf(AppError);
     });
 
     it('should reject when neither source nor customer is provided', async () => {
       await expect(
-        module.CreateCharge('acct_z_platform', {
+        module.CreateCharge('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         })
@@ -260,10 +260,10 @@ describe('ChargeModule', () => {
 
     it('should reject application_fee_amount greater than amount', async () => {
       await expect(
-        module.CreateCharge('acct_z_platform', {
+        module.CreateCharge('acct_fd_platform', {
           amount: 100,
           currency: 'usdc',
-          source: 'pm_z_wallet',
+          source: 'pm_fd_wallet',
           application_fee_amount: 200,
         })
       ).rejects.toThrow(/application_fee_amount/);
@@ -271,44 +271,44 @@ describe('ChargeModule', () => {
 
     it('should validate the customer belongs to the platform', async () => {
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_other',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_other',
       } as never);
 
       await expect(
-        module.CreateCharge('acct_z_platform', {
+        module.CreateCharge('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          customer: 'cus_z_1',
+          customer: 'cus_fd_1',
         })
       ).rejects.toThrow(/Customer not found/);
     });
 
     it('should accept a customer on the same platform', async () => {
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_platform',
       } as never);
 
-      const charge = await module.CreateCharge('acct_z_platform', {
+      const charge = await module.CreateCharge('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
       });
 
-      expect(charge.customer).toBe('cus_z_1');
-      expect(mockCustomerModule.GetCustomer).toHaveBeenCalledWith('cus_z_1');
+      expect(charge.customer).toBe('cus_fd_1');
+      expect(mockCustomerModule.GetCustomer).toHaveBeenCalledWith('cus_fd_1');
     });
 
     it('should validate transfer_data destination is a connected account', async () => {
       jest.spyOn(AccountModule.prototype, 'GetAccount').mockResolvedValue(null);
 
       await expect(
-        module.CreateCharge('acct_z_platform', {
+        module.CreateCharge('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          source: 'pm_z_wallet',
-          transfer_data: { destination: 'acct_z_missing' },
+          source: 'pm_fd_wallet',
+          transfer_data: { destination: 'acct_fd_missing' },
         })
       ).rejects.toThrow(/No such connected account/);
     });
@@ -316,10 +316,10 @@ describe('ChargeModule', () => {
 
   describe('GetCharge', () => {
     it('should return the Charge from the database', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       mockDb.Get.mockResolvedValue(stored);
 
@@ -332,10 +332,10 @@ describe('ChargeModule', () => {
 
   describe('RetrieveCharge', () => {
     it('should return the Charge when found', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       mockDb.Get.mockResolvedValue(stored);
 
@@ -347,7 +347,7 @@ describe('ChargeModule', () => {
     it('should throw when the Charge does not exist', async () => {
       mockDb.Get.mockResolvedValue(null);
 
-      await expect(module.RetrieveCharge('ch_z_missing')).rejects.toThrow(
+      await expect(module.RetrieveCharge('ch_fd_missing')).rejects.toThrow(
         /Charge not found/
       );
     });
@@ -358,10 +358,10 @@ describe('ChargeModule', () => {
       overrides: Partial<ReturnType<ChargeModule['ChargeObject']>> = {}
     ) {
       const stored = {
-        ...module.ChargeObject('acct_z_platform', {
+        ...module.ChargeObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          source: 'pm_z_wallet',
+          source: 'pm_fd_wallet',
         }),
         ...overrides,
       };
@@ -389,7 +389,7 @@ describe('ChargeModule', () => {
       expect(result.metadata).toEqual({ shipping: 'express' });
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.updated',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated,
         expect.objectContaining({
           previousAttributes: expect.any(Object),
@@ -443,11 +443,11 @@ describe('ChargeModule', () => {
     });
 
     it('should reject changing customer once set', async () => {
-      SeedCharge({ customer: 'cus_z_existing' });
+      SeedCharge({ customer: 'cus_fd_existing' });
 
       await expect(
-        module.UpdateCharge('ch_z_test001', {
-          customer: 'cus_z_other',
+        module.UpdateCharge('ch_fd_test001', {
+          customer: 'cus_fd_other',
         })
       ).rejects.toThrow(/customer can only be set/);
     });
@@ -456,7 +456,7 @@ describe('ChargeModule', () => {
       SeedCharge({ transfer_group: 'group_1' });
 
       await expect(
-        module.UpdateCharge('ch_z_test001', {
+        module.UpdateCharge('ch_fd_test001', {
           transfer_group: 'group_2',
         })
       ).rejects.toThrow(/transfer_group/);
@@ -466,7 +466,7 @@ describe('ChargeModule', () => {
       mockDb.Get.mockResolvedValue(null);
 
       await expect(
-        module.UpdateCharge('ch_z_missing', {
+        module.UpdateCharge('ch_fd_missing', {
           metadata: { order_id: '1' },
         })
       ).rejects.toThrow(/Charge not found/);
@@ -475,13 +475,13 @@ describe('ChargeModule', () => {
     it('should validate the customer belongs to the platform', async () => {
       SeedCharge({ customer: null });
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_other',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_other',
       } as never);
 
       await expect(
-        module.UpdateCharge('ch_z_test001', {
-          customer: 'cus_z_1',
+        module.UpdateCharge('ch_fd_test001', {
+          customer: 'cus_fd_1',
         })
       ).rejects.toThrow(/Customer not found/);
     });
@@ -492,10 +492,10 @@ describe('ChargeModule', () => {
       overrides: Partial<ReturnType<ChargeModule['ChargeObject']>> = {}
     ) {
       const stored = {
-        ...module.ChargeObject('acct_z_platform', {
+        ...module.ChargeObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          source: 'pm_z_wallet',
+          source: 'pm_fd_wallet',
           capture: false,
         }),
         ...overrides,
@@ -528,7 +528,7 @@ describe('ChargeModule', () => {
       expect(result.captured).toBe(true);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.captured',
-        'acct_z_platform',
+        'acct_fd_platform',
         captured
       );
     });
@@ -555,10 +555,10 @@ describe('ChargeModule', () => {
     });
 
     it('should reject capturing an already captured Charge', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       mockDb.Get.mockResolvedValue(stored);
 
@@ -579,7 +579,7 @@ describe('ChargeModule', () => {
     it('should throw when Charge does not exist', async () => {
       mockDb.Get.mockResolvedValue(null);
 
-      await expect(module.CaptureCharge('ch_z_missing')).rejects.toThrow(
+      await expect(module.CaptureCharge('ch_fd_missing')).rejects.toThrow(
         /Charge not found/
       );
     });
@@ -597,20 +597,20 @@ describe('ChargeModule', () => {
         });
 
       await module.ListCharges({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
-        customer: 'cus_z_1',
-        payment_intent: 'pi_z_1',
+        customer: 'cus_fd_1',
+        payment_intent: 'pi_fd_1',
         transfer_group: 'group_1',
       });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
-            customer: 'cus_z_1',
-            payment_intent: 'pi_z_1',
+            customer: 'cus_fd_1',
+            payment_intent: 'pi_fd_1',
             transfer_group: 'group_1',
           }),
         })
@@ -629,7 +629,7 @@ describe('ChargeModule', () => {
           url: '/v1/charges',
         });
 
-      await module.ListCharges({ account: 'acct_z_platform' });
+      await module.ListCharges({ account: 'acct_fd_platform' });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -643,10 +643,10 @@ describe('ChargeModule', () => {
 
   describe('MarkFailed', () => {
     it('should mark a Charge as failed and emit charge.failed', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
         capture: false,
       });
       const failed = {
@@ -676,17 +676,17 @@ describe('ChargeModule', () => {
       expect(result.status).toBe('failed');
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.failed',
-        'acct_z_platform',
+        'acct_fd_platform',
         failed
       );
     });
 
     it('should be idempotent when already failed', async () => {
       const stored = {
-        ...module.ChargeObject('acct_z_platform', {
+        ...module.ChargeObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          source: 'pm_z_wallet',
+          source: 'pm_fd_wallet',
         }),
         status: 'failed' as const,
         paid: false,
@@ -703,10 +703,10 @@ describe('ChargeModule', () => {
 
   describe('MarkExpired', () => {
     it('should expire an uncaptured Charge and emit charge.expired', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
         capture: false,
       });
       const expired = {
@@ -730,16 +730,16 @@ describe('ChargeModule', () => {
       expect(result.status).toBe('failed');
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.expired',
-        'acct_z_platform',
+        'acct_fd_platform',
         expired
       );
     });
 
     it('should reject expiring a captured Charge', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       mockDb.Get.mockResolvedValue(stored);
 
@@ -751,10 +751,10 @@ describe('ChargeModule', () => {
 
   describe('MarkRefunded', () => {
     it('should mark a full refund and emit charge.refunded', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       const refunded = {
         ...stored,
@@ -776,16 +776,16 @@ describe('ChargeModule', () => {
       expect(result.refunded).toBe(true);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.refunded',
-        'acct_z_platform',
+        'acct_fd_platform',
         refunded
       );
     });
 
     it('should mark a partial refund without setting refunded=true', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       const refunded = {
         ...stored,
@@ -807,10 +807,10 @@ describe('ChargeModule', () => {
     });
 
     it('should reject refund amounts outside the charge amount', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       mockDb.Get.mockResolvedValue(stored);
 
@@ -822,12 +822,12 @@ describe('ChargeModule', () => {
 
   describe('CreateFromPaymentAttempt', () => {
     it('should create a succeeded Charge linked to a PaymentIntent', async () => {
-      const charge = await module.CreateFromPaymentAttempt('acct_z_platform', {
+      const charge = await module.CreateFromPaymentAttempt('acct_fd_platform', {
         amount: 1000,
         currency: 'usdc',
-        payment_intent: 'pi_z_1',
+        payment_intent: 'pi_fd_1',
         payment_method: PAYER_WALLET,
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
         crypto: {
           buyer_address: PAYER_WALLET,
           transaction_hash: 'sig_abc',
@@ -838,7 +838,7 @@ describe('ChargeModule', () => {
       expect(mockDb.Set).toHaveBeenCalledWith('Charges', charge.id, charge);
       expect(charge.status).toBe('succeeded');
       expect(charge.captured).toBe(true);
-      expect(charge.payment_intent).toBe('pi_z_1');
+      expect(charge.payment_intent).toBe('pi_fd_1');
       expect(charge.payment_method_details).toEqual({
         type: 'crypto',
         crypto: {
@@ -851,16 +851,16 @@ describe('ChargeModule', () => {
       });
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.succeeded',
-        'acct_z_platform',
+        'acct_fd_platform',
         charge
       );
     });
 
     it('should create a failed Charge and emit charge.failed', async () => {
-      const charge = await module.CreateFromPaymentAttempt('acct_z_platform', {
+      const charge = await module.CreateFromPaymentAttempt('acct_fd_platform', {
         amount: 1000,
         currency: 'usdc',
-        payment_intent: 'pi_z_1',
+        payment_intent: 'pi_fd_1',
         payment_method: PAYER_WALLET,
         crypto: {
           buyer_address: null,
@@ -877,7 +877,7 @@ describe('ChargeModule', () => {
       expect(charge.failure_message).toBe('Amount mismatch');
       expect(eventService.Emit).toHaveBeenCalledWith(
         'charge.failed',
-        'acct_z_platform',
+        'acct_fd_platform',
         charge
       );
     });
@@ -885,26 +885,26 @@ describe('ChargeModule', () => {
 
   describe('AttachBalanceTransaction', () => {
     it('should link a balance transaction to the Charge', async () => {
-      const stored = module.ChargeObject('acct_z_platform', {
+      const stored = module.ChargeObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
-        source: 'pm_z_wallet',
+        source: 'pm_fd_wallet',
       });
       const updated = {
         ...stored,
-        balance_transaction: 'txn_z_1',
+        balance_transaction: 'txn_fd_1',
       };
       mockDb.Get.mockResolvedValue(updated);
 
       const result = await module.AttachBalanceTransaction(
         stored.id,
-        'txn_z_1'
+        'txn_fd_1'
       );
 
       expect(mockDb.Update).toHaveBeenCalledWith('Charges', stored.id, {
-        balance_transaction: 'txn_z_1',
+        balance_transaction: 'txn_fd_1',
       });
-      expect(result.balance_transaction).toBe('txn_z_1');
+      expect(result.balance_transaction).toBe('txn_fd_1');
     });
   });
 });

@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
-import { Account } from '@zoneless/shared-types';
+import { Account } from '@fiatdesk/shared-types';
 import { StorageService } from './storage.service';
 import { ApiService } from './api.service';
 
@@ -25,7 +25,7 @@ export interface ApiKeyLoginResponse {
 }
 
 export function ResolveDashboardType(account: Account | null): DashboardType {
-  const explicit = account?.controller?.zoneless_dashboard?.type;
+  const explicit = account?.controller?.fiatdesk_dashboard?.type;
   if (explicit) {
     return explicit;
   }

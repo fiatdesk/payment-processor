@@ -1,4 +1,4 @@
-import type { BalanceTransaction, PaymentIntent } from '@zoneless/shared-types';
+import type { BalanceTransaction, PaymentIntent } from '@fiatdesk/shared-types';
 
 import type { ApiService } from '../../../../core';
 import {

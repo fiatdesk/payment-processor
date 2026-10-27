@@ -10,7 +10,7 @@ import {
   PaginatedListComponent,
   PaginatedListColumn,
 } from '../../../../../shared';
-import type { Invoice } from '@zoneless/shared-types';
+import type { Invoice } from '@fiatdesk/shared-types';
 import { MetaService } from '../../../../../core';
 import {
   FormatInvoiceCustomerEmail,

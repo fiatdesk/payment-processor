@@ -145,7 +145,7 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
       return {
         prompt: this.agentMarketplacePrompt,
         description:
-          'The easiest way to add Zoneless payouts to your platform. Your existing checkout and payout methods stay in place.',
+          'The easiest way to add FiatDesk payouts to your platform. Your existing checkout and payout methods stay in place.',
       };
     }
     if (
@@ -170,9 +170,9 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
     this.isBrowser = isPlatformBrowser(platformId);
     this.BuildSearchIndex();
     this.metaService.SetMeta({
-      title: 'Documentation | Zoneless',
+      title: 'Documentation | FiatDesk',
       description:
-        'Accept USDC payments, run subscriptions, and pay out sellers with Zoneless. API reference, guides, and examples.',
+        'Accept USDC payments, run subscriptions, and pay out sellers with FiatDesk. API reference, guides, and examples.',
       url: 'https://docs.yourdomain.com',
       image: 'https://docs.yourdomain.com/assets/images/screenshots/og.png',
     });

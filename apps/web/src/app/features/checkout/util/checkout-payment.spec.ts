@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import {
   CheckoutPaymentTransaction,
   CheckoutSession,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 import {
   ALREADY_CONFIRMING_MESSAGE,

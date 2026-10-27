@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 
-import { Transfer } from '@zoneless/shared-types';
+import { Transfer } from '@fiatdesk/shared-types';
 import { StatusChipComponent } from '../../../../../../shared';
 
 @Component({

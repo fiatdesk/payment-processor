@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { Event } from '@zoneless/shared-types';
+import { Event } from '@fiatdesk/shared-types';
 /**
  * Error thrown when webhook signature verification fails.
  */
@@ -21,7 +21,7 @@ export class Webhooks {
    * Throws an error if the signature is invalid or the timestamp is out of tolerance.
    *
    * @param payload - The raw body of the request (must be a string or Buffer)
-   * @param header - The 'Zoneless-Signature' header value
+   * @param header - The 'FiatDesk-Signature' header value
    * @param secret - The webhook signing secret (whsec_...)
    * @param tolerance - Time tolerance in seconds (default 300s / 5 minutes)
    * @returns The parsed and verified event object

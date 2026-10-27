@@ -370,7 +370,7 @@ const TRANSFER_DATA_PARAM_CHILDREN: Attribute[] = [
 // ============================================
 
 const PAYMENT_INTENT_OBJECT_JSON = `{
-  "id": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b",
+  "id": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b",
   "object": "payment_intent",
   "amount": 3500,
   "amount_capturable": 0,
@@ -386,7 +386,7 @@ const PAYMENT_INTENT_OBJECT_JSON = `{
   "canceled_at": null,
   "cancellation_reason": null,
   "capture_method": "automatic_async",
-  "client_secret": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
+  "client_secret": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
   "confirmation_method": "automatic",
   "created": 1721486400,
   "currency": "usdc",
@@ -423,11 +423,11 @@ const PAYMENT_INTENT_OBJECT_JSON = `{
   "status": "requires_payment_method",
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const PAYMENT_INTENT_UPDATE_RESPONSE_JSON = `{
-  "id": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b",
+  "id": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b",
   "object": "payment_intent",
   "amount": 3500,
   "amount_capturable": 0,
@@ -443,7 +443,7 @@ const PAYMENT_INTENT_UPDATE_RESPONSE_JSON = `{
   "canceled_at": null,
   "cancellation_reason": null,
   "capture_method": "automatic_async",
-  "client_secret": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
+  "client_secret": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
   "confirmation_method": "automatic",
   "created": 1721486400,
   "currency": "usdc",
@@ -482,11 +482,11 @@ const PAYMENT_INTENT_UPDATE_RESPONSE_JSON = `{
   "status": "requires_payment_method",
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const PAYMENT_INTENT_CANCEL_RESPONSE_JSON = `{
-  "id": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b",
+  "id": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b",
   "object": "payment_intent",
   "amount": 3500,
   "amount_capturable": 0,
@@ -502,7 +502,7 @@ const PAYMENT_INTENT_CANCEL_RESPONSE_JSON = `{
   "canceled_at": 1721487123,
   "cancellation_reason": "requested_by_customer",
   "capture_method": "automatic_async",
-  "client_secret": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
+  "client_secret": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
   "confirmation_method": "automatic",
   "created": 1721486400,
   "currency": "usdc",
@@ -539,7 +539,7 @@ const PAYMENT_INTENT_CANCEL_RESPONSE_JSON = `{
   "status": "canceled",
   "transfer_data": null,
   "transfer_group": null,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const LIST_PAYMENT_INTENTS_RESPONSE_JSON = `{
@@ -548,7 +548,7 @@ const LIST_PAYMENT_INTENTS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b",
+      "id": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b",
       "object": "payment_intent",
       "amount": 3500,
       "amount_capturable": 0,
@@ -564,7 +564,7 @@ const LIST_PAYMENT_INTENTS_RESPONSE_JSON = `{
       "canceled_at": null,
       "cancellation_reason": null,
       "capture_method": "automatic_async",
-      "client_secret": "pi_z_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
+      "client_secret": "pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b_secret_mK8vLpQ2nR5wT9bHxJcF",
       "confirmation_method": "automatic",
       "created": 1721486400,
       "currency": "usdc",
@@ -601,18 +601,18 @@ const LIST_PAYMENT_INTENTS_RESPONSE_JSON = `{
       "status": "requires_payment_method",
       "transfer_data": null,
       "transfer_group": null,
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
 
 const LIST_LINE_ITEMS_RESPONSE_JSON = `{
   "object": "list",
-  "url": "/v1/payment_intents/pi_z_3PqK8mLkdIwHu7ix2nR5wT9b/amount_details_line_items",
+  "url": "/v1/payment_intents/pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b/amount_details_line_items",
   "has_more": false,
   "data": [
     {
-      "id": "uli_z_K8mWqR2vLpQbNx",
+      "id": "uli_fd_K8mWqR2vLpQbNx",
       "object": "payment_intent_amount_details_line_item",
       "discount_amount": 75,
       "payment_method_options": null,
@@ -637,7 +637,7 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless PaymentIntent IDs are prefixed with <code>pi_z_</code>.',
+      'Unique identifier for the object. FiatDesk PaymentIntent IDs are prefixed with <code>pi_fd_</code>.',
   },
   {
     name: 'object',
@@ -936,9 +936,9 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'customer',
@@ -1141,15 +1141,15 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless exposes only the <code>crypto</code> options bag for USDC wallet payments.',
+      '<strong>Difference from Stripe:</strong> FiatDesk exposes only the <code>crypto</code> options bag for USDC wallet payments.',
   },
   {
     name: 'payment_method_types',
     type: 'array of strings',
     description:
-      'The list of payment method types that this PaymentIntent is allowed to use. For Zoneless, this is typically <code>crypto</code>.',
+      'The list of payment method types that this PaymentIntent is allowed to use. For FiatDesk, this is typically <code>crypto</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'receipt_email',
@@ -1447,7 +1447,7 @@ const PAYMENT_INTENT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
     name: 'pending_charge_hash',
@@ -1456,7 +1456,7 @@ const PAYMENT_INTENT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'For a subscription invoice’s PaymentIntent: the hash of the on-chain charge sent for it and not settled yet, recorded before the charge is sent. The PaymentIntent is <code>processing</code> meanwhile, and the next billing run settles the charge by this hash, and every earlier one in <code>charge_hashes</code>, before sending anything else. <code>null</code> once it is settled.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'charge_hashes',
@@ -1464,7 +1464,7 @@ const PAYMENT_INTENT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "For a subscription invoice's PaymentIntent: every on-chain charge signed for it, oldest first, the original and any re-priced replacement. Each is recorded before it is sent, and the next billing run checks all of them: any one that collected pays the invoice.",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
@@ -1541,7 +1541,7 @@ const CREATE_PAYMENT_INTENT_PARAMETERS: Attribute[] = [
     description:
       'Three-letter currency code, in lowercase. Defaults to <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts only <code>usdc</code>.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts only <code>usdc</code>.',
   },
   {
     name: 'automatic_payment_methods',
@@ -1610,7 +1610,7 @@ const CREATE_PAYMENT_INTENT_PARAMETERS: Attribute[] = [
     name: 'payment_method_types',
     type: 'array of strings',
     description:
-      'The list of payment method types that this PaymentIntent can use. For Zoneless, pass <code>crypto</code>.',
+      'The list of payment method types that this PaymentIntent can use. For FiatDesk, pass <code>crypto</code>.',
     enumValues: [
       {
         value: 'crypto',
@@ -1804,7 +1804,7 @@ export const PAYMENT_INTENTS_CREATE_PAGE: DocPage = {
   id: 'create',
   title: 'Create a PaymentIntent',
   description:
-    'Creates a PaymentIntent object. After creation, attach a payment method and confirm the PaymentIntent to continue the payment. When you later confirm successfully, Zoneless creates the Charge that records the USDC settlement.',
+    'Creates a PaymentIntent object. After creation, attach a payment method and confirm the PaymentIntent to continue the payment. When you later confirm successfully, FiatDesk creates the Charge that records the USDC settlement.',
   endpoints: [{ method: 'POST', path: '/v1/payment_intents' }],
   sections: [
     {
@@ -1836,7 +1836,7 @@ export const PAYMENT_INTENTS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/payment_intents \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d amount=3500 \\
   -d currency=usdc \\
   -d "automatic_payment_methods[enabled]"=true`,
@@ -1846,7 +1846,7 @@ export const PAYMENT_INTENTS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentIntent = await zoneless.paymentIntents.create({
+const paymentIntent = await fiatdesk.paymentIntents.create({
   amount: 3500,
   currency: 'usdc',
   automatic_payment_methods: {
@@ -1877,7 +1877,7 @@ const UPDATE_PAYMENT_INTENT_PARAMETERS: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
   },
   {
     name: 'customer',
@@ -2022,7 +2022,7 @@ const UPDATE_PAYMENT_INTENT_MORE_PARAMETERS: Attribute[] = [
     name: 'payment_method_types',
     type: 'array of strings',
     description:
-      'The list of payment method types that this PaymentIntent can use. For Zoneless, pass <code>crypto</code>.',
+      'The list of payment method types that this PaymentIntent can use. For FiatDesk, pass <code>crypto</code>.',
     enumValues: [{ value: 'crypto' }],
   },
   {
@@ -2132,8 +2132,8 @@ export const PAYMENT_INTENTS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_z_3PqK8mLkdIwHu7ix2nR5wT9b \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=9142`,
             },
             {
@@ -2141,8 +2141,8 @@ export const PAYMENT_INTENTS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentIntent = await zoneless.paymentIntents.update(
-  'pi_z_3PqK8mLkdIwHu7ix2nR5wT9b',
+const paymentIntent = await fiatdesk.paymentIntents.update(
+  'pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b',
   {
     metadata: {
       order_id: '9142',
@@ -2204,16 +2204,16 @@ export const PAYMENT_INTENTS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_z_3PqK8mLkdIwHu7ix2nR5wT9b \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentIntent = await zoneless.paymentIntents.retrieve(
-  'pi_z_3PqK8mLkdIwHu7ix2nR5wT9b'
+const paymentIntent = await fiatdesk.paymentIntents.retrieve(
+  'pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b'
 );`,
             },
           ],
@@ -2260,7 +2260,7 @@ const LIST_PAYMENT_INTENTS_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Zoneless extension:</strong> The <code>incomplete</code> filter expands to all open PaymentIntent statuses for dashboard-style list views.',
+      '<strong>FiatDesk extension:</strong> The <code>incomplete</code> filter expands to all open PaymentIntent statuses for dashboard-style list views.',
   },
 ];
 
@@ -2277,7 +2277,7 @@ const LIST_PAYMENT_INTENTS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>pi_z_bar</code>, your subsequent call can include <code>ending_before=pi_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>pi_fd_bar</code>, your subsequent call can include <code>ending_before=pi_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -2289,7 +2289,7 @@ const LIST_PAYMENT_INTENTS_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>pi_z_foo</code>, your subsequent call can include <code>starting_after=pi_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>pi_fd_foo</code>, your subsequent call can include <code>starting_after=pi_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -2323,7 +2323,7 @@ export const PAYMENT_INTENTS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/payment_intents \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -2331,7 +2331,7 @@ export const PAYMENT_INTENTS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentIntents = await zoneless.paymentIntents.list({
+const paymentIntents = await fiatdesk.paymentIntents.list({
   limit: 3,
 });`,
             },
@@ -2409,16 +2409,16 @@ export const PAYMENT_INTENTS_AMOUNT_DETAILS_LINE_ITEMS_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -G https://api.yourdomain.com/v1/payment_intents/pi_z_3PqK8mLkdIwHu7ix2nR5wT9b/amount_details_line_items \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -G https://api.yourdomain.com/v1/payment_intents/pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b/amount_details_line_items \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const lineItems = await zoneless.paymentIntents.listAmountDetailsLineItems(
-  'pi_z_3PqK8mLkdIwHu7ix2nR5wT9b'
+const lineItems = await fiatdesk.paymentIntents.listAmountDetailsLineItems(
+  'pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b'
 );`,
             },
           ],
@@ -2479,8 +2479,8 @@ export const PAYMENT_INTENTS_CANCEL_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_z_3PqK8mLkdIwHu7ix2nR5wT9b/cancel \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/payment_intents/pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b/cancel \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d cancellation_reason=requested_by_customer`,
             },
             {
@@ -2488,8 +2488,8 @@ export const PAYMENT_INTENTS_CANCEL_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const paymentIntent = await zoneless.paymentIntents.cancel(
-  'pi_z_3PqK8mLkdIwHu7ix2nR5wT9b',
+const paymentIntent = await fiatdesk.paymentIntents.cancel(
+  'pi_fd_3PqK8mLkdIwHu7ix2nR5wT9b',
   {
     cancellation_reason: 'requested_by_customer',
   }

@@ -10,7 +10,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'This is the stable bootstrap document for a coding agent. The agent adds Zoneless as another way to pay for what you already sell, keeps your existing billing provider working, stays in test mode, and stops at the human authorization and production secret boundaries.',
+          text: 'This is the stable bootstrap document for a coding agent. The agent adds FiatDesk as another way to pay for what you already sell, keeps your existing billing provider working, stays in test mode, and stops at the human authorization and production secret boundaries.',
         },
         {
           type: 'callout',
@@ -37,21 +37,21 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Recurring stablecoin billing usually fails because a wallet cannot be charged without its owner present. Zoneless solves this with a one-time on-chain approval, so a USDC subscription behaves like a card subscription.',
+          text: 'Recurring stablecoin billing usually fails because a wallet cannot be charged without its owner present. FiatDesk solves this with a one-time on-chain approval, so a USDC subscription behaves like a card subscription.',
         },
         {
           type: 'list',
           items: [
             {
-              text: '<strong>You create a recurring price.</strong> Zoneless registers an on-chain plan holding the amount, the billing period, and the single wallet allowed to receive the money.',
+              text: '<strong>You create a recurring price.</strong> FiatDesk registers an on-chain plan holding the amount, the billing period, and the single wallet allowed to receive the money.',
               html: true,
             },
             {
-              text: '<strong>The customer approves once at checkout.</strong> They connect a wallet and sign an approval authorizing Zoneless to collect that exact amount, once per period, for that plan only.',
+              text: '<strong>The customer approves once at checkout.</strong> They connect a wallet and sign an approval authorizing FiatDesk to collect that exact amount, once per period, for that plan only.',
               html: true,
             },
             {
-              text: '<strong>Every later cycle is automatic.</strong> Zoneless collects the payment on schedule, creates an invoice, and sends you a webhook. The customer never signs again and does not need to be online.',
+              text: '<strong>Every later cycle is automatic.</strong> FiatDesk collects the payment on schedule, creates an invoice, and sends you a webhook. The customer never signs again and does not need to be online.',
               html: true,
             },
             {
@@ -91,7 +91,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
             {
               id: 'shell',
               label: 'Shell',
-              code: `npx @zoneless/cli@latest agent setup \\
+              code: `npx @fiatdesk/cli@latest agent setup \\
   --platform-name "<product name>" \\
   --skill payments \\
   --json`,
@@ -113,12 +113,12 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The CLI binds this repository to the provisioned profiles in <code>.zoneless/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
+          text: 'The CLI binds this repository to the provisioned profiles in <code>.fiatdesk/project.json</code> and selects test by default. Build and verify with <code>https://api.yourdomain.com</code>; keep mode environment-driven and leave live promotion to the human handoff.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'Setup validates stored keys before reuse. If it reports <code>credentials_invalid</code>, run <code>npx @zoneless/cli@latest auth reconnect --json</code> and show the new authorization prompt to the human. For local testing, run <code>npx @zoneless/cli@latest env sync --json</code>; it finds an unambiguous env file, preserves unrelated values, and writes the bound test credentials without displaying them. Collecting payments needs no wallet key in your application, so do not pass <code>--include-wallet</code>. The synced <code>ZONELESS_API_URL</code> is an origin without <code>/v1</code>; pass it directly to <code>@zoneless/node</code>, which adds the API path.',
+          text: 'Setup validates stored keys before reuse. If it reports <code>credentials_invalid</code>, run <code>npx @fiatdesk/cli@latest auth reconnect --json</code> and show the new authorization prompt to the human. For local testing, run <code>npx @fiatdesk/cli@latest env sync --json</code>; it finds an unambiguous env file, preserves unrelated values, and writes the bound test credentials without displaying them. Collecting payments needs no wallet key in your application, so do not pass <code>--include-wallet</code>. The synced <code>FIATDESK_API_URL</code> is an origin without <code>/v1</code>; pass it directly to <code>@fiatdesk/node</code>, which adds the API path.',
           html: true,
         },
         {
@@ -138,7 +138,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'After approval, parse the successful JSON response and read the file at <code>skill_path</code> before changing application code. The CLI installs the versioned <code>zoneless-payments</code> skill locally and returns its exact path, so this flow does not depend on automatic skill discovery.',
+          text: 'After approval, parse the successful JSON response and read the file at <code>skill_path</code> before changing application code. The CLI installs the versioned <code>fiatdesk-payments</code> skill locally and returns its exact path, so this flow does not depend on automatic skill discovery.',
           html: true,
         },
         {
@@ -174,7 +174,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Mirror each existing plan with a Zoneless recurring price at the same amount and cadence, then map that price onto the existing plan record. Use the CLI for catalog setup rather than improvising raw API requests.',
+          text: 'Mirror each existing plan with a FiatDesk recurring price at the same amount and cadence, then map that price onto the existing plan record. Use the CLI for catalog setup rather than improvising raw API requests.',
         },
         {
           type: 'list',
@@ -184,15 +184,15 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<strong>One entitlement record.</strong> Write access from Zoneless into the same field the existing provider already writes, so nothing else in the application has to change.',
+              text: '<strong>One entitlement record.</strong> Write access from FiatDesk into the same field the existing provider already writes, so nothing else in the application has to change.',
               html: true,
             },
             {
-              text: '<strong>One active provider per billing subject.</strong> Store a <code>billingProvider</code> value alongside the Zoneless subscription ID on the record that owns the entitlement. Independently billed subjects may use different providers.',
+              text: '<strong>One active provider per billing subject.</strong> Store a <code>billingProvider</code> value alongside the FiatDesk subscription ID on the record that owns the entitlement. Independently billed subjects may use different providers.',
               html: true,
             },
             {
-              text: '<strong>No double billing for the same subject.</strong> Enforce on the server that a billing subject with an active subscription elsewhere cancels or reaches period end before starting a Zoneless one.',
+              text: '<strong>No double billing for the same subject.</strong> Enforce on the server that a billing subject with an active subscription elsewhere cancels or reaches period end before starting a FiatDesk one.',
               html: true,
             },
           ],
@@ -211,7 +211,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
             {
               id: 'shell',
               label: 'Shell',
-              code: `npx @zoneless/cli@latest store init \\
+              code: `npx @fiatdesk/cli@latest store init \\
   --name "Pro" \\
   --amount 2000 \\
   --interval month \\
@@ -235,7 +235,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The success redirect proves only that the browser came back. Treat verified webhook events as the only source of truth, reusing the existing webhook route, preserving the raw body, verifying <code>Zoneless-Signature</code>, and making duplicate events safe by recording <code>event.id</code>.',
+          text: 'The success redirect proves only that the browser came back. Treat verified webhook events as the only source of truth, reusing the existing webhook route, preserving the raw body, verifying <code>FiatDesk-Signature</code>, and making duplicate events safe by recording <code>event.id</code>.',
           html: true,
         },
         {
@@ -266,7 +266,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: "Route cancellation by provider. Zoneless subscription cancellation belongs in the application's existing billing UI, either at period end or immediately.",
+          text: "Route cancellation by provider. FiatDesk subscription cancellation belongs in the application's existing billing UI, either at period end or immediately.",
         },
       ],
       right: [
@@ -279,7 +279,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
               label: 'Node',
               code: `const session = await client.checkout.sessions.create({
   mode: 'subscription',
-  line_items: [{ price: plan.zonelessPriceId, quantity: 1 }],
+  line_items: [{ price: plan.fiatdeskPriceId, quantity: 1 }],
   client_reference_id: billingSubject.id,
   success_url: 'https://example.com/billing/success',
 });`,
@@ -297,7 +297,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: "Zoneless must be able to send signed events to the application's server-side webhook route. Use the deployed test URL, or expose localhost through a separate HTTPS tunnel such as ngrok or Cloudflare Tunnel. Then run the CLI command; it creates or updates the test endpoint, selects the standard subscription events, stores the one-time signing secret securely, and writes <code>ZONELESS_WEBHOOK_SECRET</code> to the local env file without printing it.",
+          text: "FiatDesk must be able to send signed events to the application's server-side webhook route. Use the deployed test URL, or expose localhost through a separate HTTPS tunnel such as ngrok or Cloudflare Tunnel. Then run the CLI command; it creates or updates the test endpoint, selects the standard subscription events, stores the one-time signing secret securely, and writes <code>FIATDESK_WEBHOOK_SECRET</code> to the local env file without printing it.",
           html: true,
         },
         {
@@ -309,7 +309,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Manual dashboard fallback',
-          text: 'Open the <a href="https://pay.yourdomain.com/account/developers">test Developers dashboard</a>, choose <strong>Developers</strong> in the side menu, find <strong>Webhook Endpoints</strong>, and choose <strong>Add endpoint</strong>. Enter the public URL, select <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>customer.subscription.updated</code>, and <code>customer.subscription.deleted</code>, then choose <strong>Create</strong>. Copy the displayed one-time secret directly into the server environment as <code>ZONELESS_WEBHOOK_SECRET</code> and restart the server. Never paste the secret into chat or browser code.',
+          text: 'Open the <a href="https://pay.yourdomain.com/account/developers">test Developers dashboard</a>, choose <strong>Developers</strong> in the side menu, find <strong>Webhook Endpoints</strong>, and choose <strong>Add endpoint</strong>. Enter the public URL, select <code>checkout.session.completed</code>, <code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>customer.subscription.updated</code>, and <code>customer.subscription.deleted</code>, then choose <strong>Create</strong>. Copy the displayed one-time secret directly into the server environment as <code>FIATDESK_WEBHOOK_SECRET</code> and restart the server. Never paste the secret into chat or browser code.',
           html: true,
         },
       ],
@@ -321,8 +321,8 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
             {
               id: 'shell',
               label: 'Shell',
-              code: `npx @zoneless/cli@latest webhook sync \\
-  --url "https://YOUR-PUBLIC-HOST/api/webhooks/zoneless" \\
+              code: `npx @fiatdesk/cli@latest webhook sync \\
+  --url "https://YOUR-PUBLIC-HOST/api/webhooks/fiatdesk" \\
   --preset subscriptions \\
   --json`,
             },
@@ -362,7 +362,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Report changed files, any existing-provider behavior that changed, the plans mirrored with their Zoneless price IDs, migrations, deployment commands, and the required environment-variable names. Distinguish static checks, unit tests, hosted-checkout verification, and completed end-to-end payments. Tell the human where to configure the API key and webhook secret without requesting either value.',
+          text: 'Report changed files, any existing-provider behavior that changed, the plans mirrored with their FiatDesk price IDs, migrations, deployment commands, and the required environment-variable names. Distinguish static checks, unit tests, hosted-checkout verification, and completed end-to-end payments. Tell the human where to configure the API key and webhook secret without requesting either value.',
         },
         {
           type: 'paragraph',

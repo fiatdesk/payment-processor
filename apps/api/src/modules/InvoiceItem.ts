@@ -23,7 +23,7 @@ import {
   Price as PriceType,
   QueryOperators,
   Subscription as SubscriptionType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ExpandableId, StripUndefined, ValidateUpdate } from './Util';
 import {
   CreateInvoiceItemSchema,
@@ -31,7 +31,7 @@ import {
   UpdateInvoiceItemSchema,
   UpdateInvoiceItemInput,
   ListInvoiceItemsFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

@@ -1,4 +1,4 @@
-import { CheckoutSession, CustomerAddress } from '@zoneless/shared-types';
+import { CheckoutSession, CustomerAddress } from '@fiatdesk/shared-types';
 import { GetCountryName } from '../../../utils';
 import { CustomFieldLabel } from './checkout-collection';
 import { DEFAULT_CHECKOUT_CONFIRMATION_MESSAGE } from './checkout-format';

@@ -28,10 +28,10 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const CUSTOMER_ID = 'cus_z_1';
-const PRICE_ID = 'price_z_1';
-const SUBSCRIPTION_ID = 'sub_z_1';
+const PLATFORM = 'acct_fd_platform';
+const CUSTOMER_ID = 'cus_fd_1';
+const PRICE_ID = 'price_fd_1';
+const SUBSCRIPTION_ID = 'sub_fd_1';
 
 describe('SubscriptionModule - Subscription Items', () => {
   let module: SubscriptionModule;
@@ -100,7 +100,7 @@ describe('SubscriptionModule - Subscription Items', () => {
       GetPrice: jest.fn().mockResolvedValue({
         id: PRICE_ID,
         platform_account: PLATFORM,
-        product: 'prod_z_1',
+        product: 'prod_fd_1',
         unit_amount: 1099,
         unit_amount_decimal: '1099',
         currency: 'usdc',

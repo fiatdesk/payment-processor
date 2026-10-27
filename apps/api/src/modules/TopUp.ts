@@ -28,11 +28,11 @@ import {
   TopUpStatus,
   TopUpSource,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { GetSettlement, SIMULATED_TEST_WALLET } from './chains/Settlement';
 import type { IncomingDeposit } from './chains/types';
-import { CreateTopUpInput, UpdateTopUpInput } from '@zoneless/shared-schemas';
+import { CreateTopUpInput, UpdateTopUpInput } from '@fiatdesk/shared-schemas';
 
 /** Metadata keys that identify the Transfer log a top-up credits. */
 const DEPOSIT_KEY_FIELDS = ['blockchain_tx', 'log_index'];
@@ -516,7 +516,7 @@ export class TopUpModule {
       statement_descriptor: options.statementDescriptor ?? null,
       status: 'pending',
       transfer_group: options.transferGroup ?? null,
-      // Zoneless extensions
+      // FiatDesk extensions
       account: account,
       platform_account: account, // TopUps are always for platform accounts
       arrival_date: null,

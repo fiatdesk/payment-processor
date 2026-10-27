@@ -19,7 +19,7 @@ import {
   ChargeBillingDetails,
   EventType,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { ExtractChangedFields } from './Event';
 import {
@@ -30,7 +30,7 @@ import {
   CaptureChargeSchema,
   CaptureChargeInput,
   ListChargesFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

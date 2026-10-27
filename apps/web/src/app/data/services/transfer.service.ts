@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../core';
-import type { Transfer } from '@zoneless/shared-types';
-import type { CreateTransferInput } from '@zoneless/shared-schemas';
+import type { Transfer } from '@fiatdesk/shared-types';
+import type { CreateTransferInput } from '@fiatdesk/shared-schemas';
 
 @Injectable({
   providedIn: 'root',
@@ -17,7 +17,7 @@ export class TransferService {
   }
 
   /**
-   * Create a transfer on behalf of a connected account (Zoneless-Account header).
+   * Create a transfer on behalf of a connected account (FiatDesk-Account header).
    * The connected account is the source; destination is typically the platform.
    */
   async CreateTransferForConnectedAccount(
@@ -25,7 +25,7 @@ export class TransferService {
     input: CreateTransferInput
   ): Promise<Transfer> {
     return this.api.Call<Transfer>('POST', 'transfers', input, {
-      zonelessAccount: connectedAccountId,
+      fiatdeskAccount: connectedAccountId,
     });
   }
 

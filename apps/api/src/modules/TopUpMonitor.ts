@@ -40,7 +40,7 @@ import {
   type Settlement,
 } from './chains/Settlement';
 import { EventService } from './EventService';
-import { TopUp, CheckDepositsResponse } from '@zoneless/shared-types';
+import { TopUp, CheckDepositsResponse } from '@fiatdesk/shared-types';
 import { Logger } from '../utils/Logger';
 
 // Hardcoded TopUp settings

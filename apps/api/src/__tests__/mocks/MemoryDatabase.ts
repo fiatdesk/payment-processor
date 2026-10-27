@@ -10,7 +10,7 @@
  * `Database` is expected with `AsDatabase()`.
  */
 
-import type { QueryParameters } from '@zoneless/shared-types';
+import type { QueryParameters } from '@fiatdesk/shared-types';
 import type { Database } from '../../modules/Database';
 
 type Doc = Record<string, unknown>;

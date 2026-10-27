@@ -9,7 +9,7 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'If you don\'t have an account yet, <a href="https://pay.yourdomain.com">sign up</a>, then open your Zoneless dashboard.',
+          text: 'If you don\'t have an account yet, <a href="https://pay.yourdomain.com">sign up</a>, then open your FiatDesk dashboard.',
           html: true,
         },
         {

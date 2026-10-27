@@ -20,10 +20,10 @@ export const TOPUPS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const TOPUP_OBJECT_JSON = `{
-  "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+  "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
   "object": "topup",
   "amount": 200000,
-  "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
+  "balance_transaction": "txn_fd_1NG6yjLkdIwHu7ixNCZvFdgB",
   "created": 1704067200,
   "currency": "usdc",
   "description": "Deposit from 0x14366C...",
@@ -38,9 +38,9 @@ const TOPUP_OBJECT_JSON = `{
     "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
     "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
   },
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source": {
-    "id": "src_z_1NG6yjLkdIwHu7ixNCZvFdgC",
+    "id": "src_fd_1NG6yjLkdIwHu7ixNCZvFdgC",
     "object": "source",
     "type": "crypto_deposit",
     "metadata": {}
@@ -48,12 +48,12 @@ const TOPUP_OBJECT_JSON = `{
   "statement_descriptor": null,
   "status": "succeeded",
   "transfer_group": null,
-  "account": "acct_z_Platform123abc",
+  "account": "acct_fd_Platform123abc",
   "arrival_date": 1704067200
 }`;
 
 const TOPUP_PENDING_JSON = `{
-  "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+  "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
   "object": "topup",
   "amount": 200000,
   "balance_transaction": null,
@@ -65,12 +65,12 @@ const TOPUP_PENDING_JSON = `{
   "failure_message": null,
   "livemode": false,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source": null,
   "statement_descriptor": null,
   "status": "pending",
   "transfer_group": null,
-  "account": "acct_z_Platform123abc",
+  "account": "acct_fd_Platform123abc",
   "arrival_date": null
 }`;
 
@@ -82,7 +82,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless top-up IDs are prefixed with <code>tu_z_</code>.',
+      'Unique identifier for the object. FiatDesk top-up IDs are prefixed with <code>tu_fd_</code>.',
   },
   {
     name: 'object',
@@ -113,7 +113,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -129,7 +129,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     type: 'timestamp',
     nullable: true,
     description:
-      'Date the funds are expected to arrive in your Zoneless account. May not be specified depending on status of top-up.',
+      'Date the funds are expected to arrive in your FiatDesk account. May not be specified depending on status of top-up.',
     enumNote:
       '<strong>Difference from Stripe:</strong> USDC deposits on Ethereum are available as soon as the transfer has <code>ETH_CONFIRMATIONS</code> block confirmations (2 by default, usually under a minute), unlike bank transfers.',
   },
@@ -165,7 +165,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
     nullable: true,
     description: 'Information about the funding source for this top-up.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless uses a simplified source object with type <code>crypto_deposit</code> for blockchain deposits.',
+      '<strong>Difference from Stripe:</strong> FiatDesk uses a simplified source object with type <code>crypto_deposit</code> for blockchain deposits.',
     expandable: true,
     children: [
       {
@@ -183,7 +183,7 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
         name: 'type',
         type: 'string',
         description:
-          'The type of source. For Zoneless, this is <code>crypto_deposit</code>.',
+          'The type of source. For FiatDesk, this is <code>crypto_deposit</code>.',
       },
       {
         name: 'metadata',
@@ -237,7 +237,7 @@ const TOPUP_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The platform account this top-up belongs to.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It identifies which platform account the funds were deposited to.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It identifies which platform account the funds were deposited to.",
   },
   {
     name: 'arrival_date',
@@ -246,7 +246,7 @@ const TOPUP_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Unix timestamp in seconds when funds actually arrived. <code>null</code> if the top-up is still pending.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'platform_account',
@@ -254,7 +254,7 @@ const TOPUP_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -265,7 +265,7 @@ export const TOPUPS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Top-up object',
   description:
-    'To top up your Zoneless balance in live mode, send USDC on Ethereum to your platform wallet. Once the funds are detected, a top-up object is created and your balance is increased. In test mode, add simulated USDC from the dashboard instead. You can retrieve individual top-ups, as well as list all top-ups. Top-ups are identified by a unique, random ID.',
+    'To top up your FiatDesk balance in live mode, send USDC on Ethereum to your platform wallet. Once the funds are detected, a top-up object is created and your balance is increased. In test mode, add simulated USDC from the dashboard instead. You can retrieve individual top-ups, as well as list all top-ups. Top-ups are identified by a unique, random ID.',
   stripeDocsUrl: 'https://docs.stripe.com/api/topups',
   endpoints: BuildEndpointSummaries(TOPUPS_SUBSECTION, [
     { method: 'POST', path: '/v1/topups', pageId: 'create' },
@@ -320,7 +320,7 @@ const CREATE_TOPUP_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currencies.',
   },
@@ -392,7 +392,7 @@ export const TOPUPS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/topups \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d amount=200000 \\
   -d currency=usdc \\
   -d description="Platform balance top-up"`,
@@ -402,7 +402,7 @@ export const TOPUPS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const topup = await zoneless.topups.create({
+const topup = await fiatdesk.topups.create({
   amount: 200000,
   currency: 'usdc',
   description: 'Platform balance top-up',
@@ -435,10 +435,10 @@ const UPDATE_TOPUP_PARAMETERS: Attribute[] = [
 ];
 
 const TOPUP_UPDATE_RESPONSE_JSON = `{
-  "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+  "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
   "object": "topup",
   "amount": 200000,
-  "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
+  "balance_transaction": "txn_fd_1NG6yjLkdIwHu7ixNCZvFdgB",
   "created": 1704067200,
   "currency": "usdc",
   "description": "Q1 2024 operating funds",
@@ -454,9 +454,9 @@ const TOPUP_UPDATE_RESPONSE_JSON = `{
     "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7",
     "order_id": "6735"
   },
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source": {
-    "id": "src_z_1NG6yjLkdIwHu7ixNCZvFdgC",
+    "id": "src_fd_1NG6yjLkdIwHu7ixNCZvFdgC",
     "object": "source",
     "type": "crypto_deposit",
     "metadata": {}
@@ -464,7 +464,7 @@ const TOPUP_UPDATE_RESPONSE_JSON = `{
   "statement_descriptor": null,
   "status": "succeeded",
   "transfer_group": null,
-  "account": "acct_z_Platform123abc",
+  "account": "acct_fd_Platform123abc",
   "arrival_date": 1704067200
 }`;
 
@@ -497,8 +497,8 @@ export const TOPUPS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/topups/tu_z_1NG6yj2eZvKYlo2C1FOBiHya \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/topups/tu_fd_1NG6yj2eZvKYlo2C1FOBiHya \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d description="Q1 2024 operating funds" \\
   -d "metadata[order_id]"=6735`,
             },
@@ -507,8 +507,8 @@ export const TOPUPS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const topup = await zoneless.topups.update(
-  'tu_z_1NG6yj2eZvKYlo2C1FOBiHya',
+const topup = await fiatdesk.topups.update(
+  'tu_fd_1NG6yj2eZvKYlo2C1FOBiHya',
   {
     description: 'Q1 2024 operating funds',
     metadata: {
@@ -532,7 +532,7 @@ export const TOPUPS_RETRIEVE_PAGE: DocPage = {
   id: 'retrieve',
   title: 'Retrieve a top-up',
   description:
-    'Retrieves the details of a top-up that has previously been created. Supply the unique top-up ID that was returned from your previous request, and Zoneless will return the corresponding top-up information.',
+    'Retrieves the details of a top-up that has previously been created. Supply the unique top-up ID that was returned from your previous request, and FiatDesk will return the corresponding top-up information.',
   endpoints: [{ method: 'GET', path: '/v1/topups/:id' }],
   sections: [
     {
@@ -554,16 +554,16 @@ export const TOPUPS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/topups/tu_z_1NG6yj2eZvKYlo2C1FOBiHya \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/topups/tu_fd_1NG6yj2eZvKYlo2C1FOBiHya \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const topup = await zoneless.topups.retrieve(
-  'tu_z_1NG6yj2eZvKYlo2C1FOBiHya'
+const topup = await fiatdesk.topups.retrieve(
+  'tu_fd_1NG6yj2eZvKYlo2C1FOBiHya'
 );`,
             },
           ],
@@ -649,7 +649,7 @@ const LIST_TOPUPS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tu_z_bar</code>, your subsequent call can include <code>ending_before=tu_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tu_fd_bar</code>, your subsequent call can include <code>ending_before=tu_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -661,7 +661,7 @@ const LIST_TOPUPS_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tu_z_foo</code>, your subsequent call can include <code>starting_after=tu_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tu_fd_foo</code>, your subsequent call can include <code>starting_after=tu_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -671,10 +671,10 @@ const LIST_TOPUPS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+      "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
       "object": "topup",
       "amount": 200000,
-      "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
+      "balance_transaction": "txn_fd_1NG6yjLkdIwHu7ixNCZvFdgB",
       "created": 1704067200,
       "currency": "usdc",
       "description": "Deposit from 0x14366C...",
@@ -689,9 +689,9 @@ const LIST_TOPUPS_RESPONSE_JSON = `{
         "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
         "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
       },
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "source": {
-        "id": "src_z_1NG6yjLkdIwHu7ixNCZvFdgC",
+        "id": "src_fd_1NG6yjLkdIwHu7ixNCZvFdgC",
         "object": "source",
         "type": "crypto_deposit",
         "metadata": {}
@@ -699,7 +699,7 @@ const LIST_TOPUPS_RESPONSE_JSON = `{
       "statement_descriptor": null,
       "status": "succeeded",
       "transfer_group": null,
-      "account": "acct_z_Platform123abc",
+      "account": "acct_fd_Platform123abc",
       "arrival_date": 1704067200
     }
   ]
@@ -736,7 +736,7 @@ export const TOPUPS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/topups \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -744,7 +744,7 @@ export const TOPUPS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const topups = await zoneless.topups.list({
+const topups = await fiatdesk.topups.list({
   limit: 3,
 });`,
             },
@@ -764,7 +764,7 @@ const topups = await zoneless.topups.list({
 // Cancel Top-up
 // ============================================
 const TOPUP_CANCELED_RESPONSE_JSON = `{
-  "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+  "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
   "object": "topup",
   "amount": 200000,
   "balance_transaction": null,
@@ -776,12 +776,12 @@ const TOPUP_CANCELED_RESPONSE_JSON = `{
   "failure_message": null,
   "livemode": false,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "source": null,
   "statement_descriptor": null,
   "status": "canceled",
   "transfer_group": null,
-  "account": "acct_z_Platform123abc",
+  "account": "acct_fd_Platform123abc",
   "arrival_date": null
 }`;
 
@@ -817,16 +817,16 @@ export const TOPUPS_CANCEL_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X POST https://api.yourdomain.com/v1/topups/tu_z_1NG6yj2eZvKYlo2C1FOBiHya/cancel \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X POST https://api.yourdomain.com/v1/topups/tu_fd_1NG6yj2eZvKYlo2C1FOBiHya/cancel \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const topup = await zoneless.topups.cancel(
-  'tu_z_1NG6yj2eZvKYlo2C1FOBiHya'
+const topup = await fiatdesk.topups.cancel(
+  'tu_fd_1NG6yj2eZvKYlo2C1FOBiHya'
 );`,
             },
           ],
@@ -842,7 +842,7 @@ const topup = await zoneless.topups.cancel(
 };
 
 // ============================================
-// Check Deposits (Zoneless Extension)
+// Check Deposits (FiatDesk Extension)
 // ============================================
 const CHECK_DEPOSITS_RESPONSE_JSON = `{
   "object": "check_deposits_result",
@@ -850,10 +850,10 @@ const CHECK_DEPOSITS_RESPONSE_JSON = `{
   "errors": 0,
   "topups": [
     {
-      "id": "tu_z_1NG6yj2eZvKYlo2C1FOBiHya",
+      "id": "tu_fd_1NG6yj2eZvKYlo2C1FOBiHya",
       "object": "topup",
       "amount": 200000,
-      "balance_transaction": "txn_z_1NG6yjLkdIwHu7ixNCZvFdgB",
+      "balance_transaction": "txn_fd_1NG6yjLkdIwHu7ixNCZvFdgB",
       "created": 1704067200,
       "currency": "usdc",
       "description": "Deposit from 0x14366C...",
@@ -868,9 +868,9 @@ const CHECK_DEPOSITS_RESPONSE_JSON = `{
         "sender_address": "0x14366C1333912f39359d0dd5a84D6a5e2c71d8Ad",
         "explorer_url": "https://sepolia.etherscan.io/tx/0x0379e301d26accf520b5361af73ce0f2f4a94e4778f6e7cbed43bd764aa2c9d7"
       },
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "source": {
-        "id": "src_z_1NG6yjLkdIwHu7ixNCZvFdgC",
+        "id": "src_fd_1NG6yjLkdIwHu7ixNCZvFdgC",
         "object": "source",
         "type": "crypto_deposit",
         "metadata": {}
@@ -878,7 +878,7 @@ const CHECK_DEPOSITS_RESPONSE_JSON = `{
       "statement_descriptor": null,
       "status": "succeeded",
       "transfer_group": null,
-      "account": "acct_z_Platform123abc",
+      "account": "acct_fd_Platform123abc",
       "arrival_date": 1704067200
     }
   ],
@@ -897,8 +897,8 @@ export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
-          text: "This endpoint is specific to Zoneless and is not available in Stripe's API. It enables automatic detection of USDC deposits to your platform wallet.",
+          title: 'FiatDesk extension: ',
+          text: "This endpoint is specific to FiatDesk and is not available in Stripe's API. It enables automatic detection of USDC deposits to your platform wallet.",
         },
         {
           type: 'paragraph',
@@ -983,14 +983,14 @@ export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -X POST https://api.yourdomain.com/v1/topups/check-deposits \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const result = await zoneless.topups.checkDeposits();
+const result = await fiatdesk.topups.checkDeposits();
 
 console.log(\`Processed \${result.processed} deposits\`);
 for (const topup of result.topups) {

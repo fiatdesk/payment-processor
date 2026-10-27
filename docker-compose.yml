@@ -1,14 +1,14 @@
 services:
   mongodb:
     image: mongo:7
-    container_name: zoneless-mongodb
+    container_name: fiatdesk-mongodb
     restart: unless-stopped
     ports:
       - '27017:27017'
     volumes:
       - mongodb_data:/data/db
     environment:
-      - MONGO_INITDB_DATABASE=zoneless
+      - MONGO_INITDB_DATABASE=fiatdesk
     command: ["--replSet", "rs0", "--bind_ip_all"]
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch(e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}).ok }"]
@@ -17,14 +17,14 @@ services:
       start_period: 30s
       retries: 5
     networks:
-      zoneless-network:
+      fiatdesk-network:
         aliases:
           - mongo
 
   # MongoDB admin UI (local development only — not included in production deployments)
   mongo-express:
     image: mongo-express:latest
-    container_name: zoneless-mongo-express
+    container_name: fiatdesk-mongo-express
     restart: unless-stopped
     ports:
       - '8082:8081'
@@ -36,21 +36,21 @@ services:
       mongodb:
         condition: service_healthy
     networks:
-      - zoneless-network
+      - fiatdesk-network
 
-  # Zoneless API
+  # FiatDesk API
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
-    container_name: zoneless-api
+    container_name: fiatdesk-api
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - '${API_PORT:-3333}:${API_PORT:-3333}'
     environment:
-      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/zoneless?directConnection=true}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/fiatdesk?directConnection=true}
       - DASHBOARD_URL=${DASHBOARD_URL:-}
       - CHECKOUT_URL=${CHECKOUT_URL:-}
       - PAYMENT_LINK_URL=${PAYMENT_LINK_URL:-}
@@ -70,14 +70,14 @@ services:
       mongodb:
         condition: service_healthy
     networks:
-      - zoneless-network
+      - fiatdesk-network
 
-  # Zoneless Dashboard (Angular + nginx)
+  # FiatDesk Dashboard (Angular + nginx)
   web:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
-    container_name: zoneless-web
+    container_name: fiatdesk-web
     restart: unless-stopped
     ports:
       - '${DASHBOARD_PORT:-80}:80'
@@ -86,12 +86,12 @@ services:
     depends_on:
       - api
     networks:
-      - zoneless-network
+      - fiatdesk-network
 
 volumes:
   mongodb_data:
     driver: local
 
 networks:
-  zoneless-network:
+  fiatdesk-network:
     driver: bridge

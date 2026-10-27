@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 const distDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const files = ['index.d.ts', 'index.js', 'index.mjs'];
 const forbidden = [
-  "from '@zoneless/shared-types'",
-  'from "@zoneless/shared-types"',
-  "from '@zoneless/shared-schemas'",
-  'from "@zoneless/shared-schemas"',
+  "from '@fiatdesk/shared-types'",
+  'from "@fiatdesk/shared-types"',
+  "from '@fiatdesk/shared-schemas'",
+  'from "@fiatdesk/shared-schemas"',
   "from 'zod'",
   'from "zod"',
   'libphonenumber-js',

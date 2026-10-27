@@ -5,7 +5,7 @@ import {
   CheckoutSessionDeleted,
   CheckoutSessionLineItem,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateCheckoutSessionInput,
   UpdateCheckoutSessionInput,

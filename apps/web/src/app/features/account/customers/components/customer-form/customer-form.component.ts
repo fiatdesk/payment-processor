@@ -12,12 +12,12 @@ import {
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Customer, CustomerAddress } from '@zoneless/shared-types';
+import { Customer, CustomerAddress } from '@fiatdesk/shared-types';
 import { ConfigService } from '../../../../../data';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { MetadataEditorComponent } from '../../../components';
 import { ISO_CODES, GetCountryDialCode } from '../../../../../utils';
 

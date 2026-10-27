@@ -20,7 +20,7 @@ import {
   AccountController,
   AccountBusinessProfile,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import {
   CreateAccountSchema,
@@ -32,7 +32,7 @@ import {
   ConnectedAccountStatusFilter,
   IsRejectedAccountReason,
   HasPayoutVolumeThresholdRules,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import {
   ListHelper,
   ListOptions,
@@ -148,8 +148,8 @@ export class AccountModule {
       },
       losses: { payments: 'application' },
       requirement_collection:
-        accountType === 'custom' ? 'application' : 'zoneless',
-      zoneless_dashboard: {
+        accountType === 'custom' ? 'application' : 'fiatdesk',
+      fiatdesk_dashboard: {
         type:
           accountType === 'express'
             ? 'express'
@@ -416,11 +416,11 @@ export class AccountModule {
 
   /**
    * Search connected accounts by email, name, account id, or verification
-   * session id. Zoneless extension — not part of Stripe's Accounts API.
+   * session id. FiatDesk extension — not part of Stripe's Accounts API.
    *
    * Matches account email / business name / display name / id, person
    * email / first name / last name / full name, and verification sessions
-   * (`vs_z...` or Didit `provider_session_id`) under the same platform.
+   * (`vs_fd...` or Didit `provider_session_id`) under the same platform.
    */
   async SearchAccounts(
     platformAccountId: string,

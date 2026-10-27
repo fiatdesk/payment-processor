@@ -43,7 +43,7 @@ import {
   GetIdentityDocumentTaskTitle,
   NeedsIdentityDocumentRemediation,
 } from '../connected-accounts/util/identity-requirements';
-import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
+import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 
 @Component({
   selector: 'app-settings',

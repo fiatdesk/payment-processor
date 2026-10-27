@@ -18,7 +18,7 @@ export const PRICES_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const PRICES_OBJECT_JSON = `{
-  "id": "price_z_yXmLn04Bpw9Wbjx2",
+  "id": "price_fd_yXmLn04Bpw9Wbjx2",
   "object": "price",
   "active": true,
   "billing_scheme": "per_unit",
@@ -29,7 +29,7 @@ const PRICES_OBJECT_JSON = `{
   "lookup_key": null,
   "metadata": {},
   "nickname": "Pro Plan Price",
-  "product": "prod_z_oJaYlHpf6YmRzCMm",
+  "product": "prod_fd_oJaYlHpf6YmRzCMm",
   "recurring": {
     "aggregate_usage": null,
     "interval": "month",
@@ -467,7 +467,7 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The platform account that owns this resource.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
     name: 'subscription_plan_id',
@@ -476,7 +476,7 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'The plan key of this recurring price on the Subscriptions contract (32 bytes as <code>0x</code> hex). Creating a recurring price registers the plan from <code>SUBSCRIPTION_OPERATOR_KEY</code>, which owns it and collects each period: the price’s amount at most once per billing period of <code>interval</code> × <code>interval_count</code>, paid to the platform wallet. The plan’s amount and period never change, so a subscription on this price bills one unit of it per period: quantities above 1, more items, and invoice items, prorations or tax that would make an invoice larger than <code>unit_amount</code> are refused with <code>onchain_plan_amount_exceeded</code>. <code>null</code> for one-time prices.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
@@ -968,7 +968,7 @@ export const PRICES_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/prices \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d currency=usdc \\
   -d unit_amount=1000 \\
   -d "recurring[interval]=month" \\
@@ -979,7 +979,7 @@ export const PRICES_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const price = await zoneless.prices.create({
+const price = await fiatdesk.prices.create({
   currency: 'usdc',
   unit_amount: 1000,
   recurring: {
@@ -1157,7 +1157,7 @@ const UPDATE_PRICE_MORE_PARAMETERS: Attribute[] = [
 // Shared Data
 // ============================================
 const PRICES_UPDATE_JSON = `{
-  "id": "price_z_yXmLn04Bpw9Wbjx2",
+  "id": "price_fd_yXmLn04Bpw9Wbjx2",
   "object": "price",
   "active": true,
   "billing_scheme": "per_unit",
@@ -1170,7 +1170,7 @@ const PRICES_UPDATE_JSON = `{
     "order_id": "1234"
   },
   "nickname": "Pro Plan Price",
-  "product": "prod_z_oJaYlHpf6YmRzCMm",
+  "product": "prod_fd_oJaYlHpf6YmRzCMm",
   "recurring": {
     "aggregate_usage": null,
     "interval": "month",
@@ -1217,8 +1217,8 @@ export const PRICES_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/prices/price_z_yXmLn04Bpw9Wbjx2 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/prices/price_fd_yXmLn04Bpw9Wbjx2 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=1234`,
             },
             {
@@ -1226,7 +1226,7 @@ export const PRICES_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const price = await zoneless.prices.update('price_z_yXmLn04Bpw9Wbjx2', {
+const price = await fiatdesk.prices.update('price_fd_yXmLn04Bpw9Wbjx2', {
   metadata: {
     order_id: '1234',
   },
@@ -1269,15 +1269,15 @@ export const PRICES_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/prices/price_z_yXmLn04Bpw9Wbjx2 \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/prices/price_fd_yXmLn04Bpw9Wbjx2 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const price = await zoneless.prices.retrieve('price_z_yXmLn04Bpw9Wbjx2');`,
+const price = await fiatdesk.prices.retrieve('price_fd_yXmLn04Bpw9Wbjx2');`,
             },
           ],
         },
@@ -1350,7 +1350,7 @@ const LIST_PRICES_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tu_z_bar</code>, your subsequent call can include <code>ending_before=tu_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tu_fd_bar</code>, your subsequent call can include <code>ending_before=tu_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -1362,7 +1362,7 @@ const LIST_PRICES_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tu_z_foo</code>, your subsequent call can include <code>starting_after=tu_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tu_fd_foo</code>, your subsequent call can include <code>starting_after=tu_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'lookup_keys',
@@ -1410,7 +1410,7 @@ const LIST_PRICES_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
   {
-    "id": "price_z_yXmLn04Bpw9Wbjx2",
+    "id": "price_fd_yXmLn04Bpw9Wbjx2",
     "object": "price",
     "active": true,
     "billing_scheme": "per_unit",
@@ -1421,7 +1421,7 @@ const LIST_PRICES_RESPONSE_JSON = `{
     "lookup_key": null,
     "metadata": {},
     "nickname": "Pro Plan Price",
-    "product": "prod_z_oJaYlHpf6YmRzCMm",
+    "product": "prod_fd_oJaYlHpf6YmRzCMm",
     "recurring": {
       "aggregate_usage": null,
       "interval": "month",
@@ -1470,7 +1470,7 @@ export const PRICES_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/prices \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -1478,7 +1478,7 @@ export const PRICES_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const prices = await zoneless.prices.list({
+const prices = await fiatdesk.prices.list({
   limit: 3,
 });`,
             },

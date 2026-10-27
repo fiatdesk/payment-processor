@@ -9,7 +9,7 @@ import {
 } from './InvoiceItem';
 
 /**
- * Stripe-compatible Invoice Line Item object for Zoneless.
+ * Stripe-compatible Invoice Line Item object for FiatDesk.
  * Represents a line item on an invoice, covering subscription items, invoice items, and prorations.
  *
  * @see https://docs.stripe.com/api/invoice-line-item/object

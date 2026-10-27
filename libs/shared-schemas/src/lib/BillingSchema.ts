@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Schema for triggering a platform-scoped subscription billing run.
  * Processes due renewals and invoice retries for the authenticated platform.
  *
- * @zoneless_extension
+ * @fiatdesk_extension
  * @see /billing/run_for_platform
  */
 export const RunBillingForPlatformSchema = z.object({

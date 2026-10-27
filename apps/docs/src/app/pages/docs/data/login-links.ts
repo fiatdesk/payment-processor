@@ -16,7 +16,7 @@ export const LOGIN_LINKS_SUBSECTION: DocSubSection = {
 const LOGIN_LINK_OBJECT_JSON = `{
   "object": "login_link",
   "created": 1704067200,
-  "url": "https://dashboard.yourdomain.com/login?token=ll_z_abc123..."
+  "url": "https://dashboard.yourdomain.com/login?token=ll_fd_abc123..."
 }`;
 
 const LOGIN_LINK_ATTRIBUTES: Attribute[] = [
@@ -47,7 +47,7 @@ export const LOGIN_LINKS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Login Link object',
   description:
-    'Login Links are single-use URLs that take an Express account directly to the login page for their Zoneless dashboard. A Login Link differs from an Account Link in that it takes the user directly to their Express dashboard rather than through an onboarding flow.',
+    'Login Links are single-use URLs that take an Express account directly to the login page for their FiatDesk dashboard. A Login Link differs from an Account Link in that it takes the user directly to their Express dashboard rather than through an onboarding flow.',
   stripeDocsUrl: 'https://docs.stripe.com/api/account/login_link',
   endpoints: BuildEndpointSummaries(LOGIN_LINKS_SUBSECTION, [
     { method: 'POST', path: '/v1/accounts/:id/login_links', pageId: 'create' },
@@ -118,16 +118,16 @@ export const LOGIN_LINKS_CREATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X POST https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/login_links \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X POST https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/login_links \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const loginLink = await zoneless.accounts.createLoginLink(
-  'acct_z_1Nv0FGQ9RKHgCVdK'
+const loginLink = await fiatdesk.accounts.createLoginLink(
+  'acct_fd_1Nv0FGQ9RKHgCVdK'
 );`,
             },
           ],

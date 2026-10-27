@@ -1,6 +1,6 @@
 import { PersonModule } from '../modules/Person';
 import { Database } from '../modules/Database';
-import { Person } from '@zoneless/shared-types';
+import { Person } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -37,14 +37,14 @@ describe('PersonModule', () => {
   describe('CreatePersonObject', () => {
     it('should create a person with sensible defaults', () => {
       const person = module.CreatePersonObject(
-        'acct_z_1',
-        'acct_z_platform',
+        'acct_fd_1',
+        'acct_fd_platform',
         {}
       );
 
       expect(person.object).toBe('person');
-      expect(person.account).toBe('acct_z_1');
-      expect(person.platform_account).toBe('acct_z_platform');
+      expect(person.account).toBe('acct_fd_1');
+      expect(person.platform_account).toBe('acct_fd_platform');
       expect(person.first_name).toBeNull();
       expect(person.last_name).toBeNull();
       expect(person.email).toBeNull();
@@ -55,14 +55,18 @@ describe('PersonModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const person = module.CreatePersonObject('acct_z_1', 'acct_z_platform', {
-        first_name: 'Alice',
-        last_name: 'Smith',
-        email: 'alice@example.com',
-        phone: '+15551234567',
-        dob: { day: 15, month: 3, year: 1990 },
-        relationship: { representative: true, title: 'CEO' },
-      });
+      const person = module.CreatePersonObject(
+        'acct_fd_1',
+        'acct_fd_platform',
+        {
+          first_name: 'Alice',
+          last_name: 'Smith',
+          email: 'alice@example.com',
+          phone: '+15551234567',
+          dob: { day: 15, month: 3, year: 1990 },
+          relationship: { representative: true, title: 'CEO' },
+        }
+      );
 
       expect(person.first_name).toBe('Alice');
       expect(person.last_name).toBe('Smith');
@@ -74,31 +78,43 @@ describe('PersonModule', () => {
     });
 
     it('should mark id_number_provided when id_number is given', () => {
-      const person = module.CreatePersonObject('acct_z_1', 'acct_z_platform', {
-        id_number: '123456789',
-      });
+      const person = module.CreatePersonObject(
+        'acct_fd_1',
+        'acct_fd_platform',
+        {
+          id_number: '123456789',
+        }
+      );
 
       expect(person.id_number_provided).toBe(true);
     });
 
     it('should mark ssn_last_4_provided when ssn_last_4 is given', () => {
-      const person = module.CreatePersonObject('acct_z_1', 'acct_z_platform', {
-        ssn_last_4: '1234',
-      });
+      const person = module.CreatePersonObject(
+        'acct_fd_1',
+        'acct_fd_platform',
+        {
+          ssn_last_4: '1234',
+        }
+      );
 
       expect(person.ssn_last_4_provided).toBe(true);
     });
 
     it('should handle address input', () => {
-      const person = module.CreatePersonObject('acct_z_1', 'acct_z_platform', {
-        address: {
-          line1: '123 Main St',
-          city: 'San Francisco',
-          state: 'CA',
-          postal_code: '94105',
-          country: 'US',
-        },
-      });
+      const person = module.CreatePersonObject(
+        'acct_fd_1',
+        'acct_fd_platform',
+        {
+          address: {
+            line1: '123 Main St',
+            city: 'San Francisco',
+            state: 'CA',
+            postal_code: '94105',
+            country: 'US',
+          },
+        }
+      );
 
       expect(person.address?.line1).toBe('123 Main St');
       expect(person.address?.city).toBe('San Francisco');
@@ -109,11 +125,11 @@ describe('PersonModule', () => {
   describe('CreatePerson', () => {
     it('should persist the person to the database', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
       });
 
-      const person = await module.CreatePerson('acct_z_1', {
+      const person = await module.CreatePerson('acct_fd_1', {
         first_name: 'Bob',
         last_name: 'Jones',
       });
@@ -124,7 +140,7 @@ describe('PersonModule', () => {
         expect.objectContaining({
           first_name: 'Bob',
           last_name: 'Jones',
-          account: 'acct_z_1',
+          account: 'acct_fd_1',
         })
       );
     });
@@ -138,10 +154,10 @@ describe('PersonModule', () => {
 
   describe('GetPerson', () => {
     it('should return the person when found', async () => {
-      const mockPerson = { id: 'person_z_1', object: 'person' } as Person;
+      const mockPerson = { id: 'person_fd_1', object: 'person' } as Person;
       mockDb.Get = jest.fn().mockResolvedValue(mockPerson);
 
-      const result = await module.GetPerson('person_z_1');
+      const result = await module.GetPerson('person_fd_1');
       expect(result).toEqual(mockPerson);
     });
 
@@ -154,16 +170,16 @@ describe('PersonModule', () => {
   describe('DeletePerson', () => {
     it('should delete the person and return confirmation', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'person_z_1',
+        id: 'person_fd_1',
         object: 'person',
-        account: 'acct_z_1',
+        account: 'acct_fd_1',
       });
 
-      const result = await module.DeletePerson('person_z_1');
+      const result = await module.DeletePerson('person_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('Persons', 'person_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('Persons', 'person_fd_1');
       expect(result).toEqual({
-        id: 'person_z_1',
+        id: 'person_fd_1',
         object: 'person',
         deleted: true,
       });
@@ -179,26 +195,26 @@ describe('PersonModule', () => {
   describe('IsOwnerOfPerson', () => {
     it('should return true if person belongs to the account', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'person_z_1',
-        account: 'acct_z_1',
+        id: 'person_fd_1',
+        account: 'acct_fd_1',
       });
 
-      const result = await module.IsOwnerOfPerson('person_z_1', 'acct_z_1');
+      const result = await module.IsOwnerOfPerson('person_fd_1', 'acct_fd_1');
       expect(result).toBe(true);
     });
 
     it('should return false if person belongs to a different account', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'person_z_1',
-        account: 'acct_z_other',
+        id: 'person_fd_1',
+        account: 'acct_fd_other',
       });
 
-      const result = await module.IsOwnerOfPerson('person_z_1', 'acct_z_1');
+      const result = await module.IsOwnerOfPerson('person_fd_1', 'acct_fd_1');
       expect(result).toBe(false);
     });
 
     it('should return false if person not found', async () => {
-      const result = await module.IsOwnerOfPerson('nonexistent', 'acct_z_1');
+      const result = await module.IsOwnerOfPerson('nonexistent', 'acct_fd_1');
       expect(result).toBe(false);
     });
   });

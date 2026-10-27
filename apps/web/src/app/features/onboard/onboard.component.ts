@@ -27,7 +27,7 @@ import {
   SlidePanelComponent,
   PlatformLogoComponent,
 } from '../../shared';
-import { GetFormBlockingIdentityRequirements } from '@zoneless/shared-schemas';
+import { GetFormBlockingIdentityRequirements } from '@fiatdesk/shared-schemas';
 import { IsBusinessAccount } from '../../utils';
 
 enum OnboardStep {

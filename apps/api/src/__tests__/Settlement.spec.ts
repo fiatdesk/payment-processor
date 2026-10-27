@@ -68,13 +68,13 @@ describe('SimulatedSettlement', () => {
   const CHECKOUT_EXPECTATION = {
     merchantWalletAddress: MERCHANT,
     amountInCents: 1500,
-    checkoutSessionId: 'cs_z_1',
+    checkoutSessionId: 'cs_fd_1',
     payerAddress: PAYER,
     createdAt: 1_700_000_000,
   };
 
   it('verifies a simulated checkout signature', async () => {
-    const signature = SimulatedSignature('cs_z_1', PAYER);
+    const signature = SimulatedSignature('cs_fd_1', PAYER);
     const result = await settlement.VerifyCheckoutPayment(
       signature,
       CHECKOUT_EXPECTATION
@@ -107,7 +107,7 @@ describe('SimulatedSettlement', () => {
         PAYER,
         MERCHANT,
         1500,
-        'cs_z_1',
+        'cs_fd_1',
         1_700_086_400
       )
     ).resolves.toEqual({
@@ -131,7 +131,7 @@ describe('SimulatedSettlement', () => {
     };
 
     it('records and returns the sim_sig reference as the transaction', async () => {
-      const signature = SimulatedSignature('cs_z_1', PAYER);
+      const signature = SimulatedSignature('cs_fd_1', PAYER);
       const onSigned = jest.fn().mockResolvedValue(undefined);
 
       await expect(
@@ -149,14 +149,14 @@ describe('SimulatedSettlement', () => {
       await expect(
         settlement.RelayCheckoutAuthorization(
           authorization,
-          SimulatedSignature('cs_z_1', PAYER),
+          SimulatedSignature('cs_fd_1', PAYER),
           {
-            pendingHash: 'sim_sig:cs_z_1:recorded',
+            pendingHash: 'sim_sig:cs_fd_1:recorded',
             createdAt: 1_700_000_000,
             onSigned,
           }
         )
-      ).resolves.toBe('sim_sig:cs_z_1:recorded');
+      ).resolves.toBe('sim_sig:cs_fd_1:recorded');
       expect(onSigned).not.toHaveBeenCalled();
     });
 
@@ -175,12 +175,12 @@ describe('SimulatedSettlement', () => {
   });
 
   describe('subscriptions', () => {
-    const PLAN = 'sim_plan_price_z_1';
+    const PLAN = 'sim_plan_price_fd_1';
 
     it('creates a plan without hitting a chain', async () => {
       await expect(
         settlement.CreateSubscriptionPlan(
-          'price_z_1',
+          'price_fd_1',
           2_592_000,
           2000,
           MERCHANT,
@@ -205,7 +205,7 @@ describe('SimulatedSettlement', () => {
     });
 
     it('records and returns the sim_sig reference as the subscribe', async () => {
-      const reference = SimulatedSignature('cs_z_1', PAYER);
+      const reference = SimulatedSignature('cs_fd_1', PAYER);
       const onSigned = jest.fn().mockResolvedValue(undefined);
       const relay = {
         planKey: PLAN,
@@ -229,7 +229,7 @@ describe('SimulatedSettlement', () => {
     });
 
     it('verifies a simulated subscribe, one subscription id per checkout session, and nothing else', async () => {
-      const reference = SimulatedSignature('cs_z_1', PAYER);
+      const reference = SimulatedSignature('cs_fd_1', PAYER);
       const expected = { planKey: PLAN, subscriberWallet: PAYER };
 
       await expect(
@@ -238,15 +238,15 @@ describe('SimulatedSettlement', () => {
         status: 'verified',
         transaction_hash: reference,
         subscriber_address: PAYER,
-        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_1`,
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_fd_1`,
       });
       await expect(
         settlement.VerifySubscribeTransaction(
-          SimulatedSignature('cs_z_2', PAYER),
+          SimulatedSignature('cs_fd_2', PAYER),
           expected
         )
       ).resolves.toMatchObject({
-        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_2`,
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_fd_2`,
       });
       await expect(
         settlement.VerifySubscribeTransaction(`0x${'ab'.repeat(32)}`, expected)
@@ -520,35 +520,35 @@ describe('simulated rail payout batches', () => {
     memory = new MemoryDatabase();
     memory.Seed(
       'Accounts',
-      { id: 'acct_z_platform', platform_account: 'acct_z_platform' },
-      { id: 'acct_z_seller', platform_account: 'acct_z_platform' }
+      { id: 'acct_fd_platform', platform_account: 'acct_fd_platform' },
+      { id: 'acct_fd_seller', platform_account: 'acct_fd_platform' }
     );
     memory.Seed(
       'ExternalWallets',
       {
-        id: 'wa_z_platform',
-        account: 'acct_z_platform',
+        id: 'wa_fd_platform',
+        account: 'acct_fd_platform',
         wallet_address: MERCHANT,
         default_for_currency: true,
         status: 'new',
       },
       {
-        id: 'wa_z_seller',
-        account: 'acct_z_seller',
+        id: 'wa_fd_seller',
+        account: 'acct_fd_seller',
         wallet_address: PAYER,
         status: 'new',
       }
     );
     memory.Seed(
       'Payouts',
-      ...['po_z_1', 'po_z_2'].map((id) => ({
+      ...['po_fd_1', 'po_fd_2'].map((id) => ({
         id,
         object: 'payout',
-        account: 'acct_z_seller',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_seller',
+        platform_account: 'acct_fd_platform',
         amount: 500,
         currency: 'usdc',
-        destination: 'wa_z_seller',
+        destination: 'wa_fd_seller',
         status: 'pending',
         metadata: {},
       }))
@@ -557,8 +557,8 @@ describe('simulated rail payout batches', () => {
   });
 
   it('recovers a batch a crash left in broadcast by broadcasting it again', async () => {
-    const built = await module.BuildPayoutsBatch('acct_z_platform', {
-      payouts: ['po_z_1'],
+    const built = await module.BuildPayoutsBatch('acct_fd_platform', {
+      payouts: ['po_fd_1'],
     });
     // The crash came after persisting the broadcast, before settling it.
     const [batch] = memory.All<{ id: string }>('PayoutBatches');
@@ -570,25 +570,25 @@ describe('simulated rail payout batches', () => {
       transaction_hashes: [`sim_sig_payout:${built.batch_id}`],
     });
     memory.Seed('Payouts', {
-      ...memory.Doc<Record<string, unknown>>('Payouts', 'po_z_1'),
+      ...memory.Doc<Record<string, unknown>>('Payouts', 'po_fd_1'),
       status: 'in_transit',
     });
 
     await expect(
-      module.BroadcastPayoutsBatch('acct_z_platform', {
+      module.BroadcastPayoutsBatch('acct_fd_platform', {
         signed_transaction: built.unsigned_transaction,
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
       })
     ).resolves.toMatchObject({ status: 'paid' });
-    expect(memory.Doc('Payouts', 'po_z_1')).toMatchObject({ status: 'paid' });
+    expect(memory.Doc('Payouts', 'po_fd_1')).toMatchObject({ status: 'paid' });
     expect(memory.Doc('PayoutBatches', batch.id)).toMatchObject({
       status: 'paid',
     });
   });
 
   it('holds the wallet lock from build until broadcast', async () => {
-    const built = await module.BuildPayoutsBatch('acct_z_platform', {
-      payouts: ['po_z_1'],
+    const built = await module.BuildPayoutsBatch('acct_fd_platform', {
+      payouts: ['po_fd_1'],
     });
     expect(built).toMatchObject({
       unsigned_transaction: 'sim_tx',
@@ -601,25 +601,25 @@ describe('simulated rail payout batches', () => {
     ]);
 
     await expect(
-      module.BuildPayoutsBatch('acct_z_platform', { payouts: ['po_z_2'] })
+      module.BuildPayoutsBatch('acct_fd_platform', { payouts: ['po_fd_2'] })
     ).rejects.toMatchObject({
       statusCode: 409,
       type: 'payout_batch_in_progress',
     });
 
     await expect(
-      module.BroadcastPayoutsBatch('acct_z_platform', {
+      module.BroadcastPayoutsBatch('acct_fd_platform', {
         signed_transaction: built.unsigned_transaction,
-        payouts: ['po_z_1'],
+        payouts: ['po_fd_1'],
       })
     ).resolves.toMatchObject({
       status: 'paid',
       transaction_hash: `sim_sig_payout:${built.batch_id}`,
     });
-    expect(memory.Doc('Payouts', 'po_z_1')).toMatchObject({ status: 'paid' });
+    expect(memory.Doc('Payouts', 'po_fd_1')).toMatchObject({ status: 'paid' });
 
     await expect(
-      module.BuildPayoutsBatch('acct_z_platform', { payouts: ['po_z_2'] })
+      module.BuildPayoutsBatch('acct_fd_platform', { payouts: ['po_fd_2'] })
     ).resolves.toMatchObject({ transaction_type: 'payout' });
   });
 });

@@ -1,6 +1,6 @@
 import { LoginLinkModule, ToLoginLinkResponse } from '../modules/LoginLink';
 import { Database } from '../modules/Database';
-import { LoginLinkRecord } from '@zoneless/shared-types';
+import { LoginLinkRecord } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -37,12 +37,12 @@ describe('LoginLinkModule', () => {
   describe('CreateLoginLinkRecord', () => {
     it('should build a record with 5-minute expiry', () => {
       const record = module.CreateLoginLinkRecord(
-        'acct_z_seller',
+        'acct_fd_seller',
         'My Marketplace'
       );
 
       expect(record.object).toBe('login_link');
-      expect(record.account).toBe('acct_z_seller');
+      expect(record.account).toBe('acct_fd_seller');
       expect(record.platform_name).toBe('My Marketplace');
       expect(record.consumed).toBe(false);
       expect(record.expires_at).toBe(GetFixedTimestamp() + 300);
@@ -53,7 +53,7 @@ describe('LoginLinkModule', () => {
   describe('CreateLoginLink', () => {
     it('should persist and return the public response', async () => {
       const link = await module.CreateLoginLink(
-        'acct_z_seller',
+        'acct_fd_seller',
         'My Marketplace'
       );
 
@@ -73,8 +73,8 @@ describe('LoginLinkModule', () => {
         object: 'login_link',
         created: GetFixedTimestamp(),
         url: 'http://localhost:4200/login?token=abc',
-        token: 'll_z_abc123',
-        account: 'acct_z_seller',
+        token: 'll_fd_abc123',
+        account: 'acct_fd_seller',
         platform_name: 'My Marketplace',
         expires_at: GetFixedTimestamp() + 300,
         consumed: false,
@@ -96,15 +96,15 @@ describe('LoginLinkModule', () => {
         object: 'login_link',
         created: GetFixedTimestamp(),
         url: 'http://localhost:4200/login?token=abc',
-        token: 'll_z_abc',
-        account: 'acct_z_seller',
+        token: 'll_fd_abc',
+        account: 'acct_fd_seller',
         platform_name: 'My Marketplace',
         expires_at: GetFixedTimestamp() + 300,
         consumed: false,
       };
       mockDb.Get = jest.fn().mockResolvedValue(record);
 
-      const result = await module.ValidateLoginLink('ll_z_abc');
+      const result = await module.ValidateLoginLink('ll_fd_abc');
 
       expect(result.valid).toBe(true);
       expect(result.record).toEqual(record);
@@ -117,7 +117,7 @@ describe('LoginLinkModule', () => {
       } as LoginLinkRecord;
       mockDb.Get = jest.fn().mockResolvedValue(record);
 
-      const result = await module.ValidateLoginLink('ll_z_abc');
+      const result = await module.ValidateLoginLink('ll_fd_abc');
 
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('consumed');
@@ -130,7 +130,7 @@ describe('LoginLinkModule', () => {
       } as LoginLinkRecord;
       mockDb.Get = jest.fn().mockResolvedValue(record);
 
-      const result = await module.ValidateLoginLink('ll_z_abc');
+      const result = await module.ValidateLoginLink('ll_fd_abc');
 
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('expired');
@@ -146,11 +146,11 @@ describe('LoginLinkModule', () => {
 
   describe('MarkAsConsumed', () => {
     it('should update the record with consumed flag', async () => {
-      await module.MarkAsConsumed('ll_z_abc');
+      await module.MarkAsConsumed('ll_fd_abc');
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'LoginLinks',
-        'll_z_abc',
+        'll_fd_abc',
         expect.objectContaining({ consumed: true })
       );
     });

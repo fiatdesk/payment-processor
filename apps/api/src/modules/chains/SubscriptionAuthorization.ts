@@ -18,7 +18,7 @@ import {
   type Hex,
   type TransactionReceipt,
 } from 'viem';
-import { SameAddress, type Eip712TypedData } from '@zoneless/shared-types';
+import { SameAddress, type Eip712TypedData } from '@fiatdesk/shared-types';
 import { SUBSCRIPTIONS_ABI } from './abi/Subscriptions';
 import type { UsdcDomain } from './CheckoutAuthorization';
 

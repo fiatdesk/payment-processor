@@ -30,11 +30,11 @@ export function BuildLlmsTxt(
   }
 
   let contents = [
-    '# Zoneless',
+    '# FiatDesk',
     '',
     '> Open-source payments, checkout, subscriptions, and marketplace payouts using USDC on Ethereum.',
     '',
-    'Use these canonical Markdown documents when integrating with Zoneless.',
+    'Use these canonical Markdown documents when integrating with FiatDesk.',
     '',
     '',
   ].join('\n');

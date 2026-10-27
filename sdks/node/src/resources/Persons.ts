@@ -1,5 +1,5 @@
 import { BaseResource } from './Base';
-import { Person, PersonDeleted, ListResponse } from '@zoneless/shared-types';
+import { Person, PersonDeleted, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CreatePersonInput,
   UpdatePersonInput,

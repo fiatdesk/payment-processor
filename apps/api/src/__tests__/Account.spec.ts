@@ -1,6 +1,6 @@
 import { AccountModule } from '../modules/Account';
 import { Database } from '../modules/Database';
-import { Account } from '@zoneless/shared-types';
+import { Account } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -53,7 +53,7 @@ describe('AccountModule', () => {
         details_submitted: false,
         metadata: {},
       });
-      expect(account.id).toMatch(/^acct_z_test/);
+      expect(account.id).toMatch(/^acct_fd_test/);
       expect(account.created).toBe(GetFixedTimestamp());
     });
 
@@ -78,8 +78,8 @@ describe('AccountModule', () => {
     });
 
     it('should set platform_account to the provided platform ID', () => {
-      const account = accountModule.CreateAccountObject({}, 'acct_z_platform');
-      expect(account.platform_account).toBe('acct_z_platform');
+      const account = accountModule.CreateAccountObject({}, 'acct_fd_platform');
+      expect(account.platform_account).toBe('acct_fd_platform');
     });
 
     it('should initialise capabilities as inactive by default', () => {
@@ -150,12 +150,12 @@ describe('AccountModule', () => {
   // -----------------------------------------------------------------------
   describe('GetAccount', () => {
     it('should return the account when found', async () => {
-      const mockAccount = { id: 'acct_z_1', object: 'account' } as Account;
+      const mockAccount = { id: 'acct_fd_1', object: 'account' } as Account;
       mockDb.Get = jest.fn().mockResolvedValue(mockAccount);
 
-      const result = await accountModule.GetAccount('acct_z_1');
+      const result = await accountModule.GetAccount('acct_fd_1');
       expect(result).toEqual(mockAccount);
-      expect(mockDb.Get).toHaveBeenCalledWith('Accounts', 'acct_z_1');
+      expect(mockDb.Get).toHaveBeenCalledWith('Accounts', 'acct_fd_1');
     });
 
     it('should return null when not found', async () => {
@@ -169,7 +169,7 @@ describe('AccountModule', () => {
   // -----------------------------------------------------------------------
   describe('UpdateAccount', () => {
     const existingAccount: Account = {
-      id: 'acct_z_1',
+      id: 'acct_fd_1',
       object: 'account',
       type: 'express',
       business_type: 'individual',
@@ -181,19 +181,19 @@ describe('AccountModule', () => {
       payouts_enabled: false,
       details_submitted: false,
       metadata: {},
-      platform_account: 'acct_z_platform',
+      platform_account: 'acct_fd_platform',
     };
 
     it('should update the account fields', async () => {
       mockDb.Get = jest.fn().mockResolvedValue(existingAccount);
 
-      const result = await accountModule.UpdateAccount('acct_z_1', {
+      const result = await accountModule.UpdateAccount('acct_fd_1', {
         email: 'new@example.com',
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Accounts',
-        'acct_z_1',
+        'acct_fd_1',
         expect.objectContaining({ email: 'new@example.com' })
       );
       expect(result).toEqual(existingAccount);
@@ -203,7 +203,7 @@ describe('AccountModule', () => {
       mockDb.Get = jest.fn().mockResolvedValue(null);
 
       await expect(
-        accountModule.UpdateAccount('acct_z_missing', {
+        accountModule.UpdateAccount('acct_fd_missing', {
           email: 'test@example.com',
         })
       ).rejects.toThrow('Account not found');
@@ -217,13 +217,13 @@ describe('AccountModule', () => {
     it('should delete the account and return confirmation', async () => {
       mockDb.Get = jest
         .fn()
-        .mockResolvedValue({ id: 'acct_z_1', object: 'account' });
+        .mockResolvedValue({ id: 'acct_fd_1', object: 'account' });
 
-      const result = await accountModule.DeleteAccount('acct_z_1');
+      const result = await accountModule.DeleteAccount('acct_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('Accounts', 'acct_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('Accounts', 'acct_fd_1');
       expect(result).toEqual({
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
         deleted: true,
       });
@@ -242,15 +242,15 @@ describe('AccountModule', () => {
   describe('TOSAccepted', () => {
     it('should set tos_acceptance with timestamp', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as Account;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      await accountModule.TOSAccepted('acct_z_1', '1.2.3.4', 'TestAgent');
+      await accountModule.TOSAccepted('acct_fd_1', '1.2.3.4', 'TestAgent');
 
-      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_z_1', {
+      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_fd_1', {
         tos_acceptance: {
           date: GetFixedTimestamp(),
           ip: '1.2.3.4',
@@ -264,15 +264,15 @@ describe('AccountModule', () => {
   describe('DetailsSubmitted', () => {
     it('should set details_submitted to true', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as Account;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      await accountModule.DetailsSubmitted('acct_z_1');
+      await accountModule.DetailsSubmitted('acct_fd_1');
 
-      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_z_1', {
+      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_fd_1', {
         details_submitted: true,
       });
     });
@@ -281,16 +281,16 @@ describe('AccountModule', () => {
   describe('PayoutsEnabled', () => {
     it('should enable payouts and activate capabilities', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         capabilities: { transfers: 'inactive', usdc_payouts: 'inactive' },
       } as Account;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      await accountModule.PayoutsEnabled('acct_z_1');
+      await accountModule.PayoutsEnabled('acct_fd_1');
 
-      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_z_1', {
+      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_fd_1', {
         payouts_enabled: true,
         capabilities: {
           transfers: 'active',
@@ -303,9 +303,9 @@ describe('AccountModule', () => {
   describe('RejectAccount', () => {
     it('should disable the account and set rejection reason', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         payouts_enabled: true,
         charges_enabled: true,
         capabilities: { transfers: 'active', usdc_payouts: 'active' },
@@ -322,11 +322,11 @@ describe('AccountModule', () => {
       } as unknown as Account;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      await accountModule.RejectAccount('acct_z_1', { reason: 'fraud' });
+      await accountModule.RejectAccount('acct_fd_1', { reason: 'fraud' });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Accounts',
-        'acct_z_1',
+        'acct_fd_1',
         expect.objectContaining({
           charges_enabled: false,
           payouts_enabled: false,
@@ -338,9 +338,9 @@ describe('AccountModule', () => {
   describe('UnrejectAccount', () => {
     it('should clear rejection and re-enable payments and payouts', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         object: 'account',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         charges_enabled: false,
         payouts_enabled: false,
         capabilities: { transfers: 'inactive', usdc_payouts: 'inactive' },
@@ -363,11 +363,11 @@ describe('AccountModule', () => {
           requirements: { ...existing.requirements, disabled_reason: null },
         });
 
-      await accountModule.UnrejectAccount('acct_z_1');
+      await accountModule.UnrejectAccount('acct_fd_1');
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Accounts',
-        'acct_z_1',
+        'acct_fd_1',
         expect.objectContaining({
           charges_enabled: true,
           payouts_enabled: true,
@@ -378,11 +378,11 @@ describe('AccountModule', () => {
 
     it('should error when the account is not rejected', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         requirements: { disabled_reason: null, currently_due: [] },
       } as unknown as Account);
 
-      await expect(accountModule.UnrejectAccount('acct_z_1')).rejects.toThrow(
+      await expect(accountModule.UnrejectAccount('acct_fd_1')).rejects.toThrow(
         /Only accounts rejected/
       );
     });
@@ -391,7 +391,7 @@ describe('AccountModule', () => {
   describe('ChargesDisabled', () => {
     it('should pause payments without rejecting', async () => {
       const existing = {
-        id: 'acct_z_1',
+        id: 'acct_fd_1',
         charges_enabled: true,
         requirements: { disabled_reason: null, currently_due: [] },
       } as unknown as Account;
@@ -400,9 +400,9 @@ describe('AccountModule', () => {
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce({ ...existing, charges_enabled: false });
 
-      await accountModule.ChargesDisabled('acct_z_1');
+      await accountModule.ChargesDisabled('acct_fd_1');
 
-      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_z_1', {
+      expect(mockDb.Update).toHaveBeenCalledWith('Accounts', 'acct_fd_1', {
         charges_enabled: false,
       });
     });
@@ -411,7 +411,7 @@ describe('AccountModule', () => {
   describe('SearchAccounts', () => {
     it('should return an empty list for a blank query', async () => {
       const result = await accountModule.SearchAccounts(
-        'acct_z_platform',
+        'acct_fd_platform',
         '  '
       );
 
@@ -426,21 +426,21 @@ describe('AccountModule', () => {
 
     it('should search accounts and persons then return matching accounts', async () => {
       const matched = {
-        id: 'acct_z_connected',
+        id: 'acct_fd_connected',
         created: 1700000000,
         email: 'kurniawan.anto7@gmail.com',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as Account;
 
       mockDb.Aggregate = jest
         .fn()
-        .mockResolvedValueOnce([{ id: 'acct_z_connected' }])
-        .mockResolvedValueOnce([{ account: 'acct_z_connected' }])
+        .mockResolvedValueOnce([{ id: 'acct_fd_connected' }])
+        .mockResolvedValueOnce([{ account: 'acct_fd_connected' }])
         .mockResolvedValueOnce([]);
       mockDb.Get = jest.fn().mockResolvedValue(matched);
 
       const result = await accountModule.SearchAccounts(
-        'acct_z_platform',
+        'acct_fd_platform',
         'kurniawan.anto7@gmail.com'
       );
 
@@ -468,20 +468,20 @@ describe('AccountModule', () => {
     it('should skip person search when account matches already fill the limit', async () => {
       mockDb.Aggregate = jest
         .fn()
-        .mockResolvedValueOnce([{ id: 'acct_z_1' }, { id: 'acct_z_2' }]);
+        .mockResolvedValueOnce([{ id: 'acct_fd_1' }, { id: 'acct_fd_2' }]);
       mockDb.Get = jest
         .fn()
         .mockResolvedValueOnce({
-          id: 'acct_z_1',
+          id: 'acct_fd_1',
           created: 2,
         } as Account)
         .mockResolvedValueOnce({
-          id: 'acct_z_2',
+          id: 'acct_fd_2',
           created: 1,
         } as Account);
 
       const result = await accountModule.SearchAccounts(
-        'acct_z_platform',
+        'acct_fd_platform',
         'anto',
         { limit: 1 }
       );
@@ -493,20 +493,20 @@ describe('AccountModule', () => {
 
     it('should return the related account for a verification session id', async () => {
       const matched = {
-        id: 'acct_z_connected',
+        id: 'acct_fd_connected',
         created: 1700000000,
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as Account;
 
       mockDb.Aggregate = jest
         .fn()
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ related_account: 'acct_z_connected' }]);
+        .mockResolvedValueOnce([{ related_account: 'acct_fd_connected' }]);
       mockDb.Get = jest.fn().mockResolvedValue(matched);
 
       const result = await accountModule.SearchAccounts(
-        'acct_z_platform',
+        'acct_fd_platform',
         '21d342ef-6572-47ee-b305-39b233c0d2a2'
       );
 
@@ -516,7 +516,7 @@ describe('AccountModule', () => {
         [
           {
             $match: {
-              platform_account: 'acct_z_platform',
+              platform_account: 'acct_fd_platform',
               $or: [
                 {
                   id: {
@@ -541,23 +541,23 @@ describe('AccountModule', () => {
       expect(result.has_more).toBe(false);
     });
 
-    it('should return the related account for a Zoneless verification session id', async () => {
+    it('should return the related account for a FiatDesk verification session id', async () => {
       const matched = {
-        id: 'acct_z_connected',
+        id: 'acct_fd_connected',
         created: 1700000000,
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as Account;
 
       mockDb.Aggregate = jest
         .fn()
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ related_account: 'acct_z_connected' }]);
+        .mockResolvedValueOnce([{ related_account: 'acct_fd_connected' }]);
       mockDb.Get = jest.fn().mockResolvedValue(matched);
 
       const result = await accountModule.SearchAccounts(
-        'acct_z_platform',
-        'vs_z_abc123'
+        'acct_fd_platform',
+        'vs_fd_abc123'
       );
 
       expect(mockDb.Aggregate).toHaveBeenNthCalledWith(
@@ -567,10 +567,10 @@ describe('AccountModule', () => {
           expect.objectContaining({
             $match: expect.objectContaining({
               $or: [
-                { id: { $regex: 'vs_z_abc123', $options: 'i' } },
+                { id: { $regex: 'vs_fd_abc123', $options: 'i' } },
                 {
                   provider_session_id: {
-                    $regex: 'vs_z_abc123',
+                    $regex: 'vs_fd_abc123',
                     $options: 'i',
                   },
                 },

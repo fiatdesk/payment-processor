@@ -20,7 +20,7 @@ import type {
   CheckoutTransferAuthorization,
   Eip712TypedData,
   PaymentIntent,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { CheckoutPaymentModule } from '../../modules/CheckoutPayment';
 import { CheckoutSessionModule } from '../../modules/CheckoutSession';
 import { ChargeModule } from '../../modules/Charge';
@@ -96,7 +96,7 @@ describe('Checkout on Anvil', () => {
   /** A fresh session paying `to`, prepared and signed by the buyer. */
   async function SignedPayment(amountCents: number, to: Address = merchant) {
     const createdAt = await ChainTime();
-    const sessionId = `cs_z_anvil_${++sessions}`;
+    const sessionId = `cs_fd_anvil_${++sessions}`;
     const prepared: PreparedAuthorization =
       await ethereum.BuildCheckoutPaymentAuthorization(
         buyer,
@@ -343,7 +343,7 @@ describe('Checkout on Anvil', () => {
     );
     const wallets = {
       GetDefaultWallet: jest.fn(async () => ({
-        id: 'wa_z_merchant',
+        id: 'wa_fd_merchant',
         wallet_address: merchant,
         network: 'ethereum',
         currency: 'usdc',
@@ -359,18 +359,18 @@ describe('Checkout on Anvil', () => {
       undefined,
       ethereum
     );
-    const intent = paymentIntents.PaymentIntentObject('acct_z_platform', {
+    const intent = paymentIntents.PaymentIntentObject('acct_fd_platform', {
       amount: amountCents,
       currency: 'usdc',
     });
     memory.Seed('PaymentIntents', { ...intent });
     const session: CheckoutSession = {
       ...checkoutSessions.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         { mode: 'payment', success_url: 'https://example.com/success' },
         [
           {
-            id: 'li_z_anvil',
+            id: 'li_fd_anvil',
             object: 'item',
             amount_discount: 0,
             amount_subtotal: amountCents,

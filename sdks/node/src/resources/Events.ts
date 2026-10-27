@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter } from '../utils';
-import { Event, ListResponse } from '@zoneless/shared-types';
+import { Event, ListResponse } from '@fiatdesk/shared-types';
 import type { ListEventsInput } from '../generated/Inputs';
 
 /**

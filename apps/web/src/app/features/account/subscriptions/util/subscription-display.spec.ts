@@ -1,4 +1,4 @@
-import type { Invoice, Subscription } from '@zoneless/shared-types';
+import type { Invoice, Subscription } from '@fiatdesk/shared-types';
 
 import {
   GetSubscriptionListStatus,
@@ -12,7 +12,7 @@ function OnchainSubscription(
   overrides: Partial<Record<keyof Subscription, unknown>> = {}
 ): Subscription {
   return {
-    id: 'sub_z_1',
+    id: 'sub_fd_1',
     status: 'active',
     cancel_at_period_end: false,
     cancel_at: null,
@@ -29,7 +29,7 @@ function OnchainSubscription(
 /** An open cycle invoice whose last collection failed with `code`. */
 function FailedInvoice(code: string, status = 'open'): Invoice {
   return {
-    id: 'in_z_1',
+    id: 'in_fd_1',
     status,
     metadata: {
       last_payment_error: 'The subscriber has not approved enough USDC',
@@ -92,7 +92,7 @@ describe('subscription on-chain display', () => {
       'the collection failed for another reason',
       FailedInvoice('insufficient_funds'),
     ],
-    ['the latest invoice is not expanded', 'in_z_1'],
+    ['the latest invoice is not expanded', 'in_fd_1'],
   ])(
     'does not report an exhausted allowance when %s',
     (_label, latestInvoice) => {

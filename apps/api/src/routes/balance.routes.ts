@@ -32,14 +32,14 @@ const balanceModule = new BalanceModule(db, eventService);
  * Retrieves the current account balance, based on the authentication
  * that was used to make the request.
  *
- * For platforms: Optionally pass the Zoneless-Account header to retrieve
+ * For platforms: Optionally pass the FiatDesk-Account header to retrieve
  * the balance of a connected account on their behalf.
  *
  * This matches Stripe's GET /v1/balance endpoint.
  * @see https://docs.stripe.com/api/balance/balance_retrieve
  *
  * Headers:
- * - Zoneless-Account (optional): Connected account ID to retrieve balance for.
+ * - FiatDesk-Account (optional): Connected account ID to retrieve balance for.
  *   Only platforms can use this header to access connected account balances.
  *
  * Returns the balance object for the authenticated account or specified connected account.
@@ -86,7 +86,7 @@ router.get(
  * and the total owed to connected accounts.
  *
  * Platform-only endpoint.
- * @zoneless_extension - Not in Stripe API.
+ * @fiatdesk_extension - Not in Stripe API.
  */
 router.get(
   '/details',
@@ -120,7 +120,7 @@ router.get(
  *   platform_available = wallet_usdc_cents - connected_accounts_owed
  *
  * Platform-only endpoint.
- * @zoneless_extension - Not in Stripe API.
+ * @fiatdesk_extension - Not in Stripe API.
  */
 router.post(
   '/sync',

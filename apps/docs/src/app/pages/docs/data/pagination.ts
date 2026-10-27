@@ -7,7 +7,7 @@ const LIST_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "object": "account",
       "business_type": "individual",
       "country": "US",
@@ -31,7 +31,7 @@ export const PAGINATION_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: "Zoneless's list API methods use cursor-based pagination through the <code>starting_after</code> and <code>ending_before</code> parameters. Both parameters accept an existing object ID value (see below) and return objects in reverse chronological order. The <code>ending_before</code> parameter returns objects listed before the named object. The <code>starting_after</code> parameter returns objects listed after the named object. These parameters are mutually exclusive — you can use either <code>starting_after</code> or <code>ending_before</code>, but not both simultaneously.",
+          text: "FiatDesk's list API methods use cursor-based pagination through the <code>starting_after</code> and <code>ending_before</code> parameters. Both parameters accept an existing object ID value (see below) and return objects in reverse chronological order. The <code>ending_before</code> parameter returns objects listed before the named object. The <code>starting_after</code> parameter returns objects listed after the named object. These parameters are mutually exclusive — you can use either <code>starting_after</code> or <code>ending_before</code>, but not both simultaneously.",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -48,13 +48,13 @@ export const PAGINATION_PAGE: DocPage = {
               name: 'starting_after',
               type: 'string',
               description:
-                'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For example, if you make a list request and receive 100 objects, ending with <code>acct_z_foo</code>, your subsequent call can include <code>starting_after=acct_z_foo</code> to fetch the next page of the list.',
+                'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For example, if you make a list request and receive 100 objects, ending with <code>acct_fd_foo</code>, your subsequent call can include <code>starting_after=acct_fd_foo</code> to fetch the next page of the list.',
             },
             {
               name: 'ending_before',
               type: 'string',
               description:
-                'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For example, if you make a list request and receive 100 objects, starting with <code>acct_z_bar</code>, your subsequent call can include <code>ending_before=acct_z_bar</code> to fetch the previous page of the list.',
+                'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For example, if you make a list request and receive 100 objects, starting with <code>acct_fd_bar</code>, your subsequent call can include <code>ending_before=acct_fd_bar</code> to fetch the previous page of the list.',
             },
           ],
         },
@@ -68,18 +68,18 @@ export const PAGINATION_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3 \\
-  -d starting_after=acct_z_1Nv0FGQ9RKHgCVdK`,
+  -d starting_after=acct_fd_1Nv0FGQ9RKHgCVdK`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const accounts = await zoneless.accounts.list({
+const accounts = await fiatdesk.accounts.list({
   limit: 3,
-  starting_after: 'acct_z_1Nv0FGQ9RKHgCVdK',
+  starting_after: 'acct_fd_1Nv0FGQ9RKHgCVdK',
 });`,
             },
           ],

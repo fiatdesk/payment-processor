@@ -14,7 +14,7 @@ import {
   CustomerCashBalance,
   CustomerDeleted,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { ExtractChangedFields } from './Event';
 import {
@@ -23,7 +23,7 @@ import {
   UpdateCustomerSchema,
   UpdateCustomerInput,
   ListCustomersFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';
@@ -187,7 +187,7 @@ export class CustomerModule {
         automatic_tax: 'not_collecting',
         ip_address: input.tax?.ip_address ?? null,
         location: null,
-        provider: 'zoneless',
+        provider: 'fiatdesk',
       },
       tax_exempt: input.tax_exempt ?? 'none',
       tax_ids: {

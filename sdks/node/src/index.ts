@@ -24,7 +24,7 @@ import { Transfers } from './resources/Transfers';
 import { WebhookEndpoints } from './resources/WebhookEndpoints';
 import { Webhooks } from './resources/Webhooks';
 
-export interface ZonelessConfig {
+export interface FiatDeskConfig {
   /**
    * Request timeout in milliseconds (default: 30000). Payout broadcasts wait
    * for confirmations, so they use at least 90 s (150 s for a reported hash);
@@ -34,27 +34,27 @@ export interface ZonelessConfig {
 }
 
 /**
- * Zoneless SDK client for interacting with the Zoneless API.
+ * FiatDesk SDK client for interacting with the FiatDesk API.
  *
  * @example
  * ```typescript
- * import { Zoneless } from '@zoneless/node';
+ * import { FiatDesk } from '@fiatdesk/node';
  *
- * const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');
+ * const fiatdesk = new FiatDesk('sk_live_fd_YOUR_API_KEY', 'https://api.yourdomain.com');
  *
  * // Create an account
- * const account = await zoneless.accounts.create({
+ * const account = await fiatdesk.accounts.create({
  *   country: 'US',
  *   email: 'jenny.rosen@example.com',
  *   controller: {
  *     fees: { payer: 'application' },
  *     losses: { payments: 'application' },
- *     zoneless_dashboard: { type: 'express' },
+ *     fiatdesk_dashboard: { type: 'express' },
  *   },
  * });
  * ```
  */
-export class Zoneless {
+export class FiatDesk {
   private readonly client: HttpClient;
 
   /** Accounts API resource */
@@ -110,11 +110,11 @@ export class Zoneless {
    *
    * @example
    * ```typescript
-   * const results = await zoneless.payouts.processAll(
+   * const results = await fiatdesk.payouts.processAll(
    *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * if (results.some((r) => r.status === 'pending')) {
-   *   await zoneless.payouts.reconcile(); // later, then process again
+   *   await fiatdesk.payouts.reconcile(); // later, then process again
    * }
    * ```
    */
@@ -145,18 +145,18 @@ export class Zoneless {
   readonly webhooks: Webhooks;
 
   /**
-   * Creates a new Zoneless SDK instance.
+   * Creates a new FiatDesk SDK instance.
    *
-   * @param apiKey - Your Zoneless API secret key
-   * @param baseUrl - The base URL of your Zoneless API instance
+   * @param apiKey - Your FiatDesk API secret key
+   * @param baseUrl - The base URL of your FiatDesk API instance
    * @param config - Optional configuration options
    */
-  constructor(apiKey: string, baseUrl: string, config: ZonelessConfig = {}) {
+  constructor(apiKey: string, baseUrl: string, config: FiatDeskConfig = {}) {
     if (!apiKey) {
-      throw new Error('Zoneless API key is required');
+      throw new Error('FiatDesk API key is required');
     }
     if (!baseUrl) {
-      throw new Error('Zoneless API base URL is required');
+      throw new Error('FiatDesk API base URL is required');
     }
 
     this.client = new HttpClient({
@@ -193,13 +193,13 @@ export class Zoneless {
   }
 }
 
-// Default export for convenient usage: import Zoneless from '@zoneless/node'
-export default Zoneless;
+// Default export for convenient usage: import FiatDesk from '@fiatdesk/node'
+export default FiatDesk;
 
 // Named exports
 export {
-  ZonelessApiError,
-  ZonelessPayoutBatchError,
+  FiatDeskApiError,
+  FiatDeskPayoutBatchError,
   PAYOUT_BATCH_ERROR_CODES,
 } from './HttpClient';
 export type { PayoutBatchErrorCode, RequestExtraOptions } from './HttpClient';
@@ -211,4 +211,4 @@ export type {
   SignPayoutOptions,
 } from './resources/Payouts';
 export { WebhookSignatureVerificationError } from './resources/Webhooks';
-export * from '@zoneless/shared-types';
+export * from '@fiatdesk/shared-types';

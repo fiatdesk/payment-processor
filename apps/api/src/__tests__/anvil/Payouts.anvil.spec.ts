@@ -15,7 +15,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
-import type { Balance, Payout, PayoutBatch } from '@zoneless/shared-types';
+import type { Balance, Payout, PayoutBatch } from '@fiatdesk/shared-types';
 import { PAYOUT_BATCH_ABI } from '../../modules/chains/abi/PayoutBatch';
 import { USDC_ABI } from '../../modules/chains/abi/Usdc';
 import { ComputeBatchId } from '../../modules/chains/PayoutEncoding';
@@ -40,7 +40,7 @@ const RECIPIENTS: Address[] = Array.from(
     privateKeyToAccount(keccak256(toBytes(`payout-recipient-${i + 1}`))).address
 );
 const AMOUNTS = [1050, 2000, 1, 700, 900, 1200, 300, 450, 820];
-const IDS = AMOUNTS.map((_, i) => `po_z_${i + 1}`);
+const IDS = AMOUNTS.map((_, i) => `po_fd_${i + 1}`);
 
 describe('Payouts on Anvil', () => {
   let anvil: AnvilContext | undefined;
@@ -69,28 +69,28 @@ describe('Payouts on Anvil', () => {
     memory = new MemoryDatabase();
     memory.Seed(
       'Accounts',
-      { id: 'acct_z_platform', platform_account: 'acct_z_platform' },
-      { id: 'acct_z_seller', platform_account: 'acct_z_platform' }
+      { id: 'acct_fd_platform', platform_account: 'acct_fd_platform' },
+      { id: 'acct_fd_seller', platform_account: 'acct_fd_platform' }
     );
     memory.Seed(
       'ExternalWallets',
       {
-        id: 'wa_z_platform',
-        account: 'acct_z_platform',
+        id: 'wa_fd_platform',
+        account: 'acct_fd_platform',
         wallet_address: platform,
         default_for_currency: true,
         status: 'new',
       },
       ...RECIPIENTS.map((address, i) => ({
-        id: `wa_z_${i + 1}`,
-        account: 'acct_z_seller',
+        id: `wa_fd_${i + 1}`,
+        account: 'acct_fd_seller',
         wallet_address: address,
         status: 'new',
       }))
     );
     memory.Seed('Balances', {
-      id: 'bal_z_seller',
-      account: 'acct_z_seller',
+      id: 'bal_fd_seller',
+      account: 'acct_fd_seller',
       available: [{ amount: 0, currency: 'usdc' }],
       pending: [],
     });
@@ -99,11 +99,11 @@ describe('Payouts on Anvil', () => {
       ...IDS.map((id, i) => ({
         id,
         object: 'payout',
-        account: 'acct_z_seller',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_seller',
+        platform_account: 'acct_fd_platform',
         amount: AMOUNTS[i],
         currency: 'usdc',
-        destination: `wa_z_${i + 1}`,
+        destination: `wa_fd_${i + 1}`,
         status: 'pending',
         metadata: {},
       }))
@@ -157,11 +157,11 @@ describe('Payouts on Anvil', () => {
   }
 
   function Available(): number {
-    return memory.Doc<Balance>('Balances', 'bal_z_seller').available[0].amount;
+    return memory.Doc<Balance>('Balances', 'bal_fd_seller').available[0].amount;
   }
 
   const Build = (payouts: string[], deadlineSeconds?: number) =>
-    module.BuildPayoutsBatch('acct_z_platform', {
+    module.BuildPayoutsBatch('acct_fd_platform', {
       payouts,
       deadline_seconds: deadlineSeconds,
     });
@@ -198,7 +198,7 @@ describe('Payouts on Anvil', () => {
     const { publicClient, addresses } = Context();
     const [approvalBatch] = memory.All<PayoutBatch>('PayoutBatches');
 
-    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+    const result = await module.BroadcastPayoutsBatch('acct_fd_platform', {
       signed_transaction: await Sign(approvalBatch.unsigned_transaction),
       payouts: [],
     });
@@ -235,7 +235,7 @@ describe('Payouts on Anvil', () => {
     });
     const before = await Promise.all(RECIPIENTS.slice(0, 3).map(UsdcBalance));
 
-    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+    const result = await module.BroadcastPayoutsBatch('acct_fd_platform', {
       signed_transaction: await Sign(built.unsigned_transaction),
       payouts: IDS.slice(0, 3),
     });
@@ -290,7 +290,7 @@ describe('Payouts on Anvil', () => {
       Promise.all(RECIPIENTS.slice(0, 3).map(UsdcBalance))
     ).resolves.toEqual(before);
     await expect(
-      module.BroadcastPayoutsBatch('acct_z_platform', {
+      module.BroadcastPayoutsBatch('acct_fd_platform', {
         transaction_hash: replay,
         payouts: IDS.slice(0, 3),
       })
@@ -318,7 +318,7 @@ describe('Payouts on Anvil', () => {
     const built = await Build([IDS[4]], 120);
     await Blacklist(RECIPIENTS[4]);
 
-    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+    const result = await module.BroadcastPayoutsBatch('acct_fd_platform', {
       signed_transaction: await Sign(built.unsigned_transaction),
       payouts: [IDS[4]],
     });
@@ -337,7 +337,7 @@ describe('Payouts on Anvil', () => {
     expect(Batch(built.payout_batch).status).toBe('reverted');
 
     await PassTime(121);
-    await module.ReconcilePayoutBatches('acct_z_platform');
+    await module.ReconcilePayoutBatches('acct_fd_platform');
 
     expect(Payout(IDS[4])).toMatchObject({
       status: 'failed',
@@ -358,7 +358,7 @@ describe('Payouts on Anvil', () => {
       chain: foundry,
     });
 
-    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+    const result = await module.BroadcastPayoutsBatch('acct_fd_platform', {
       transaction_hash: hash,
       payouts: [IDS[5]],
     });
@@ -383,12 +383,12 @@ describe('Payouts on Anvil', () => {
     await Context().publicClient.waitForTransactionReceipt({ hash });
     await Context().Mine(1);
 
-    await module.ReconcilePayoutBatches('acct_z_platform');
+    await module.ReconcilePayoutBatches('acct_fd_platform');
     expect(Batch(built.payout_batch).status).toBe('built');
 
     await PassTime(121);
     await expect(
-      module.ReconcilePayoutBatches('acct_z_platform')
+      module.ReconcilePayoutBatches('acct_fd_platform')
     ).resolves.toMatchObject({ reconciled: 1, failed: 1 });
     expect(Batch(built.payout_batch).status).toBe('replaced');
     expect(Payout(IDS[6]).status).toBe('pending');
@@ -412,7 +412,7 @@ describe('Payouts on Anvil', () => {
     await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(0n);
 
     const rebuilt = await Build([IDS[6]]);
-    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+    const result = await module.BroadcastPayoutsBatch('acct_fd_platform', {
       signed_transaction: await Sign(rebuilt.unsigned_transaction),
       payouts: [IDS[6]],
     });
@@ -457,7 +457,7 @@ describe('Payouts on Anvil', () => {
 
     // Reconcile proves expiry and frees the payout; broadcast has nothing left.
     await expect(
-      module.BroadcastPayoutsBatch('acct_z_platform', {
+      module.BroadcastPayoutsBatch('acct_fd_platform', {
         transaction_hash: hash,
         payouts: [IDS[8]],
       })
@@ -480,7 +480,7 @@ describe('Payouts on Anvil', () => {
     await Context().Mine(1);
 
     await expect(
-      module.ReconcilePayoutBatches('acct_z_platform')
+      module.ReconcilePayoutBatches('acct_fd_platform')
     ).resolves.toMatchObject({ reconciled: 1, paid: 1 });
     expect(Payout(IDS[7])).toMatchObject({
       status: 'paid',

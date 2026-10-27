@@ -2,12 +2,12 @@ import { Product } from './Product';
 
 /**
  * Billing frequency for a recurring price.
- * @zoneless_extension Includes `hour` (not in Stripe) for on-chain subscription periods.
+ * @fiatdesk_extension Includes `hour` (not in Stripe) for on-chain subscription periods.
  */
 export type RecurringInterval = 'hour' | 'day' | 'week' | 'month' | 'year';
 
 /**
- * Stripe-compatible Price object for Zoneless.
+ * Stripe-compatible Price object for FiatDesk.
  * Represents the price of a product.
  *
  * @see https://docs.stripe.com/api/prices/object
@@ -30,7 +30,7 @@ export interface Price {
     /**
      * The frequency at which a subscription is billed.
      * One of hour, day, week, month or year.
-     * @zoneless_extension `hour` is supported for on-chain subscription periods.
+     * @fiatdesk_extension `hour` is supported for on-chain subscription periods.
      */
     interval: RecurringInterval;
     /** The number of intervals (specified in the interval attribute) between subscription billings. For example, interval=month and interval_count=3 bills every 3 months. */
@@ -89,11 +89,11 @@ export interface Price {
   /** The unit amount in the smallest currency unit to be charged, represented as a decimal string with at most 12 decimal places. Only set if billing_scheme=per_unit. */
   unit_amount_decimal: string | null;
   /**
-   * @zoneless_extension The platform account that owns this resource.
+   * @fiatdesk_extension The platform account that owns this resource.
    */
   platform_account: string;
   /**
-   * @zoneless_extension On-chain subscription plan id for this recurring price.
+   * @fiatdesk_extension On-chain subscription plan id for this recurring price.
    * Set by the API when the on-chain plan is created; not customer-editable.
    * Null for one-time prices or before plan creation succeeds.
    */

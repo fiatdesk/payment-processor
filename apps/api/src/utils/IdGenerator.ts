@@ -1,6 +1,6 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import * as crypto from 'crypto';
-import { BRAND } from '@zoneless/shared-types';
+import { BRAND } from '@fiatdesk/shared-types';
 
 const URL_SAFE_CHARS =
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -10,7 +10,7 @@ const INVOICE_PREFIX_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /**
  * Generates a random object ID with a prefix and the brand id infix, similar
- * to Stripe IDs. e.g. acct_z_1SVYFEIS97JJCA0T
+ * to Stripe IDs. e.g. acct_fd_1SVYFEIS97JJCA0T
  *
  * @param prefix The prefix for the ID (e.g. 'acct', 'ch', 'cus')
  * @param length The length of the random part (default 16)

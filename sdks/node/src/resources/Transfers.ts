@@ -1,7 +1,7 @@
 import { BaseResource } from './Base';
 import { RequestExtraOptions } from '../HttpClient';
 import { ApplyDateFilter } from '../utils';
-import { Transfer, ListResponse } from '@zoneless/shared-types';
+import { Transfer, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CreateTransferInput,
   UpdateTransferInput,

@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-The Zoneless team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
+The FiatDesk team takes security seriously. We appreciate your efforts to responsibly disclose your findings.
 
 ### How to Report
 

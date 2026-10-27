@@ -13,7 +13,7 @@ import {
   Price,
   RecurringInterval,
   SameAddress,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 import type { WalletService } from '../../../core';
 import {

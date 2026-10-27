@@ -1,4 +1,4 @@
-import type { CheckoutSession, Eip712TypedData } from '@zoneless/shared-types';
+import type { CheckoutSession, Eip712TypedData } from '@fiatdesk/shared-types';
 
 import {
   CheckoutTrialSummary,

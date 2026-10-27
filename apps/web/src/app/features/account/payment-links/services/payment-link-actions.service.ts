@@ -1,8 +1,8 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { PaymentLink } from '@zoneless/shared-types';
+import type { PaymentLink } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { PaymentLinkService, PriceService } from '../../../../data';
-import { CreatePaymentLinkInput } from '@zoneless/shared-schemas';
+import { CreatePaymentLinkInput } from '@fiatdesk/shared-schemas';
 
 export type PaymentLinkActionEvent =
   | { type: 'created'; paymentLink: PaymentLink }

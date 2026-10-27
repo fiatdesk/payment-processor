@@ -18,24 +18,24 @@ export const TRANSFERS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const TRANSFER_OBJECT_JSON = `{
-  "id": "tr_z_1MiN3gLkdIwHu7ixNCZvFdgA",
+  "id": "tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA",
   "object": "transfer",
   "amount": 40000,
   "amount_reversed": 0,
-  "balance_transaction": "txn_z_1MiN3gLkdIwHu7ixxapQrznl",
+  "balance_transaction": "txn_fd_1MiN3gLkdIwHu7ixxapQrznl",
   "created": 1678043844,
   "currency": "usdc",
   "description": null,
-  "destination": "acct_z_1MTfjCQ9PRzxEwkZ",
-  "destination_payment": "py_z_1MiN3gQ9PRzxEwkZWTPGNq9o",
+  "destination": "acct_fd_1MTfjCQ9PRzxEwkZ",
+  "destination_payment": "py_fd_1MiN3gQ9PRzxEwkZWTPGNq9o",
   "livemode": false,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "reversals": {
     "object": "list",
     "data": [],
     "has_more": false,
-    "url": "/v1/transfers/tr_z_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
+    "url": "/v1/transfers/tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
   },
   "reversed": false,
   "source_transaction": null,
@@ -48,7 +48,7 @@ const TRANSFER_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless transfer IDs are prefixed with <code>tr_z_</code>.',
+      'Unique identifier for the object. FiatDesk transfer IDs are prefixed with <code>tr_fd_</code>.',
   },
   {
     name: 'object',
@@ -84,9 +84,9 @@ const TRANSFER_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter ISO currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+      'Three-letter ISO currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless uses <code>usdc</code> instead of fiat currencies like <code>usd</code>. The amount is still specified in cents (1/100 of a USDC).',
+      '<strong>Difference from Stripe:</strong> FiatDesk uses <code>usdc</code> instead of fiat currencies like <code>usd</code>. The amount is still specified in cents (1/100 of a USDC).',
   },
   {
     name: 'description',
@@ -124,7 +124,7 @@ const TRANSFER_ATTRIBUTES: Attribute[] = [
     type: 'object',
     description: 'A list of reversals that have been applied to the transfer.',
     enumNote:
-      '<strong>Note:</strong> Transfer reversals are not currently implemented in Zoneless. This field is included for API compatibility.',
+      '<strong>Note:</strong> Transfer reversals are not currently implemented in FiatDesk. This field is included for API compatibility.',
     expandable: true,
     children: [
       {
@@ -172,11 +172,11 @@ const TRANSFER_ATTRIBUTES: Attribute[] = [
       {
         value: 'wallet',
         description:
-          "Funds from the platform's USDC wallet balance. This is the only functional source type in Zoneless.",
+          "Funds from the platform's USDC wallet balance. This is the only functional source type in FiatDesk.",
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe supports <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types. Zoneless only uses <code>wallet</code> for USDC transfers. The other values are accepted by the API for migration compatibility but should not be used.',
+      '<strong>Difference from Stripe:</strong> Stripe supports <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types. FiatDesk only uses <code>wallet</code> for USDC transfers. The other values are accepted by the API for migration compatibility but should not be used.',
   },
   {
     name: 'transfer_group',
@@ -194,7 +194,7 @@ const TRANSFER_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -205,7 +205,7 @@ export const TRANSFERS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Transfer object',
   description:
-    'A Transfer object is created when you move funds between Zoneless accounts as part of Connect. Transfers allow platforms to send funds to their connected accounts.',
+    'A Transfer object is created when you move funds between FiatDesk accounts as part of Connect. Transfers allow platforms to send funds to their connected accounts.',
   stripeDocsUrl: 'https://docs.stripe.com/api/transfers',
   endpoints: BuildEndpointSummaries(TRANSFERS_SUBSECTION, [
     { method: 'POST', path: '/v1/transfers', pageId: 'create' },
@@ -257,7 +257,7 @@ const CREATE_TRANSFER_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter ISO code for currency in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter ISO code for currency in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currencies.',
   },
@@ -266,7 +266,7 @@ const CREATE_TRANSFER_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'The ID of a connected Zoneless account. The destination account must belong to your platform.',
+      'The ID of a connected FiatDesk account. The destination account must belong to your platform.',
   },
   {
     name: 'description',
@@ -293,7 +293,7 @@ const CREATE_TRANSFER_MORE_PARAMETERS: Attribute[] = [
     name: 'source_type',
     type: 'enum',
     description:
-      'The source balance to use for this transfer. Defaults to <code>wallet</code> for Zoneless.',
+      'The source balance to use for this transfer. Defaults to <code>wallet</code> for FiatDesk.',
     enumValues: [
       {
         value: 'wallet',
@@ -301,7 +301,7 @@ const CREATE_TRANSFER_MORE_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe supports <code>card</code>, <code>bank_account</code>, and <code>fpx</code>. Zoneless only uses <code>wallet</code>. The other values are accepted for migration compatibility but should not be used.',
+      '<strong>Difference from Stripe:</strong> Stripe supports <code>card</code>, <code>bank_account</code>, and <code>fpx</code>. FiatDesk only uses <code>wallet</code>. The other values are accepted for migration compatibility but should not be used.',
   },
   {
     name: 'transfer_group',
@@ -349,10 +349,10 @@ export const TRANSFERS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/transfers \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d amount=40000 \\
   -d currency=usdc \\
-  -d destination=acct_z_1MTfjCQ9PRzxEwkZ \\
+  -d destination=acct_fd_1MTfjCQ9PRzxEwkZ \\
   -d transfer_group=ORDER_95`,
             },
             {
@@ -360,10 +360,10 @@ export const TRANSFERS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transfer = await zoneless.transfers.create({
+const transfer = await fiatdesk.transfers.create({
   amount: 40000,
   currency: 'usdc',
-  destination: 'acct_z_1MTfjCQ9PRzxEwkZ',
+  destination: 'acct_fd_1MTfjCQ9PRzxEwkZ',
   transfer_group: 'ORDER_95',
 });`,
             },
@@ -394,26 +394,26 @@ const UPDATE_TRANSFER_PARAMETERS: Attribute[] = [
 ];
 
 const TRANSFER_UPDATE_RESPONSE_JSON = `{
-  "id": "tr_z_1MiN3gLkdIwHu7ixNCZvFdgA",
+  "id": "tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA",
   "object": "transfer",
   "amount": 40000,
   "amount_reversed": 0,
-  "balance_transaction": "txn_z_1MiN3gLkdIwHu7ixxapQrznl",
+  "balance_transaction": "txn_fd_1MiN3gLkdIwHu7ixxapQrznl",
   "created": 1678043844,
   "currency": "usdc",
   "description": null,
-  "destination": "acct_z_1MTfjCQ9PRzxEwkZ",
-  "destination_payment": "py_z_1MiN3gQ9PRzxEwkZWTPGNq9o",
+  "destination": "acct_fd_1MTfjCQ9PRzxEwkZ",
+  "destination_payment": "py_fd_1MiN3gQ9PRzxEwkZWTPGNq9o",
   "livemode": false,
   "metadata": {
     "order_id": "6735"
   },
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "reversals": {
     "object": "list",
     "data": [],
     "has_more": false,
-    "url": "/v1/transfers/tr_z_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
+    "url": "/v1/transfers/tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
   },
   "reversed": false,
   "source_transaction": null,
@@ -457,8 +457,8 @@ export const TRANSFERS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/transfers/tr_z_1MiN3gLkdIwHu7ixNCZvFdgA \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/transfers/tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -466,8 +466,8 @@ export const TRANSFERS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transfer = await zoneless.transfers.update(
-  'tr_z_1MiN3gLkdIwHu7ixNCZvFdgA',
+const transfer = await fiatdesk.transfers.update(
+  'tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA',
   {
     metadata: {
       order_id: '6735',
@@ -494,7 +494,7 @@ export const TRANSFERS_RETRIEVE_PAGE: DocPage = {
   id: 'retrieve',
   title: 'Retrieve a transfer',
   description:
-    'Retrieves the details of an existing transfer. Supply the unique transfer ID from either a transfer creation request or the transfer list, and Zoneless will return the corresponding transfer information.',
+    'Retrieves the details of an existing transfer. Supply the unique transfer ID from either a transfer creation request or the transfer list, and FiatDesk will return the corresponding transfer information.',
   endpoints: [{ method: 'GET', path: '/v1/transfers/:id' }],
   sections: [
     {
@@ -516,16 +516,16 @@ export const TRANSFERS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/transfers/tr_z_1MiN3gLkdIwHu7ixNCZvFdgA \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/transfers/tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transfer = await zoneless.transfers.retrieve(
-  'tr_z_1MiN3gLkdIwHu7ixNCZvFdgA'
+const transfer = await fiatdesk.transfers.retrieve(
+  'tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA'
 );`,
             },
           ],
@@ -587,7 +587,7 @@ const LIST_TRANSFERS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tr_z_bar</code>, your subsequent call can include <code>ending_before=tr_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>tr_fd_bar</code>, your subsequent call can include <code>ending_before=tr_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -599,7 +599,7 @@ const LIST_TRANSFERS_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tr_z_foo</code>, your subsequent call can include <code>starting_after=tr_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>tr_fd_foo</code>, your subsequent call can include <code>starting_after=tr_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -609,24 +609,24 @@ const LIST_TRANSFERS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "tr_z_1MiN3gLkdIwHu7ixNCZvFdgA",
+      "id": "tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA",
       "object": "transfer",
       "amount": 40000,
       "amount_reversed": 0,
-      "balance_transaction": "txn_z_1MiN3gLkdIwHu7ixxapQrznl",
+      "balance_transaction": "txn_fd_1MiN3gLkdIwHu7ixxapQrznl",
       "created": 1678043844,
       "currency": "usdc",
       "description": null,
-      "destination": "acct_z_1MTfjCQ9PRzxEwkZ",
-      "destination_payment": "py_z_1MiN3gQ9PRzxEwkZWTPGNq9o",
+      "destination": "acct_fd_1MTfjCQ9PRzxEwkZ",
+      "destination_payment": "py_fd_1MiN3gQ9PRzxEwkZWTPGNq9o",
       "livemode": false,
       "metadata": {},
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "reversals": {
         "object": "list",
         "data": [],
         "has_more": false,
-        "url": "/v1/transfers/tr_z_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
+        "url": "/v1/transfers/tr_fd_1MiN3gLkdIwHu7ixNCZvFdgA/reversals"
       },
       "reversed": false,
       "source_transaction": null,
@@ -667,7 +667,7 @@ export const TRANSFERS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/transfers \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -675,7 +675,7 @@ export const TRANSFERS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const transfers = await zoneless.transfers.list({
+const transfers = await fiatdesk.transfers.list({
   limit: 3,
 });`,
             },

@@ -12,7 +12,7 @@ import { isAddress } from 'viem';
 import type {
   CheckoutTransferAuthorization,
   PublicConfig,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { GetAppConfig, type SupportedChainId } from '../AppConfig';
 import { ChainClientsGeneration } from './Chain';
 import { CHAIN_EXPLORERS } from './contracts';

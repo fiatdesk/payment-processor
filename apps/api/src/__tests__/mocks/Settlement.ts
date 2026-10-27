@@ -7,7 +7,7 @@
 import {
   IsTransactionHash,
   type CheckoutTransferAuthorization,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   BuildTransferAuthorization,
   BuildTransferAuthorizationTypedData,

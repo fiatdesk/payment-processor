@@ -8,7 +8,7 @@ import {
   signal,
   WritableSignal,
 } from '@angular/core';
-import type { MetricInterval } from '@zoneless/shared-types';
+import type { MetricInterval } from '@fiatdesk/shared-types';
 
 export type DateRangePresetId =
   | 'today'

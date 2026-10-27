@@ -1,6 +1,6 @@
 import { BalanceModule } from '../modules/Balance';
 import { Database } from '../modules/Database';
-import { Balance } from '@zoneless/shared-types';
+import { Balance } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -42,11 +42,11 @@ describe('BalanceModule', () => {
 
   describe('BalanceObject', () => {
     it('should create a balance with zero USDC available and pending', () => {
-      const balance = module.BalanceObject('acct_z_1', 'acct_z_platform');
+      const balance = module.BalanceObject('acct_fd_1', 'acct_fd_platform');
 
       expect(balance.object).toBe('balance');
-      expect(balance.account).toBe('acct_z_1');
-      expect(balance.platform_account).toBe('acct_z_platform');
+      expect(balance.account).toBe('acct_fd_1');
+      expect(balance.platform_account).toBe('acct_fd_platform');
       expect(balance.available).toEqual([{ amount: 0, currency: 'usdc' }]);
       expect(balance.pending).toEqual([{ amount: 0, currency: 'usdc' }]);
     });
@@ -55,16 +55,16 @@ describe('BalanceModule', () => {
   describe('CreateBalance', () => {
     it('should persist a new zero balance for the account', async () => {
       mockDb.Get = jest.fn().mockResolvedValue({
-        id: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
       });
 
-      const balance = await module.CreateBalance('acct_z_1');
+      const balance = await module.CreateBalance('acct_fd_1');
 
       expect(mockDb.Set).toHaveBeenCalledWith(
         'Balances',
         balance.id,
-        expect.objectContaining({ account: 'acct_z_1' })
+        expect.objectContaining({ account: 'acct_fd_1' })
       );
       expect(balance.available[0].amount).toBe(0);
     });
@@ -73,24 +73,24 @@ describe('BalanceModule', () => {
   describe('GetBalance', () => {
     it('should return the balance for an account', async () => {
       const mockBalance: Balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         object: 'balance',
-        account: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
         livemode: false,
         available: [{ amount: 5000, currency: 'usdc' }],
         pending: [{ amount: 0, currency: 'usdc' }],
       };
       mockDb.Find = jest.fn().mockResolvedValue([mockBalance]);
 
-      const result = await module.GetBalance('acct_z_1');
+      const result = await module.GetBalance('acct_fd_1');
 
       expect(result).toEqual(mockBalance);
     });
 
     it('should return null when no balance exists', async () => {
       mockDb.Find = jest.fn().mockResolvedValue([]);
-      const result = await module.GetBalance('acct_z_missing');
+      const result = await module.GetBalance('acct_fd_missing');
       expect(result).toBeNull();
     });
   });
@@ -99,16 +99,16 @@ describe('BalanceModule', () => {
     it("should report the wallet's native balance and the rail's native currency", async () => {
       mockDb.Find2Custom = jest.fn().mockResolvedValue([
         {
-          id: 'wa_z_platform',
+          id: 'wa_fd_platform',
           wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
           default_for_currency: true,
         },
       ]);
       mockDb.Find = jest.fn().mockResolvedValue([
         {
-          id: 'bal_z_1',
+          id: 'bal_fd_1',
           object: 'balance',
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           available: [{ amount: 2500, currency: 'usdc' }],
           pending: [{ amount: 100, currency: 'usdc' }],
         },
@@ -117,7 +117,7 @@ describe('BalanceModule', () => {
       mockSettlement.GetUSDCBalance.mockResolvedValue(32);
       mockSettlement.GetNativeBalance.mockResolvedValue(0.25);
 
-      const details = await module.GetBalanceDetails('acct_z_platform');
+      const details = await module.GetBalanceDetails('acct_fd_platform');
 
       expect(mockSettlement.GetNativeBalance).toHaveBeenCalledWith(
         '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
@@ -138,10 +138,10 @@ describe('BalanceModule', () => {
   describe('UpdateBalance', () => {
     it('should add to the available balance for an existing currency', () => {
       const balance: Balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         object: 'balance',
-        account: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
         livemode: false,
         available: [{ amount: 1000, currency: 'usdc' }],
         pending: [{ amount: 0, currency: 'usdc' }],
@@ -154,10 +154,10 @@ describe('BalanceModule', () => {
 
     it('should subtract from the available balance', () => {
       const balance: Balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         object: 'balance',
-        account: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
         livemode: false,
         available: [{ amount: 1000, currency: 'usdc' }],
         pending: [{ amount: 0, currency: 'usdc' }],
@@ -170,10 +170,10 @@ describe('BalanceModule', () => {
 
     it('should add a new currency entry when not found', () => {
       const balance: Balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         object: 'balance',
-        account: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
         livemode: false,
         available: [{ amount: 1000, currency: 'usdc' }],
         pending: [{ amount: 0, currency: 'usdc' }],
@@ -187,10 +187,10 @@ describe('BalanceModule', () => {
 
     it('should update pending balance separately from available', () => {
       const balance: Balance = {
-        id: 'bal_z_1',
+        id: 'bal_fd_1',
         object: 'balance',
-        account: 'acct_z_1',
-        platform_account: 'acct_z_platform',
+        account: 'acct_fd_1',
+        platform_account: 'acct_fd_platform',
         livemode: false,
         available: [{ amount: 1000, currency: 'usdc' }],
         pending: [{ amount: 500, currency: 'usdc' }],

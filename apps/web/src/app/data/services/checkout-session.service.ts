@@ -4,11 +4,11 @@ import { ApiService, type ApiError } from '../../core';
 import {
   CheckoutPaymentTransaction,
   CheckoutSession,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CreateCheckoutSessionInput,
   UpdateCheckoutSessionInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 /**
  * Subscription mode: the signed `Subscribe`, the signed USDC permit when

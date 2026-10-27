@@ -12,12 +12,12 @@ describe('Events', () => {
   it('sends related_object as a query parameter', async () => {
     Get.mockResolvedValue({ object: 'list', data: [], has_more: false });
 
-    await events.list({ related_object: 'prod_z_123' });
+    await events.list({ related_object: 'prod_fd_123' });
 
     expect(Get).toHaveBeenCalledWith(
       '/events',
       expect.objectContaining({
-        related_object: 'prod_z_123',
+        related_object: 'prod_fd_123',
       })
     );
   });

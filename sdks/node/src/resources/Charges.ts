@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter } from '../utils';
-import { Charge, ListResponse } from '@zoneless/shared-types';
+import { Charge, ListResponse } from '@fiatdesk/shared-types';
 import type {
   CaptureChargeInput,
   CreateChargeInput,

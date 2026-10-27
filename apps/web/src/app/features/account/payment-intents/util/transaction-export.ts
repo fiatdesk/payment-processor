@@ -2,7 +2,7 @@ import type {
   BalanceTransaction,
   ListResponse,
   PaymentIntent,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type { ApiService } from '../../../../core';
 
 export const EXPORT_PAGE_SIZE = 100;

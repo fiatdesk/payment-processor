@@ -1,11 +1,11 @@
 /**
- * Shared test setup and mock factories for Zoneless API unit tests.
+ * Shared test setup and mock factories for FiatDesk API unit tests.
  *
  * Provides a consistent `MockDatabase` and deterministic ID/timestamp
  * helpers so every test file can spin up modules the same way.
  */
 
-import { BRAND } from '@zoneless/shared-types';
+import { BRAND } from '@fiatdesk/shared-types';
 import { Database } from '../modules/Database';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ export function ResetIdCounter(): void {
 
 /**
  * Returns a deterministic ID using the given prefix and the brand id infix,
- * shaped like `GenerateId` (e.g. `po_z_test001`).
+ * shaped like `GenerateId` (e.g. `po_fd_test001`).
  * Counter increments per call so multiple IDs in the same test are unique.
  */
 export function DeterministicId(prefix: string): string {

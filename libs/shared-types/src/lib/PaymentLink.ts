@@ -5,7 +5,7 @@ import {
 } from './CheckoutSession';
 
 /**
- * Stripe-compatible Payment Link object for Zoneless.
+ * Stripe-compatible Payment Link object for FiatDesk.
  * A shareable URL that customers can use to pay, creating a Checkout Session when visited.
  *
  * @see https://docs.stripe.com/api/payment_links/object
@@ -154,7 +154,7 @@ export interface PaymentLink {
   /**
    * Payment-method-specific configuration.
    * @remarks Stripe defines many per-payment-method-type option bags here that are specific to
-   * fiat payment rails. Zoneless only accepts USDC wallet payments; the documented `card`
+   * fiat payment rails. FiatDesk only accepts USDC wallet payments; the documented `card`
    * restrictions shape is retained for API parity.
    */
   payment_method_options: {
@@ -230,14 +230,14 @@ export interface PaymentLink {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
   /**
    * Opaque slug used in the public payment link URL (`/b/{url_slug}`).
    * Distinct from `id` so shareable links do not expose the API object id.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   url_slug: string;
 }

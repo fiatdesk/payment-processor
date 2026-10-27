@@ -2,7 +2,7 @@ import { Attribute } from './types';
 
 /**
  * Canonical list of webhook/API event types documented on the site.
- * Keep in sync with EVENT_TYPES in @zoneless/shared-types (excluding '*').
+ * Keep in sync with EVENT_TYPES in @fiatdesk/shared-types (excluding '*').
  */
 export interface EventTypeDefinition {
   name: string;
@@ -188,7 +188,7 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
     objectType: 'Subscription',
     objectHref: '#subscriptions-object',
     description:
-      "<strong>Zoneless extension:</strong> Occurs whenever a billing period cannot be collected because the customer's USDC allowance to the Subscriptions contract is too low. The subscription is <code>past_due</code> from the first failed attempt until the customer raises their allowance from their wallet or subscribes again through a new Checkout Session. Zoneless has no hosted page for renewing the authorization.",
+      "<strong>FiatDesk extension:</strong> Occurs whenever a billing period cannot be collected because the customer's USDC allowance to the Subscriptions contract is too low. The subscription is <code>past_due</code> from the first failed attempt until the customer raises their allowance from their wallet or subscribes again through a new Checkout Session. FiatDesk has no hosted page for renewing the authorization.",
   },
   {
     name: 'customer.subscription.created',

@@ -10,7 +10,7 @@ export const API_QUICKSTART_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'This guide uses the Zoneless Node.js SDK and Zoneless Cloud in live mode. Prefer the dashboard? Follow the <a href="/quickstart">dashboard quickstart</a>. If you self-host, complete <a href="/self-hosting">Self-hosting</a> first and replace the cloud API URL with your instance URL.',
+          text: 'This guide uses the FiatDesk Node.js SDK and FiatDesk Cloud in live mode. Prefer the dashboard? Follow the <a href="/quickstart">dashboard quickstart</a>. If you self-host, complete <a href="/self-hosting">Self-hosting</a> first and replace the cloud API URL with your instance URL.',
           html: true,
         },
         {
@@ -20,7 +20,7 @@ export const API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Create a <a href="https://pay.yourdomain.com">Zoneless account</a>, then copy your live secret key from the dashboard. It starts with <code>sk_live_z_</code>. Store it in an environment variable and only use it in server-side code. See <a href="/authentication">Authentication</a> for test mode and self-hosted keys.',
+          text: 'Create a <a href="https://pay.yourdomain.com">FiatDesk account</a>, then copy your live secret key from the dashboard. It starts with <code>sk_live_fd_</code>. Store it in an environment variable and only use it in server-side code. See <a href="/authentication">Authentication</a> for test mode and self-hosted keys.',
           html: true,
         },
       ],
@@ -34,7 +34,7 @@ export const API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Install the Zoneless Node.js SDK using your preferred package manager.',
+          text: 'Install the FiatDesk Node.js SDK using your preferred package manager.',
         },
       ],
       right: [
@@ -42,8 +42,8 @@ export const API_QUICKSTART_PAGE: DocPage = {
           type: 'code',
           title: 'Install',
           tabs: [
-            { id: 'npm', label: 'npm', code: 'npm install @zoneless/node' },
-            { id: 'yarn', label: 'yarn', code: 'yarn add @zoneless/node' },
+            { id: 'npm', label: 'npm', code: 'npm install @fiatdesk/node' },
+            { id: 'yarn', label: 'yarn', code: 'yarn add @fiatdesk/node' },
           ],
         },
       ],
@@ -57,7 +57,7 @@ export const API_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Create one Zoneless client and reuse it for the requests below.',
+          text: 'Create one FiatDesk client and reuse it for the requests below.',
         },
       ],
       right: [
@@ -68,22 +68,22 @@ export const API_QUICKSTART_PAGE: DocPage = {
             {
               id: 'node',
               label: 'Node.js',
-              code: `import { Zoneless } from '@zoneless/node';
+              code: `import { FiatDesk } from '@fiatdesk/node';
 
-const apiKey = process.env.ZONELESS_API_KEY;
-const apiUrl = process.env.ZONELESS_API_URL;
+const apiKey = process.env.FIATDESK_API_KEY;
+const apiUrl = process.env.FIATDESK_API_URL;
 
 if (!apiKey || !apiUrl) {
-  throw new Error('Missing Zoneless configuration');
+  throw new Error('Missing FiatDesk configuration');
 }
 
-const zoneless = new Zoneless(apiKey, apiUrl);`,
+const fiatdesk = new FiatDesk(apiKey, apiUrl);`,
             },
             {
               id: 'curl',
               label: 'cURL',
-              code: `export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
-export ZONELESS_API_URL="https://api.yourdomain.com"`,
+              code: `export FIATDESK_API_KEY="sk_live_fd_YOUR_API_KEY"
+export FIATDESK_API_URL="https://api.yourdomain.com"`,
             },
           ],
         },
@@ -114,7 +114,7 @@ export ZONELESS_API_URL="https://api.yourdomain.com"`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `const account = await zoneless.accounts.create({
+              code: `const account = await fiatdesk.accounts.create({
   type: 'express',
   country: 'US',
   email: 'seller@example.com',
@@ -123,13 +123,13 @@ export ZONELESS_API_URL="https://api.yourdomain.com"`,
   },
 });
 
-console.log(account.id); // acct_z_1234...`,
+console.log(account.id); // acct_fd_1234...`,
             },
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl "$ZONELESS_API_URL/v1/accounts" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+              code: `curl "$FIATDESK_API_URL/v1/accounts" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "type": "express",
@@ -171,7 +171,7 @@ console.log(account.id); // acct_z_1234...`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `const accountLink = await zoneless.accountLinks.create({
+              code: `const accountLink = await fiatdesk.accountLinks.create({
   account: account.id,
   refresh_url: 'https://yoursite.com/reauth',
   return_url: 'https://yoursite.com/return',
@@ -184,11 +184,11 @@ console.log(accountLink.url);`,
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl "$ZONELESS_API_URL/v1/account_links" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+              code: `curl "$FIATDESK_API_URL/v1/account_links" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "account": "acct_z_1234...",
+    "account": "acct_fd_1234...",
     "refresh_url": "https://yoursite.com/reauth",
     "return_url": "https://yoursite.com/return",
     "type": "account_onboarding"
@@ -224,7 +224,7 @@ console.log(accountLink.url);`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `const onboardedAccount = await zoneless.accounts.retrieve(
+              code: `const onboardedAccount = await fiatdesk.accounts.retrieve(
   account.id
 );
 
@@ -235,8 +235,8 @@ if (!onboardedAccount.payouts_enabled) {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl "$ZONELESS_API_URL/v1/accounts/acct_z_1234..." \\
-  -H "x-api-key: $ZONELESS_API_KEY"`,
+              code: `curl "$FIATDESK_API_URL/v1/accounts/acct_fd_1234..." \\
+  -H "x-api-key: $FIATDESK_API_KEY"`,
             },
           ],
         },
@@ -272,7 +272,7 @@ if (!onboardedAccount.payouts_enabled) {
         },
         {
           type: 'paragraph',
-          text: 'Create a <a href="/transfers">transfer</a> to credit the connected account\'s Zoneless balance. This updates the balances recorded by Zoneless, but it does not send USDC to the seller\'s wallet yet.',
+          text: 'Create a <a href="/transfers">transfer</a> to credit the connected account\'s FiatDesk balance. This updates the balances recorded by FiatDesk, but it does not send USDC to the seller\'s wallet yet.',
           html: true,
         },
       ],
@@ -284,25 +284,25 @@ if (!onboardedAccount.payouts_enabled) {
             {
               id: 'node',
               label: 'Node.js',
-              code: `const transfer = await zoneless.transfers.create({
+              code: `const transfer = await fiatdesk.transfers.create({
   amount: 1, // $0.01
   currency: 'usdc',
   destination: account.id,
   description: 'Payment for services',
 });
 
-console.log(transfer.id); // tr_z_1234...`,
+console.log(transfer.id); // tr_fd_1234...`,
             },
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl "$ZONELESS_API_URL/v1/transfers" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+              code: `curl "$FIATDESK_API_URL/v1/transfers" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "amount": 1,
     "currency": "usdc",
-    "destination": "acct_z_1234...",
+    "destination": "acct_fd_1234...",
     "description": "Payment for services"
   }'`,
             },
@@ -319,7 +319,7 @@ console.log(transfer.id); // tr_z_1234...`,
         },
         {
           type: 'paragraph',
-          text: 'Create a <a href="/payouts">payout</a> on behalf of the connected account. The <code>zonelessAccount</code> option is the SDK equivalent of the <code>Zoneless-Account</code> request header.',
+          text: 'Create a <a href="/payouts">payout</a> on behalf of the connected account. The <code>fiatdeskAccount</code> option is the SDK equivalent of the <code>FiatDesk-Account</code> request header.',
           html: true,
         },
         {
@@ -336,21 +336,21 @@ console.log(transfer.id); // tr_z_1234...`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `const payout = await zoneless.payouts.create({
+              code: `const payout = await fiatdesk.payouts.create({
   amount: 1, // $0.01
   currency: 'usdc',
 }, {
-  zonelessAccount: account.id,
+  fiatdeskAccount: account.id,
 });
 
-console.log(payout.id); // po_z_1234...`,
+console.log(payout.id); // po_fd_1234...`,
             },
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl "$ZONELESS_API_URL/v1/payouts" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1234..." \\
+              code: `curl "$FIATDESK_API_URL/v1/payouts" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1234..." \\
   -d amount=1 \\
   -d currency=usdc`,
             },
@@ -396,17 +396,17 @@ if (!walletPrivateKey) {
   throw new Error('Missing WALLET_PRIVATE_KEY');
 }
 
-await zoneless.payouts.processAll(walletPrivateKey as \`0x\${string}\`);`,
+await fiatdesk.payouts.processAll(walletPrivateKey as \`0x\${string}\`);`,
             },
             {
               id: 'curl',
               label: 'cURL',
               code: `# Step 1: Build the unsigned transaction
-curl "$ZONELESS_API_URL/v1/payouts/build" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+curl "$FIATDESK_API_URL/v1/payouts/build" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "payouts": ["po_z_1234..."]
+    "payouts": ["po_fd_1234..."]
   }'
 # Returns an unsigned_transaction (EIP-1559, hex) and estimated_fee to sign locally
 
@@ -415,12 +415,12 @@ curl "$ZONELESS_API_URL/v1/payouts/build" \\
 # ethers, cast, or any signer that handles EIP-1559 transactions)
 
 # Step 3: Broadcast the signed transaction
-curl "$ZONELESS_API_URL/v1/payouts/broadcast" \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
+curl "$FIATDESK_API_URL/v1/payouts/broadcast" \\
+  -H "x-api-key: $FIATDESK_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "signed_transaction": "<0x-signed-tx>",
-    "payouts": ["po_z_1234..."]
+    "payouts": ["po_fd_1234..."]
   }'`,
             },
           ],

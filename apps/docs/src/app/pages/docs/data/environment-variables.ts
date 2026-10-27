@@ -118,7 +118,7 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<code>PAYMENT_LINK_URL</code>: Optional Payment Links origin. When omitted, Zoneless uses <code>CHECKOUT_URL</code> or <code>DASHBOARD_URL/b/:id</code>.',
+              text: '<code>PAYMENT_LINK_URL</code>: Optional Payment Links origin. When omitted, FiatDesk uses <code>CHECKOUT_URL</code> or <code>DASHBOARD_URL/b/:id</code>.',
               html: true,
             },
           ],
@@ -170,8 +170,8 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Using Zoneless Cloud? ',
-          text: 'You do not need these settings. Use the Zoneless dashboard and <code>https://api.yourdomain.com</code>.',
+          title: 'Using FiatDesk Cloud? ',
+          text: 'You do not need these settings. Use the FiatDesk dashboard and <code>https://api.yourdomain.com</code>.',
           html: true,
         },
       ],

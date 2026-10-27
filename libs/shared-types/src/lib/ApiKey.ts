@@ -19,7 +19,7 @@ export interface ApiKey {
   token_hash: string;
   /**
    * First characters of the token for identification in UI.
-   * e.g., "sk_live_z_Abc12..." so users can identify which key is which.
+   * e.g., "sk_live_fd_Abc12..." so users can identify which key is which.
    */
   token_prefix: string;
   /**
@@ -46,7 +46,7 @@ export interface ApiKey {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

@@ -21,7 +21,7 @@ import {
   ConfirmCheckoutPaymentSchema,
   PrepareCheckoutPaymentSchema,
   type ConfirmCheckoutPaymentInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 

@@ -22,7 +22,7 @@ import {
   type TransactionReceipt,
 } from 'viem';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
-import { IsTransactionHash, SameAddress } from '@zoneless/shared-types';
+import { IsTransactionHash, SameAddress } from '@fiatdesk/shared-types';
 import { AppError } from '../../utils/AppError';
 import { WithKeyedLock } from '../../utils/KeyedLock';
 import { Logger } from '../../utils/Logger';

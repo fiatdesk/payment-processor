@@ -15,12 +15,12 @@ import type {
   PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
   ReconcileResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   BroadcastPayoutsBatchInput,
   CreateAccountInput,
-} from '@zoneless/shared-schemas';
-import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
+import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 import {
   AccountService,
   AccountLinkService,

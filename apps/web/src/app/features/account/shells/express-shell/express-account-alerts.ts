@@ -1,5 +1,5 @@
-import type { Account } from '@zoneless/shared-types';
-import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
+import type { Account } from '@fiatdesk/shared-types';
+import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 import { GetIdentityDocumentRequirementState } from '../../connected-accounts/util/identity-requirements';
 
 export type ExpressAccountAlertAction = 'identity_task' | 'none';

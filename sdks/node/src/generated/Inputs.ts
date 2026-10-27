@@ -184,9 +184,9 @@ export type CreateAccountInput = {
                 | 'application_express';
             }
           | undefined;
-        losses?: { payments: 'application' | 'zoneless' } | undefined;
-        requirement_collection?: 'application' | 'zoneless' | undefined;
-        zoneless_dashboard?: { type: 'express' | 'none' | 'full' } | undefined;
+        losses?: { payments: 'application' | 'fiatdesk' } | undefined;
+        requirement_collection?: 'application' | 'fiatdesk' | undefined;
+        fiatdesk_dashboard?: { type: 'express' | 'none' | 'full' } | undefined;
       }
     | undefined;
   metadata?: Record<string, string> | undefined;

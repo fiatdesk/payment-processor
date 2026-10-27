@@ -12,7 +12,7 @@ import {
   CheckoutSessionLineItem,
   PaymentLink as PaymentLinkType,
   Price as PriceType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import type { PriceModule } from './Price';
 import type { ProductModule } from './Product';
@@ -25,7 +25,7 @@ import {
   ListPaymentLinksFiltersInput,
   CreatePriceInput,
   CreateCheckoutSessionInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { NormalizeStoredAfterCompletion } from '../utils/AfterCompletion';

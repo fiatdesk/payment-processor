@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import type { Subscription } from '@zoneless/shared-types';
+import type { Subscription } from '@fiatdesk/shared-types';
 
 import { ApiService, MetaService } from '../../../../../core';
 import { ConfigService, SubscriptionService } from '../../../../../data';
@@ -17,26 +17,26 @@ function OnchainSubscription(
   overrides: Partial<Record<keyof Subscription, unknown>> = {}
 ): Subscription {
   return {
-    id: 'sub_z_1',
+    id: 'sub_fd_1',
     object: 'subscription',
     status: 'active',
     created: 1793000000,
     start_date: 1793000000,
     livemode: true,
-    customer: { id: 'cus_z_1', name: 'Ada', email: 'ada@example.com' },
+    customer: { id: 'cus_fd_1', name: 'Ada', email: 'ada@example.com' },
     items: {
       object: 'list',
       data: [
         {
-          id: 'si_z_1',
+          id: 'si_fd_1',
           quantity: 1,
           current_period_start: 1793000000,
           current_period_end: 1795592000,
           price: {
-            id: 'price_z_1',
+            id: 'price_fd_1',
             unit_amount: 1000,
             recurring: { interval: 'month', interval_count: 1 },
-            product: { id: 'prod_z_1', name: 'Pro' },
+            product: { id: 'prod_fd_1', name: 'Pro' },
           },
         },
       ],
@@ -101,7 +101,7 @@ describe('SubscriptionDetailComponent', () => {
         SubscriptionActionsService,
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => 'sub_z_1' } } },
+          useValue: { snapshot: { paramMap: { get: () => 'sub_fd_1' } } },
         },
         { provide: SubscriptionService, useValue: subscriptionService },
         { provide: ConfigService, useValue: configService },
@@ -126,7 +126,7 @@ describe('SubscriptionDetailComponent', () => {
     await Render(OnchainSubscription());
 
     expect(subscriptionService.GetSubscription).toHaveBeenCalledWith(
-      'sub_z_1',
+      'sub_fd_1',
       ['customer', 'items.data.price.product', 'latest_invoice']
     );
   });
@@ -198,7 +198,7 @@ describe('SubscriptionDetailComponent', () => {
       OnchainSubscription({
         status: 'past_due',
         latest_invoice: {
-          id: 'in_z_1',
+          id: 'in_fd_1',
           status: 'open',
           metadata: { last_payment_error_code: 'collection_failed_allowance' },
         },

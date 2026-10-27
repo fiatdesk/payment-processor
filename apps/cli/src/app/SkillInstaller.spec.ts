@@ -13,7 +13,7 @@ async function CreateFixture(): Promise<{
   sourceLocations: SkillSourceLocations;
 }> {
   const rootDirectory = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'zoneless-skill-installer-')
+    path.join(os.tmpdir(), 'fiatdesk-skill-installer-')
   );
   const projectDirectory = path.join(rootDirectory, 'project');
   const sourceLocations = {
@@ -39,7 +39,7 @@ describe('Skill installer', () => {
     const fixture = await CreateFixture();
     await WriteSkill(
       fixture.sourceLocations.sourceTreeSkillsDirectory,
-      'zoneless-payments',
+      'fiatdesk-payments',
       '# Payments source skill\n'
     );
 
@@ -57,7 +57,7 @@ describe('Skill installer', () => {
           fixture.projectDirectory,
           '.agents',
           'skills',
-          'zoneless-payments',
+          'fiatdesk-payments',
           'SKILL.md'
         ),
         skill: 'payments',
@@ -74,7 +74,7 @@ describe('Skill installer', () => {
     const fixture = await CreateFixture();
     await WriteSkill(
       fixture.sourceLocations.sourceTreeSkillsDirectory,
-      'zoneless-payments',
+      'fiatdesk-payments',
       '# Payments source skill\n'
     );
 
@@ -91,7 +91,7 @@ describe('Skill installer', () => {
           fixture.projectDirectory,
           '.agents',
           'skills',
-          'zoneless-payments',
+          'fiatdesk-payments',
           'SKILL.md'
         )
       );
@@ -104,7 +104,7 @@ describe('Skill installer', () => {
     const fixture = await CreateFixture();
     await WriteSkill(
       fixture.sourceLocations.packagedSkillsDirectory,
-      'zoneless-marketplace',
+      'fiatdesk-marketplace',
       '# Marketplace packaged skill\n'
     );
 
@@ -121,7 +121,7 @@ describe('Skill installer', () => {
           fixture.projectDirectory,
           '.agents',
           'skills',
-          'zoneless-marketplace',
+          'fiatdesk-marketplace',
           'SKILL.md'
         )
       );
@@ -134,10 +134,10 @@ describe('Skill installer', () => {
   });
 
   it('rejects skill values outside the finite allowlist', () => {
-    expect(() => ValidateAgentSkillId('../zoneless-marketplace')).toThrow(
+    expect(() => ValidateAgentSkillId('../fiatdesk-marketplace')).toThrow(
       /marketplace, payments/
     );
-    expect(() => ValidateAgentSkillId('zoneless-marketplace')).toThrow(
+    expect(() => ValidateAgentSkillId('fiatdesk-marketplace')).toThrow(
       /marketplace, payments/
     );
   });

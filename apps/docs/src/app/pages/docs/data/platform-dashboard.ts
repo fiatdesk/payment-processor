@@ -18,7 +18,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'On Zoneless Cloud, sign in to your <a href="https://pay.yourdomain.com">Zoneless account</a> and click <strong>Open Zoneless Dashboard</strong>. If you self-host, use the dashboard URL for your own instance.',
+          text: 'On FiatDesk Cloud, sign in to your <a href="https://pay.yourdomain.com">FiatDesk account</a> and click <strong>Open FiatDesk Dashboard</strong>. If you self-host, use the dashboard URL for your own instance.',
           html: true,
         },
       ],
@@ -26,7 +26,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         {
           type: 'image',
           src: '/assets/images/screenshots/transfers.webp',
-          alt: 'Transfers in the Zoneless Platform Dashboard',
+          alt: 'Transfers in the FiatDesk Platform Dashboard',
           caption:
             'View transfers between your platform and connected accounts.',
         },
@@ -70,7 +70,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Fund accounts and pay sellers' },
         {
           type: 'paragraph',
-          text: 'Seller payouts come from your platform wallet. The dashboard shows its USDC balance and the connected account balances recorded by Zoneless.',
+          text: 'Seller payouts come from your platform wallet. The dashboard shows its USDC balance and the connected account balances recorded by FiatDesk.',
         },
         {
           type: 'list',
@@ -80,7 +80,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<strong><a href="/transfers">Transfer funds</a>:</strong> Credit a connected account\'s Zoneless balance.',
+              text: '<strong><a href="/transfers">Transfer funds</a>:</strong> Credit a connected account\'s FiatDesk balance.',
               html: true,
             },
             {
@@ -162,14 +162,14 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Zoneless Cloud has separate live and test environments. Live mode uses Ethereum mainnet and real USDC. Test mode uses simulated USDC, so you can test checkout, payouts, and subscriptions without a wallet or faucet.',
+          text: 'FiatDesk Cloud has separate live and test environments. Live mode uses Ethereum mainnet and real USDC. Test mode uses simulated USDC, so you can test checkout, payouts, and subscriptions without a wallet or faucet.',
         },
       ],
       right: [
         {
           type: 'image',
           src: '/assets/images/screenshots/webhooks-connect.webp',
-          alt: 'Webhook settings in the Zoneless Platform Dashboard',
+          alt: 'Webhook settings in the FiatDesk Platform Dashboard',
           caption:
             'Configure webhook endpoints and inspect developer activity.',
         },
@@ -180,11 +180,11 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Payments and billing' },
         {
           type: 'paragraph',
-          text: 'The dashboard also includes Checkout, Payment Links, customers, products, subscriptions, and invoices. These are available if you want to collect USDC with Zoneless, but they are not required to use connected accounts and payouts.',
+          text: 'The dashboard also includes Checkout, Payment Links, customers, products, subscriptions, and invoices. These are available if you want to collect USDC with FiatDesk, but they are not required to use connected accounts and payouts.',
         },
         {
           type: 'paragraph',
-          text: 'You can keep collecting customer payments with Stripe and use Zoneless only for seller onboarding and USDC payouts. See <a href="/migrate-from-stripe">Migrate from Stripe</a> for that setup.',
+          text: 'You can keep collecting customer payments with Stripe and use FiatDesk only for seller onboarding and USDC payouts. See <a href="/migrate-from-stripe">Migrate from Stripe</a> for that setup.',
           html: true,
         },
       ],

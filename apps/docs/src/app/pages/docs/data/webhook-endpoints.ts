@@ -18,7 +18,7 @@ export const WEBHOOK_ENDPOINTS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const WEBHOOK_ENDPOINT_OBJECT_JSON = `{
-  "id": "we_z_1Mr5jULkdIwHu7ix",
+  "id": "we_fd_1Mr5jULkdIwHu7ix",
   "object": "webhook_endpoint",
   "api_version": null,
   "application": null,
@@ -30,8 +30,8 @@ const WEBHOOK_ENDPOINT_OBJECT_JSON = `{
   ],
   "livemode": true,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
-  "secret": "whsec_z_wRNftLajMZNeslQOP6vEPm4iVx5NlZ6z",
+  "platform_account": "acct_fd_Platform123abc",
+  "secret": "whsec_fd_wRNftLajMZNeslQOP6vEPm4iVx5NlZ6z",
   "status": "enabled",
   "url": "https://example.com/my/webhook/endpoint"
 }`;
@@ -41,7 +41,7 @@ const WEBHOOK_ENDPOINT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless webhook endpoint IDs are prefixed with <code>we_z_</code>.',
+      'Unique identifier for the object. FiatDesk webhook endpoint IDs are prefixed with <code>we_fd_</code>.',
   },
   {
     name: 'object',
@@ -130,12 +130,12 @@ const WEBHOOK_ENDPOINT_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
 // ============================================
-// Enabled Events - Zoneless-specific event types
+// Enabled Events - FiatDesk-specific event types
 // ============================================
 const ENABLED_EVENTS_ENUM_VALUES = [
   { value: '*', description: 'Subscribe to all events.' },
@@ -282,7 +282,7 @@ export const WEBHOOK_ENDPOINTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Webhook Endpoint object',
   description:
-    'You can configure webhook endpoints via the API to be notified about events that happen in your Zoneless platform. When an event occurs (such as a payout completing or an account being updated), Zoneless sends a POST request to your configured URL with the event data.',
+    'You can configure webhook endpoints via the API to be notified about events that happen in your FiatDesk platform. When an event occurs (such as a payout completing or an account being updated), FiatDesk sends a POST request to your configured URL with the event data.',
   stripeDocsUrl: 'https://docs.stripe.com/api/webhook_endpoints',
   endpoints: BuildEndpointSummaries(WEBHOOK_ENDPOINTS_SUBSECTION, [
     { method: 'POST', path: '/v1/webhook_endpoints', pageId: 'create' },
@@ -298,7 +298,7 @@ export const WEBHOOK_ENDPOINTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Webhook endpoints allow your platform to receive real-time notifications about events. When an event occurs (like a payout completing), Zoneless sends a signed POST request to your endpoint URL.',
+          text: 'Webhook endpoints allow your platform to receive real-time notifications about events. When an event occurs (like a payout completing), FiatDesk sends a signed POST request to your endpoint URL.',
         },
         {
           type: 'paragraph',
@@ -367,7 +367,7 @@ const CREATE_WEBHOOK_ENDPOINT_MORE_PARAMETERS: Attribute[] = [
 ];
 
 const CREATE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
-  "id": "we_z_1Mr5jULkdIwHu7ix",
+  "id": "we_fd_1Mr5jULkdIwHu7ix",
   "object": "webhook_endpoint",
   "api_version": null,
   "application": null,
@@ -379,8 +379,8 @@ const CREATE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
   ],
   "livemode": true,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
-  "secret": "whsec_z_wRNftLajMZNeslQOP6vEPm4iVx5NlZ6z",
+  "platform_account": "acct_fd_Platform123abc",
+  "secret": "whsec_fd_wRNftLajMZNeslQOP6vEPm4iVx5NlZ6z",
   "status": "enabled",
   "url": "https://example.com/my/webhook/endpoint"
 }`;
@@ -389,7 +389,7 @@ export const WEBHOOK_ENDPOINTS_CREATE_PAGE: DocPage = {
   id: 'create',
   title: 'Create a webhook endpoint',
   description:
-    'A webhook endpoint must have a url and a list of enabled_events. When events matching those types occur in your platform, Zoneless will send a POST request to the specified URL.',
+    'A webhook endpoint must have a url and a list of enabled_events. When events matching those types occur in your platform, FiatDesk will send a POST request to the specified URL.',
   endpoints: [{ method: 'POST', path: '/v1/webhook_endpoints' }],
   sections: [
     {
@@ -423,7 +423,7 @@ export const WEBHOOK_ENDPOINTS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/webhook_endpoints \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "enabled_events[]"="payout.paid" \\
   -d "enabled_events[]"="payout.failed" \\
   --data-urlencode url="https://example.com/my/webhook/endpoint"`,
@@ -433,7 +433,7 @@ export const WEBHOOK_ENDPOINTS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const webhookEndpoint = await zoneless.webhookEndpoints.create({
+const webhookEndpoint = await fiatdesk.webhookEndpoints.create({
   enabled_events: ['payout.paid', 'payout.failed'],
   url: 'https://example.com/my/webhook/endpoint',
 });`,
@@ -485,7 +485,7 @@ const UPDATE_WEBHOOK_ENDPOINT_PARAMETERS: Attribute[] = [
 ];
 
 const UPDATE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
-  "id": "we_z_1Mr5jULkdIwHu7ix",
+  "id": "we_fd_1Mr5jULkdIwHu7ix",
   "object": "webhook_endpoint",
   "api_version": null,
   "application": null,
@@ -498,7 +498,7 @@ const UPDATE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
   ],
   "livemode": true,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "status": "enabled",
   "url": "https://example.com/new_endpoint"
 }`;
@@ -536,8 +536,8 @@ export const WEBHOOK_ENDPOINTS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/webhook_endpoints/we_z_1Mr5jULkdIwHu7ix \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/webhook_endpoints/we_fd_1Mr5jULkdIwHu7ix \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "enabled_events[]"="payout.paid" \\
   -d "enabled_events[]"="payout.failed" \\
   -d "enabled_events[]"="payout.created" \\
@@ -548,8 +548,8 @@ export const WEBHOOK_ENDPOINTS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const webhookEndpoint = await zoneless.webhookEndpoints.update(
-  'we_z_1Mr5jULkdIwHu7ix',
+const webhookEndpoint = await fiatdesk.webhookEndpoints.update(
+  'we_fd_1Mr5jULkdIwHu7ix',
   {
     enabled_events: ['payout.paid', 'payout.failed', 'payout.created'],
     url: 'https://example.com/new_endpoint',
@@ -572,7 +572,7 @@ const webhookEndpoint = await zoneless.webhookEndpoints.update(
 // Retrieve Webhook Endpoint
 // ============================================
 const RETRIEVE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
-  "id": "we_z_1Mr5jULkdIwHu7ix",
+  "id": "we_fd_1Mr5jULkdIwHu7ix",
   "object": "webhook_endpoint",
   "api_version": null,
   "application": null,
@@ -584,7 +584,7 @@ const RETRIEVE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
   ],
   "livemode": true,
   "metadata": {},
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "status": "enabled",
   "url": "https://example.com/my/webhook/endpoint"
 }`;
@@ -621,16 +621,16 @@ export const WEBHOOK_ENDPOINTS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/webhook_endpoints/we_z_1Mr5jULkdIwHu7ix \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/webhook_endpoints/we_fd_1Mr5jULkdIwHu7ix \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const webhookEndpoint = await zoneless.webhookEndpoints.retrieve(
-  'we_z_1Mr5jULkdIwHu7ix'
+const webhookEndpoint = await fiatdesk.webhookEndpoints.retrieve(
+  'we_fd_1Mr5jULkdIwHu7ix'
 );`,
             },
           ],
@@ -653,7 +653,7 @@ const LIST_WEBHOOK_ENDPOINTS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>we_z_bar</code>, your subsequent call can include <code>ending_before=we_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>we_fd_bar</code>, your subsequent call can include <code>ending_before=we_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -665,7 +665,7 @@ const LIST_WEBHOOK_ENDPOINTS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>we_z_foo</code>, your subsequent call can include <code>starting_after=we_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>we_fd_foo</code>, your subsequent call can include <code>starting_after=we_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -675,7 +675,7 @@ const LIST_WEBHOOK_ENDPOINTS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "we_z_1Mr5jULkdIwHu7ix",
+      "id": "we_fd_1Mr5jULkdIwHu7ix",
       "object": "webhook_endpoint",
       "api_version": null,
       "application": null,
@@ -687,7 +687,7 @@ const LIST_WEBHOOK_ENDPOINTS_RESPONSE_JSON = `{
       ],
       "livemode": true,
       "metadata": {},
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "status": "enabled",
       "url": "https://example.com/my/webhook/endpoint"
     }
@@ -725,7 +725,7 @@ export const WEBHOOK_ENDPOINTS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/webhook_endpoints \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -733,7 +733,7 @@ export const WEBHOOK_ENDPOINTS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const webhookEndpoints = await zoneless.webhookEndpoints.list({
+const webhookEndpoints = await fiatdesk.webhookEndpoints.list({
   limit: 3,
 });`,
             },
@@ -753,7 +753,7 @@ const webhookEndpoints = await zoneless.webhookEndpoints.list({
 // Delete Webhook Endpoint
 // ============================================
 const DELETE_WEBHOOK_ENDPOINT_RESPONSE_JSON = `{
-  "id": "we_z_1Mr5jULkdIwHu7ix",
+  "id": "we_fd_1Mr5jULkdIwHu7ix",
   "object": "webhook_endpoint",
   "deleted": true
 }`;
@@ -784,16 +784,16 @@ export const WEBHOOK_ENDPOINTS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/webhook_endpoints/we_z_1Mr5jULkdIwHu7ix \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/webhook_endpoints/we_fd_1Mr5jULkdIwHu7ix \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.webhookEndpoints.del(
-  'we_z_1Mr5jULkdIwHu7ix'
+const deleted = await fiatdesk.webhookEndpoints.del(
+  'we_fd_1Mr5jULkdIwHu7ix'
 );`,
             },
           ],

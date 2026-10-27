@@ -13,7 +13,7 @@ import type {
 } from './SubscriptionItem';
 
 /**
- * Stripe-compatible Subscription object for Zoneless.
+ * Stripe-compatible Subscription object for FiatDesk.
  * Represents a customer's subscription to one or more recurring prices. Settled in USDC on Ethereum.
  *
  * @see https://docs.stripe.com/api/subscriptions/object
@@ -67,9 +67,9 @@ export interface Subscription {
   /** Details about why this subscription was cancelled. */
   cancellation_details: SubscriptionCancellationDetails | null;
   /**
-   * Either charge_automatically, or send_invoice. When charging automatically, Zoneless will
+   * Either charge_automatically, or send_invoice. When charging automatically, FiatDesk will
    * attempt to pay this subscription at the end of the cycle using the default source attached to
-   * the customer. When sending an invoice, Zoneless will email your customer an invoice with
+   * the customer. When sending an invoice, FiatDesk will email your customer an invoice with
    * payment instructions and mark the subscription as active.
    */
   collection_method: 'charge_automatically' | 'send_invoice';
@@ -106,7 +106,7 @@ export interface Subscription {
   default_tax_rates: CustomerTaxRate[] | null;
   /**
    * The subscription's description, meant to be displayable to the customer. Use this field to
-   * optionally store an explanation of the subscription for rendering in Zoneless surfaces.
+   * optionally store an explanation of the subscription for rendering in FiatDesk surfaces.
    * The maximum length is 500 characters.
    */
   description: string | null;
@@ -197,7 +197,7 @@ export interface Subscription {
    * generates invoices and leaves the subscription's status unchanged.
    *
    * If subscription collection_method=charge_automatically, it becomes past_due when payment is
-   * required but cannot be paid. Once Zoneless has exhausted all payment retry attempts, the
+   * required but cannot be paid. Once FiatDesk has exhausted all payment retry attempts, the
    * subscription will become canceled or unpaid (depending on your subscriptions settings).
    *
    * If subscription collection_method=send_invoice it becomes past_due when its invoice is not
@@ -221,22 +221,22 @@ export interface Subscription {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
   /**
    * On-chain subscription id for this subscription.
    * Set when the customer completes hosted checkout subscribe.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   subscription_onchain_id: string | null;
 
   /**
-   * True while the on-chain subscription is paused. Zoneless then sets
+   * True while the on-chain subscription is paused. FiatDesk then sets
    * `pause_collection` itself and lifts it when the subscription resumes
    * on-chain; a `pause_collection` you set is never lifted this way.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   paused_on_chain: boolean;
 
@@ -245,28 +245,28 @@ export interface Subscription {
    * plan owner's cancel is sent without waiting; the billing runner sends it
    * again when it did not land. No new checkout may subscribe the same
    * wallet to the same price meanwhile.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   cancel_pending_on_chain: boolean;
 
   /**
    * The on-chain cancel sent for `cancel_pending_on_chain`, recorded before
    * it is sent.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   cancel_pending_transaction_hash: string | null;
 
   /**
    * When `cancel_pending_transaction_hash` was sent (Unix seconds); a cancel
    * still unmined 10 minutes later is re-priced.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   cancel_pending_sent_at: number | null;
 
   /**
    * Unix timestamp until which this subscription is claimed by a billing runner.
    * Used to prevent duplicate cycle invoices across multiple API instances.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   billing_lock_until: number | null;
 }
@@ -300,9 +300,9 @@ export type SubscriptionStatus =
 
 /** Automatic tax settings for a subscription. */
 export interface SubscriptionAutomaticTax {
-  /** If Zoneless disabled automatic tax, this enum describes why. */
+  /** If FiatDesk disabled automatic tax, this enum describes why. */
   disabled_reason: 'requires_location_inputs' | null;
-  /** Whether Zoneless automatically computes tax on this subscription. */
+  /** Whether FiatDesk automatically computes tax on this subscription. */
   enabled: boolean;
   /**
    * The account that's liable for tax. If set, the business address and tax registrations
@@ -396,7 +396,7 @@ export interface SubscriptionBillingScheduleBillUntil {
 export interface SubscriptionBillingScheduleDuration {
   /**
    * Specifies billing duration. Either hour, day, week, month or year.
-   * @zoneless_extension `hour` is supported for on-chain subscription periods.
+   * @fiatdesk_extension `hour` is supported for on-chain subscription periods.
    */
   interval: RecurringInterval;
   /** The multiplier applied to the interval. */
@@ -521,22 +521,22 @@ export interface SubscriptionPauseCollection {
 /**
  * Payment settings passed on to invoices created by the subscription.
  * @remarks Simplified from Stripe's payment_settings, which also exposes
- * payment_method_options for many fiat rails (ACH, cards, iDEAL, etc.) that Zoneless doesn't
+ * payment_method_options for many fiat rails (ACH, cards, iDEAL, etc.) that FiatDesk doesn't
  * support since all payments are settled in USDC. Matches the simplification on Invoice.
  */
 export interface SubscriptionPaymentSettings {
   /**
    * Payment-method-specific configuration to provide to invoices created by the subscription.
-   * Opaque stub for Stripe API parity; Zoneless settles invoices in USDC.
+   * Opaque stub for Stripe API parity; FiatDesk settles invoices in USDC.
    */
   payment_method_options: object | null;
   /**
    * The list of payment method types to provide to every invoice created by the subscription. If
-   * not set, Zoneless attempts to automatically determine the types to use.
+   * not set, FiatDesk attempts to automatically determine the types to use.
    */
   payment_method_types: string[] | null;
   /**
-   * Configure whether Zoneless updates subscription.default_payment_method when payment succeeds.
+   * Configure whether FiatDesk updates subscription.default_payment_method when payment succeeds.
    * Defaults to off.
    */
   save_default_payment_method: 'off' | 'on_subscription' | null;
@@ -553,7 +553,7 @@ export interface SubscriptionPaymentSettings {
 export interface SubscriptionPendingInvoiceItemInterval {
   /**
    * Specifies invoicing frequency. Either hour, day, week, month or year.
-   * @zoneless_extension `hour` is supported for on-chain subscription periods.
+   * @fiatdesk_extension `hour` is supported for on-chain subscription periods.
    */
   interval: RecurringInterval;
   /**

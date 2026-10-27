@@ -50,7 +50,7 @@ import {
   PayoutFailureCode,
   PayoutStatus,
   ReconcileResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { ValidateUpdate } from './Util';
 import {
@@ -62,7 +62,7 @@ import {
   BroadcastPayoutsBatchInput,
   IsRejectedAccountReason,
   MAX_BATCH_PAYOUTS,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { IdentityLiteModule } from './identity/IdentityLite';
 
 /** Most payouts one batch transaction may pay (about 5.1 M gas on Ethereum). */

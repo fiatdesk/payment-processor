@@ -12,7 +12,7 @@ import {
   AccountIdentitySettings,
   AccountSettings,
   Account as AccountType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Encryption } from '../Encryption';
 import { GetEncryptionKey } from '../AppConfig';
 

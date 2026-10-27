@@ -176,10 +176,10 @@ const ControllerSchema = z
       ]),
     }),
     losses: z.object({
-      payments: z.enum(['application', 'zoneless']),
+      payments: z.enum(['application', 'fiatdesk']),
     }),
-    requirement_collection: z.enum(['application', 'zoneless']),
-    zoneless_dashboard: z.object({
+    requirement_collection: z.enum(['application', 'fiatdesk']),
+    fiatdesk_dashboard: z.object({
       type: z.enum(['express', 'full', 'none']),
     }),
   })

@@ -10,7 +10,7 @@ import { AccountModule } from '../modules/Account';
 import { CanAccessAccount } from '../modules/PlatformAccess';
 import { AppError } from '../utils/AppError';
 import { ERRORS, ErrorDefinition } from '../utils/Errors';
-import { Account as AccountType, BRAND } from '@zoneless/shared-types';
+import { Account as AccountType, BRAND } from '@fiatdesk/shared-types';
 
 const accountModule = new AccountModule(db);
 

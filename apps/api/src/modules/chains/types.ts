@@ -8,7 +8,7 @@
 import type {
   CheckoutTransferAuthorization,
   Eip712TypedData,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type { AppError } from '../../utils/AppError';
 
 export type Rail = 'simulated' | 'onchain';

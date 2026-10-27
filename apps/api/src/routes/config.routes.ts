@@ -7,7 +7,7 @@
  */
 
 import * as express from 'express';
-import { PublicConfig, DepositInfo, Account } from '@zoneless/shared-types';
+import { PublicConfig, DepositInfo, Account } from '@fiatdesk/shared-types';
 import { db } from '../modules/Database';
 import { AccountModule } from '../modules/Account';
 import { AccountLinkModule } from '../modules/AccountLink';
@@ -45,7 +45,7 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
   if (!platformAccount) {
     return {
       object: 'config',
-      platform_name: 'Zoneless',
+      platform_name: 'FiatDesk',
       platform_logo_url: '',
       terms_url: '',
       privacy_url: '',

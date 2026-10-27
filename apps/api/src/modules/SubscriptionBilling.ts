@@ -53,7 +53,7 @@ import {
   QueryOperators,
   Subscription as SubscriptionType,
   SubscriptionItem as SubscriptionItemType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Now } from '../utils/Timestamp';
 import { Logger } from '../utils/Logger';
 import { ExpandableId } from './Util';

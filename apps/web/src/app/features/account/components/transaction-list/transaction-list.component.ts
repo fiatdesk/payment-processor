@@ -24,7 +24,7 @@ import {
   TransferDetailComponent,
 } from './components/index';
 
-import type { BalanceTransaction } from '@zoneless/shared-types';
+import type { BalanceTransaction } from '@fiatdesk/shared-types';
 
 @Component({
   selector: 'app-transaction-list',
@@ -46,7 +46,7 @@ export class TransactionListComponent {
   @Input() paginationEnabled = true;
   @Input() queryParams: Record<string, string> = {};
   /** Act on behalf of a connected account when listing transactions */
-  @Input() zonelessAccount = '';
+  @Input() fiatdeskAccount = '';
   /** Account ID used when loading payout destination wallets */
   @Input() accountId = '';
 
@@ -112,7 +112,7 @@ export class TransactionListComponent {
 
   GetAccountId(): string | null {
     if (this.accountId) return this.accountId;
-    if (this.zonelessAccount) return this.zonelessAccount;
+    if (this.fiatdeskAccount) return this.fiatdeskAccount;
     return this.accountService.account()?.id ?? null;
   }
 

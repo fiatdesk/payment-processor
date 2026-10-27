@@ -6,7 +6,7 @@ import {
   computed,
 } from '@angular/core';
 import { ApiService } from '../../core';
-import { ExternalWallet } from '@zoneless/shared-types';
+import { ExternalWallet } from '@fiatdesk/shared-types';
 import { SettingsCardRow } from '../../shared';
 
 /**

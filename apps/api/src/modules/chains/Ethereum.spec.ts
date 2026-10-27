@@ -76,7 +76,7 @@ const ProviderRpcError = () =>
   });
 const OTHER_ADDRESS = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
 
-const batchId = ComputeBatchId(['po_z_1']);
+const batchId = ComputeBatchId(['po_fd_1']);
 const built = {
   type: 'eip1559' as const,
   chainId: 31337,
@@ -226,7 +226,7 @@ describe('Ethereum rail', () => {
           '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
           '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
           500,
-          'cs_z_1',
+          'cs_fd_1',
           1_700_086_400
         )
       ).rejects.toMatchObject(notSupported);
@@ -236,7 +236,7 @@ describe('Ethereum rail', () => {
             payer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
             merchant: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
             amountCents: 500,
-            sessionId: 'cs_z_1',
+            sessionId: 'cs_fd_1',
             expiresAt: 1_700_086_400,
           }),
           `0x${'ab'.repeat(65)}`,
@@ -264,7 +264,7 @@ describe('Ethereum rail', () => {
         new Ethereum().BuildBatchPayoutTransaction(
           PLATFORM,
           [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
-          { batchId: ComputeBatchId(['po_z_1']) }
+          { batchId: ComputeBatchId(['po_fd_1']) }
         )
       ).rejects.toMatchObject({
         statusCode: 501,
@@ -964,7 +964,7 @@ describe('Ethereum rail', () => {
     const RELAYER = privateKeyToAccount(RELAYER_KEY).address;
     const BUYER = privateKeyToAccount(OTHER_KEY).address;
     const MERCHANT = RECIPIENT;
-    const SESSION = 'cs_z_1';
+    const SESSION = 'cs_fd_1';
     const NONCE = SessionNonce(SESSION);
     const HASH: Hex = `0x${'aa'.repeat(32)}`;
     const FIRST_HASH: Hex = `0x${'bb'.repeat(32)}`;
@@ -1260,7 +1260,7 @@ describe('Ethereum rail', () => {
         await expect(
           ethereum.RelayCheckoutAuthorization(
             authorization,
-            'sim_sig:cs_z_1:0x1111111111111111111111111111111111111111',
+            'sim_sig:cs_fd_1:0x1111111111111111111111111111111111111111',
             { createdAt: 1_700_000_000, onSigned: jest.fn() }
           )
         ).rejects.toMatchObject({ statusCode: 400 });
@@ -1320,7 +1320,7 @@ describe('Ethereum rail', () => {
           payer: BUYER,
           merchant: MERCHANT,
           amountCents: 500,
-          sessionId: 'cs_z_2',
+          sessionId: 'cs_fd_2',
           expiresAt: 1_700_086_400,
         });
         await Promise.all([
@@ -1622,7 +1622,7 @@ describe('Ethereum rail', () => {
         client.getTransactionReceipt.mockResolvedValue(
           PaymentReceipt(HASH, {
             logs: [
-              AuthorizationLog(HASH, 3, SessionNonce('cs_z_other')),
+              AuthorizationLog(HASH, 3, SessionNonce('cs_fd_other')),
               TransferLog(MERCHANT, 4),
             ],
           })
@@ -1726,7 +1726,7 @@ describe('Ethereum rail', () => {
       });
 
       it('rejects a malformed transaction_hash with a 400', async () => {
-        await expect(Verify('sim_sig:cs_z_1:0xabc')).rejects.toMatchObject({
+        await expect(Verify('sim_sig:cs_fd_1:0xabc')).rejects.toMatchObject({
           statusCode: 400,
         });
         expect(client.getTransactionReceipt).not.toHaveBeenCalled();

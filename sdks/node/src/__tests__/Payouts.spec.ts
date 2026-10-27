@@ -10,12 +10,12 @@ import { privateKeyToAccount } from 'viem/accounts';
 import type {
   PayoutBatchBroadcastResponse,
   PayoutBatchBuildResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Payouts } from '../resources/Payouts';
 import {
   HttpClient,
-  ZonelessApiError,
-  ZonelessPayoutBatchError,
+  FiatDeskApiError,
+  FiatDeskPayoutBatchError,
 } from '../HttpClient';
 
 /** Anvil default account #0 (public test key). */
@@ -45,7 +45,7 @@ function Build(
 ): PayoutBatchBuildResponse {
   return {
     object: 'payout_batch_build',
-    payout_batch: 'pob_z_1',
+    payout_batch: 'pob_fd_1',
     replaced_payout_batch: null,
     unsigned_transaction: Unsigned(),
     estimated_fee: '2400000000000000',
@@ -69,7 +69,7 @@ function Build(
 
 function ApprovalBuild(): PayoutBatchBuildResponse {
   return Build({
-    payout_batch: 'pob_z_approval',
+    payout_batch: 'pob_fd_approval',
     unsigned_transaction: Unsigned({ to: USDC }),
     to: USDC,
     deadline: null,
@@ -120,8 +120,8 @@ describe('Payouts Resource', () => {
 
   describe('processBatch', () => {
     const pending = [
-      { id: 'po_z_1', amount: 1000 },
-      { id: 'po_z_2', amount: 500 },
+      { id: 'po_fd_1', amount: 1000 },
+      { id: 'po_fd_2', amount: 500 },
     ];
 
     beforeEach(() => {
@@ -157,7 +157,7 @@ describe('Payouts Resource', () => {
       );
       expect(Post).toHaveBeenCalledWith(
         '/payouts/build',
-        { payouts: ['po_z_1', 'po_z_2'] },
+        { payouts: ['po_fd_1', 'po_fd_2'] },
         undefined
       );
       const broadcastCall = Post.mock.calls.find(
@@ -166,7 +166,7 @@ describe('Payouts Resource', () => {
       // Strict: keys present with undefined values must fail too.
       expect(broadcastCall?.[1]).toStrictEqual({
         signed_transaction: 'sim_tx',
-        payouts: ['po_z_1', 'po_z_2'],
+        payouts: ['po_fd_1', 'po_fd_2'],
       });
       expect(result).toEqual({
         transaction_hash: 'tx_hash_1',
@@ -231,15 +231,15 @@ describe('Payouts Resource', () => {
         '/payouts/build',
         '/payouts/broadcast',
       ]);
-      expect(posts[0][1]).toStrictEqual({ payouts: ['po_z_1', 'po_z_2'] });
+      expect(posts[0][1]).toStrictEqual({ payouts: ['po_fd_1', 'po_fd_2'] });
       expect(posts[1][1]).toStrictEqual({
         signed_transaction: expect.any(String),
         payouts: [],
       });
-      expect(posts[2][1]).toStrictEqual({ payouts: ['po_z_1', 'po_z_2'] });
+      expect(posts[2][1]).toStrictEqual({ payouts: ['po_fd_1', 'po_fd_2'] });
       expect(posts[3][1]).toStrictEqual({
         signed_transaction: expect.any(String),
-        payouts: ['po_z_1', 'po_z_2'],
+        payouts: ['po_fd_1', 'po_fd_2'],
       });
 
       const approval = posts[1][1].signed_transaction as Hex;
@@ -303,43 +303,43 @@ describe('Payouts Resource', () => {
 
       const builds = Posts().filter(([path]) => path === '/payouts/build');
       expect(builds[0][1]).toStrictEqual({
-        payouts: ['po_z_1', 'po_z_2'],
+        payouts: ['po_fd_1', 'po_fd_2'],
         replace: true,
       });
-      expect(builds[1][1]).toStrictEqual({ payouts: ['po_z_1', 'po_z_2'] });
+      expect(builds[1][1]).toStrictEqual({ payouts: ['po_fd_1', 'po_fd_2'] });
     });
 
     it('never forwards an idempotency key to its several requests', async () => {
       Post.mockResolvedValueOnce(Build()).mockResolvedValueOnce(Broadcast());
 
       await payouts.processBatch(PRIVATE_KEY, {
-        requestOptions: { idempotencyKey: 'once', zonelessAccount: 'acct_1' },
+        requestOptions: { idempotencyKey: 'once', fiatdeskAccount: 'acct_1' },
       });
 
       for (const [, , options] of Post.mock.calls) {
-        expect(options).toMatchObject({ zonelessAccount: 'acct_1' });
+        expect(options).toMatchObject({ fiatdeskAccount: 'acct_1' });
         expect(options).not.toHaveProperty('idempotencyKey');
       }
     });
 
     it('surfaces a build conflict as a typed error with its code', async () => {
       Post.mockRejectedValue(
-        new ZonelessApiError({
+        new FiatDeskApiError({
           type: 'payout_batch_in_progress',
-          message: 'Payout batch pob_z_9 is built; build with replace: true',
+          message: 'Payout batch pob_fd_9 is built; build with replace: true',
           statusCode: 409,
         })
       );
 
       const error = await payouts.processBatch(PRIVATE_KEY).catch((e) => e);
 
-      expect(error).toBeInstanceOf(ZonelessPayoutBatchError);
-      expect(error).toBeInstanceOf(ZonelessApiError);
+      expect(error).toBeInstanceOf(FiatDeskPayoutBatchError);
+      expect(error).toBeInstanceOf(FiatDeskApiError);
       expect(error).toMatchObject({
         code: 'payout_batch_in_progress',
         type: 'payout_batch_in_progress',
         statusCode: 409,
-        message: 'Payout batch pob_z_9 is built; build with replace: true',
+        message: 'Payout batch pob_fd_9 is built; build with replace: true',
       });
     });
   });
@@ -348,7 +348,7 @@ describe('Payouts Resource', () => {
     it('stops at the first result that is not paid and returns it with has_more', async () => {
       Get.mockResolvedValue({
         object: 'list',
-        data: [{ id: 'po_z_1' }],
+        data: [{ id: 'po_fd_1' }],
         has_more: true,
       });
       Post.mockResolvedValueOnce(Build())
@@ -373,12 +373,12 @@ describe('Payouts Resource', () => {
     it('attaches the results so far when a later batch throws', async () => {
       Get.mockResolvedValue({
         object: 'list',
-        data: [{ id: 'po_z_1' }],
+        data: [{ id: 'po_fd_1' }],
         has_more: true,
       });
-      const conflict = new ZonelessApiError({
+      const conflict = new FiatDeskApiError({
         type: 'payout_batch_in_progress',
-        message: 'Payout batch pob_z_9 is built',
+        message: 'Payout batch pob_fd_9 is built',
         statusCode: 409,
       });
       Post.mockResolvedValueOnce(Build())
@@ -389,7 +389,7 @@ describe('Payouts Resource', () => {
         .processAll(PRIVATE_KEY, { delayBetweenBatchesMs: 0 })
         .catch((e) => e);
 
-      expect(error).toBeInstanceOf(ZonelessPayoutBatchError);
+      expect(error).toBeInstanceOf(FiatDeskPayoutBatchError);
       expect(error.code).toBe('payout_batch_in_progress');
       expect(
         error.results.map(
@@ -401,7 +401,7 @@ describe('Payouts Resource', () => {
     it('keeps a pending approval in the results', async () => {
       Get.mockResolvedValue({
         object: 'list',
-        data: [{ id: 'po_z_1' }],
+        data: [{ id: 'po_fd_1' }],
         has_more: false,
       });
       Post.mockResolvedValueOnce(ApprovalBuild()).mockResolvedValueOnce(
@@ -425,7 +425,7 @@ describe('Payouts Resource', () => {
       Post.mockResolvedValueOnce(build);
 
       await expect(
-        payouts.ensureAllowance(PRIVATE_KEY, { payouts: ['po_z_1'] })
+        payouts.ensureAllowance(PRIVATE_KEY, { payouts: ['po_fd_1'] })
       ).resolves.toEqual({ build, approval: null });
       expect(Post).toHaveBeenCalledTimes(1);
     });
@@ -441,7 +441,7 @@ describe('Payouts Resource', () => {
       );
 
       await expect(
-        payouts.ensureAllowance(PRIVATE_KEY, { payouts: ['po_z_1'] })
+        payouts.ensureAllowance(PRIVATE_KEY, { payouts: ['po_fd_1'] })
       ).resolves.toEqual({ build: null, approval });
     });
   });
@@ -465,7 +465,7 @@ describe('Payouts Resource', () => {
   describe('broadcast', () => {
     it('surfaces transaction_not_found as a typed error', async () => {
       Post.mockRejectedValue(
-        new ZonelessApiError({
+        new FiatDeskApiError({
           type: 'transaction_not_found',
           message: 'Transaction 0xab is not visible on the network yet',
           statusCode: 409,
@@ -478,7 +478,7 @@ describe('Payouts Resource', () => {
           payouts: [],
         })
       ).rejects.toMatchObject({
-        name: 'ZonelessPayoutBatchError',
+        name: 'FiatDeskPayoutBatchError',
         code: 'transaction_not_found',
       });
     });
@@ -511,10 +511,10 @@ describe('Payouts Resource', () => {
       );
 
       const error = await payouts
-        .broadcast({ signed_transaction: '0x02', payouts: ['po_z_1'] })
+        .broadcast({ signed_transaction: '0x02', payouts: ['po_fd_1'] })
         .catch((e) => e);
 
-      expect(error).toBeInstanceOf(ZonelessPayoutBatchError);
+      expect(error).toBeInstanceOf(FiatDeskPayoutBatchError);
       expect(error).toMatchObject({
         code: 'broadcast_timeout',
         type: 'broadcast_timeout',
@@ -525,7 +525,7 @@ describe('Payouts Resource', () => {
     });
 
     it('leaves other API errors untyped', async () => {
-      const validation = new ZonelessApiError({
+      const validation = new FiatDeskApiError({
         type: 'invalid_request_error',
         message:
           'Provide exactly one of signed_transaction or transaction_hash',

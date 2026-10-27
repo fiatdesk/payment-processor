@@ -1,7 +1,7 @@
 import { IdentityLiteModule } from '../modules/identity/IdentityLite';
 import { HeaderIpGeoProvider } from '../modules/identity/IpGeo';
 import { Database } from '../modules/Database';
-import { Account, Person } from '@zoneless/shared-types';
+import { Account, Person } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -18,7 +18,7 @@ import {
   IsIdentityBlockingPayouts,
   IDENTITY_UNDER_REVIEW,
   IDENTITY_REQUIREMENT_FIELDS,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -37,9 +37,9 @@ jest.mock('../modules/AppConfig', () => ({
 
 function BuildPerson(overrides: Partial<Person> = {}): Person {
   return {
-    id: 'person_z_test001',
+    id: 'person_fd_test001',
     object: 'person',
-    account: 'acct_z_seller',
+    account: 'acct_fd_seller',
     created: GetFixedTimestamp(),
     dob: { day: 15, month: 6, year: 1990 },
     email: 'alice@example.com',
@@ -86,14 +86,14 @@ function BuildPerson(overrides: Partial<Person> = {}): Person {
       postal_code: '94105',
       country: 'US',
     },
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     ...overrides,
   };
 }
 
 function BuildAccount(overrides: Partial<Account> = {}): Account {
   return {
-    id: 'acct_z_seller',
+    id: 'acct_fd_seller',
     object: 'account',
     type: 'express',
     business_type: 'individual',
@@ -105,7 +105,7 @@ function BuildAccount(overrides: Partial<Account> = {}): Account {
     details_submitted: true,
     created: GetFixedTimestamp(),
     metadata: {},
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     requirements: {
       currently_due: [],
       eventually_due: [],
@@ -483,8 +483,8 @@ describe('IdentityLiteModule', () => {
           return [
             {
               ...person,
-              id: 'person_z_other',
-              account: 'acct_z_other',
+              id: 'person_fd_other',
+              account: 'acct_fd_other',
             },
           ];
         }
@@ -512,9 +512,9 @@ describe('IdentityLiteModule', () => {
       if (collection === 'ExternalWallets' && field1 === 'wallet_address') {
         return [
           {
-            id: 'wa_z_other',
-            account: 'acct_z_other',
-            platform_account: 'acct_z_platform',
+            id: 'wa_fd_other',
+            account: 'acct_fd_other',
+            platform_account: 'acct_fd_platform',
             wallet_address: wallet,
             status: 'new',
           },
@@ -549,8 +549,8 @@ describe('IdentityLiteModule', () => {
         ) {
           return [
             {
-              id: 'acct_z_other',
-              platform_account: 'acct_z_platform',
+              id: 'acct_fd_other',
+              platform_account: 'acct_fd_platform',
               tos_acceptance: { ip: publicIp },
             },
           ];
@@ -615,7 +615,7 @@ describe('IdentityLiteModule', () => {
         ) {
           return [
             {
-              id: 'ba_z_1',
+              id: 'ba_fd_1',
               object: 'bank_account',
               account: account.id,
               default_for_currency: true,
@@ -648,7 +648,7 @@ describe('IdentityLiteModule', () => {
         if (collection === 'ExternalWallets' && field1 === 'account') {
           return [
             {
-              id: 'ba_z_1',
+              id: 'ba_fd_1',
               account: value1,
               default_for_currency: true,
               status: 'new',

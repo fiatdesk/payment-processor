@@ -11,8 +11,8 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Account } from '@zoneless/shared-types';
-import { UpdateAccountInput } from '@zoneless/shared-schemas';
+import { Account } from '@fiatdesk/shared-types';
+import { UpdateAccountInput } from '@fiatdesk/shared-schemas';
 import { CopyTextComponent } from '../../ui';
 import { ISO_CODES } from '../../../utils';
 import { environment } from '../../../../environments/environment';

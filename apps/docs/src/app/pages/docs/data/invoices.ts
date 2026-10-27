@@ -213,7 +213,7 @@ const AUTOMATIC_TAX_PARAM_CHILDREN: Attribute[] = [
     type: 'boolean',
     required: true,
     description:
-      'Whether Zoneless automatically computes tax on this invoice. Incompatible invoice items (manually specified tax rates, negative amounts, or <code>tax_behavior=unspecified</code>) cannot be added to automatic tax invoices.',
+      'Whether FiatDesk automatically computes tax on this invoice. Incompatible invoice items (manually specified tax rates, negative amounts, or <code>tax_behavior=unspecified</code>) cannot be added to automatic tax invoices.',
   },
   {
     name: 'liability',
@@ -268,12 +268,12 @@ const PAYMENT_SETTINGS_CHILDREN: Attribute[] = [
     type: 'array of enums',
     nullable: true,
     description:
-      'The list of payment method types to provide when collecting payment for the invoice. If not set, Zoneless attempts to determine the types to use automatically.',
+      'The list of payment method types to provide when collecting payment for the invoice. If not set, FiatDesk attempts to determine the types to use automatically.',
     enumValues: [
       { value: 'crypto', description: 'USDC wallet payments on Ethereum.' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
   },
 ];
 
@@ -411,7 +411,7 @@ const SHIPPING_COST_PARAM_CHILDREN: Attribute[] = [
             type: 'enum',
             required: true,
             description:
-              'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+              'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
             enumNote:
               '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
           },
@@ -506,7 +506,7 @@ const LINE_ITEM_CHILDREN: Attribute[] = [
     name: 'currency',
     type: 'enum',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -631,10 +631,10 @@ const LINE_ITEM_CHILDREN: Attribute[] = [
 // ============================================
 
 const INVOICE_OBJECT_JSON = `{
-  "id": "in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c",
+  "id": "in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c",
   "object": "invoice",
   "account_country": "US",
-  "account_name": "Zoneless Docs",
+  "account_name": "FiatDesk Docs",
   "account_tax_ids": null,
   "amount_due": 0,
   "amount_paid": 0,
@@ -655,7 +655,7 @@ const INVOICE_OBJECT_JSON = `{
   "created": 1723820400,
   "currency": "usdc",
   "custom_fields": null,
-  "customer": "cus_z_TpL8wQkR3nVmY",
+  "customer": "cus_fd_TpL8wQkR3nVmY",
   "customer_address": null,
   "customer_email": "maya.chen@example.com",
   "customer_name": "Maya Chen",
@@ -685,7 +685,7 @@ const INVOICE_OBJECT_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
+    "url": "/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
   },
   "payments": {
     "object": "list",
@@ -730,14 +730,14 @@ const INVOICE_OBJECT_JSON = `{
   "total_taxes": [],
   "transfer_data": null,
   "webhooks_delivered_at": 1723820400,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_UPDATED_JSON = `{
-  "id": "in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c",
+  "id": "in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c",
   "object": "invoice",
   "account_country": "US",
-  "account_name": "Zoneless Docs",
+  "account_name": "FiatDesk Docs",
   "account_tax_ids": null,
   "amount_due": 0,
   "amount_paid": 0,
@@ -758,7 +758,7 @@ const INVOICE_UPDATED_JSON = `{
   "created": 1723820400,
   "currency": "usdc",
   "custom_fields": null,
-  "customer": "cus_z_TpL8wQkR3nVmY",
+  "customer": "cus_fd_TpL8wQkR3nVmY",
   "customer_address": null,
   "customer_email": "maya.chen@example.com",
   "customer_name": "Maya Chen",
@@ -787,7 +787,7 @@ const INVOICE_UPDATED_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
+    "url": "/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
   },
   "livemode": false,
   "metadata": {
@@ -826,14 +826,14 @@ const INVOICE_UPDATED_JSON = `{
   "total_excluding_tax": 0,
   "total_taxes": [],
   "webhooks_delivered_at": 1723820400,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_FINALIZED_JSON = `{
-  "id": "in_z_1RvK9aH3fZwLXmp3Jo5nXy0d",
+  "id": "in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d",
   "object": "invoice",
   "account_country": "US",
-  "account_name": "Zoneless Docs",
+  "account_name": "FiatDesk Docs",
   "account_tax_ids": null,
   "amount_due": 0,
   "amount_paid": 0,
@@ -854,7 +854,7 @@ const INVOICE_FINALIZED_JSON = `{
   "created": 1723824000,
   "currency": "usdc",
   "custom_fields": null,
-  "customer": "cus_z_TpL8wQkR3nVmY",
+  "customer": "cus_fd_TpL8wQkR3nVmY",
   "customer_address": null,
   "customer_email": "maya.chen@example.com",
   "customer_name": "Maya Chen",
@@ -871,8 +871,8 @@ const INVOICE_FINALIZED_JSON = `{
   "ending_balance": 0,
   "footer": null,
   "from_invoice": null,
-  "hosted_invoice_url": "https://invoice.yourdomain.com/i/acct_z_Platform123abc/test_aW52b2ljZV96XzFSdk...",
-  "invoice_pdf": "https://pay.yourdomain.com/invoice/acct_z_Platform123abc/test_aW52b2ljZV96XzFSdk.../pdf",
+  "hosted_invoice_url": "https://invoice.yourdomain.com/i/acct_fd_Platform123abc/test_aW52b2ljZV96XzFSdk...",
+  "invoice_pdf": "https://pay.yourdomain.com/invoice/acct_fd_Platform123abc/test_aW52b2ljZV96XzFSdk.../pdf",
   "issuer": {
     "type": "self"
   },
@@ -883,7 +883,7 @@ const INVOICE_FINALIZED_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/invoices/in_z_1RvK9aH3fZwLXmp3Jo5nXy0d/lines"
+    "url": "/v1/invoices/in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d/lines"
   },
   "livemode": false,
   "metadata": {},
@@ -920,14 +920,14 @@ const INVOICE_FINALIZED_JSON = `{
   "total_excluding_tax": 0,
   "total_taxes": [],
   "webhooks_delivered_at": 1723824000,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_UNCOLLECTIBLE_JSON = `{
-  "id": "in_z_1RvJ4mN1dYuKXkn2Gi3lVw8b",
+  "id": "in_fd_1RvJ4mN1dYuKXkn2Gi3lVw8b",
   "object": "invoice",
   "account_country": "US",
-  "account_name": "Zoneless Docs",
+  "account_name": "FiatDesk Docs",
   "account_tax_ids": null,
   "amount_due": 2499,
   "amount_paid": 0,
@@ -948,7 +948,7 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
   "created": 1723737600,
   "currency": "usdc",
   "custom_fields": null,
-  "customer": "cus_z_TpL8wQkR3nVmY",
+  "customer": "cus_fd_TpL8wQkR3nVmY",
   "customer_address": null,
   "customer_email": "maya.chen@example.com",
   "customer_name": "Maya Chen",
@@ -976,7 +976,7 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
     "object": "list",
     "data": [
       {
-        "id": "il_z_1RvJ4mN1dYuKXkn2Hk4pVx9c",
+        "id": "il_fd_1RvJ4mN1dYuKXkn2Hk4pVx9c",
         "object": "line_item",
         "amount": 2499,
         "currency": "usdc",
@@ -989,7 +989,7 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
         "parent": {
           "type": "invoice_item_details",
           "invoice_item_details": {
-            "invoice_item": "ii_z_1RvJ4mN1dYuKXkn2Gj3oUw7a",
+            "invoice_item": "ii_fd_1RvJ4mN1dYuKXkn2Gj3oUw7a",
             "proration": false,
             "proration_details": {
               "credited_items": null
@@ -1003,8 +1003,8 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
         },
         "pricing": {
           "price_details": {
-            "price": "price_z_1RvJ3kM0cXtJWjm1Fi2nTu6z",
-            "product": "prod_z_TpL8xRcS4oWnZ"
+            "price": "price_fd_1RvJ3kM0cXtJWjm1Fi2nTu6z",
+            "product": "prod_fd_TpL8xRcS4oWnZ"
           },
           "type": "price_details",
           "unit_amount_decimal": "2499"
@@ -1015,7 +1015,7 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
       }
     ],
     "has_more": false,
-    "url": "/v1/invoices/in_z_1RvJ4mN1dYuKXkn2Gi3lVw8b/lines"
+    "url": "/v1/invoices/in_fd_1RvJ4mN1dYuKXkn2Gi3lVw8b/lines"
   },
   "livemode": false,
   "metadata": {},
@@ -1052,14 +1052,14 @@ const INVOICE_UNCOLLECTIBLE_JSON = `{
   "total_excluding_tax": 2499,
   "total_taxes": [],
   "webhooks_delivered_at": 1723737800,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_VOIDED_JSON = `{
-  "id": "in_z_1RvK9aH3fZwLXmp3Jo5nXy0d",
+  "id": "in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d",
   "object": "invoice",
   "account_country": "US",
-  "account_name": "Zoneless Docs",
+  "account_name": "FiatDesk Docs",
   "account_tax_ids": null,
   "amount_due": 0,
   "amount_paid": 0,
@@ -1080,7 +1080,7 @@ const INVOICE_VOIDED_JSON = `{
   "created": 1723820400,
   "currency": "usdc",
   "custom_fields": null,
-  "customer": "cus_z_TpL8wQkR3nVmY",
+  "customer": "cus_fd_TpL8wQkR3nVmY",
   "customer_address": null,
   "customer_email": "maya.chen@example.com",
   "customer_name": "Maya Chen",
@@ -1109,7 +1109,7 @@ const INVOICE_VOIDED_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/invoices/in_z_1RvK9aH3fZwLXmp3Jo5nXy0d/lines"
+    "url": "/v1/invoices/in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d/lines"
   },
   "livemode": false,
   "metadata": {},
@@ -1146,11 +1146,11 @@ const INVOICE_VOIDED_JSON = `{
   "total_excluding_tax": 0,
   "total_taxes": [],
   "webhooks_delivered_at": 1723820400,
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const INVOICE_DELETED_JSON = `{
-  "id": "in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c",
+  "id": "in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c",
   "object": "invoice",
   "deleted": true
 }`;
@@ -1161,10 +1161,10 @@ const LIST_INVOICES_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c",
+      "id": "in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c",
       "object": "invoice",
       "account_country": "US",
-      "account_name": "Zoneless Docs",
+      "account_name": "FiatDesk Docs",
       "account_tax_ids": null,
       "amount_due": 0,
       "amount_paid": 0,
@@ -1185,7 +1185,7 @@ const LIST_INVOICES_JSON = `{
       "created": 1723820400,
       "currency": "usdc",
       "custom_fields": null,
-      "customer": "cus_z_TpL8wQkR3nVmY",
+      "customer": "cus_fd_TpL8wQkR3nVmY",
       "customer_address": null,
       "customer_email": "maya.chen@example.com",
       "customer_name": "Maya Chen",
@@ -1214,7 +1214,7 @@ const LIST_INVOICES_JSON = `{
         "data": [],
         "has_more": false,
         "total_count": 0,
-        "url": "/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
+        "url": "/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c/lines"
       },
       "livemode": false,
       "metadata": {},
@@ -1251,7 +1251,7 @@ const LIST_INVOICES_JSON = `{
       "total_excluding_tax": 0,
       "total_taxes": [],
       "webhooks_delivered_at": 1723820400,
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
@@ -1265,7 +1265,7 @@ const INVOICE_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless invoice IDs are prefixed with <code>in_z_</code>.',
+      'Unique identifier for the object. FiatDesk invoice IDs are prefixed with <code>in_fd_</code>.',
   },
   {
     name: 'object',
@@ -1326,7 +1326,7 @@ const INVOICE_ATTRIBUTES: Attribute[] = [
     name: 'auto_advance',
     type: 'boolean',
     description:
-      'Controls whether Zoneless performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action.',
+      'Controls whether FiatDesk performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action.',
   },
   {
     name: 'billing_reason',
@@ -1365,7 +1365,7 @@ const INVOICE_ATTRIBUTES: Attribute[] = [
     name: 'collection_method',
     type: 'enum',
     description:
-      'Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, Zoneless attempts to pay this invoice using the default payment method attached to the customer. When sending an invoice, Zoneless emails the customer with payment instructions.',
+      'Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, FiatDesk attempts to pay this invoice using the default payment method attached to the customer. When sending an invoice, FiatDesk emails the customer with payment instructions.',
     enumValues: [
       {
         value: 'charge_automatically',
@@ -1388,7 +1388,7 @@ const INVOICE_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'enum',
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -1570,9 +1570,9 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
     name: 'amount_paid_off_stripe',
     type: 'integer',
     description:
-      'Amount, in the smallest currency unit, that was paid on the invoice outside of Zoneless.',
+      'Amount, in the smallest currency unit, that was paid on the invoice outside of FiatDesk.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Field name is retained for API parity; the value represents amounts paid outside of Zoneless.',
+      '<strong>Difference from Stripe:</strong> Field name is retained for API parity; the value represents amounts paid outside of FiatDesk.',
   },
   {
     name: 'amount_shipping',
@@ -1598,7 +1598,7 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
         type: 'enum',
         nullable: true,
         description:
-          'If Zoneless disabled automatic tax, this enum describes why.',
+          'If FiatDesk disabled automatic tax, this enum describes why.',
         enumValues: [
           { value: 'finalization_requires_location_inputs' },
           { value: 'finalization_system_error' },
@@ -1608,7 +1608,7 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
         name: 'enabled',
         type: 'boolean',
         description:
-          'Whether Zoneless automatically computes tax on this invoice.',
+          'Whether FiatDesk automatically computes tax on this invoice.',
       },
       {
         name: 'liability',
@@ -1755,7 +1755,7 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
         description:
           'The type of the tax ID (e.g. <code>us_ein</code>, <code>eu_vat</code>).',
         enumNote:
-          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific tax ID types. Zoneless keeps this as a plain string for maintainability.',
+          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific tax ID types. FiatDesk keeps this as a plain string for maintainability.',
       },
       {
         name: 'value',
@@ -2004,7 +2004,7 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Configuration settings for payment collection when the invoice is finalized.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -2265,7 +2265,7 @@ const INVOICE_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'The platform account that owns this resource. For connected account resources, this is the platform’s account ID. For the platform’s own resources, this equals the account field (self-referential).',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -2277,7 +2277,7 @@ export const INVOICES_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Invoice object',
   description:
-    'Invoices are statements of amounts owed by a customer. They are generated one-off, or periodically from a subscription. They contain invoice items and proration adjustments that may be caused by subscription upgrades or downgrades. Invoices settle in USDC on Ethereum. If your invoice is configured for automatic collection, Zoneless finalizes the invoice and attempts payment after webhooks are delivered. If configured for send_invoice, Zoneless emails the customer with a link to the hosted invoice page. Any customer credit balance is applied before determining the amount due.',
+    'Invoices are statements of amounts owed by a customer. They are generated one-off, or periodically from a subscription. They contain invoice items and proration adjustments that may be caused by subscription upgrades or downgrades. Invoices settle in USDC on Ethereum. If your invoice is configured for automatic collection, FiatDesk finalizes the invoice and attempts payment after webhooks are delivered. If configured for send_invoice, FiatDesk emails the customer with a link to the hosted invoice page. Any customer credit balance is applied before determining the amount due.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices',
   endpoints: BuildEndpointSummaries(INVOICES_SUBSECTION, [
     { method: 'POST', path: '/v1/invoices', pageId: 'create' },
@@ -2332,14 +2332,14 @@ const CREATE_INVOICE_PARAMETERS: Attribute[] = [
     name: 'collection_method',
     type: 'enum',
     description:
-      'Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, Zoneless attempts to pay this invoice using the default payment method attached to the customer. When sending an invoice, Zoneless emails the customer with payment instructions. Defaults to <code>charge_automatically</code>.',
+      'Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, FiatDesk attempts to pay this invoice using the default payment method attached to the customer. When sending an invoice, FiatDesk emails the customer with payment instructions. Defaults to <code>charge_automatically</code>.',
     enumValues: [{ value: 'charge_automatically' }, { value: 'send_invoice' }],
   },
   {
     name: 'currency',
     type: 'enum',
     description:
-      'The currency to create this invoice in. Defaults to that of <code>customer</code> if not specified. For Zoneless, use <code>usdc</code>.',
+      'The currency to create this invoice in. Defaults to that of <code>customer</code> if not specified. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -2369,13 +2369,13 @@ const CREATE_INVOICE_MORE_PARAMETERS: Attribute[] = [
     name: 'application_fee_amount',
     type: 'integer',
     description:
-      'A fee in the smallest currency unit that will be applied to the invoice and transferred to the application owner’s account. The request must be made with an OAuth key or the Zoneless-Account header in order to take an application fee.',
+      'A fee in the smallest currency unit that will be applied to the invoice and transferred to the application owner’s account. The request must be made with an OAuth key or the FiatDesk-Account header in order to take an application fee.',
   },
   {
     name: 'auto_advance',
     type: 'boolean',
     description:
-      'Controls whether Zoneless performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action. Defaults to <code>false</code>.',
+      'Controls whether FiatDesk performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action. Defaults to <code>false</code>.',
   },
   {
     name: 'automatic_tax',
@@ -2502,7 +2502,7 @@ const CREATE_INVOICE_MORE_PARAMETERS: Attribute[] = [
     description:
       'Configuration settings for payment collection when the invoice is finalized.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -2600,16 +2600,16 @@ export const INVOICES_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/invoices \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d customer=cus_z_TpL8wQkR3nVmY`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d customer=cus_fd_TpL8wQkR3nVmY`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.create({
-  customer: 'cus_z_TpL8wQkR3nVmY',
+const invoice = await fiatdesk.invoices.create({
+  customer: 'cus_fd_TpL8wQkR3nVmY',
 });`,
             },
           ],
@@ -2629,7 +2629,7 @@ const UPDATE_INVOICE_PARAMETERS: Attribute[] = [
     name: 'auto_advance',
     type: 'boolean',
     description:
-      'Controls whether Zoneless performs automatic collection of the invoice.',
+      'Controls whether FiatDesk performs automatic collection of the invoice.',
   },
   {
     name: 'collection_method',
@@ -2761,7 +2761,7 @@ const UPDATE_INVOICE_MORE_PARAMETERS: Attribute[] = [
     description:
       'Configuration settings for payment collection when the invoice is finalized.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -2808,7 +2808,7 @@ export const INVOICES_UPDATE_PAGE: DocPage = {
   id: 'update',
   title: 'Update an invoice',
   description:
-    'Draft invoices are fully editable. Once an invoice is finalized, monetary values, as well as collection_method, become uneditable. If you would like to stop Zoneless from automatically finalizing, reattempting payments on, or sending reminders for invoices, pass auto_advance=false.',
+    'Draft invoices are fully editable. Once an invoice is finalized, monetary values, as well as collection_method, become uneditable. If you would like to stop FiatDesk from automatically finalizing, reattempting payments on, or sending reminders for invoices, pass auto_advance=false.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices/update',
   endpoints: [{ method: 'POST', path: '/v1/invoices/:id' }],
   sections: [
@@ -2834,8 +2834,8 @@ export const INVOICES_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=9284`,
             },
             {
@@ -2843,8 +2843,8 @@ export const INVOICES_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.update(
-  'in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c',
+const invoice = await fiatdesk.invoices.update(
+  'in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c',
   {
     metadata: {
       order_id: '9284',
@@ -2876,7 +2876,7 @@ export const INVOICES_RETRIEVE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns an invoice object if a valid invoice ID was provided. Raises an error otherwise. The invoice object contains a <code>lines</code> hash with subscriptions and invoice items applied to the invoice, as well as any prorations Zoneless has automatically calculated. The invoice also has a <code>next_payment_attempt</code> attribute that tells you the next time payment will be automatically attempted. For invoices with manual payment collection, that have been closed, or that have reached the maximum number of retries, <code>next_payment_attempt</code> is <code>null</code>.',
+          text: 'Returns an invoice object if a valid invoice ID was provided. Raises an error otherwise. The invoice object contains a <code>lines</code> hash with subscriptions and invoice items applied to the invoice, as well as any prorations FiatDesk has automatically calculated. The invoice also has a <code>next_payment_attempt</code> attribute that tells you the next time payment will be automatically attempted. For invoices with manual payment collection, that have been closed, or that have reached the maximum number of retries, <code>next_payment_attempt</code> is <code>null</code>.',
           html: true,
         },
       ],
@@ -2888,16 +2888,16 @@ export const INVOICES_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.retrieve(
-  'in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c'
+const invoice = await fiatdesk.invoices.retrieve(
+  'in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c'
 );`,
             },
           ],
@@ -3014,7 +3014,7 @@ export const INVOICES_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/invoices \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -3022,7 +3022,7 @@ export const INVOICES_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoices = await zoneless.invoices.list({
+const invoices = await fiatdesk.invoices.list({
   limit: 3,
 });`,
             },
@@ -3062,16 +3062,16 @@ export const INVOICES_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/invoices/in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/invoices/in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.invoices.del(
-  'in_z_1RvK8pQ2eZvKYlo2Hn4mWx9c'
+const deleted = await fiatdesk.invoices.del(
+  'in_fd_1RvK8pQ2eZvKYlo2Hn4mWx9c'
 );`,
             },
           ],
@@ -3091,7 +3091,7 @@ const FINALIZE_INVOICE_PARAMETERS: Attribute[] = [
     name: 'auto_advance',
     type: 'boolean',
     description:
-      'Controls whether Zoneless performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action.',
+      'Controls whether FiatDesk performs automatic collection of the invoice. If <code>false</code>, the invoice’s state doesn’t automatically advance without an explicit action.',
   },
 ];
 
@@ -3099,7 +3099,7 @@ export const INVOICES_FINALIZE_PAGE: DocPage = {
   id: 'finalize',
   title: 'Finalize an invoice',
   description:
-    'Zoneless automatically finalizes drafts before sending and attempting payment on invoices. However, if you’d like to finalize a draft invoice manually, you can do so using this method.',
+    'FiatDesk automatically finalizes drafts before sending and attempting payment on invoices. However, if you’d like to finalize a draft invoice manually, you can do so using this method.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices/finalize',
   endpoints: [{ method: 'POST', path: '/v1/invoices/:id/finalize' }],
   sections: [
@@ -3125,8 +3125,8 @@ export const INVOICES_FINALIZE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvK9aH3fZwLXmp3Jo5nXy0d/finalize \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d/finalize \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -3134,8 +3134,8 @@ export const INVOICES_FINALIZE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.finalizeInvoice(
-  'in_z_1RvK9aH3fZwLXmp3Jo5nXy0d'
+const invoice = await fiatdesk.invoices.finalizeInvoice(
+  'in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d'
 );`,
             },
           ],
@@ -3177,8 +3177,8 @@ export const INVOICES_MARK_UNCOLLECTIBLE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvJ4mN1dYuKXkn2Gi3lVw8b/mark_uncollectible \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvJ4mN1dYuKXkn2Gi3lVw8b/mark_uncollectible \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -3186,8 +3186,8 @@ export const INVOICES_MARK_UNCOLLECTIBLE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.markUncollectible(
-  'in_z_1RvJ4mN1dYuKXkn2Gi3lVw8b'
+const invoice = await fiatdesk.invoices.markUncollectible(
+  'in_fd_1RvJ4mN1dYuKXkn2Gi3lVw8b'
 );`,
             },
           ],
@@ -3207,7 +3207,7 @@ const PAY_INVOICE_PARAMETERS: Attribute[] = [
     name: 'paid_out_of_band',
     type: 'boolean',
     description:
-      'Boolean representing whether an invoice is paid outside of Zoneless. This results in no on-chain collection being made. Defaults to <code>false</code>.',
+      'Boolean representing whether an invoice is paid outside of FiatDesk. This results in no on-chain collection being made. Defaults to <code>false</code>.',
   },
   {
     name: 'payment_method',
@@ -3221,7 +3221,7 @@ const PAY_INVOICE_PARAMETERS: Attribute[] = [
     description:
       'When set, skip on-chain collect and record settlement with this transaction hash (for example, when checkout already collected the first period).',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
@@ -3256,7 +3256,7 @@ export const INVOICES_PAY_PAGE: DocPage = {
   id: 'pay',
   title: 'Pay an invoice',
   description:
-    'Zoneless automatically creates and then attempts to collect payment on invoices for customers on subscriptions according to your billing settings. However, if you’d like to attempt payment on an invoice outside of the normal collection schedule, you can do so with this endpoint. Collection settles in USDC on Ethereum, with one charge on the customer’s on-chain subscription per billing period.',
+    'FiatDesk automatically creates and then attempts to collect payment on invoices for customers on subscriptions according to your billing settings. However, if you’d like to attempt payment on an invoice outside of the normal collection schedule, you can do so with this endpoint. Collection settles in USDC on Ethereum, with one charge on the customer’s on-chain subscription per billing period.',
   stripeDocsUrl: 'https://docs.stripe.com/api/invoices/pay',
   endpoints: [{ method: 'POST', path: '/v1/invoices/:id/pay' }],
   sections: [
@@ -3265,8 +3265,8 @@ export const INVOICES_PAY_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
-          text: 'Each billing period is one <code>charge</code> on the customer’s on-chain subscription, for the period the chain has due now. A collection that does not succeed stays <code>open</code> and records <code>metadata.last_payment_error</code> and <code>metadata.last_payment_error_code</code>. <strong>Declines</strong> use up a retry, set the PaymentIntent’s <code>last_payment_error.code</code> and emit <code>invoice.payment_failed</code>: <code>collection_failed_allowance</code> (the customer’s USDC allowance to the Subscriptions contract does not cover the amount; Zoneless also emits <code>customer.subscription.allowance_exhausted</code>), <code>insufficient_funds</code> and <code>account_frozen</code>. <strong>Waits</strong> use up no retry and emit nothing; <code>next_payment_attempt</code> is when collection goes on: <code>charge_pending</code> (a charge was sent and is not confirmed yet; its PaymentIntent is <code>processing</code> with <code>pending_charge_hash</code>, and the next attempt settles it by that hash before anything else is sent), <code>period_already_collected</code> (the period is not due on-chain yet), <code>paused_on_chain</code>, <code>chain_unavailable</code> and <code>charge_refused</code>. The billing run voids an invoice with <code>cycle_missed</code> (a period the chain skipped because it was charged late) or <code>canceled_on_chain</code>. <code>onchain_plan_mismatch</code> and <code>onchain_plan_amount_exceeded</code> mean the subscription no longer matches its on-chain plan.',
+          title: 'FiatDesk extension: ',
+          text: 'Each billing period is one <code>charge</code> on the customer’s on-chain subscription, for the period the chain has due now. A collection that does not succeed stays <code>open</code> and records <code>metadata.last_payment_error</code> and <code>metadata.last_payment_error_code</code>. <strong>Declines</strong> use up a retry, set the PaymentIntent’s <code>last_payment_error.code</code> and emit <code>invoice.payment_failed</code>: <code>collection_failed_allowance</code> (the customer’s USDC allowance to the Subscriptions contract does not cover the amount; FiatDesk also emits <code>customer.subscription.allowance_exhausted</code>), <code>insufficient_funds</code> and <code>account_frozen</code>. <strong>Waits</strong> use up no retry and emit nothing; <code>next_payment_attempt</code> is when collection goes on: <code>charge_pending</code> (a charge was sent and is not confirmed yet; its PaymentIntent is <code>processing</code> with <code>pending_charge_hash</code>, and the next attempt settles it by that hash before anything else is sent), <code>period_already_collected</code> (the period is not due on-chain yet), <code>paused_on_chain</code>, <code>chain_unavailable</code> and <code>charge_refused</code>. The billing run voids an invoice with <code>cycle_missed</code> (a period the chain skipped because it was charged late) or <code>canceled_on_chain</code>. <code>onchain_plan_mismatch</code> and <code>onchain_plan_amount_exceeded</code> mean the subscription no longer matches its on-chain plan.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -3289,8 +3289,8 @@ export const INVOICES_PAY_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvK9aH3fZwLXmp3Jo5nXy0d/pay \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d/pay \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -3298,8 +3298,8 @@ export const INVOICES_PAY_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.pay(
-  'in_z_1RvK9aH3fZwLXmp3Jo5nXy0d'
+const invoice = await fiatdesk.invoices.pay(
+  'in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d'
 );`,
             },
           ],
@@ -3338,8 +3338,8 @@ export const INVOICES_VOID_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/invoices/in_z_1RvK9aH3fZwLXmp3Jo5nXy0d/void \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/invoices/in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d/void \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -3347,8 +3347,8 @@ export const INVOICES_VOID_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const invoice = await zoneless.invoices.voidInvoice(
-  'in_z_1RvK9aH3fZwLXmp3Jo5nXy0d'
+const invoice = await fiatdesk.invoices.voidInvoice(
+  'in_fd_1RvK9aH3fZwLXmp3Jo5nXy0d'
 );`,
             },
           ],

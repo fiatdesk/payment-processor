@@ -10,7 +10,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ApiKey } from '@zoneless/shared-types';
+import { ApiKey } from '@fiatdesk/shared-types';
 
 export type ApiKeyFormMode = 'create' | 'edit';
 

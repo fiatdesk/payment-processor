@@ -1,14 +1,14 @@
 import { BaseResource } from './Base';
-import { BillingMonitorStatus, BillingRun } from '@zoneless/shared-types';
+import { BillingMonitorStatus, BillingRun } from '@fiatdesk/shared-types';
 import type { RunBillingForPlatformInput } from '../generated/Inputs';
 /**
- * Zoneless billing helpers for recurring subscription collection.
+ * FiatDesk billing helpers for recurring subscription collection.
  *
  * Prefer calling `runForPlatform` from your host cron / Cloud Scheduler.
  * The operator-scoped `POST /v1/billing/run` endpoint is intentionally not
  * exposed here — it requires a special operator key.
  *
- * @zoneless_extension
+ * @fiatdesk_extension
  * @see /billing
  */
 export class Billing extends BaseResource {

@@ -1,6 +1,6 @@
-import { Zoneless } from '../index';
+import { FiatDesk } from '../index';
 
-describe('Zoneless', () => {
+describe('FiatDesk', () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -9,10 +9,10 @@ describe('Zoneless', () => {
   });
 
   it('requires an API key and base URL', () => {
-    expect(() => new Zoneless('', 'https://api.example.com')).toThrow(
+    expect(() => new FiatDesk('', 'https://api.example.com')).toThrow(
       /API key is required/
     );
-    expect(() => new Zoneless('sk_test_z_key', '')).toThrow(
+    expect(() => new FiatDesk('sk_test_fd_key', '')).toThrow(
       /base URL is required/
     );
   });
@@ -31,8 +31,8 @@ describe('Zoneless', () => {
     });
     global.fetch = fetchMock;
 
-    const zoneless = new Zoneless('sk_test_z_key', 'https://api.example.com');
-    const result = await zoneless.billing.runForPlatform({ batch_size: 10 });
+    const fiatdesk = new FiatDesk('sk_test_fd_key', 'https://api.example.com');
+    const result = await fiatdesk.billing.runForPlatform({ batch_size: 10 });
 
     expect(result.object).toBe('billing.run');
     expect(result.processed).toBe(1);

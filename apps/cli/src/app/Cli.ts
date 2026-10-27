@@ -6,7 +6,7 @@ import {
   type AuthorizationPrompt,
 } from './AgentSetup';
 import { OpenBrowser, type BrowserOpener } from './Browser';
-import { ZonelessClient, type FetchLike } from './Client';
+import { FiatDeskClient, type FetchLike } from './Client';
 import { RunDoctor, RunStoreInit } from './Commands';
 import { SyncEnvironment } from './EnvSync';
 import { ApiError, CliError, InvalidInput } from './Errors';
@@ -23,18 +23,18 @@ import {
   type ExitCode,
 } from './Types';
 
-const helpText = `Zoneless agent CLI
+const helpText = `FiatDesk agent CLI
 
 Usage:
-  zoneless agent setup --platform-name <name> [--skill <skill>] [--json]
-  zoneless agent install-skill [--skill <skill>] [--json]
-  zoneless auth status [--profile <name>] [--json]
-  zoneless auth reconnect [--profile <name>] [--json]
-  zoneless env sync [--target <path>] [--include-wallet] [--json]
-  zoneless webhook sync --url <https-url> [--preset subscriptions] [--target <path>] [--json]
-  zoneless wallet backup --output <path> [--profile <name>]
-  zoneless doctor [--profile <name>] [--json]
-  zoneless store init --name <name> --amount <integer> [options]
+  fiatdesk agent setup --platform-name <name> [--skill <skill>] [--json]
+  fiatdesk agent install-skill [--skill <skill>] [--json]
+  fiatdesk auth status [--profile <name>] [--json]
+  fiatdesk auth reconnect [--profile <name>] [--json]
+  fiatdesk env sync [--target <path>] [--include-wallet] [--json]
+  fiatdesk webhook sync --url <https-url> [--preset subscriptions] [--target <path>] [--json]
+  fiatdesk wallet backup --output <path> [--profile <name>]
+  fiatdesk doctor [--profile <name>] [--json]
+  fiatdesk store init --name <name> --amount <integer> [options]
 
 Options:
   --platform-name <name>     Platform name used during agent setup
@@ -58,11 +58,11 @@ Options:
   --json                     Emit machine-readable JSON
 
 Environment:
-  ZONELESS_AUTH_URL          Agent authorization callable URL
-  ZONELESS_ACTIVATION_URL    Human approval page URL
-  ZONELESS_API_URL           Zoneless API URL
-  ZONELESS_API_KEY           Platform API key
-  ZONELESS_PROFILE           Stored profile name (defaults to current profile)
+  FIATDESK_AUTH_URL          Agent authorization callable URL
+  FIATDESK_ACTIVATION_URL    Human approval page URL
+  FIATDESK_API_URL           FiatDesk API URL
+  FIATDESK_API_KEY           Platform API key
+  FIATDESK_PROFILE           Stored profile name (defaults to current profile)
 `;
 
 export async function RunCli(
@@ -74,7 +74,7 @@ export async function RunCli(
   openBrowser: BrowserOpener = OpenBrowser
 ): Promise<ExitCode> {
   const jsonRequested = argumentsList.includes('--json');
-  const secretValues = [environment.ZONELESS_API_KEY].filter(
+  const secretValues = [environment.FIATDESK_API_KEY].filter(
     (value): value is string => Boolean(value)
   );
 
@@ -94,7 +94,7 @@ export async function RunCli(
     }
     const locatedProject = await projectStore.Find();
     if (command.name === 'auth-status') {
-      const requestedProfile = command.profile ?? environment.ZONELESS_PROFILE;
+      const requestedProfile = command.profile ?? environment.FIATDESK_PROFILE;
       const status = await profileStore.GetStatus(
         requestedProfile ??
           (locatedProject
@@ -177,7 +177,7 @@ export async function RunCli(
       }
       if (!reusableSetup && storedSetup) {
         throw new CliError(
-          'Stored Zoneless credentials are missing. Run "zoneless auth reconnect" to authorize replacement keys.',
+          'Stored FiatDesk credentials are missing. Run "fiatdesk auth reconnect" to authorize replacement keys.',
           'credentials_invalid',
           exitCodes.apiError
         );
@@ -241,12 +241,12 @@ export async function RunCli(
       const result = await AuthorizePlatform(
         {
           activationUrl:
-            command.activationUrl ?? environment.ZONELESS_ACTIVATION_URL,
-          authUrl: command.authUrl ?? environment.ZONELESS_AUTH_URL,
+            command.activationUrl ?? environment.FIATDESK_ACTIVATION_URL,
+          authUrl: command.authUrl ?? environment.FIATDESK_AUTH_URL,
           newPlatform: command.newPlatform,
           platformName: command.platformName,
           pollIntervalMs: ParsePollInterval(
-            environment.ZONELESS_AUTH_POLL_INTERVAL_MS
+            environment.FIATDESK_AUTH_POLL_INTERVAL_MS
           ),
           profilePrefix,
         },
@@ -288,7 +288,7 @@ export async function RunCli(
         locatedProject
       );
       const reusableSetup = await profileStore.GetReusableSetup(
-        command.profile || environment.ZONELESS_PROFILE
+        command.profile || environment.FIATDESK_PROFILE
           ? undefined
           : locatedProject?.binding.profilePrefix,
         selectedProfile,
@@ -306,12 +306,12 @@ export async function RunCli(
       const result = await AuthorizePlatform(
         {
           activationUrl:
-            command.activationUrl ?? environment.ZONELESS_ACTIVATION_URL,
-          authUrl: command.authUrl ?? environment.ZONELESS_AUTH_URL,
+            command.activationUrl ?? environment.FIATDESK_ACTIVATION_URL,
+          authUrl: command.authUrl ?? environment.FIATDESK_AUTH_URL,
           expectedWorkspaceId: reusableSetup.test.workspaceId,
           platformName: reusableSetup.test.platformName,
           pollIntervalMs: ParsePollInterval(
-            environment.ZONELESS_AUTH_POLL_INTERVAL_MS
+            environment.FIATDESK_AUTH_POLL_INTERVAL_MS
           ),
           profilePrefix,
           reconnect: true,
@@ -377,7 +377,7 @@ export async function RunCli(
     if (command.name === 'webhook-sync') {
       if (!locatedProject) {
         throw InvalidInput(
-          'Webhook sync requires a bound Zoneless project. Run "zoneless agent setup" first.'
+          'Webhook sync requires a bound FiatDesk project. Run "fiatdesk agent setup" first.'
         );
       }
       const profileName =
@@ -395,7 +395,7 @@ export async function RunCli(
       const credentials = await profileStore.GetCredentials(profileName);
       secretValues.push(credentials.apiKey);
       const result = await SyncWebhook(
-        new ZonelessClient(
+        new FiatDeskClient(
           credentials.profile.apiUrl,
           credentials.apiKey,
           fetchRequest
@@ -437,7 +437,7 @@ export async function RunCli(
     secretValues.push(credentials.apiKey);
     const apiUrl = credentials.apiUrl;
     const apiKey = credentials.apiKey;
-    const client = new ZonelessClient(apiUrl, apiKey, fetchRequest);
+    const client = new FiatDeskClient(apiUrl, apiKey, fetchRequest);
 
     const result =
       command.name === 'doctor'
@@ -474,12 +474,12 @@ async function ResolveCredentials(
   profileStore: ProfileStore,
   locatedProject: LocatedProjectBinding | null
 ): Promise<{ apiKey: string; apiUrl: string }> {
-  const apiUrl = environment.ZONELESS_API_URL?.trim();
-  const apiKey = environment.ZONELESS_API_KEY?.trim();
+  const apiUrl = environment.FIATDESK_API_URL?.trim();
+  const apiKey = environment.FIATDESK_API_KEY?.trim();
   if (apiUrl || apiKey) {
     if (!apiUrl || !apiKey) {
       throw InvalidInput(
-        'ZONELESS_API_URL and ZONELESS_API_KEY must be provided together.'
+        'FIATDESK_API_URL and FIATDESK_API_KEY must be provided together.'
       );
     }
     return { apiKey, apiUrl };
@@ -503,7 +503,7 @@ async function ResolveProfileName(
 ): Promise<string | undefined> {
   return (
     profileName ??
-    environment.ZONELESS_PROFILE ??
+    environment.FIATDESK_PROFILE ??
     locatedProject?.binding.testProfile
   );
 }
@@ -540,7 +540,7 @@ async function VerifyProfileCredentials(
   try {
     const credentials = await profileStore.GetCredentials(profileName);
     secretValues.push(credentials.apiKey);
-    await new ZonelessClient(
+    await new FiatDeskClient(
       credentials.profile.apiUrl,
       credentials.apiKey,
       fetchRequest
@@ -551,7 +551,7 @@ async function VerifyProfileCredentials(
       (error.status === 401 || error.status === 403)
     ) {
       throw new CliError(
-        `Stored Zoneless credentials for "${profileName}" are no longer valid. Run "zoneless auth reconnect" to authorize replacement keys.`,
+        `Stored FiatDesk credentials for "${profileName}" are no longer valid. Run "fiatdesk auth reconnect" to authorize replacement keys.`,
         'credentials_invalid',
         exitCodes.apiError
       );
@@ -589,7 +589,7 @@ async function BindSetupProject(
 ): Promise<LocatedProjectBinding> {
   if (!setup.workspaceId) {
     throw new CliError(
-      'Zoneless setup did not return a workspace identifier.',
+      'FiatDesk setup did not return a workspace identifier.',
       'invalid_setup_response',
       exitCodes.apiError
     );
@@ -637,7 +637,7 @@ function NormalizeError(error: unknown): CliError {
 function FormatHumanResult(result: object): string {
   const resultRecord = result as Record<string, unknown>;
   if (resultRecord['object'] === 'skill_install') {
-    return `Installed the zoneless-${resultRecord['skill']} skill at ${resultRecord['path']}.\n`;
+    return `Installed the fiatdesk-${resultRecord['skill']} skill at ${resultRecord['path']}.\n`;
   }
   if (resultRecord['object'] === 'auth_status') {
     return `${JSON.stringify(resultRecord, null, 2)}\n`;
@@ -667,7 +667,7 @@ function FormatHumanResult(result: object): string {
       }.`,
       `URL: ${resultRecord['url']}`,
       `Events: ${(resultRecord['enabled_events'] as string[]).join(', ')}`,
-      `Synced ZONELESS_WEBHOOK_SECRET to ${resultRecord['target']}.`,
+      `Synced FIATDESK_WEBHOOK_SECRET to ${resultRecord['target']}.`,
       'Restart the application so it loads the updated environment.',
       resultRecord['dashboard_url']
         ? `Dashboard: ${resultRecord['dashboard_url']}`
@@ -739,7 +739,7 @@ function ParsePollInterval(value: string | undefined): number | undefined {
   const milliseconds = Number(value);
   if (!Number.isSafeInteger(milliseconds) || milliseconds < 100) {
     throw InvalidInput(
-      'ZONELESS_AUTH_POLL_INTERVAL_MS must be an integer of at least 100.'
+      'FIATDESK_AUTH_POLL_INTERVAL_MS must be an integer of at least 100.'
     );
   }
   return milliseconds;

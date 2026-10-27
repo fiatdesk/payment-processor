@@ -16,8 +16,8 @@ import type {
   BalanceTransaction,
   ExternalWallet,
   Payout,
-} from '@zoneless/shared-types';
-import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-types';
+import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 import { Subscription } from 'rxjs';
 import {
   AccountService,

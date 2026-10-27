@@ -16,7 +16,7 @@ import {
   MetricSeries,
   MetricUnit,
   ReportingMetrics,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from './Database';
 import {
   AlignSeriesLength,

@@ -45,7 +45,7 @@ export class ProfileStore {
       (environment.HOME
         ? path.join(environment.HOME, '.config')
         : path.join(os.homedir(), '.config'));
-    this.configPath = path.join(configRoot, 'zoneless', 'config.json');
+    this.configPath = path.join(configRoot, 'fiatdesk', 'config.json');
   }
 
   async GetCredentials(profileName?: string): Promise<ProfileCredentials> {
@@ -68,13 +68,13 @@ export class ProfileStore {
     const selectedName = profileName ?? config.currentProfile;
     if (!selectedName) {
       throw InvalidInput(
-        'No Zoneless profile is configured. Run "zoneless agent setup" or provide ZONELESS_API_URL and ZONELESS_API_KEY.'
+        'No FiatDesk profile is configured. Run "fiatdesk agent setup" or provide FIATDESK_API_URL and FIATDESK_API_KEY.'
       );
     }
 
     const profile = config.profiles[selectedName];
     if (!profile) {
-      throw InvalidInput(`No Zoneless profile named "${selectedName}" exists.`);
+      throw InvalidInput(`No FiatDesk profile named "${selectedName}" exists.`);
     }
     return { profile, profileName: selectedName };
   }

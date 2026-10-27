@@ -99,7 +99,7 @@ const PaymentIntentPaymentDetailsSchema = z.object({
 
 /**
  * @remarks Stripe defines 40+ per-type hashes here (acss_debit, card, klarna, etc.).
- * Zoneless only accepts USDC wallet payments, so only the `crypto` bag is exposed.
+ * FiatDesk only accepts USDC wallet payments, so only the `crypto` bag is exposed.
  */
 const PaymentIntentPaymentMethodDataSchema = z.object({
   type: z.enum(['crypto']).optional(),
@@ -119,7 +119,7 @@ const PaymentIntentPaymentMethodDataSchema = z.object({
 });
 
 /**
- * @remarks Stripe defines 40+ per-payment-method-type option bags here. Zoneless only
+ * @remarks Stripe defines 40+ per-payment-method-type option bags here. FiatDesk only
  * accepts USDC wallet payments, so only the `crypto` option bag is exposed.
  */
 const PaymentIntentPaymentMethodOptionsSchema = z.object({

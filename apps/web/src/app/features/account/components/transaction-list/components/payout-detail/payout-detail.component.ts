@@ -1,7 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 
-import { Payout, ExternalWallet } from '@zoneless/shared-types';
+import { Payout, ExternalWallet } from '@fiatdesk/shared-types';
 import { StatusChipComponent } from '../../../../../../shared';
 
 @Component({

@@ -13,7 +13,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
-import type { Balance, TopUp } from '@zoneless/shared-types';
+import type { Balance, TopUp } from '@fiatdesk/shared-types';
 import type { ChainCursor } from '../../modules/ChainCursorStore';
 import { TopUpMonitor } from '../../modules/TopUpMonitor';
 import { PAYOUT_BATCH_ABI } from '../../modules/chains/abi/PayoutBatch';
@@ -36,7 +36,7 @@ jest.mock('../../utils/Logger', () => ({
   },
 }));
 
-const PLATFORM_ACCOUNT = 'acct_z_platform';
+const PLATFORM_ACCOUNT = 'acct_fd_platform';
 /** A third recipient in the same transaction, who is not the platform. */
 const OTHER: Address = privateKeyToAccount(
   keccak256(toBytes('topup-other'))
@@ -109,14 +109,14 @@ describe('Top-ups on Anvil', () => {
       created: 1,
     });
     memory.Seed('ExternalWallets', {
-      id: 'wa_z_platform',
+      id: 'wa_fd_platform',
       account: PLATFORM_ACCOUNT,
       wallet_address: platform,
       default_for_currency: true,
       status: 'new',
     });
     memory.Seed('Balances', {
-      id: 'bal_z_platform',
+      id: 'bal_fd_platform',
       account: PLATFORM_ACCOUNT,
       available: [{ amount: 0, currency: 'usdc' }],
       pending: [{ amount: 0, currency: 'usdc' }],
@@ -138,7 +138,7 @@ describe('Top-ups on Anvil', () => {
   }
 
   function Available(): number {
-    return memory.Doc<Balance>('Balances', 'bal_z_platform').available[0]
+    return memory.Doc<Balance>('Balances', 'bal_fd_platform').available[0]
       .amount;
   }
 

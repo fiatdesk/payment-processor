@@ -14,7 +14,7 @@ import {
   PaginatedListComponent,
 } from '../../../../shared';
 
-import { Event } from '@zoneless/shared-types';
+import { Event } from '@fiatdesk/shared-types';
 
 @Component({
   selector: 'app-events-list',

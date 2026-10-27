@@ -20,9 +20,9 @@ export const IDENTITY_VERIFICATION_SESSIONS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const VERIFICATION_SESSION_OBJECT_JSON = `{
-  "id": "vs_z_7Kd2mQxT4Rb9LpVn",
+  "id": "vs_fd_7Kd2mQxT4Rb9LpVn",
   "object": "identity.verification_session",
-  "client_secret": "vs_z_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
+  "client_secret": "vs_fd_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
   "created": 1784572800,
   "last_error": null,
   "last_verification_report": null,
@@ -34,9 +34,9 @@ const VERIFICATION_SESSION_OBJECT_JSON = `{
   "status": "requires_input",
   "type": "document",
   "url": "https://verify.didit.me/session/9f2c7a1d4e6b",
-  "related_account": "acct_z_1Nv0FGQ9RKHgCVdK",
-  "related_person": "person_z_1Nv0FGQ9RKHgCVdK",
-  "platform_account": "acct_z_Platform123abc",
+  "related_account": "acct_fd_1Nv0FGQ9RKHgCVdK",
+  "related_person": "person_fd_1Nv0FGQ9RKHgCVdK",
+  "platform_account": "acct_fd_Platform123abc",
   "provider": "didit",
   "provider_session_id": "3f8a1c92-7b64-4d0e-9a51-2c7e5b8d1046"
 }`;
@@ -88,7 +88,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless verification session IDs are prefixed with <code>vs_z_</code>.',
+      'Unique identifier for the object. FiatDesk verification session IDs are prefixed with <code>vs_fd_</code>.',
   },
   {
     name: 'object',
@@ -101,7 +101,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'A short-lived secret that lets your client open the verification flow without your secret key. Zoneless returns the provider session token, or <code>null</code> once the session is canceled or redacted.',
+      'A short-lived secret that lets your client open the verification flow without your secret key. FiatDesk returns the provider session token, or <code>null</code> once the session is canceled or redacted.',
   },
   {
     name: 'created',
@@ -136,7 +136,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'ID of the most recent verification report. Zoneless returns <code>null</code>: the outcome of the check is reported through <code>status</code> and the session webhook events.',
+      'ID of the most recent verification report. FiatDesk returns <code>null</code>: the outcome of the check is reported through <code>status</code> and the session webhook events.',
   },
   {
     name: 'livemode',
@@ -168,7 +168,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'platform_account',
     type: 'string',
     description:
-      '<strong>Zoneless extension:</strong> The platform account that owns this session.',
+      '<strong>FiatDesk extension:</strong> The platform account that owns this session.',
   },
   {
     name: 'provided_details',
@@ -182,7 +182,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'provider',
     type: 'enum',
     description:
-      '<strong>Zoneless extension:</strong> The identity provider that fulfils this session.',
+      '<strong>FiatDesk extension:</strong> The identity provider that fulfils this session.',
     enumValues: [
       {
         value: 'didit',
@@ -194,14 +194,14 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'provider_session_id',
     type: 'string',
     description:
-      "<strong>Zoneless extension:</strong> The provider's own ID for this session. Use it to match a session against the provider's dashboard or webhook payloads.",
+      "<strong>FiatDesk extension:</strong> The provider's own ID for this session. Use it to match a session against the provider's dashboard or webhook payloads.",
   },
   {
     name: 'redaction',
     type: 'object',
     nullable: true,
     description:
-      'Redaction status of the session. Zoneless sets <code>redacted</code> as soon as the request succeeds, and never reports a redaction in progress.',
+      'Redaction status of the session. FiatDesk sets <code>redacted</code> as soon as the request succeeds, and never reports a redaction in progress.',
     children: [
       {
         name: 'status',
@@ -220,19 +220,19 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'related_account',
     type: 'string',
     description:
-      '<strong>Zoneless extension:</strong> The connected account this session verifies.',
+      '<strong>FiatDesk extension:</strong> The connected account this session verifies.',
   },
   {
     name: 'related_person',
     type: 'string',
     description:
-      "<strong>Zoneless extension:</strong> The person on the connected account this session verifies. Defaults to the account's individual.",
+      "<strong>FiatDesk extension:</strong> The person on the connected account this session verifies. Defaults to the account's individual.",
   },
   {
     name: 'status',
     type: 'enum',
     description:
-      'The status of the verification session. Zoneless never sets <code>requires_action</code>.',
+      'The status of the verification session. FiatDesk never sets <code>requires_action</code>.',
     enumValues: [
       {
         value: 'requires_input',
@@ -285,7 +285,7 @@ const VERIFICATION_SESSION_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'The URL for the hosted verification flow. Redirect the seller to this URL to start the check. Zoneless returns <code>null</code> once the session is canceled or redacted.',
+      'The URL for the hosted verification flow. Redirect the seller to this URL to start the check. FiatDesk returns <code>null</code> once the session is canceled or redacted.',
   },
 ];
 
@@ -324,13 +324,13 @@ const CREATE_VERIFICATION_SESSION_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      '<strong>Zoneless extension:</strong> The connected account to verify. A platform can verify any account it owns; a connected account can only verify itself.',
+      '<strong>FiatDesk extension:</strong> The connected account to verify. A platform can verify any account it owns; a connected account can only verify itself.',
   },
   {
     name: 'related_person',
     type: 'string',
     description:
-      "<strong>Zoneless extension:</strong> The person on the account to verify. Defaults to the account's individual.",
+      "<strong>FiatDesk extension:</strong> The person on the account to verify. Defaults to the account's individual.",
   },
   {
     name: 'return_url',
@@ -387,9 +387,9 @@ const UPDATE_VERIFICATION_SESSION_PARAMETERS: Attribute[] = [
 ];
 
 const UPDATE_VERIFICATION_SESSION_RESPONSE_JSON = `{
-  "id": "vs_z_7Kd2mQxT4Rb9LpVn",
+  "id": "vs_fd_7Kd2mQxT4Rb9LpVn",
   "object": "identity.verification_session",
-  "client_secret": "vs_z_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
+  "client_secret": "vs_fd_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
   "created": 1784572800,
   "last_error": null,
   "last_verification_report": null,
@@ -403,9 +403,9 @@ const UPDATE_VERIFICATION_SESSION_RESPONSE_JSON = `{
   "status": "requires_input",
   "type": "document",
   "url": "https://verify.didit.me/session/9f2c7a1d4e6b",
-  "related_account": "acct_z_1Nv0FGQ9RKHgCVdK",
-  "related_person": "person_z_1Nv0FGQ9RKHgCVdK",
-  "platform_account": "acct_z_Platform123abc",
+  "related_account": "acct_fd_1Nv0FGQ9RKHgCVdK",
+  "related_person": "person_fd_1Nv0FGQ9RKHgCVdK",
+  "platform_account": "acct_fd_Platform123abc",
   "provider": "didit",
   "provider_session_id": "3f8a1c92-7b64-4d0e-9a51-2c7e5b8d1046"
 }`;
@@ -446,7 +446,7 @@ const LIST_VERIFICATION_SESSION_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>vs_z_bar</code>, your subsequent call can include <code>ending_before=vs_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>vs_fd_bar</code>, your subsequent call can include <code>ending_before=vs_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -458,13 +458,13 @@ const LIST_VERIFICATION_SESSION_PARAMETERS: Attribute[] = [
     name: 'related_account',
     type: 'string',
     description:
-      '<strong>Zoneless extension:</strong> Only return sessions that verify this connected account.',
+      '<strong>FiatDesk extension:</strong> Only return sessions that verify this connected account.',
   },
   {
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>vs_z_foo</code>, your subsequent call can include <code>starting_after=vs_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>vs_fd_foo</code>, your subsequent call can include <code>starting_after=vs_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'status',
@@ -485,9 +485,9 @@ const LIST_VERIFICATION_SESSION_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "vs_z_7Kd2mQxT4Rb9LpVn",
+      "id": "vs_fd_7Kd2mQxT4Rb9LpVn",
       "object": "identity.verification_session",
-      "client_secret": "vs_z_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
+      "client_secret": "vs_fd_7Kd2mQxT4Rb9LpVn_token_5fJ2qL",
       "created": 1784572800,
       "last_error": null,
       "last_verification_report": null,
@@ -499,9 +499,9 @@ const LIST_VERIFICATION_SESSION_RESPONSE_JSON = `{
       "status": "requires_input",
       "type": "document",
       "url": "https://verify.didit.me/session/9f2c7a1d4e6b",
-      "related_account": "acct_z_1Nv0FGQ9RKHgCVdK",
-      "related_person": "person_z_1Nv0FGQ9RKHgCVdK",
-      "platform_account": "acct_z_Platform123abc",
+      "related_account": "acct_fd_1Nv0FGQ9RKHgCVdK",
+      "related_person": "person_fd_1Nv0FGQ9RKHgCVdK",
+      "platform_account": "acct_fd_Platform123abc",
       "provider": "didit",
       "provider_session_id": "3f8a1c92-7b64-4d0e-9a51-2c7e5b8d1046"
     }
@@ -512,7 +512,7 @@ const LIST_VERIFICATION_SESSION_RESPONSE_JSON = `{
 // Cancel and Redact Responses
 // ============================================
 const CANCEL_VERIFICATION_SESSION_RESPONSE_JSON = `{
-  "id": "vs_z_7Kd2mQxT4Rb9LpVn",
+  "id": "vs_fd_7Kd2mQxT4Rb9LpVn",
   "object": "identity.verification_session",
   "client_secret": null,
   "created": 1784572800,
@@ -526,15 +526,15 @@ const CANCEL_VERIFICATION_SESSION_RESPONSE_JSON = `{
   "status": "canceled",
   "type": "document",
   "url": null,
-  "related_account": "acct_z_1Nv0FGQ9RKHgCVdK",
-  "related_person": "person_z_1Nv0FGQ9RKHgCVdK",
-  "platform_account": "acct_z_Platform123abc",
+  "related_account": "acct_fd_1Nv0FGQ9RKHgCVdK",
+  "related_person": "person_fd_1Nv0FGQ9RKHgCVdK",
+  "platform_account": "acct_fd_Platform123abc",
   "provider": "didit",
   "provider_session_id": "3f8a1c92-7b64-4d0e-9a51-2c7e5b8d1046"
 }`;
 
 const REDACT_VERIFICATION_SESSION_RESPONSE_JSON = `{
-  "id": "vs_z_7Kd2mQxT4Rb9LpVn",
+  "id": "vs_fd_7Kd2mQxT4Rb9LpVn",
   "object": "identity.verification_session",
   "client_secret": null,
   "created": 1784572800,
@@ -550,9 +550,9 @@ const REDACT_VERIFICATION_SESSION_RESPONSE_JSON = `{
   "status": "verified",
   "type": "document",
   "url": null,
-  "related_account": "acct_z_1Nv0FGQ9RKHgCVdK",
-  "related_person": "person_z_1Nv0FGQ9RKHgCVdK",
-  "platform_account": "acct_z_Platform123abc",
+  "related_account": "acct_fd_1Nv0FGQ9RKHgCVdK",
+  "related_person": "person_fd_1Nv0FGQ9RKHgCVdK",
+  "platform_account": "acct_fd_Platform123abc",
   "provider": "didit",
   "provider_session_id": "3f8a1c92-7b64-4d0e-9a51-2c7e5b8d1046"
 }`;
@@ -612,7 +612,7 @@ export const IDENTITY_VERIFICATION_SESSIONS_OVERVIEW_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Zoneless runs the check through <a href="/identity-verification">the identity provider configured for your platform</a>. The session holds the provider session ID and a link the seller completes the check on, and reports the outcome back on <code>status</code>.',
+          text: 'FiatDesk runs the check through <a href="/identity-verification">the identity provider configured for your platform</a>. The session holds the provider session ID and a link the seller completes the check on, and reports the outcome back on <code>status</code>.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -644,7 +644,7 @@ export const IDENTITY_VERIFICATION_SESSIONS_CREATE_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Provider credentials: ',
-          text: 'Zoneless starts the check with the API key and workflow ID saved in your platform identity settings. Without them the request is rejected.',
+          text: 'FiatDesk starts the check with the API key and workflow ID saved in your platform identity settings. Without them the request is rejected.',
         },
         {
           type: 'paragraph',
@@ -675,9 +675,9 @@ export const IDENTITY_VERIFICATION_SESSIONS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/identity/verification_sessions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d type=document \\
-  -d related_account=acct_z_1Nv0FGQ9RKHgCVdK \\
+  -d related_account=acct_fd_1Nv0FGQ9RKHgCVdK \\
   --data-urlencode return_url="https://example.com/identity/return"`,
             },
             {
@@ -685,9 +685,9 @@ export const IDENTITY_VERIFICATION_SESSIONS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.identity.verificationSessions.create({
+const session = await fiatdesk.identity.verificationSessions.create({
   type: 'document',
-  related_account: 'acct_z_1Nv0FGQ9RKHgCVdK',
+  related_account: 'acct_fd_1Nv0FGQ9RKHgCVdK',
   return_url: 'https://example.com/identity/return',
 });`,
             },
@@ -751,8 +751,8 @@ export const IDENTITY_VERIFICATION_SESSIONS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/identity/verification_sessions/vs_z_7Kd2mQxT4Rb9LpVn \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/identity/verification_sessions/vs_fd_7Kd2mQxT4Rb9LpVn \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -760,8 +760,8 @@ export const IDENTITY_VERIFICATION_SESSIONS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.identity.verificationSessions.update(
-  'vs_z_7Kd2mQxT4Rb9LpVn',
+const session = await fiatdesk.identity.verificationSessions.update(
+  'vs_fd_7Kd2mQxT4Rb9LpVn',
   {
     metadata: {
       order_id: '6735',
@@ -813,16 +813,16 @@ export const IDENTITY_VERIFICATION_SESSIONS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/identity/verification_sessions/vs_z_7Kd2mQxT4Rb9LpVn \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/identity/verification_sessions/vs_fd_7Kd2mQxT4Rb9LpVn \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.identity.verificationSessions.retrieve(
-  'vs_z_7Kd2mQxT4Rb9LpVn'
+const session = await fiatdesk.identity.verificationSessions.retrieve(
+  'vs_fd_7Kd2mQxT4Rb9LpVn'
 );`,
             },
           ],
@@ -878,7 +878,7 @@ export const IDENTITY_VERIFICATION_SESSIONS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/identity/verification_sessions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3 \\
   -d status=verified`,
             },
@@ -887,7 +887,7 @@ export const IDENTITY_VERIFICATION_SESSIONS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const sessions = await zoneless.identity.verificationSessions.list({
+const sessions = await fiatdesk.identity.verificationSessions.list({
   limit: 3,
   status: 'verified',
 });`,
@@ -944,16 +944,16 @@ export const IDENTITY_VERIFICATION_SESSIONS_CANCEL_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X POST https://api.yourdomain.com/v1/identity/verification_sessions/vs_z_7Kd2mQxT4Rb9LpVn/cancel \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X POST https://api.yourdomain.com/v1/identity/verification_sessions/vs_fd_7Kd2mQxT4Rb9LpVn/cancel \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.identity.verificationSessions.cancel(
-  'vs_z_7Kd2mQxT4Rb9LpVn'
+const session = await fiatdesk.identity.verificationSessions.cancel(
+  'vs_fd_7Kd2mQxT4Rb9LpVn'
 );`,
             },
           ],
@@ -989,7 +989,7 @@ export const IDENTITY_VERIFICATION_SESSIONS_REDACT_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Zoneless marks the session <code>redacted</code> as soon as the request succeeds, rather than reporting a redaction in progress.',
+          text: 'FiatDesk marks the session <code>redacted</code> as soon as the request succeeds, rather than reporting a redaction in progress.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -1012,16 +1012,16 @@ export const IDENTITY_VERIFICATION_SESSIONS_REDACT_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X POST https://api.yourdomain.com/v1/identity/verification_sessions/vs_z_7Kd2mQxT4Rb9LpVn/redact \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X POST https://api.yourdomain.com/v1/identity/verification_sessions/vs_fd_7Kd2mQxT4Rb9LpVn/redact \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.identity.verificationSessions.redact(
-  'vs_z_7Kd2mQxT4Rb9LpVn'
+const session = await fiatdesk.identity.verificationSessions.redact(
+  'vs_fd_7Kd2mQxT4Rb9LpVn'
 );`,
             },
           ],

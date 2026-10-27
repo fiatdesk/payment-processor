@@ -1,7 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 
-import { TopUp } from '@zoneless/shared-types';
+import { TopUp } from '@fiatdesk/shared-types';
 import { StatusChipComponent } from '../../../../../../shared';
 
 @Component({

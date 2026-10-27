@@ -4,10 +4,10 @@
  * the matching strings across the repo; code reads them from here.
  */
 export const BRAND = {
-  productName: 'Zoneless',
-  packageScope: '@zoneless',
-  idInfix: 'z',
-  connectedAccountHeader: 'zoneless-account',
-  envPrefix: 'ZONELESS',
-  cliBin: 'zoneless',
+  productName: 'FiatDesk',
+  packageScope: '@fiatdesk',
+  idInfix: 'fd',
+  connectedAccountHeader: 'fiatdesk-account',
+  envPrefix: 'FIATDESK',
+  cliBin: 'fiatdesk',
 } as const;

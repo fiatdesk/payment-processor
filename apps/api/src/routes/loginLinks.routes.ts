@@ -2,7 +2,7 @@
  * @fileOverview Routes for LoginLinks
  *
  * Login Links are single-use URLs that take an Express account to the login page
- * for their Zoneless dashboard.
+ * for their FiatDesk dashboard.
  *
  * @see https://docs.stripe.com/api/accounts/login_link
  */

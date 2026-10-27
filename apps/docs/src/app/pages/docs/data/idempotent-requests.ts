@@ -16,7 +16,7 @@ export const IDEMPOTENT_REQUESTS_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Zoneless saves the resulting status code and body of the first request made for any given idempotency key, regardless of whether it succeeds or fails. Subsequent requests with the same key return the same result, including <code>500</code> errors.',
+          text: 'FiatDesk saves the resulting status code and body of the first request made for any given idempotency key, regardless of whether it succeeds or fails. Subsequent requests with the same key return the same result, including <code>500</code> errors.',
           html: true,
         },
         {
@@ -49,7 +49,7 @@ export const IDEMPOTENT_REQUESTS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -H "Idempotency-Key: KG5LxwFBepaKHyUD" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -63,7 +63,7 @@ export const IDEMPOTENT_REQUESTS_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const account = await zoneless.accounts.create(
+const account = await fiatdesk.accounts.create(
   {
     type: 'express',
     country: 'US',

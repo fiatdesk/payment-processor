@@ -8,7 +8,7 @@ describe('Project store', () => {
 
   beforeEach(async () => {
     projectDirectory = await fs.realpath(
-      await fs.mkdtemp(path.join(os.tmpdir(), 'zoneless-project-'))
+      await fs.mkdtemp(path.join(os.tmpdir(), 'fiatdesk-project-'))
     );
   });
 
@@ -24,7 +24,7 @@ describe('Project store', () => {
     const located = await store.Bind(projectDirectory, CreateBinding());
 
     expect(located.path).toBe(
-      path.join(projectDirectory, '.zoneless', 'project.json')
+      path.join(projectDirectory, '.fiatdesk', 'project.json')
     );
     await expect(store.Find(childDirectory)).resolves.toMatchObject({
       binding: {

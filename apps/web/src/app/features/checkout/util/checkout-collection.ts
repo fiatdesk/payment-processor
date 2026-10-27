@@ -1,4 +1,4 @@
-import { CheckoutSession, PaymentLink } from '@zoneless/shared-types';
+import { CheckoutSession, PaymentLink } from '@fiatdesk/shared-types';
 
 /** Collection flags shared by hosted checkout and the payment-link preview. */
 export interface CheckoutCollectionOptions {

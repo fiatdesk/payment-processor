@@ -1,6 +1,6 @@
 import { TransferModule } from '../modules/Transfer';
 import { Database } from '../modules/Database';
-import { Transfer } from '@zoneless/shared-types';
+import { Transfer } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -39,9 +39,9 @@ describe('TransferModule', () => {
       const transfer = module.TransferObject({
         amount: 5000,
         currency: 'USDC',
-        sourceAccount: 'acct_z_platform',
-        platformAccountId: 'acct_z_platform',
-        destination: 'acct_z_seller',
+        sourceAccount: 'acct_fd_platform',
+        platformAccountId: 'acct_fd_platform',
+        destination: 'acct_fd_seller',
         description: 'Marketplace sale payout',
         metadata: { order_id: '42' },
         sourceTransaction: null,
@@ -52,25 +52,25 @@ describe('TransferModule', () => {
       expect(transfer.object).toBe('transfer');
       expect(transfer.amount).toBe(5000);
       expect(transfer.currency).toBe('usdc');
-      expect(transfer.destination).toBe('acct_z_seller');
-      expect(transfer.account).toBe('acct_z_platform');
-      expect(transfer.platform_account).toBe('acct_z_platform');
+      expect(transfer.destination).toBe('acct_fd_seller');
+      expect(transfer.account).toBe('acct_fd_platform');
+      expect(transfer.platform_account).toBe('acct_fd_platform');
       expect(transfer.description).toBe('Marketplace sale payout');
       expect(transfer.metadata).toEqual({ order_id: '42' });
       expect(transfer.transfer_group).toBe('order_42');
       expect(transfer.source_type).toBe('wallet');
       expect(transfer.reversed).toBe(false);
       expect(transfer.amount_reversed).toBe(0);
-      expect(transfer.id).toMatch(/^tr_z_test/);
+      expect(transfer.id).toMatch(/^tr_fd_test/);
     });
 
     it('should lowercase the currency', () => {
       const transfer = module.TransferObject({
         amount: 100,
         currency: 'USDC',
-        sourceAccount: 'acct_z_1',
-        platformAccountId: 'acct_z_1',
-        destination: 'acct_z_2',
+        sourceAccount: 'acct_fd_1',
+        platformAccountId: 'acct_fd_1',
+        destination: 'acct_fd_2',
         description: null,
         metadata: {},
         sourceTransaction: null,
@@ -85,9 +85,9 @@ describe('TransferModule', () => {
       const transfer = module.TransferObject({
         amount: 100,
         currency: 'usdc',
-        sourceAccount: 'acct_z_1',
-        platformAccountId: 'acct_z_1',
-        destination: 'acct_z_2',
+        sourceAccount: 'acct_fd_1',
+        platformAccountId: 'acct_fd_1',
+        destination: 'acct_fd_2',
         description: null,
         metadata: {},
         sourceTransaction: null,
@@ -107,12 +107,12 @@ describe('TransferModule', () => {
   describe('GetTransfer', () => {
     it('should return the transfer when found', async () => {
       const mockTransfer = {
-        id: 'tr_z_1',
+        id: 'tr_fd_1',
         object: 'transfer',
       } as Transfer;
       mockDb.Get = jest.fn().mockResolvedValue(mockTransfer);
 
-      const result = await module.GetTransfer('tr_z_1');
+      const result = await module.GetTransfer('tr_fd_1');
       expect(result).toEqual(mockTransfer);
     });
 
@@ -125,22 +125,22 @@ describe('TransferModule', () => {
   describe('UpdateTransfer', () => {
     it('should update description and metadata', async () => {
       const existingTransfer = {
-        id: 'tr_z_1',
+        id: 'tr_fd_1',
         object: 'transfer',
         description: 'old',
         metadata: {},
-        account: 'acct_z_1',
+        account: 'acct_fd_1',
       } as Transfer;
       mockDb.Get = jest.fn().mockResolvedValue(existingTransfer);
 
-      const result = await module.UpdateTransfer('tr_z_1', {
+      const result = await module.UpdateTransfer('tr_fd_1', {
         description: 'Updated description',
         metadata: { note: 'updated' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Transfers',
-        'tr_z_1',
+        'tr_fd_1',
         expect.objectContaining({
           description: 'Updated description',
           metadata: { note: 'updated' },
@@ -159,10 +159,10 @@ describe('TransferModule', () => {
   describe('CreateTransfer', () => {
     it('should reject self-transfers', async () => {
       await expect(
-        module.CreateTransfer('acct_z_1', {
+        module.CreateTransfer('acct_fd_1', {
           amount: 1000,
           currency: 'usdc',
-          destination: 'acct_z_1',
+          destination: 'acct_fd_1',
         })
       ).rejects.toThrow('Cannot transfer to the same account');
     });
@@ -171,10 +171,10 @@ describe('TransferModule', () => {
       mockDb.Get = jest.fn().mockResolvedValue(null);
 
       await expect(
-        module.CreateTransfer('acct_z_platform', {
+        module.CreateTransfer('acct_fd_platform', {
           amount: 1000,
           currency: 'usdc',
-          destination: 'acct_z_missing',
+          destination: 'acct_fd_missing',
         })
       ).rejects.toThrow('No such connected account');
     });

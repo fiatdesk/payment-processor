@@ -57,27 +57,27 @@ function Receipt(logs: Log[]): TransactionReceipt {
 
 describe('ComputeBatchId', () => {
   it('hashes the sorted payout ids joined by commas', () => {
-    expect(ComputeBatchId(['po_z_b', 'po_z_a'])).toBe(
-      keccak256(toBytes('po_z_a,po_z_b'))
+    expect(ComputeBatchId(['po_fd_b', 'po_fd_a'])).toBe(
+      keccak256(toBytes('po_fd_a,po_fd_b'))
     );
   });
 
   it('does not depend on the order of the ids', () => {
-    expect(ComputeBatchId(['po_z_3', 'po_z_1', 'po_z_2'])).toBe(
-      ComputeBatchId(['po_z_2', 'po_z_3', 'po_z_1'])
+    expect(ComputeBatchId(['po_fd_3', 'po_fd_1', 'po_fd_2'])).toBe(
+      ComputeBatchId(['po_fd_2', 'po_fd_3', 'po_fd_1'])
     );
   });
 
   it('differs between payout sets and does not mutate its input', () => {
-    const ids = ['po_z_2', 'po_z_1'];
+    const ids = ['po_fd_2', 'po_fd_1'];
 
-    expect(ComputeBatchId(ids)).not.toBe(ComputeBatchId(['po_z_1']));
-    expect(ids).toEqual(['po_z_2', 'po_z_1']);
+    expect(ComputeBatchId(ids)).not.toBe(ComputeBatchId(['po_fd_1']));
+    expect(ids).toEqual(['po_fd_2', 'po_fd_1']);
   });
 });
 
 describe('EncodeDisperseCall', () => {
-  const batchId = ComputeBatchId(['po_z_1', 'po_z_2']);
+  const batchId = ComputeBatchId(['po_fd_1', 'po_fd_2']);
   const data = EncodeDisperseCall(
     USDC,
     [
@@ -111,7 +111,7 @@ describe('EncodeDisperseCall', () => {
 });
 
 describe('ParsePayoutReceipt', () => {
-  const batchId = ComputeBatchId(['po_z_1', 'po_z_2']);
+  const batchId = ComputeBatchId(['po_fd_1', 'po_fd_2']);
   const expected = { payoutBatch: PAYOUT_BATCH, batchId };
 
   it('matches the BatchPaid log of the batch and returns its count and total', () => {
@@ -124,7 +124,7 @@ describe('ParsePayoutReceipt', () => {
   });
 
   it('ignores a BatchPaid log for another batch', () => {
-    const other = ComputeBatchId(['po_z_9']);
+    const other = ComputeBatchId(['po_fd_9']);
 
     expect(
       ParsePayoutReceipt(Receipt([BatchPaidLog(other, 1n, 5n)]), expected)

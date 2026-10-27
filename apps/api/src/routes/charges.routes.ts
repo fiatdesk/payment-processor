@@ -25,8 +25,8 @@ import {
   CreateChargeSchema,
   UpdateChargeSchema,
   CaptureChargeSchema,
-} from '@zoneless/shared-schemas';
-import { Charge } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-schemas';
+import { Charge } from '@fiatdesk/shared-types';
 import { ApplyExpand, RegisterExpansions } from '../utils/Expand';
 
 const router = express.Router();

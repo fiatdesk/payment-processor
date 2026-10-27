@@ -18,7 +18,7 @@ import { IsPlatformAccount } from '../modules/PlatformAccess';
 import {
   CreateExternalWalletSchema,
   UpdateExternalWalletSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 

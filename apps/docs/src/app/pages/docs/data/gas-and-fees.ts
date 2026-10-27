@@ -44,7 +44,7 @@ export const GAS_AND_FEES_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'Zoneless charges no platform fee and takes no percentage cut. You pay Ethereum network gas for each on-chain transaction: typically a few cents to a few dollars, depending on network load. Batch payouts to share it.',
+          text: 'FiatDesk charges no platform fee and takes no percentage cut. You pay Ethereum network gas for each on-chain transaction: typically a few cents to a few dollars, depending on network load. Batch payouts to share it.',
         },
         {
           type: 'callout',

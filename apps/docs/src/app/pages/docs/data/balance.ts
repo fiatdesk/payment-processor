@@ -35,7 +35,7 @@ const BALANCE_OBJECT_JSON = `{
       }
     }
   ],
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 // ============================================
@@ -65,7 +65,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
         name: 'currency',
         type: 'string',
         description:
-          'Three-letter currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+          'Three-letter currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
         enumNote:
           '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
       },
@@ -74,7 +74,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
         type: 'object',
         nullable: true,
         description:
-          'Breakdown of balance by source types. For Zoneless, funds come from wallet-based USDC transfers.',
+          'Breakdown of balance by source types. For FiatDesk, funds come from wallet-based USDC transfers.',
         children: [
           {
             name: 'wallet',
@@ -82,7 +82,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
             nullable: true,
             description: 'Amount from wallet-based payments (USDC transfers).',
             enumNote:
-              "<strong>Difference from Stripe:</strong> Zoneless uses <code>wallet</code> instead of Stripe's <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types.",
+              "<strong>Difference from Stripe:</strong> FiatDesk uses <code>wallet</code> instead of Stripe's <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types.",
           },
         ],
       },
@@ -111,7 +111,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
         name: 'currency',
         type: 'string',
         description:
-          'Three-letter currency code, in lowercase. For Zoneless, this is typically <code>usdc</code>.',
+          'Three-letter currency code, in lowercase. For FiatDesk, this is typically <code>usdc</code>.',
         enumNote:
           '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
       },
@@ -120,7 +120,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
         type: 'object',
         nullable: true,
         description:
-          'Breakdown of balance by source types. For Zoneless, funds come from wallet-based USDC transfers.',
+          'Breakdown of balance by source types. For FiatDesk, funds come from wallet-based USDC transfers.',
         children: [
           {
             name: 'wallet',
@@ -128,7 +128,7 @@ const BALANCE_ATTRIBUTES: Attribute[] = [
             nullable: true,
             description: 'Amount from wallet-based payments (USDC transfers).',
             enumNote:
-              "<strong>Difference from Stripe:</strong> Zoneless uses <code>wallet</code> instead of Stripe's <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types.",
+              "<strong>Difference from Stripe:</strong> FiatDesk uses <code>wallet</code> instead of Stripe's <code>card</code>, <code>bank_account</code>, and <code>fpx</code> source types.",
           },
         ],
       },
@@ -143,7 +143,7 @@ const BALANCE_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -154,7 +154,7 @@ export const BALANCE_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Balance object',
   description:
-    'This is an object representing your Zoneless balance. You can retrieve it to see the balance currently on your Zoneless account or a connected account.',
+    'This is an object representing your FiatDesk balance. You can retrieve it to see the balance currently on your FiatDesk account or a connected account.',
   stripeDocsUrl: 'https://docs.stripe.com/api/balance',
   endpoints: BuildEndpointSummaries(BALANCE_SUBSECTION, [
     { method: 'GET', path: '/v1/balance', pageId: 'retrieve' },
@@ -167,7 +167,7 @@ export const BALANCE_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: "Zoneless balances are denominated in USDC. The <code>available</code> balance can be paid out to connected accounts' Ethereum wallets immediately, while <code>pending</code> funds are waiting for clearance.",
+          text: "FiatDesk balances are denominated in USDC. The <code>available</code> balance can be paid out to connected accounts' Ethereum wallets immediately, while <code>pending</code> funds are waiting for clearance.",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -199,7 +199,7 @@ export const BALANCE_RETRIEVE_PAGE: DocPage = {
       left: [
         {
           type: 'paragraph',
-          text: 'For platforms, you can optionally pass the <code>Zoneless-Account</code> header to retrieve the balance of a connected account on their behalf.',
+          text: 'For platforms, you can optionally pass the <code>FiatDesk-Account</code> header to retrieve the balance of a connected account on their behalf.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -207,7 +207,7 @@ export const BALANCE_RETRIEVE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>Balance</code> object for the account that was authenticated in the request, or for the connected account specified via the <code>Zoneless-Account</code> header.',
+          text: 'Returns a <code>Balance</code> object for the account that was authenticated in the request, or for the connected account specified via the <code>FiatDesk-Account</code> header.',
           html: true,
         },
       ],
@@ -220,14 +220,14 @@ export const BALANCE_RETRIEVE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balance = await zoneless.balance.retrieve();`,
+const balance = await fiatdesk.balance.retrieve();`,
             },
           ],
         },
@@ -243,7 +243,7 @@ const balance = await zoneless.balance.retrieve();`,
         },
         {
           type: 'paragraph',
-          text: 'As a platform, you can retrieve the balance of any connected account by passing the <code>Zoneless-Account</code> header with the connected account ID.',
+          text: 'As a platform, you can retrieve the balance of any connected account by passing the <code>FiatDesk-Account</code> header with the connected account ID.',
           html: true,
         },
       ],
@@ -256,16 +256,16 @@ const balance = await zoneless.balance.retrieve();`,
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1Nv0FGQ9RKHgCVdK"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1Nv0FGQ9RKHgCVdK"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balance = await zoneless.balance.retrieve({
-  zonelessAccount: 'acct_z_1Nv0FGQ9RKHgCVdK',
+const balance = await fiatdesk.balance.retrieve({
+  fiatdeskAccount: 'acct_fd_1Nv0FGQ9RKHgCVdK',
 });`,
             },
           ],

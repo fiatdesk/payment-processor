@@ -13,7 +13,7 @@ import {
   Product as ProductType,
   ProductDeleted,
   QueryOperators,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import {
   CreateProductSchema,
@@ -21,7 +21,7 @@ import {
   UpdateProductSchema,
   UpdateProductInput,
   ListProductsFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

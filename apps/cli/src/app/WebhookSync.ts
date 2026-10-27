@@ -9,9 +9,9 @@ import type {
   WebhookSyncCommand,
 } from './Types';
 
-const managedMetadataKey = 'zoneless_cli_managed';
+const managedMetadataKey = 'fiatdesk_cli_managed';
 const managedMetadataValue = 'webhook_sync';
-const workspaceMetadataKey = 'zoneless_workspace_id';
+const workspaceMetadataKey = 'fiatdesk_workspace_id';
 
 export interface WebhookClient {
   CreateWebhookEndpoint(
@@ -60,7 +60,7 @@ export async function SyncWebhook(
   );
   if (managedEndpoints.length > 1) {
     throw InvalidInput(
-      'Multiple CLI-managed webhook endpoints were found for this project. Remove the duplicates in the Zoneless dashboard, then retry.'
+      'Multiple CLI-managed webhook endpoints were found for this project. Remove the duplicates in the FiatDesk dashboard, then retry.'
     );
   }
 
@@ -74,7 +74,7 @@ export async function SyncWebhook(
     );
     if (!webhookSecret) {
       throw InvalidInput(
-        `The signing secret for webhook endpoint "${endpoint.id}" is not available locally. Delete that CLI-managed endpoint in the Zoneless dashboard and rerun webhook sync, or configure ZONELESS_WEBHOOK_SECRET manually.`
+        `The signing secret for webhook endpoint "${endpoint.id}" is not available locally. Delete that CLI-managed endpoint in the FiatDesk dashboard and rerun webhook sync, or configure FIATDESK_WEBHOOK_SECRET manually.`
       );
     }
 
@@ -99,12 +99,12 @@ export async function SyncWebhook(
     );
     if (existingAtUrl) {
       throw InvalidInput(
-        `Webhook endpoint "${existingAtUrl.id}" already uses this URL, but its one-time signing secret is not managed by the CLI. Use its secret manually or delete it in the Zoneless dashboard before running webhook sync.`
+        `Webhook endpoint "${existingAtUrl.id}" already uses this URL, but its one-time signing secret is not managed by the CLI. Use its secret manually or delete it in the FiatDesk dashboard before running webhook sync.`
       );
     }
 
     const body = {
-      description: 'Managed by Zoneless CLI for subscription billing',
+      description: 'Managed by FiatDesk CLI for subscription billing',
       enabled_events: command.events,
       metadata: ManagedMetadata(workspaceId),
       url: command.url,
@@ -116,7 +116,7 @@ export async function SyncWebhook(
     webhookSecret = endpoint.secret ?? null;
     if (!webhookSecret) {
       throw new ApiError(
-        'Zoneless created the webhook endpoint without returning its signing secret.',
+        'FiatDesk created the webhook endpoint without returning its signing secret.',
         0
       );
     }

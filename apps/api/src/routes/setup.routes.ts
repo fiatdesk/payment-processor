@@ -6,7 +6,7 @@
  */
 
 import * as express from 'express';
-import { SetupRequest, SetupResponse } from '@zoneless/shared-types';
+import { SetupRequest, SetupResponse } from '@fiatdesk/shared-types';
 import { AsyncHandler } from '../utils/AsyncHandler';
 import { AppError } from '../utils/AppError';
 import { Logger } from '../utils/Logger';
@@ -202,7 +202,7 @@ router.post(
       '╔════════════════════════════════════════════════════════════════╗'
     );
     console.log(
-      '║             🚀 ZONELESS PLATFORM CREATED 🚀                    ║'
+      '║             🚀 FiatDesk platform created 🚀                    ║'
     );
     console.log(
       '╠════════════════════════════════════════════════════════════════╣'

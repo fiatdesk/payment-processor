@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import type { Subscription } from '@zoneless/shared-types';
+import type { Subscription } from '@fiatdesk/shared-types';
 
 import { SubscriptionCancelModalComponent } from './subscription-cancel-modal.component';
 
@@ -7,7 +7,7 @@ describe('SubscriptionCancelModalComponent', () => {
   function OpenFor(subscriptionOnchainId: string | null): string {
     const fixture = TestBed.createComponent(SubscriptionCancelModalComponent);
     fixture.componentRef.setInput('subscription', {
-      id: 'sub_z_1',
+      id: 'sub_fd_1',
       items: { object: 'list', data: [] },
       subscription_onchain_id: subscriptionOnchainId,
     } as unknown as Subscription);

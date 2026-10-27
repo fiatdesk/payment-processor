@@ -9,7 +9,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { DecimalPipe, DatePipe } from '@angular/common';
-import type { Product, Price } from '@zoneless/shared-types';
+import type { Product, Price } from '@fiatdesk/shared-types';
 import { ProductService } from '../../../../../data';
 import { ProductActionsService } from '../../services/product-actions.service';
 import { ActivatedRoute, Router } from '@angular/router';

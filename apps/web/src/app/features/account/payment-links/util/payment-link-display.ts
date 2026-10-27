@@ -3,7 +3,7 @@ import type {
   PaymentLink,
   Price,
   Product,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CustomFieldLabel,
   GetCheckoutCollectionOptions,

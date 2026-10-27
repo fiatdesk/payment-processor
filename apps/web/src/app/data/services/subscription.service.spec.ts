@@ -39,16 +39,16 @@ describe('SubscriptionService', () => {
     [
       'an update',
       () =>
-        service.UpdateSubscription('sub_z_1', {
-          items: [{ id: 'si_z_1', quantity: 2 }],
+        service.UpdateSubscription('sub_fd_1', {
+          items: [{ id: 'si_fd_1', quantity: 2 }],
         }),
     ],
     [
       'a create',
       () =>
         service.CreateSubscription({
-          customer: 'cus_z_1',
-          items: [{ price: 'price_z_1', quantity: 2 }],
+          customer: 'cus_fd_1',
+          items: [{ price: 'price_fd_1', quantity: 2 }],
         }),
     ],
   ])(
@@ -68,12 +68,12 @@ describe('SubscriptionService', () => {
   it('leaves other errors as the API sent them', async () => {
     const failure = ApiFailure(400, {
       type: 'invalid_request_error',
-      message: 'No such price: price_z_9',
+      message: 'No such price: price_fd_9',
     });
     api.Call.mockRejectedValue(failure);
 
     await expect(
-      service.UpdateSubscription('sub_z_1', { metadata: {} })
+      service.UpdateSubscription('sub_fd_1', { metadata: {} })
     ).rejects.toBe(failure);
   });
 });

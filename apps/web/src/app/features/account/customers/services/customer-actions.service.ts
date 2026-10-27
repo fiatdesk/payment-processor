@@ -1,12 +1,12 @@
 import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import type { Customer } from '@zoneless/shared-types';
+import type { Customer } from '@fiatdesk/shared-types';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { CustomerService } from '../../../../data';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export type CustomerActionEvent =
   | { type: 'created'; customer: Customer }

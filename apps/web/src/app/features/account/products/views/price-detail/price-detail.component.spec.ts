@@ -1,7 +1,7 @@
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
-import type { Price } from '@zoneless/shared-types';
+import type { Price } from '@fiatdesk/shared-types';
 
 import { MetaService } from '../../../../../core';
 import { PriceService } from '../../../../../data';
@@ -14,14 +14,14 @@ const PLAN_ID = `0x${'5a'.repeat(32)}`;
 
 function TestPrice(overrides: Partial<Record<keyof Price, unknown>>): Price {
   return {
-    id: 'price_z_1',
+    id: 'price_fd_1',
     object: 'price',
     active: true,
     currency: 'usdc',
     unit_amount: 1000,
     type: 'recurring',
     recurring: { interval: 'month', interval_count: 1 },
-    product: 'prod_z_1',
+    product: 'prod_fd_1',
     metadata: {},
     subscription_plan_id: PLAN_ID,
     ...overrides,
@@ -56,7 +56,7 @@ describe('PriceDetailComponent', () => {
         PriceActionsService,
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: { get: () => 'price_z_1' } } },
+          useValue: { snapshot: { paramMap: { get: () => 'price_fd_1' } } },
         },
         { provide: PriceService, useValue: priceService },
         { provide: MetaService, useValue: { SetMetaTitle: jest.fn() } },

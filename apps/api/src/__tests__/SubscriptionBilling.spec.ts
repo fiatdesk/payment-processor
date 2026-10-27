@@ -3,7 +3,7 @@ import type {
   Invoice,
   Subscription,
   SubscriptionItem,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { SubscriptionBillingModule } from '../modules/SubscriptionBilling';
 import { SubscriptionModule } from '../modules/Subscription';
 import { InvoiceModule } from '../modules/Invoice';
@@ -40,9 +40,9 @@ jest.mock('../modules/AppConfig', () => ({
   })),
 }));
 
-const PLATFORM = 'acct_z_platform';
-const SUB_ID = 'sub_z_1';
-const INVOICE_ID = 'in_z_1';
+const PLATFORM = 'acct_fd_platform';
+const SUB_ID = 'sub_fd_1';
+const INVOICE_ID = 'in_fd_1';
 const PERIOD = 30 * 24 * 3600;
 const NOW = GetFixedTimestamp();
 /** The on-chain grid point the due subscription's current period ends on. */
@@ -238,15 +238,15 @@ describe('SubscriptionBillingModule', () => {
     const G3 = G1 + 2 * PERIOD;
     Chain({ chain_time: G3 + 100 });
     invoiceModule.ListOpenSubscriptionInvoices.mockResolvedValue([
-      { id: 'in_z_g1', status: 'open', period_start: G1 },
-      { id: 'in_z_g2', status: 'open', period_start: G1 + PERIOD },
+      { id: 'in_fd_g1', status: 'open', period_start: G1 },
+      { id: 'in_fd_g2', status: 'open', period_start: G1 + PERIOD },
     ] as never);
 
     await module.Run({ batchSize: 10 });
 
     expect(invoiceModule.VoidInvoice.mock.calls).toEqual([
-      ['in_z_g1'],
-      ['in_z_g2'],
+      ['in_fd_g1'],
+      ['in_fd_g2'],
     ]);
     expect(subscriptionModule.AlignToCycle).toHaveBeenCalledWith(SUB_ID, {
       start: G3 - PERIOD,
@@ -262,7 +262,7 @@ describe('SubscriptionBillingModule', () => {
     Chain({ chain_time: G1 + 20 * PERIOD });
     invoiceModule.ListOpenSubscriptionInvoices.mockResolvedValue(
       Array.from({ length: 15 }, (_, i) => ({
-        id: `in_z_${i}`,
+        id: `in_fd_${i}`,
         status: 'open',
         period_start: G1 + i * PERIOD,
       })) as never
@@ -283,7 +283,7 @@ describe('SubscriptionBillingModule', () => {
     });
     invoiceModule.ListOpenSubscriptionInvoices.mockResolvedValue([
       {
-        id: 'in_z_stale',
+        id: 'in_fd_stale',
         status: 'open',
         period_start: G1,
         next_payment_attempt: null,
@@ -299,8 +299,8 @@ describe('SubscriptionBillingModule', () => {
     expect(subscriptionModule.ResumeCollectionFromChain).toHaveBeenCalledWith(
       SUB_ID
     );
-    expect(invoiceModule.VoidInvoice).toHaveBeenCalledWith('in_z_stale');
-    expect(invoiceModule.PayInvoice).not.toHaveBeenCalledWith('in_z_stale');
+    expect(invoiceModule.VoidInvoice).toHaveBeenCalledWith('in_fd_stale');
+    expect(invoiceModule.PayInvoice).not.toHaveBeenCalledWith('in_fd_stale');
     expect(subscriptionModule.AlignToCycle).toHaveBeenCalledWith(SUB_ID, {
       start: G3 - PERIOD,
       end: G3,
@@ -312,13 +312,13 @@ describe('SubscriptionBillingModule', () => {
   it('reconciles a pending charge before reading the chain', async () => {
     DueSubscription();
     invoiceModule.ListOpenSubscriptionInvoices.mockResolvedValue([
-      { id: 'in_z_pending', status: 'open', period_start: G1 },
+      { id: 'in_fd_pending', status: 'open', period_start: G1 },
     ] as never);
     invoiceModule.HasPendingCharge.mockResolvedValue(true);
 
     await module.Run({ batchSize: 10 });
 
-    expect(invoiceModule.PayInvoice).toHaveBeenCalledWith('in_z_pending');
+    expect(invoiceModule.PayInvoice).toHaveBeenCalledWith('in_fd_pending');
     expect(subscriptionModule.CreateCycleInvoice).not.toHaveBeenCalled();
   });
 
@@ -540,7 +540,7 @@ describe('SubscriptionBillingModule', () => {
   });
 
   it('still charges a due subscription behind more paused ones than the batch size', async () => {
-    const paused = Array.from({ length: 26 }, (_, i) => `sub_z_paused_${i}`);
+    const paused = Array.from({ length: 26 }, (_, i) => `sub_fd_paused_${i}`);
     for (const id of paused) {
       Subscription(id, {
         pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
@@ -550,7 +550,7 @@ describe('SubscriptionBillingModule', () => {
     Subscription(SUB_ID);
     Due(...paused, SUB_ID);
     settlement.GetSubscriptionState.mockImplementation(async (onchainId) => ({
-      status: onchainId.startsWith('0xsub_z_paused') ? 'paused' : 'active',
+      status: onchainId.startsWith('0xsub_fd_paused') ? 'paused' : 'active',
       next_charge_at: G1,
       period_seconds: PERIOD,
       chain_time: NOW,
@@ -568,7 +568,7 @@ describe('SubscriptionBillingModule', () => {
   });
 
   it('reads due subscriptions page by page', async () => {
-    const ids = Array.from({ length: 100 }, (_, i) => `sub_z_page_${i}`);
+    const ids = Array.from({ length: 100 }, (_, i) => `sub_fd_page_${i}`);
     for (const id of ids) {
       Subscription(id, { collection_method: 'send_invoice' });
     }
@@ -589,18 +589,18 @@ describe('SubscriptionBillingModule', () => {
   });
 
   it('sends again the on-chain cancels still pending', async () => {
-    query.Subscriptions = [{ id: 'sub_z_canceled' }];
+    query.Subscriptions = [{ id: 'sub_fd_canceled' }];
 
     await module.Run({ batchSize: 10 });
 
     expect(subscriptionModule.SendOnchainCancel).toHaveBeenCalledWith(
-      'sub_z_canceled'
+      'sub_fd_canceled'
     );
   });
 });
 
 describe('SubscriptionBillingModule with the real billing modules', () => {
-  const PLATFORM_ACCOUNT = 'acct_z_platform';
+  const PLATFORM_ACCOUNT = 'acct_fd_platform';
   const WALLET = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
   const ONCHAIN_ID = `0x${'5b'.repeat(32)}`;
   const PERIOD_SECONDS = 30 * 24 * 3600;
@@ -668,7 +668,7 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
       settlement
     );
     memory.Seed('Customers', {
-      id: 'cus_z_1',
+      id: 'cus_fd_1',
       object: 'customer',
       platform_account: PLATFORM_ACCOUNT,
       email: 'subscriber@example.com',
@@ -677,11 +677,11 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
       metadata: {},
     });
     memory.Seed('Prices', {
-      id: 'price_z_1',
+      id: 'price_fd_1',
       object: 'price',
       active: true,
       currency: 'usdc',
-      product: 'prod_z_1',
+      product: 'prod_fd_1',
       platform_account: PLATFORM_ACCOUNT,
       type: 'recurring',
       unit_amount: 2000,
@@ -690,7 +690,7 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
       metadata: {},
     });
     memory.Seed('Products', {
-      id: 'prod_z_1',
+      id: 'prod_fd_1',
       object: 'product',
       name: 'Plan',
       platform_account: PLATFORM_ACCOUNT,
@@ -713,8 +713,8 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
     return subscriptions.CreateSubscription(
       PLATFORM_ACCOUNT,
       {
-        customer: 'cus_z_1',
-        items: [{ price: 'price_z_1', quantity: 1 }],
+        customer: 'cus_fd_1',
+        items: [{ price: 'price_fd_1', quantity: 1 }],
         default_payment_method: WALLET,
         ...input,
       },
@@ -860,7 +860,7 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
   it('follows every pending on-chain cancel oldest first, past the batch size', async () => {
     for (let i = 0; i < 3; i++) {
       memory.Seed('Subscriptions', {
-        id: `sub_z_cancel${i}`,
+        id: `sub_fd_cancel${i}`,
         platform_account: PLATFORM_ACCOUNT,
         status: 'canceled',
         canceled_at: T0 - 100 + i,
@@ -875,9 +875,9 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
     await billing.Run({ platformAccountId: PLATFORM_ACCOUNT, batchSize: 1 });
 
     expect(sent.mock.calls.map(([id]) => id)).toEqual([
-      'sub_z_cancel0',
-      'sub_z_cancel1',
-      'sub_z_cancel2',
+      'sub_fd_cancel0',
+      'sub_fd_cancel1',
+      'sub_fd_cancel2',
     ]);
   });
 });

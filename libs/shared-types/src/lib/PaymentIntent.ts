@@ -77,7 +77,7 @@ export function GetPaymentIntentListStatus(
 }
 
 /**
- * Stripe-compatible Payment Intent object for Zoneless.
+ * Stripe-compatible Payment Intent object for FiatDesk.
  * Represents a payment intent.
  *
  * @see https://docs.stripe.com/api/payment_intents
@@ -119,7 +119,7 @@ export interface PaymentIntent {
   metadata: Record<string, string>;
   /**
    * Actions the customer must take to complete payment.
-   * Typed for Zoneless wallet/USDC flows; other Stripe next_action variants remain opaque.
+   * Typed for FiatDesk wallet/USDC flows; other Stripe next_action variants remain opaque.
    */
   next_action: {
     type: string;
@@ -226,21 +226,21 @@ export interface PaymentIntent {
   transfer_group: string | null;
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
   /**
    * Hash of an on-chain subscription charge that was sent for this
    * PaymentIntent and is not settled yet (status `processing`). Recorded
    * before the charge is sent.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   pending_charge_hash?: string | null;
   /**
    * Every on-chain subscription charge signed for this PaymentIntent,
    * oldest first: the original and any re-priced replacement. Recorded
    * before each is sent; reconcile checks them all.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   charge_hashes?: string[];
 }

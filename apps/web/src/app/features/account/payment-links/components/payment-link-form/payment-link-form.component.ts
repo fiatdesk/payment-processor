@@ -14,8 +14,8 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import type { Price, Product } from '@zoneless/shared-types';
-import { CreatePaymentLinkInput } from '@zoneless/shared-schemas';
+import type { Price, Product } from '@fiatdesk/shared-types';
+import { CreatePaymentLinkInput } from '@fiatdesk/shared-schemas';
 import { ProductService } from '../../../../../data';
 import { MoreInfoHoverComponent } from '../../../../../shared';
 import { ISO_CODES } from '../../../../../utils';

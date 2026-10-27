@@ -33,7 +33,7 @@ import {
   IdentityVerificationSession as IdentityVerificationSessionType,
   IdentityVerificationSessionStatus,
   Person as PersonType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CreateIdentityVerificationSessionInput,
   CreateIdentityVerificationSessionSchema,
@@ -41,7 +41,7 @@ import {
   IsRejectedAccountReason,
   UpdateIdentityVerificationSessionInput,
   UpdateIdentityVerificationSessionSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ProviderWebhookHeaders } from './identity/IdentityVerificationProvider';
 import { diditProvider } from './identity/DiditProvider';
 

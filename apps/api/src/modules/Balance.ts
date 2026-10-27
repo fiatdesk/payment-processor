@@ -13,7 +13,7 @@ import {
   Balance as BalanceType,
   BalanceAmount,
   BalanceDetails,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { GenerateId } from '../utils/IdGenerator';
 import { Database } from './Database';
 import { EventService } from './EventService';

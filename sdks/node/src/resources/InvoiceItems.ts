@@ -4,7 +4,7 @@ import {
   InvoiceItem,
   InvoiceItemDeleted,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreateInvoiceItemInput,
   ListInvoiceItemsInput,

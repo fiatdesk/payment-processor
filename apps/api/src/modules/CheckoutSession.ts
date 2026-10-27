@@ -17,7 +17,7 @@ import {
   CheckoutSessionCustomField,
   CheckoutSessionLineItem,
   Price as PriceType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import type { PriceModule } from './Price';
 import type { ProductModule } from './Product';
@@ -32,7 +32,7 @@ import {
   ListCheckoutSessionsFiltersInput,
   CreatePriceInput,
   CreatePaymentIntentInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { NormalizeStoredAfterCompletion } from '../utils/AfterCompletion';
@@ -246,7 +246,7 @@ export class CheckoutSessionModule {
               type: input.automatic_tax.liability.type,
             }
           : null,
-        provider: input.automatic_tax?.enabled ? 'zoneless' : null,
+        provider: input.automatic_tax?.enabled ? 'fiatdesk' : null,
         status: null,
       },
       billing_address_collection: input.billing_address_collection ?? null,

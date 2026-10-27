@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 
-import { Account, Person } from '@zoneless/shared-types';
+import { Account, Person } from '@fiatdesk/shared-types';
 import { StatusChipComponent } from '../../../../shared';
 import { AccountService } from '../../../../data/services/account.service';
 import { PersonService } from '../../../../data/services/person.service';

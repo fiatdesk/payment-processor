@@ -6,7 +6,7 @@ import {
   PaymentLink,
   Price,
   Product,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { EventService } from '../modules/EventService';
 import { PriceModule } from '../modules/Price';
 import { ProductModule } from '../modules/Product';
@@ -40,12 +40,12 @@ jest.mock('../modules/AppConfig', () => ({
 
 function BuildPrice(overrides: Partial<Price> = {}): Price {
   return {
-    id: 'price_z_1',
+    id: 'price_fd_1',
     active: true,
     currency: 'usdc',
     metadata: {},
     nickname: null,
-    product: 'prod_z_1',
+    product: 'prod_fd_1',
     recurring: null,
     tax_behavior: 'unspecified',
     type: 'one_time',
@@ -61,7 +61,7 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     tiers_mode: null,
     transform_quantity: null,
     unit_amount_decimal: '1000',
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     subscription_plan_id: null,
     ...overrides,
   };
@@ -71,7 +71,7 @@ function BuildLineItem(
   overrides: Partial<CheckoutSessionLineItem> = {}
 ): CheckoutSessionLineItem {
   return {
-    id: 'li_z_1',
+    id: 'li_fd_1',
     object: 'item',
     amount_discount: 0,
     amount_subtotal: 1000,
@@ -90,7 +90,7 @@ function BuildLineItem(
 
 function BuildPaymentLink(overrides: Partial<PaymentLink> = {}): PaymentLink {
   return {
-    id: 'plink_z_1',
+    id: 'plink_fd_1',
     object: 'payment_link',
     active: true,
     created: GetFixedTimestamp(),
@@ -132,7 +132,7 @@ function BuildPaymentLink(overrides: Partial<PaymentLink> = {}): PaymentLink {
       object: 'list',
       data: [BuildLineItem()],
       has_more: false,
-      url: '/v1/payment_links/plink_z_1/line_items',
+      url: '/v1/payment_links/plink_fd_1/line_items',
     },
     livemode: false,
     managed_payments: null,
@@ -154,7 +154,7 @@ function BuildPaymentLink(overrides: Partial<PaymentLink> = {}): PaymentLink {
     transfer_data: null,
     url: 'http://pay.localhost:4200/b/test_slug_plink',
     url_slug: 'test_slug_plink',
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     ...overrides,
   };
 }
@@ -181,20 +181,20 @@ describe('PaymentLinkModule', () => {
       GetPrice: jest.fn().mockResolvedValue(BuildPrice()),
       CreatePrice: jest
         .fn()
-        .mockResolvedValue(BuildPrice({ id: 'price_z_new' })),
+        .mockResolvedValue(BuildPrice({ id: 'price_fd_new' })),
     };
 
     productModule = {
       GetProduct: jest.fn().mockResolvedValue({
-        id: 'prod_z_1',
+        id: 'prod_fd_1',
         name: 'Gold Plan',
       } as Product),
     };
 
     checkoutSessionModule = {
       CreateCheckoutSession: jest.fn().mockResolvedValue({
-        id: 'cs_z_1',
-        payment_link: 'plink_z_1',
+        id: 'cs_fd_1',
+        payment_link: 'plink_fd_1',
         url_slug: 'test_slug_cs',
         url: 'http://localhost:4200/c/test_slug_cs',
       } as CheckoutSession),
@@ -211,8 +211,8 @@ describe('PaymentLinkModule', () => {
 
   describe('CreatePaymentLink', () => {
     it('should persist a payment link with defaults and url', async () => {
-      const paymentLink = await module.CreatePaymentLink('acct_z_platform', {
-        line_items: [{ price: 'price_z_1', quantity: 1 }],
+      const paymentLink = await module.CreatePaymentLink('acct_fd_platform', {
+        line_items: [{ price: 'price_fd_1', quantity: 1 }],
       });
 
       expect(paymentLink.object).toBe('payment_link');
@@ -232,13 +232,13 @@ describe('PaymentLinkModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_link.created',
-        'acct_z_platform',
+        'acct_fd_platform',
         paymentLink
       );
     });
 
     it('should create from price_data', async () => {
-      await module.CreatePaymentLink('acct_z_platform', {
+      await module.CreatePaymentLink('acct_fd_platform', {
         line_items: [
           {
             quantity: 1,
@@ -257,11 +257,11 @@ describe('PaymentLinkModule', () => {
     it('should reject prices from another platform', async () => {
       priceModule.GetPrice = jest
         .fn()
-        .mockResolvedValue(BuildPrice({ platform_account: 'acct_z_other' }));
+        .mockResolvedValue(BuildPrice({ platform_account: 'acct_fd_other' }));
 
       await expect(
-        module.CreatePaymentLink('acct_z_platform', {
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+        module.CreatePaymentLink('acct_fd_platform', {
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
         })
       ).rejects.toThrow('Price not found');
     });
@@ -287,7 +287,7 @@ describe('PaymentLinkModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_link.updated',
-        'acct_z_platform',
+        'acct_fd_platform',
         existing,
         expect.objectContaining({ previousAttributes: expect.any(Object) })
       );
@@ -321,7 +321,7 @@ describe('PaymentLinkModule', () => {
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
       await module.UpdatePaymentLink(existing.id, {
-        line_items: [{ id: 'li_z_1', quantity: 3 }],
+        line_items: [{ id: 'li_fd_1', quantity: 3 }],
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
@@ -331,7 +331,7 @@ describe('PaymentLinkModule', () => {
           line_items: expect.objectContaining({
             data: [
               expect.objectContaining({
-                id: 'li_z_1',
+                id: 'li_fd_1',
                 quantity: 3,
                 amount_total: 3000,
               }),
@@ -368,14 +368,14 @@ describe('PaymentLinkModule', () => {
         });
 
       await module.ListPaymentLinks({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         active: true,
         limit: 3,
       });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           filters: { active: true },
           limit: 3,
         })
@@ -389,21 +389,21 @@ describe('PaymentLinkModule', () => {
         line_items: {
           object: 'list',
           data: [
-            BuildLineItem({ id: 'li_z_1' }),
-            BuildLineItem({ id: 'li_z_2' }),
-            BuildLineItem({ id: 'li_z_3' }),
+            BuildLineItem({ id: 'li_fd_1' }),
+            BuildLineItem({ id: 'li_fd_2' }),
+            BuildLineItem({ id: 'li_fd_3' }),
           ],
           has_more: false,
-          url: '/v1/payment_links/plink_z_1/line_items',
+          url: '/v1/payment_links/plink_fd_1/line_items',
         },
       });
 
       const page = module.ListLineItems(paymentLink, {
         limit: 2,
-        startingAfter: 'li_z_1',
+        startingAfter: 'li_fd_1',
       });
 
-      expect(page.data.map((item) => item.id)).toEqual(['li_z_2', 'li_z_3']);
+      expect(page.data.map((item) => item.id)).toEqual(['li_fd_2', 'li_fd_3']);
       expect(page.has_more).toBe(false);
     });
   });
@@ -416,16 +416,16 @@ describe('PaymentLinkModule', () => {
       const session = await module.OpenPaymentLink(existing.url_slug);
 
       expect(checkoutSessionModule.CreateCheckoutSession).toHaveBeenCalledWith(
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.objectContaining({
           mode: 'payment',
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
           ui_mode: 'hosted_page',
           optional_items: undefined,
         }),
         { payment_link: existing.id }
       );
-      expect(session.payment_link).toBe('plink_z_1');
+      expect(session.payment_link).toBe('plink_fd_1');
     });
 
     it('should reject inactive payment links', async () => {
@@ -466,11 +466,11 @@ describe('PaymentLinkModule', () => {
         })
       );
 
-      await module.RecordCompletedSession('plink_z_1');
+      await module.RecordCompletedSession('plink_fd_1');
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'PaymentLinks',
-        'plink_z_1',
+        'plink_fd_1',
         expect.objectContaining({
           restrictions: {
             completed_sessions: { count: 2, limit: 5 },
@@ -499,11 +499,11 @@ describe('PaymentLinkModule', () => {
           })
         );
 
-      await module.RecordCompletedSession('plink_z_1');
+      await module.RecordCompletedSession('plink_fd_1');
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'PaymentLinks',
-        'plink_z_1',
+        'plink_fd_1',
         expect.objectContaining({
           active: false,
           restrictions: {

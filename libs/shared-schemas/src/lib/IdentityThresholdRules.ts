@@ -5,7 +5,7 @@
  * else global payout_volume_threshold_cents, else null (IDV threshold off).
  */
 
-import type { AccountIdentityRulesSettings } from '@zoneless/shared-types';
+import type { AccountIdentityRulesSettings } from '@fiatdesk/shared-types';
 
 /**
  * True when any payout-volume threshold rule is configured (global or country).

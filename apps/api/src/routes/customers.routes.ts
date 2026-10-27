@@ -15,7 +15,7 @@ import { RequirePlatform } from '../middleware/Authorization';
 import {
   CreateCustomerSchema,
   UpdateCustomerSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ApplyExpand } from '../utils/Expand';
 
 const router = express.Router();

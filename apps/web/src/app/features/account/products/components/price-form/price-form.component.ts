@@ -12,9 +12,9 @@ import {
   inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Price, RecurringInterval } from '@zoneless/shared-types';
+import { Price, RecurringInterval } from '@fiatdesk/shared-types';
 import { ConfigService } from '../../../../../data';
-import { CreatePriceInput, UpdatePriceInput } from '@zoneless/shared-schemas';
+import { CreatePriceInput, UpdatePriceInput } from '@fiatdesk/shared-schemas';
 
 export type PriceFormMode = 'create' | 'edit';
 

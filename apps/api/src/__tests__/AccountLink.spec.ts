@@ -3,7 +3,7 @@ import {
   ToAccountLinkResponse,
 } from '../modules/AccountLink';
 import { Database } from '../modules/Database';
-import { AccountLinkRecord } from '@zoneless/shared-types';
+import { AccountLinkRecord } from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -40,14 +40,14 @@ describe('AccountLinkModule', () => {
   describe('CreateAccountLinkRecord', () => {
     it('should build a record with correct expiry and token', () => {
       const record = module.CreateAccountLinkRecord(
-        'acct_z_1',
+        'acct_fd_1',
         'account_onboarding',
         'https://example.com/refresh',
         'https://example.com/return'
       );
 
       expect(record.object).toBe('account_link');
-      expect(record.account).toBe('acct_z_1');
+      expect(record.account).toBe('acct_fd_1');
       expect(record.type).toBe('account_onboarding');
       expect(record.refresh_url).toBe('https://example.com/refresh');
       expect(record.return_url).toBe('https://example.com/return');
@@ -60,7 +60,7 @@ describe('AccountLinkModule', () => {
   describe('CreateAccountLink', () => {
     it('should persist the record and return the public response', async () => {
       const link = await module.CreateAccountLink(
-        'acct_z_1',
+        'acct_fd_1',
         'account_onboarding',
         'https://example.com/refresh',
         'https://example.com/return'
@@ -84,9 +84,9 @@ describe('AccountLinkModule', () => {
         created: GetFixedTimestamp(),
         expires_at: GetFixedTimestamp() + 3600,
         url: 'http://localhost:4200/onboard?token=abc',
-        id: 'acct_link_z_1',
-        token: 'al_z_abc123',
-        account: 'acct_z_1',
+        id: 'acct_link_fd_1',
+        token: 'al_fd_abc123',
+        account: 'acct_fd_1',
         type: 'account_onboarding',
         refresh_url: 'https://example.com/refresh',
         return_url: 'https://example.com/return',
@@ -111,9 +111,9 @@ describe('AccountLinkModule', () => {
         created: GetFixedTimestamp(),
         expires_at: GetFixedTimestamp() + 3600,
         url: 'http://localhost:4200/onboard?token=abc',
-        id: 'acct_link_z_1',
-        token: 'al_z_abc',
-        account: 'acct_z_1',
+        id: 'acct_link_fd_1',
+        token: 'al_fd_abc',
+        account: 'acct_fd_1',
         type: 'account_onboarding',
         refresh_url: 'https://example.com/refresh',
         return_url: 'https://example.com/return',
@@ -121,7 +121,7 @@ describe('AccountLinkModule', () => {
       };
       mockDb.Find = jest.fn().mockResolvedValue([record]);
 
-      const result = await module.ValidateAccountLink('al_z_abc');
+      const result = await module.ValidateAccountLink('al_fd_abc');
 
       expect(result.valid).toBe(true);
       expect(result.record).toEqual(record);
@@ -134,7 +134,7 @@ describe('AccountLinkModule', () => {
       } as AccountLinkRecord;
       mockDb.Find = jest.fn().mockResolvedValue([record]);
 
-      const result = await module.ValidateAccountLink('al_z_abc');
+      const result = await module.ValidateAccountLink('al_fd_abc');
 
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('consumed');
@@ -147,7 +147,7 @@ describe('AccountLinkModule', () => {
       } as AccountLinkRecord;
       mockDb.Find = jest.fn().mockResolvedValue([record]);
 
-      const result = await module.ValidateAccountLink('al_z_abc');
+      const result = await module.ValidateAccountLink('al_fd_abc');
 
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('expired');
@@ -165,11 +165,11 @@ describe('AccountLinkModule', () => {
 
   describe('MarkAsConsumed', () => {
     it('should update the record with consumed flag', async () => {
-      await module.MarkAsConsumed('acct_link_z_1');
+      await module.MarkAsConsumed('acct_link_fd_1');
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'AccountLinks',
-        'acct_link_z_1',
+        'acct_link_fd_1',
         expect.objectContaining({ consumed: true })
       );
     });

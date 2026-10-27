@@ -14,13 +14,13 @@ import {
   RequireConnectedAccountOwnership,
   OptionalConnectedAccount,
 } from '../middleware/Authorization';
-import { BRAND } from '@zoneless/shared-types';
+import { BRAND } from '@fiatdesk/shared-types';
 import {
   CreatePayoutSchema,
   UpdatePayoutSchema,
   BuildPayoutsBatchSchema,
   BroadcastPayoutsBatchSchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 
@@ -58,7 +58,7 @@ declare global {
  * - metadata: Key-value pairs to store with the payout
  * - statement_descriptor: String to display on recipient's statement (max 22 chars)
  *
- * Platform authentication is required. Use Zoneless-Account header
+ * Platform authentication is required. Use FiatDesk-Account header
  * to specify the connected account to debit.
  *
  * @see https://docs.stripe.com/api/payouts/create

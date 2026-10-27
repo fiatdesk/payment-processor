@@ -1,5 +1,5 @@
 /**
- * Stripe-compatible Transfer object for Zoneless Connect.
+ * Stripe-compatible Transfer object for FiatDesk Connect.
  * A Transfer is created when you move funds between accounts as part of Connect.
  *
  * @see https://docs.stripe.com/api/transfers/object
@@ -8,7 +8,7 @@
 /**
  * The source balance this transfer came from.
  * In Stripe, this is typically 'card', 'fpx', or 'bank_account'.
- * For Zoneless (crypto), we use 'wallet'.
+ * For FiatDesk (crypto), we use 'wallet'.
  */
 export type TransferSourceType = 'card' | 'fpx' | 'bank_account' | 'wallet';
 
@@ -119,7 +119,7 @@ export interface Transfer {
 
   /**
    * The account ID that created/owns this transfer.
-   * @zoneless_extension - Not in Stripe API, used for internal storage.
+   * @fiatdesk_extension - Not in Stripe API, used for internal storage.
    */
   account: string;
 
@@ -127,7 +127,7 @@ export interface Transfer {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

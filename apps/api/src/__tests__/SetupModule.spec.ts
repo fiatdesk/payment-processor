@@ -3,7 +3,7 @@ import { SetupModule, ValidateSetupRequest } from '../modules/Setup';
 import { AccountModule } from '../modules/Account';
 import { ApiKeyModule } from '../modules/ApiKey';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
-import { SetupRequest } from '@zoneless/shared-types';
+import { SetupRequest } from '@fiatdesk/shared-types';
 import { CreateMockDatabase } from './Setup';
 
 jest.mock('../modules/Database');
@@ -72,13 +72,13 @@ describe('SetupModule', () => {
     it('should store the wallet and return it as wallet_address', async () => {
       jest
         .mocked(AccountModule.prototype.CreateAccount)
-        .mockResolvedValue({ id: 'acct_z_platform' } as never);
+        .mockResolvedValue({ id: 'acct_fd_platform' } as never);
       jest
         .mocked(ExternalWalletModule.prototype.CreateExternalWallet)
         .mockResolvedValue({ wallet_address: WALLET_ADDRESS } as never);
       jest
         .mocked(ApiKeyModule.prototype.CreateApiKey)
-        .mockResolvedValue({ plaintext_token: 'sk_test_z_1' } as never);
+        .mockResolvedValue({ plaintext_token: 'sk_test_fd_1' } as never);
 
       const response = await module.CreatePlatformAccount(
         BuildRequest({ wallet_address: `  ${WALLET_ADDRESS.toLowerCase()}  ` })
@@ -90,7 +90,7 @@ describe('SetupModule', () => {
       expect(
         ExternalWalletModule.prototype.CreateExternalWallet
       ).toHaveBeenCalledWith(
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.objectContaining({ wallet_address: WALLET_ADDRESS })
       );
       // The wallet module picks the network from the active rail.
@@ -98,8 +98,8 @@ describe('SetupModule', () => {
       expect(response).toEqual({
         object: 'setup_response',
         success: true,
-        api_key: 'sk_test_z_1',
-        platform_account_id: 'acct_z_platform',
+        api_key: 'sk_test_fd_1',
+        platform_account_id: 'acct_fd_platform',
         wallet_address: WALLET_ADDRESS,
         login_token: 'login_token_test',
       });

@@ -18,7 +18,7 @@ interface RequestOptions {
   idempotencyKey?: string;
 }
 
-export class ZonelessClient {
+export class FiatDeskClient {
   private readonly apiRoot: string;
 
   constructor(
@@ -106,7 +106,7 @@ export class ZonelessClient {
   ): Promise<T> {
     const headers: Record<string, string> = {
       accept: 'application/json',
-      'user-agent': 'zoneless-cli/experimental',
+      'user-agent': 'fiatdesk-cli/experimental',
       'x-api-key': this.apiKey,
     };
     if (options.body) headers['content-type'] = 'application/json';
@@ -124,7 +124,7 @@ export class ZonelessClient {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unknown network error';
-      throw new ApiError(`Unable to reach Zoneless: ${message}`, 0);
+      throw new ApiError(`Unable to reach FiatDesk: ${message}`, 0);
     }
 
     const responseText = await response.text();
@@ -146,11 +146,11 @@ function NormalizeApiRoot(apiUrl: string): string {
   try {
     parsedUrl = new URL(apiUrl);
   } catch {
-    throw InvalidInput('ZONELESS_API_URL must be a valid URL.');
+    throw InvalidInput('FIATDESK_API_URL must be a valid URL.');
   }
 
   if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-    throw InvalidInput('ZONELESS_API_URL must use http or https.');
+    throw InvalidInput('FIATDESK_API_URL must use http or https.');
   }
 
   parsedUrl.search = '';
@@ -186,5 +186,5 @@ function GetApiErrorMessage(responseBody: unknown, status: number): string {
   if (typeof responseBody === 'string' && responseBody.trim()) {
     return responseBody;
   }
-  return `Zoneless API request failed with status ${status}.`;
+  return `FiatDesk API request failed with status ${status}.`;
 }

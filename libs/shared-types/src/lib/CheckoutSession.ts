@@ -2,7 +2,7 @@ import { Price } from './Price';
 import { CustomerAddress, CustomerDiscount, CustomerTaxRate } from './Customer';
 
 /**
- * Stripe-compatible Checkout Session object for Zoneless.
+ * Stripe-compatible Checkout Session object for FiatDesk.
  * Represents a checkout session for a customer to purchase a product, paid for in USDC.
  *
  * @see https://docs.stripe.com/api/checkout/sessions/object
@@ -207,7 +207,7 @@ export interface CheckoutSession {
     | null;
   /**
    * A list of the types of payment methods that should be excluded from this Checkout Session.
-   * Should only be used when payment methods are managed through the Zoneless Dashboard.
+   * Should only be used when payment methods are managed through the FiatDesk Dashboard.
    */
   excluded_payment_method_types: string[] | null;
   /** The timestamp at which the Checkout Session will expire. */
@@ -309,7 +309,7 @@ export interface CheckoutSession {
   /**
    * Payment-method-specific configuration for the PaymentIntent or SetupIntent of this CheckoutSession.
    * @remarks Stripe defines 40+ per-payment-method-type option bags here (acss_debit, card,
-   * klarna, wechat_pay, etc.) that are specific to fiat payment rails. Zoneless only accepts
+   * klarna, wechat_pay, etc.) that are specific to fiat payment rails. FiatDesk only accepts
    * USDC wallet payments, so this is kept as an untyped placeholder rather than reproducing
    * Stripe's full fiat payment method matrix.
    */
@@ -398,7 +398,7 @@ export interface CheckoutSession {
   success_url: string | null;
   /**
    * Behavior after payment completes (hosted confirmation vs redirect).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   after_completion: CheckoutAfterCompletion | null;
   /** Details on the state of tax ID collection for the session. */
@@ -439,8 +439,8 @@ export interface CheckoutSession {
   url: string | null;
   /**
    * Wallet-specific configuration for this Checkout Session.
-   * @remarks Stripe's only wallet option here is Link, which has no Zoneless equivalent since
-   * Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product.
+   * @remarks Stripe's only wallet option here is Link, which has no FiatDesk equivalent since
+   * FiatDesk connects Ethereum wallets directly rather than a Stripe-hosted wallet product.
    * Retained for API parity.
    */
   wallet_options: {
@@ -453,20 +453,20 @@ export interface CheckoutSession {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
   /**
    * Opaque slug used in the hosted checkout URL (`/c/{url_slug}`).
    * Distinct from `id` so shareable links do not expose the API object id.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   url_slug: string;
 
   /**
    * On-chain payment details recorded when the session is completed.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   payment_details?: {
     /**
@@ -502,7 +502,7 @@ export interface CheckoutSession {
    * The merchant wallet that receives the payment. Only populated on the
    * public payment_pages response so the hosted checkout can build the
    * payment transaction.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   merchant_wallet?: {
     /** The merchant's receiving wallet address. */
@@ -518,7 +518,7 @@ export interface CheckoutSession {
   /**
    * Merchant display details for the hosted checkout page. Resolved from the
    * platform account that owns the session (with branding_settings overrides).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   merchant?: {
     display_name: string;

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Zoneless is an open-source, Stripe-compatible payments platform that uses USDC on Ethereum. Platforms like marketplaces can self-host their own instance.
+FiatDesk is an open-source, Stripe-compatible payments platform that uses USDC on Ethereum. Platforms like marketplaces can self-host their own instance.
 
 This is an Nx monorepo with an Angular frontend (dashboard, checkout, connected-account onboarding, and docs), an Express API, and the Node SDK in [`sdks/node`](sdks/node).
 
@@ -10,7 +10,7 @@ Public product docs live in [`apps/docs`](apps/docs). Serve them with `npx nx se
 
 ## Design
 
-The API, object shapes, webhook events, and dashboard flows should match Stripe. If you are unsure how something should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure. Zoneless uses USDC, Ethereum wallets, and crypto instead of cards and bank accounts.
+The API, object shapes, webhook events, and dashboard flows should match Stripe. If you are unsure how something should look, check the [Stripe docs](https://docs.stripe.com/api) and follow that structure. FiatDesk uses USDC, Ethereum wallets, and crypto instead of cards and bank accounts.
 
 Prefer existing patterns in this repo over new ones. Do not add a dependency unless the work cannot be done with what is already here.
 
@@ -37,17 +37,17 @@ Copy a similar existing resource. For small resources, use [`login-links.ts`](ap
 4. Map the slug in [`docs-catalog.ts`](apps/docs/src/app/pages/docs/docs-catalog.ts)
 5. Add events in [`event-types.ts`](apps/docs/src/app/pages/docs/data/event-types.ts) if the resource emits them
 
-Keep copy close to Stripe, but not identical. Shorten wordy Stripe prose. Write as Zoneless, not as a Stripe comparison. Mention Stripe rarely.
+Keep copy close to Stripe, but not identical. Shorten wordy Stripe prose. Write as FiatDesk, not as a Stripe comparison. Mention Stripe rarely.
 
-Mark required, expandable, and nullable fields the same way neighbouring pages do (`required`, `requiredText`, `expandable`, `nullable`, `enumValues`, `EXPAND_TOOLTIP`). Prefix fields or endpoints Stripe does not have with `<strong>Zoneless extension:</strong>` on the attribute, or a `Zoneless extension: ` callout on the page.
+Mark required, expandable, and nullable fields the same way neighbouring pages do (`required`, `requiredText`, `expandable`, `nullable`, `enumValues`, `EXPAND_TOOLTIP`). Prefix fields or endpoints Stripe does not have with `<strong>FiatDesk extension:</strong>` on the attribute, or a `FiatDesk extension: ` callout on the page.
 
-Reuse `NODE_INIT` and `BuildEndpointSummaries`. Node examples must use the real SDK names (`zoneless.checkout.sessions.create`). Use different timestamps, names, and IDs than Stripe's samples.
+Reuse `NODE_INIT` and `BuildEndpointSummaries`. Node examples must use the real SDK names (`fiatdesk.checkout.sessions.create`). Use different timestamps, names, and IDs than Stripe's samples.
 
 ## Node SDK
 
 Add methods in [`sdks/node`](sdks/node) for every public route for the resource. Open the matching [Stripe API reference](https://docs.stripe.com/api) page and copy its Node SDK shape and names: `subscriptions.create()`, `checkout.sessions.create()`, `identity.verificationSessions.create()`.
 
-Copy [`Customers.ts`](sdks/node/src/resources/Customers.ts) for a flat resource or [`Checkout.ts`](sdks/node/src/resources/Checkout.ts) for a namespace. Return types come from `@zoneless/shared-types`. Request types are `*Input` aliases imported from `../generated/Inputs` (expanded from `@zoneless/shared-schemas` on build).
+Copy [`Customers.ts`](sdks/node/src/resources/Customers.ts) for a flat resource or [`Checkout.ts`](sdks/node/src/resources/Checkout.ts) for a namespace. Return types come from `@fiatdesk/shared-types`. Request types are `*Input` aliases imported from `../generated/Inputs` (expanded from `@fiatdesk/shared-schemas` on build).
 
 Wire the class in [`sdks/node/src/index.ts`](sdks/node/src/index.ts) and [`sdks/node/src/resources/index.ts`](sdks/node/src/resources/index.ts). Run `npx nx build node-sdk` so `generate-inputs.ts` picks up new Input imports. Add a focused test.
 

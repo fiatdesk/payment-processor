@@ -1,7 +1,7 @@
 import { AttributeTooltip, DocSubSection, EndpointSummary } from './types';
 
-export const NODE_INIT = `import { Zoneless } from '@zoneless/node';
-const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');`;
+export const NODE_INIT = `import { FiatDesk } from '@fiatdesk/node';
+const fiatdesk = new FiatDesk('sk_live_fd_YOUR_API_KEY', 'https://api.yourdomain.com');`;
 
 /** Hover tooltip shown next to expandable attribute types. */
 export const EXPAND_TOOLTIP: AttributeTooltip = {

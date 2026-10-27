@@ -15,7 +15,7 @@ import { PersonModule } from './Person';
 import { BalanceModule } from './Balance';
 import { ExternalWalletModule } from './ExternalWallet';
 import { SignToken } from '../utils/Token';
-import { SetupRequest, SetupResponse } from '@zoneless/shared-types';
+import { SetupRequest, SetupResponse } from '@fiatdesk/shared-types';
 import { GetJwtSecret } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';

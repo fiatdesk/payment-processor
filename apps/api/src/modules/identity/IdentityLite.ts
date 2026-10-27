@@ -37,7 +37,7 @@ import {
   Person as PersonType,
   PersonRequirementError,
   PersonRequirements,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CheckCountryCode,
   CheckDob,
@@ -58,7 +58,7 @@ import {
   GetFormBlockingIdentityRequirements,
   NormalizeIpAddress,
   ResolvePayoutVolumeThresholdCents,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { GetLifetimePaidPayoutVolumeCents } from './IdentityPayoutVolume';
 import { IsIdentityProviderConfigured } from './ResolveIdentityProvider';
 

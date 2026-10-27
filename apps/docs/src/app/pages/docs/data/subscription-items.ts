@@ -53,7 +53,7 @@ const PRICE_DATA_CHILDREN: Attribute[] = [
     type: 'enum',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -123,7 +123,7 @@ const PRICE_DATA_CHILDREN: Attribute[] = [
 // ============================================
 
 const SUBSCRIPTION_ITEM_OBJECT_JSON = `{
-  "id": "si_z_9Km2pQxR4vL8nHw",
+  "id": "si_fd_9Km2pQxR4vL8nHw",
   "object": "subscription_item",
   "billed_until": null,
   "billing_thresholds": null,
@@ -133,7 +133,7 @@ const SUBSCRIPTION_ITEM_OBJECT_JSON = `{
   "discounts": [],
   "metadata": {},
   "price": {
-    "id": "price_z_ProMonthly25",
+    "id": "price_fd_ProMonthly25",
     "object": "price",
     "active": true,
     "billing_scheme": "per_unit",
@@ -144,7 +144,7 @@ const SUBSCRIPTION_ITEM_OBJECT_JSON = `{
     "lookup_key": null,
     "metadata": {},
     "nickname": "Pro Plan Price",
-    "product": "prod_z_oJaYlHpf6YmRzCMm",
+    "product": "prod_fd_oJaYlHpf6YmRzCMm",
     "recurring": {
       "aggregate_usage": null,
       "interval": "month",
@@ -160,13 +160,13 @@ const SUBSCRIPTION_ITEM_OBJECT_JSON = `{
     "unit_amount_decimal": "1000"
   },
   "quantity": 1,
-  "subscription": "sub_z_1QvK9mR2eZvKYlo2CxH4pN8w",
+  "subscription": "sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w",
   "tax_rates": [],
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const SUBSCRIPTION_ITEM_UPDATED_JSON = `{
-  "id": "si_z_9Km2pQxR4vL8nHw",
+  "id": "si_fd_9Km2pQxR4vL8nHw",
   "object": "subscription_item",
   "billed_until": null,
   "billing_thresholds": null,
@@ -178,7 +178,7 @@ const SUBSCRIPTION_ITEM_UPDATED_JSON = `{
     "order_id": "9284"
   },
   "price": {
-    "id": "price_z_ProMonthly25",
+    "id": "price_fd_ProMonthly25",
     "object": "price",
     "active": true,
     "billing_scheme": "per_unit",
@@ -189,7 +189,7 @@ const SUBSCRIPTION_ITEM_UPDATED_JSON = `{
     "lookup_key": null,
     "metadata": {},
     "nickname": "Pro Plan Price",
-    "product": "prod_z_oJaYlHpf6YmRzCMm",
+    "product": "prod_fd_oJaYlHpf6YmRzCMm",
     "recurring": {
       "aggregate_usage": null,
       "interval": "month",
@@ -205,13 +205,13 @@ const SUBSCRIPTION_ITEM_UPDATED_JSON = `{
     "unit_amount_decimal": "1000"
   },
   "quantity": 3,
-  "subscription": "sub_z_1QvK9mR2eZvKYlo2CxH4pN8w",
+  "subscription": "sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w",
   "tax_rates": [],
-  "platform_account": "acct_z_Platform123abc"
+  "platform_account": "acct_fd_Platform123abc"
 }`;
 
 const SUBSCRIPTION_ITEM_DELETED_JSON = `{
-  "id": "si_z_9Km2pQxR4vL8nHw",
+  "id": "si_fd_9Km2pQxR4vL8nHw",
   "object": "subscription_item",
   "deleted": true
 }`;
@@ -222,7 +222,7 @@ const LIST_SUBSCRIPTION_ITEMS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "si_z_9Km2pQxR4vL8nHw",
+      "id": "si_fd_9Km2pQxR4vL8nHw",
       "object": "subscription_item",
       "billed_until": null,
       "billing_thresholds": null,
@@ -232,7 +232,7 @@ const LIST_SUBSCRIPTION_ITEMS_RESPONSE_JSON = `{
       "discounts": [],
       "metadata": {},
       "price": {
-        "id": "price_z_ProMonthly25",
+        "id": "price_fd_ProMonthly25",
         "object": "price",
         "active": true,
         "billing_scheme": "per_unit",
@@ -243,7 +243,7 @@ const LIST_SUBSCRIPTION_ITEMS_RESPONSE_JSON = `{
         "lookup_key": null,
         "metadata": {},
         "nickname": "Pro Plan Price",
-        "product": "prod_z_oJaYlHpf6YmRzCMm",
+        "product": "prod_fd_oJaYlHpf6YmRzCMm",
         "recurring": {
           "aggregate_usage": null,
           "interval": "month",
@@ -259,9 +259,9 @@ const LIST_SUBSCRIPTION_ITEMS_RESPONSE_JSON = `{
         "unit_amount_decimal": "1000"
       },
       "quantity": 1,
-      "subscription": "sub_z_1QvK9mR2eZvKYlo2CxH4pN8w",
+      "subscription": "sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w",
       "tax_rates": [],
-      "platform_account": "acct_z_Platform123abc"
+      "platform_account": "acct_fd_Platform123abc"
     }
   ]
 }`;
@@ -275,7 +275,7 @@ const SUBSCRIPTION_ITEM_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless subscription item IDs are prefixed with <code>si_z_</code>.',
+      'Unique identifier for the object. FiatDesk subscription item IDs are prefixed with <code>si_fd_</code>.',
   },
   {
     name: 'metadata',
@@ -317,7 +317,7 @@ const SUBSCRIPTION_ITEM_MORE_ATTRIBUTES: Attribute[] = [
     type: 'timestamp',
     nullable: true,
     description:
-      'The time period the subscription item has been billed for. Zoneless bills through the parent subscription, so this stays <code>null</code>.',
+      'The time period the subscription item has been billed for. FiatDesk bills through the parent subscription, so this stays <code>null</code>.',
   },
   {
     name: 'billing_thresholds',
@@ -364,7 +364,7 @@ const SUBSCRIPTION_ITEM_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -393,7 +393,7 @@ export const SUBSCRIPTION_ITEMS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Adding, changing or removing an item emits <code>customer.subscription.updated</code> on the parent subscription. Zoneless does not emit <code>subscription_item.*</code> events.',
+          text: 'Adding, changing or removing an item emits <code>customer.subscription.updated</code> on the parent subscription. FiatDesk does not emit <code>subscription_item.*</code> events.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -459,7 +459,7 @@ const CREATE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless adds the item immediately and does not attempt a payment for it, so this parameter has no effect.',
+      '<strong>Difference from Stripe:</strong> FiatDesk adds the item immediately and does not attempt a payment for it, so this parameter has no effect.',
   },
   {
     name: 'price',
@@ -479,7 +479,7 @@ const CREATE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       { value: 'none' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless does not create proration invoice items, so this value is accepted and ignored.',
+      '<strong>Difference from Stripe:</strong> FiatDesk does not create proration invoice items, so this value is accepted and ignored.',
   },
   {
     name: 'quantity',
@@ -518,7 +518,7 @@ const CREATE_SUBSCRIPTION_ITEM_MORE_PARAMETERS: Attribute[] = [
     name: 'proration_date',
     type: 'timestamp',
     description:
-      'Only used when <code>proration_behavior</code> creates prorations. Zoneless does not create prorations, so this value is accepted and ignored.',
+      'Only used when <code>proration_behavior</code> creates prorations. FiatDesk does not create prorations, so this value is accepted and ignored.',
   },
   {
     name: 'tax_rates',
@@ -559,9 +559,9 @@ export const SUBSCRIPTION_ITEMS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/subscription_items \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d subscription=sub_z_1QvK9mR2eZvKYlo2CxH4pN8w \\
-  -d price=price_z_ProMonthly25 \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d subscription=sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w \\
+  -d price=price_fd_ProMonthly25 \\
   -d quantity=3`,
             },
             {
@@ -569,9 +569,9 @@ export const SUBSCRIPTION_ITEMS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscriptionItem = await zoneless.subscriptionItems.create({
-  subscription: 'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w',
-  price: 'price_z_ProMonthly25',
+const subscriptionItem = await fiatdesk.subscriptionItems.create({
+  subscription: 'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w',
+  price: 'price_fd_ProMonthly25',
   quantity: 3,
 });`,
             },
@@ -626,7 +626,7 @@ const UPDATE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless applies the change immediately and does not attempt a payment for it, so this parameter has no effect.',
+      '<strong>Difference from Stripe:</strong> FiatDesk applies the change immediately and does not attempt a payment for it, so this parameter has no effect.',
   },
   {
     name: 'price',
@@ -645,7 +645,7 @@ const UPDATE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       { value: 'none' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless does not create proration invoice items, so this value is accepted and ignored.',
+      '<strong>Difference from Stripe:</strong> FiatDesk does not create proration invoice items, so this value is accepted and ignored.',
   },
   {
     name: 'quantity',
@@ -676,7 +676,7 @@ const UPDATE_SUBSCRIPTION_ITEM_MORE_PARAMETERS: Attribute[] = [
     name: 'off_session',
     type: 'boolean',
     description:
-      'Indicates that you intend to make future payments with the payment method collected for this subscription. Zoneless does not charge the item change, so this value is accepted and ignored.',
+      'Indicates that you intend to make future payments with the payment method collected for this subscription. FiatDesk does not charge the item change, so this value is accepted and ignored.',
   },
   {
     name: 'price_data',
@@ -690,7 +690,7 @@ const UPDATE_SUBSCRIPTION_ITEM_MORE_PARAMETERS: Attribute[] = [
     name: 'proration_date',
     type: 'timestamp',
     description:
-      'Only used when <code>proration_behavior</code> creates prorations. Zoneless does not create prorations, so this value is accepted and ignored.',
+      'Only used when <code>proration_behavior</code> creates prorations. FiatDesk does not create prorations, so this value is accepted and ignored.',
   },
   {
     name: 'tax_rates',
@@ -730,8 +730,8 @@ export const SUBSCRIPTION_ITEMS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscription_items/si_z_9Km2pQxR4vL8nHw \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/subscription_items/si_fd_9Km2pQxR4vL8nHw \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d quantity=3`,
             },
             {
@@ -739,8 +739,8 @@ export const SUBSCRIPTION_ITEMS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscriptionItem = await zoneless.subscriptionItems.update(
-  'si_z_9Km2pQxR4vL8nHw',
+const subscriptionItem = await fiatdesk.subscriptionItems.update(
+  'si_fd_9Km2pQxR4vL8nHw',
   {
     quantity: 3,
   }
@@ -787,16 +787,16 @@ export const SUBSCRIPTION_ITEMS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscription_items/si_z_9Km2pQxR4vL8nHw \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/subscription_items/si_fd_9Km2pQxR4vL8nHw \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscriptionItem = await zoneless.subscriptionItems.retrieve(
-  'si_z_9Km2pQxR4vL8nHw'
+const subscriptionItem = await fiatdesk.subscriptionItems.retrieve(
+  'si_fd_9Km2pQxR4vL8nHw'
 );`,
             },
           ],
@@ -836,13 +836,13 @@ const LIST_SUBSCRIPTION_ITEMS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>si_z_bar</code>, your subsequent call can include <code>ending_before=si_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>si_fd_bar</code>, your subsequent call can include <code>ending_before=si_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>si_z_foo</code>, your subsequent call can include <code>starting_after=si_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>si_fd_foo</code>, your subsequent call can include <code>starting_after=si_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -878,8 +878,8 @@ export const SUBSCRIPTION_ITEMS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/subscription_items \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d subscription=sub_z_1QvK9mR2eZvKYlo2CxH4pN8w \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d subscription=sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w \\
   -d limit=3`,
             },
             {
@@ -887,8 +887,8 @@ export const SUBSCRIPTION_ITEMS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscriptionItems = await zoneless.subscriptionItems.list({
-  subscription: 'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w',
+const subscriptionItems = await fiatdesk.subscriptionItems.list({
+  subscription: 'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w',
   limit: 3,
 });`,
             },
@@ -913,7 +913,7 @@ const DELETE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
     name: 'clear_usage',
     type: 'boolean',
     description:
-      'Delete all usage for the given subscription item. Zoneless removes the item immediately, so this value is accepted and ignored.',
+      'Delete all usage for the given subscription item. FiatDesk removes the item immediately, so this value is accepted and ignored.',
   },
   {
     name: 'payment_behavior',
@@ -943,7 +943,7 @@ const DELETE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless deletes the item immediately, so this parameter has no effect.',
+      '<strong>Difference from Stripe:</strong> FiatDesk deletes the item immediately, so this parameter has no effect.',
   },
   {
     name: 'proration_behavior',
@@ -956,13 +956,13 @@ const DELETE_SUBSCRIPTION_ITEM_PARAMETERS: Attribute[] = [
       { value: 'none' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless does not create proration invoice items, so this value is accepted and ignored.',
+      '<strong>Difference from Stripe:</strong> FiatDesk does not create proration invoice items, so this value is accepted and ignored.',
   },
   {
     name: 'proration_date',
     type: 'timestamp',
     description:
-      'Only used when <code>proration_behavior</code> creates prorations. Zoneless does not create prorations, so this value is accepted and ignored.',
+      'Only used when <code>proration_behavior</code> creates prorations. FiatDesk does not create prorations, so this value is accepted and ignored.',
   },
 ];
 
@@ -995,16 +995,16 @@ export const SUBSCRIPTION_ITEMS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/subscription_items/si_z_9Km2pQxR4vL8nHw \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/subscription_items/si_fd_9Km2pQxR4vL8nHw \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.subscriptionItems.del(
-  'si_z_9Km2pQxR4vL8nHw'
+const deleted = await fiatdesk.subscriptionItems.del(
+  'si_fd_9Km2pQxR4vL8nHw'
 );`,
             },
           ],

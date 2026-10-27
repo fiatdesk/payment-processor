@@ -1,11 +1,11 @@
 ---
-name: zoneless-payments
-description: Adds Zoneless USDC subscriptions or one-time checkout to an existing site or app as an additional way to pay, preserving existing billing providers. Use when integrating recurring stablecoin billing, subscription checkout, payment links, or USDC payments.
+name: fiatdesk-payments
+description: Adds FiatDesk USDC subscriptions or one-time checkout to an existing site or app as an additional way to pay, preserving existing billing providers. Use when integrating recurring stablecoin billing, subscription checkout, payment links, or USDC payments.
 ---
 
-# Add Zoneless USDC payments
+# Add FiatDesk USDC payments
 
-Add Zoneless as another way to pay for what the application already sells. Do
+Add FiatDesk as another way to pay for what the application already sells. Do
 not migrate existing subscribers, and do not replace or remove an existing
 Stripe, Paddle, Lemon Squeezy, or custom billing path unless the human
 explicitly asks for that additional work.
@@ -61,13 +61,13 @@ checkout sessions, subscriptions, invoices, customers, and webhooks.
 Run:
 
 ```bash
-npx @zoneless/cli@latest doctor --json
+npx @fiatdesk/cli@latest doctor --json
 ```
 
 If no profile exists, run setup with a platform name inferred from the project:
 
 ```bash
-npx @zoneless/cli@latest agent setup \
+npx @fiatdesk/cli@latest agent setup \
   --platform-name "<product name>" \
   --skill payments \
   --json
@@ -76,36 +76,36 @@ npx @zoneless/cli@latest agent setup \
 Show the returned `verification_url` and `user_code`, then wait. Do not approve
 the request for the human. Setup stores test and live credentials in the
 operating-system credential store without printing them and binds this
-repository to those profiles in `.zoneless/project.json`. Continue with the
+repository to those profiles in `.fiatdesk/project.json`. Continue with the
 bound test profile after approval.
 
 If setup reports that profiles already exist for a different platform, rerun
 the same command with `--new-platform`. Reuse profiles that already belong to
 this product; do not create duplicates. If setup reports
-`credentials_invalid`, run `npx @zoneless/cli@latest auth reconnect --json`,
+`credentials_invalid`, run `npx @fiatdesk/cli@latest auth reconnect --json`,
 show the new authorization prompt, then retry setup.
 
 For local test execution, inject the bound test credentials into the project's
 local env file without displaying or reading them:
 
 ```bash
-npx @zoneless/cli@latest env sync --json
+npx @fiatdesk/cli@latest env sync --json
 ```
 
 Do not pass `--include-wallet`. Collecting subscription payments needs no
-wallet key in the application; Zoneless signs each collection. If the command
+wallet key in the application; FiatDesk signs each collection. If the command
 reports multiple environment files, infer the server's actual env file from its
 scripts and framework, then rerun once with `--target <relative-path>`.
 
-`env sync` writes `ZONELESS_API_URL` as an origin without a trailing `/v1`.
-Pass that value directly to `@zoneless/node`; the SDK adds `/v1`. For raw HTTP
+`env sync` writes `FIATDESK_API_URL` as an origin without a trailing `/v1`.
+Pass that value directly to `@fiatdesk/node`; the SDK adds `/v1`. For raw HTTP
 requests, append `/v1` exactly once.
 
 ## Configure test webhook delivery
 
 Determine the application's server-side webhook route and its public HTTPS URL.
 For a deployed test app, use its existing HTTPS origin. For localhost, explain
-that Zoneless cannot reach `localhost`; the human must run a tunnel such as
+that FiatDesk cannot reach `localhost`; the human must run a tunnel such as
 `ngrok http <port>` or Cloudflare Tunnel and provide its public HTTPS URL. Do not
 silently install or leave a tunnel process running.
 
@@ -118,7 +118,7 @@ Once the URL is known, create or update the bound test endpoint and sync its
 signing secret without displaying it:
 
 ```bash
-npx @zoneless/cli@latest webhook sync \
+npx @fiatdesk/cli@latest webhook sync \
   --url "https://<public-host>/<server-webhook-route>" \
   --preset subscriptions \
   --json
@@ -128,7 +128,7 @@ Add `--target <relative-path>` when the server uses a non-default env file. The
 command subscribes to `checkout.session.completed`, `invoice.paid`,
 `invoice.payment_failed`, `customer.subscription.updated`, and
 `customer.subscription.deleted`; stores the one-time endpoint secret in the
-operating-system credential store; and writes `ZONELESS_WEBHOOK_SECRET` to the
+operating-system credential store; and writes `FIATDESK_WEBHOOK_SECRET` to the
 local env file without printing it. Restart the application after the command
 so it loads the new value.
 
@@ -141,7 +141,7 @@ asking them to reveal the secret:
 4. Enter the public HTTPS endpoint URL.
 5. Select the five subscription events listed above.
 6. Choose **Create**, copy the one-time webhook secret directly into the
-   server's local environment as `ZONELESS_WEBHOOK_SECRET`, and restart the
+   server's local environment as `FIATDESK_WEBHOOK_SECRET`, and restart the
    server.
 
 Reserve `https://pay.yourdomain.com/account/developers` for the explicit
@@ -157,8 +157,8 @@ secret manager.
 
 ## Choose the integration client
 
-For JavaScript or TypeScript backends, install `@zoneless/node` and initialize
-it server-side with `ZONELESS_API_KEY` and `ZONELESS_API_URL`. Use the SDK's
+For JavaScript or TypeScript backends, install `@fiatdesk/node` and initialize
+it server-side with `FIATDESK_API_KEY` and `FIATDESK_API_URL`. Use the SDK's
 types for Checkout Sessions, Subscriptions, Invoices, and Events instead of
 recreating partial local interfaces.
 
@@ -173,10 +173,10 @@ path:
 
 1. **Existing subscription billing:** plans are already sold through Stripe
    Billing, Paddle, or similar, and the app already records who has access and
-   until when. Mirror those plans and add Zoneless as another way to pay for
+   until when. Mirror those plans and add FiatDesk as another way to pay for
    them. This is the common case.
 2. **No recurring billing yet:** the app sells nothing recurring. Create its
-   first plan with Zoneless and build the smallest entitlement record the app
+   first plan with FiatDesk and build the smallest entitlement record the app
    needs. Do not introduce a billing framework, job queue, or admin console the
    app does not already have.
 3. **One-time purchases only:** the human wants a single payment rather than a
@@ -196,23 +196,23 @@ and ask before editing. Do not redesign unrelated parts of the application.
 
 ## Add a payment method, not a plan
 
-Zoneless cannot co-bill a subscription that another provider owns, so mirroring
-a plan always creates a parallel Zoneless price. Keep that an implementation
+FiatDesk cannot co-bill a subscription that another provider owns, so mirroring
+a plan always creates a parallel FiatDesk price. Keep that an implementation
 detail. Preserve these invariants:
 
 1. **One plan, two ways to pay.** Present USDC as another payment option on the
    plan the application already sells. Do not add a duplicate "Pro (USDC)"
    entry to the pricing page, the plan enum, or the admin console.
-2. **One entitlement record.** Write access from Zoneless into the same field
+2. **One entitlement record.** Write access from FiatDesk into the same field
    the existing provider already writes. Do not create a parallel notion of
    who has access; that is how customers end up locked out or served twice.
 3. **One active provider per billing subject.** Add a `billingProvider` value
-   such as `stripe` or `zoneless` to the record that owns the entitlement,
-   alongside a separate `zonelessSubscriptionId`. Pin it when a subscription
+   such as `stripe` or `fiatdesk` to the record that owns the entitlement,
+   alongside a separate `fiatdeskSubscriptionId`. Pin it when a subscription
    starts. Different independently billed subjects may use different providers.
 4. **No double billing for the same subject.** A billing subject with an active
    subscription on another provider must cancel it or reach period end before
-   starting a Zoneless one. Enforce this on the server, not only in the UI.
+   starting a FiatDesk one. Enforce this on the server, not only in the UI.
 5. **Keep existing IDs.** Preserve the existing provider's customer and
    subscription IDs so the user can switch back.
 
@@ -226,13 +226,13 @@ existing checkout behavior and keep the change provider-neutral.
 
 ## Mirror each plan with the CLI
 
-Use the Zoneless CLI for catalog setup. Do not create products or prices
+Use the FiatDesk CLI for catalog setup. Do not create products or prices
 through the dashboard or improvise raw API requests when the CLI is available.
 
 Preview first. Amounts use minor units, so `2000` means `20.00 USDC`:
 
 ```bash
-npx @zoneless/cli@latest store init \
+npx @fiatdesk/cli@latest store init \
   --name "<plan name>" \
   --amount <positive integer> \
   --interval month \
@@ -245,7 +245,7 @@ resources with a non-secret, operation-specific idempotency key, and retain
 that key for retries:
 
 ```bash
-npx @zoneless/cli@latest store init \
+npx @fiatdesk/cli@latest store init \
   --name "<plan name>" \
   --amount <positive integer> \
   --interval month \
@@ -270,7 +270,7 @@ it. A bare payment link URL carries no application context.
 Create the session with `mode: 'subscription'`, one line item referencing the
 mirrored `price_id`, a `success_url`, `client_reference_id` set to a stable
 application reference for the billing subject, and `customer` set to a stored
-Zoneless customer when one exists. Redirect the user to the returned session
+FiatDesk customer when one exists. Redirect the user to the returned session
 URL.
 
 Use the `checkout_url` from `store init` directly only when there is no user to
@@ -284,7 +284,7 @@ The success redirect proves only that the browser came back. It does not prove
 payment. Treat verified webhook events as the only source of truth.
 
 Reuse the application's existing webhook infrastructure. Preserve the raw body,
-verify `Zoneless-Signature` using `ZONELESS_WEBHOOK_SECRET`, and make duplicate
+verify `FiatDesk-Signature` using `FIATDESK_WEBHOOK_SECRET`, and make duplicate
 events safe by recording `event.id`. Keep every existing provider webhook
 unchanged.
 
@@ -292,7 +292,7 @@ Handle these events:
 
 - `checkout.session.completed` — resolve the application subject from
   `client_reference_id`, store `subscription` and `customer`, retrieve the
-  Subscription when needed, pin `billingProvider` to `zoneless`, and grant
+  Subscription when needed, pin `billingProvider` to `fiatdesk`, and grant
   access.
 - `invoice.paid` — resolve the subscription from
   `parent.subscription_details.subscription` and extend access using the
@@ -314,16 +314,16 @@ parsers cannot drift from the actual resource shape.
 Process repeated and out-of-order events from current resource state. If an
 event omits a field required by the application, retrieve the referenced
 Checkout Session, Subscription, or Invoice rather than guessing. If the
-application already has a billing reconciliation path, include Zoneless in it.
+application already has a billing reconciliation path, include FiatDesk in it.
 
 If a small app has no webhook infrastructure, retrieve subscription status from
-Zoneless instead of building a new event system, and note live webhook setup in
+FiatDesk instead of building a new event system, and note live webhook setup in
 the human handoff.
 
 ## Cancellation and plan changes
 
-Route management actions by `billingProvider`. A Zoneless subscriber cannot be
-managed through another provider's billing portal, and Zoneless has no hosted
+Route management actions by `billingProvider`. A FiatDesk subscriber cannot be
+managed through another provider's billing portal, and FiatDesk has no hosted
 billing portal, so cancellation belongs in the application's existing UI.
 
 Cancel at period end by updating the subscription with `cancel_at_period_end`,
@@ -377,10 +377,10 @@ Report:
 
 - changed files and the existing abstractions reused;
 - any existing-provider checkout or management behavior that changed;
-- the plans mirrored, with their Zoneless price IDs;
+- the plans mirrored, with their FiatDesk price IDs;
 - database migration and deployment commands;
-- required environment-variable names (`ZONELESS_API_KEY`,
-  `ZONELESS_API_URL`, and `ZONELESS_WEBHOOK_SECRET`), never values;
+- required environment-variable names (`FIATDESK_API_KEY`,
+  `FIATDESK_API_URL`, and `FIATDESK_WEBHOOK_SECRET`), never values;
 - checks run, distinguishing static checks, unit tests, hosted-checkout
   verification, and completed end-to-end payments;
 - that to test a subscription end to end, the human opens hosted checkout in
@@ -393,7 +393,7 @@ Report:
   webhook secret;
 - that setup created a platform wallet for receiving USDC and, before accepting
   live payments, the human should run
-  `npx @zoneless/cli@latest wallet backup --profile <live-profile> --output <private-path>`
+  `npx @fiatdesk/cli@latest wallet backup --profile <live-profile> --output <private-path>`
   in an interactive terminal and keep the resulting file somewhere private so
   they can access the wallet later;
 - that the human must explicitly approve any live rollout.

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🛑 Stopping all Zoneless processes..."
+echo "🛑 Stopping all FiatDesk processes..."
 
 if [ -f .env ]; then
   export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
@@ -14,7 +14,7 @@ pkill -9 -f "nx serve" 2>/dev/null
 # Kill Node processes running the API or web app
 pkill -9 -f "node.*dist/apps/api" 2>/dev/null
 pkill -9 -f "node.*dist/apps/web" 2>/dev/null
-pkill -9 -f "vite.*zoneless" 2>/dev/null
+pkill -9 -f "vite.*fiatdesk" 2>/dev/null
 
 # Kill anything on the API port
 lsof -ti:$API_PORT | xargs kill -9 2>/dev/null

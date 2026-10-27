@@ -9,7 +9,7 @@
  */
 
 import { Database } from '../modules/Database';
-import { QueryParameters, QueryOperators } from '@zoneless/shared-types';
+import { QueryParameters, QueryOperators } from '@fiatdesk/shared-types';
 
 export interface ListOptions {
   /** Account ID to filter by. Omit for unscoped lists (e.g. operator-wide). */

@@ -172,7 +172,7 @@ const PRICE_DATA_PARAM_CHILDREN: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
   },
   {
     name: 'product',
@@ -470,7 +470,7 @@ const SHIPPING_OPTION_PARAM_CHILDREN: Attribute[] = [
 // ============================================
 
 const CHECKOUT_SESSION_OBJECT_JSON = `{
-  "id": "cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY",
+  "id": "cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY",
   "object": "checkout.session",
   "after_expiration": null,
   "allow_promotion_codes": null,
@@ -553,13 +553,13 @@ const CHECKOUT_SESSION_OBJECT_JSON = `{
   "ui_mode": "hosted_page",
   "url": "https://checkout.yourdomain.com/c/x7k9m2p4q8",
   "return_url": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "url_slug": "x7k9m2p4q8",
   "payment_details": null
 }`;
 
 const CHECKOUT_SESSION_UPDATE_RESPONSE_JSON = `{
-  "id": "cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY",
+  "id": "cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY",
   "object": "checkout.session",
   "after_expiration": null,
   "allow_promotion_codes": null,
@@ -644,13 +644,13 @@ const CHECKOUT_SESSION_UPDATE_RESPONSE_JSON = `{
   "ui_mode": "hosted_page",
   "url": "https://checkout.yourdomain.com/c/x7k9m2p4q8",
   "return_url": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "url_slug": "x7k9m2p4q8",
   "payment_details": null
 }`;
 
 const CHECKOUT_SESSION_EXPIRE_RESPONSE_JSON = `{
-  "id": "cs_z_b3Ae6ClgOkjygKwrf9B3L6ITtUu",
+  "id": "cs_fd_b3Ae6ClgOkjygKwrf9B3L6ITtUu",
   "object": "checkout.session",
   "after_expiration": null,
   "allow_promotion_codes": null,
@@ -733,7 +733,7 @@ const CHECKOUT_SESSION_EXPIRE_RESPONSE_JSON = `{
   "ui_mode": "hosted_page",
   "url": null,
   "return_url": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "url_slug": "x7k9m2p4q8",
   "payment_details": null
 }`;
@@ -744,7 +744,7 @@ const LIST_CHECKOUT_SESSIONS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY",
+      "id": "cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY",
       "object": "checkout.session",
       "after_expiration": null,
       "allow_promotion_codes": null,
@@ -827,7 +827,7 @@ const LIST_CHECKOUT_SESSIONS_RESPONSE_JSON = `{
       "ui_mode": "hosted_page",
       "url": "https://checkout.yourdomain.com/c/x7k9m2p4q8",
       "return_url": null,
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "url_slug": "x7k9m2p4q8",
       "payment_details": null
     }
@@ -836,11 +836,11 @@ const LIST_CHECKOUT_SESSIONS_RESPONSE_JSON = `{
 
 const LIST_LINE_ITEMS_RESPONSE_JSON = `{
   "object": "list",
-  "url": "/v1/checkout/sessions/cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY/line_items",
+  "url": "/v1/checkout/sessions/cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY/line_items",
   "has_more": false,
   "data": [
     {
-      "id": "li_z_1RqBEoLkdIwHu7ixWtXug1yk",
+      "id": "li_fd_1RqBEoLkdIwHu7ixWtXug1yk",
       "object": "item",
       "amount_discount": 0,
       "amount_subtotal": 4598,
@@ -851,7 +851,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
       "discounts": [],
       "metadata": {},
       "price": {
-        "id": "price_z_1RqEsLkdIwHu7ix7Ssho8Cl",
+        "id": "price_fd_1RqEsLkdIwHu7ix7Ssho8Cl",
         "object": "price",
         "active": true,
         "billing_scheme": "per_unit",
@@ -862,7 +862,7 @@ const LIST_LINE_ITEMS_RESPONSE_JSON = `{
         "lookup_key": null,
         "metadata": {},
         "nickname": null,
-        "product": "prod_z_9K2mLpQ8vRxWnJc4",
+        "product": "prod_fd_9K2mLpQ8vRxWnJc4",
         "recurring": null,
         "tax_behavior": "unspecified",
         "tiers_mode": null,
@@ -886,7 +886,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless Checkout Session IDs are prefixed with <code>cs_z_</code>.',
+      'Unique identifier for the object. FiatDesk Checkout Session IDs are prefixed with <code>cs_fd_</code>.',
   },
   {
     name: 'object',
@@ -926,9 +926,9 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'Three-letter ISO currency code, in lowercase. For Zoneless, this is <code>usdc</code>.',
+      'Three-letter ISO currency code, in lowercase. For FiatDesk, this is <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settles in USDC on Ethereum rather than fiat currencies.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settles in USDC on Ethereum rather than fiat currencies.',
   },
   {
     name: 'customer',
@@ -1112,7 +1112,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless exposes only the <code>crypto</code> options bag for USDC wallet payments.',
+      '<strong>Difference from Stripe:</strong> FiatDesk exposes only the <code>crypto</code> options bag for USDC wallet payments.',
   },
   {
     name: 'payment_method_types',
@@ -1120,7 +1120,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     description:
       'The list of payment method types this Checkout Session is allowed to accept.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts <code>crypto</code> (USDC on Ethereum) rather than cards or other fiat rails.',
   },
   {
     name: 'payment_status',
@@ -1232,7 +1232,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
     name: 'url_slug',
@@ -1240,7 +1240,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
     description:
       'Opaque slug used in the hosted checkout URL (<code>/c/{url_slug}</code>). Distinct from <code>id</code> so shareable links do not expose the API object ID.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'payment_details',
@@ -1250,7 +1250,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
       'On-chain payment details recorded when the session is completed.',
     expandable: true,
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
     children: [
       {
         name: 'transaction_hash',
@@ -1782,7 +1782,7 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
           },
         ],
         enumNote:
-          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific tax ID types; Zoneless keeps <code>type</code> as a plain string rather than listing every enum value.',
+          '<strong>Difference from Stripe:</strong> Stripe supports 100+ country-specific tax ID types; FiatDesk keeps <code>type</code> as a plain string rather than listing every enum value.',
       },
     ],
   },
@@ -2282,7 +2282,7 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
+      '<strong>Difference from Stripe:</strong> FiatDesk connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no FiatDesk equivalent.',
   },
   {
     name: 'merchant',
@@ -2317,7 +2317,7 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Zoneless extension:</strong> Only populated on the public <code>payment_pages</code> response used to render the hosted checkout page.',
+      '<strong>FiatDesk extension:</strong> Only populated on the public <code>payment_pages</code> response used to render the hosted checkout page.',
   },
   {
     name: 'merchant_wallet',
@@ -2349,7 +2349,7 @@ const CHECKOUT_SESSION_MORE_ATTRIBUTES: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Zoneless extension:</strong> Only populated on the public <code>payment_pages</code> response used to render the hosted checkout page.',
+      '<strong>FiatDesk extension:</strong> Only populated on the public <code>payment_pages</code> response used to render the hosted checkout page.',
   },
 ];
 
@@ -2948,7 +2948,7 @@ const CREATE_CHECKOUT_SESSION_MORE_PARAMETERS: Attribute[] = [
     description:
       'Three-letter currency code, in lowercase. Defaults to <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless currently accepts only <code>usdc</code>.',
+      '<strong>Difference from Stripe:</strong> FiatDesk currently accepts only <code>usdc</code>.',
   },
   {
     name: 'custom_fields',
@@ -3278,7 +3278,7 @@ const CREATE_CHECKOUT_SESSION_MORE_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless exposes only the <code>crypto</code> options bag for USDC wallet payments.',
+      '<strong>Difference from Stripe:</strong> FiatDesk exposes only the <code>crypto</code> options bag for USDC wallet payments.',
   },
   {
     name: 'permissions',
@@ -3480,7 +3480,7 @@ const CREATE_CHECKOUT_SESSION_MORE_PARAMETERS: Attribute[] = [
       },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no Zoneless equivalent.',
+      '<strong>Difference from Stripe:</strong> FiatDesk connects Ethereum wallets directly rather than a Stripe-hosted wallet product. This field is retained for API parity but has no FiatDesk equivalent.',
   },
 ];
 
@@ -3520,9 +3520,9 @@ export const CHECKOUT_SESSIONS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/checkout/sessions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d success_url="https://shop.example.com/order/complete" \\
-  -d "line_items[0][price]"=price_z_1RqEsLkdIwHu7ix7Ssho8Cl \\
+  -d "line_items[0][price]"=price_fd_1RqEsLkdIwHu7ix7Ssho8Cl \\
   -d "line_items[0][quantity]"=2 \\
   -d mode=payment`,
             },
@@ -3531,11 +3531,11 @@ export const CHECKOUT_SESSIONS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.checkout.sessions.create({
+const session = await fiatdesk.checkout.sessions.create({
   success_url: 'https://shop.example.com/order/complete',
   line_items: [
     {
-      price: 'price_z_1RqEsLkdIwHu7ix7Ssho8Cl',
+      price: 'price_fd_1RqEsLkdIwHu7ix7Ssho8Cl',
       quantity: 2,
     },
   ],
@@ -3649,8 +3649,8 @@ export const CHECKOUT_SESSIONS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=8841`,
             },
             {
@@ -3658,8 +3658,8 @@ export const CHECKOUT_SESSIONS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.checkout.sessions.update(
-  'cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY',
+const session = await fiatdesk.checkout.sessions.update(
+  'cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY',
   {
     metadata: {
       order_id: '8841',
@@ -3705,16 +3705,16 @@ export const CHECKOUT_SESSIONS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.checkout.sessions.retrieve(
-  'cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY'
+const session = await fiatdesk.checkout.sessions.retrieve(
+  'cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY'
 );`,
             },
           ],
@@ -3792,7 +3792,7 @@ const LIST_CHECKOUT_SESSIONS_MORE_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>cs_z_bar</code>, your subsequent call can include <code>ending_before=cs_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>cs_fd_bar</code>, your subsequent call can include <code>ending_before=cs_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'payment_intent',
@@ -3810,7 +3810,7 @@ const LIST_CHECKOUT_SESSIONS_MORE_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>cs_z_foo</code>, your subsequent call can include <code>starting_after=cs_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>cs_fd_foo</code>, your subsequent call can include <code>starting_after=cs_fd_foo</code> in order to fetch the next page of the list.',
   },
   {
     name: 'subscription',
@@ -3850,7 +3850,7 @@ export const CHECKOUT_SESSIONS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/checkout/sessions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -3858,7 +3858,7 @@ export const CHECKOUT_SESSIONS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const sessions = await zoneless.checkout.sessions.list({
+const sessions = await fiatdesk.checkout.sessions.list({
   limit: 3,
 });`,
             },
@@ -3911,8 +3911,8 @@ export const CHECKOUT_SESSIONS_EXPIRE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_z_b3Ae6ClgOkjygKwrf9B3L6ITtUu/expire \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/checkout/sessions/cs_fd_b3Ae6ClgOkjygKwrf9B3L6ITtUu/expire \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -X POST`,
             },
             {
@@ -3920,8 +3920,8 @@ export const CHECKOUT_SESSIONS_EXPIRE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const session = await zoneless.checkout.sessions.expire(
-  'cs_z_b3Ae6ClgOkjygKwrf9B3L6ITtUu'
+const session = await fiatdesk.checkout.sessions.expire(
+  'cs_fd_b3Ae6ClgOkjygKwrf9B3L6ITtUu'
 );`,
             },
           ],
@@ -3993,16 +3993,16 @@ export const CHECKOUT_SESSIONS_LIST_LINE_ITEMS_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -G https://api.yourdomain.com/v1/checkout/sessions/cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY/line_items \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -G https://api.yourdomain.com/v1/checkout/sessions/cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY/line_items \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const lineItems = await zoneless.checkout.sessions.listLineItems(
-  'cs_z_a8KmQ2vLpR5wT9bHxJcFnW4uY'
+const lineItems = await fiatdesk.checkout.sessions.listLineItems(
+  'cs_fd_a8KmQ2vLpR5wT9bHxJcFnW4uY'
 );`,
             },
           ],

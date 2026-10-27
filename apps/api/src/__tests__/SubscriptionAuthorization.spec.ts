@@ -53,16 +53,16 @@ const TERMS: PlanTerms = {
 describe('SubscriptionAuthorization', () => {
   describe('ids and keys', () => {
     it('derives a deterministic 32-byte plan id from the price id', () => {
-      const planId = PlanIdFromPriceId('price_z_1');
+      const planId = PlanIdFromPriceId('price_fd_1');
 
-      expect(planId).toBe(keccak256(toBytes('price_z_1')));
+      expect(planId).toBe(keccak256(toBytes('price_fd_1')));
       expect(planId).toMatch(/^0x[0-9a-f]{64}$/);
-      expect(PlanIdFromPriceId('price_z_1')).toBe(planId);
-      expect(PlanIdFromPriceId('price_z_2')).not.toBe(planId);
+      expect(PlanIdFromPriceId('price_fd_1')).toBe(planId);
+      expect(PlanIdFromPriceId('price_fd_2')).not.toBe(planId);
     });
 
     it('hashes plan keys and subscription ids with abi.encode', () => {
-      const planId = PlanIdFromPriceId('price_z_1');
+      const planId = PlanIdFromPriceId('price_fd_1');
       const planKey = PlanKeyFor(OPERATOR.toLowerCase(), planId);
 
       expect(planKey).toBe(
@@ -167,7 +167,7 @@ describe('SubscriptionAuthorization', () => {
   });
 
   describe('BuildSubscribeTypedData', () => {
-    const planKey = PlanKeyFor(OPERATOR, PlanIdFromPriceId('price_z_1'));
+    const planKey = PlanKeyFor(OPERATOR, PlanIdFromPriceId('price_fd_1'));
     const domain = BuildSubscriptionsDomain(31337, SUBSCRIPTIONS);
     /** A 7-day trial: the first period is due a week after subscribe. */
     const FIRST_CHARGE_AT = 1_700_604_800;
@@ -282,7 +282,7 @@ describe('SubscriptionAuthorization', () => {
   });
 
   describe('FindSubscribedEvent', () => {
-    const planKey = PlanKeyFor(OPERATOR, PlanIdFromPriceId('price_z_1'));
+    const planKey = PlanKeyFor(OPERATOR, PlanIdFromPriceId('price_fd_1'));
     const subId = SubscriptionIdFor(planKey, SUBSCRIBER);
     const expected = {
       subscriptions: SUBSCRIPTIONS,

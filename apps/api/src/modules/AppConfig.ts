@@ -27,7 +27,7 @@ import type {
   AppConfig,
   AppSecrets,
   SettlementRail,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type { Hex } from 'viem';
 import { DeriveKey } from './Encryption';
 
@@ -156,7 +156,7 @@ function BuildConfigFromEnv(): AppConfig {
   return {
     mongodbUri:
       process.env.MONGODB_URI ||
-      'mongodb://localhost:27017/zoneless?replicaSet=rs0',
+      'mongodb://localhost:27017/fiatdesk?replicaSet=rs0',
     dashboardUrl,
     checkoutUrl,
     paymentLinkUrl,

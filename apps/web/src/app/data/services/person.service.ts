@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { Person } from '@zoneless/shared-types';
+import { Person } from '@fiatdesk/shared-types';
 import { GetCountryName } from '../../utils';
 import { SettingsCardRow } from '../../shared';
 

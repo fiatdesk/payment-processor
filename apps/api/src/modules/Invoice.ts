@@ -56,7 +56,7 @@ import {
   QueryOperators,
   Subscription as SubscriptionType,
   SubscriptionItem as SubscriptionItemType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { StripUndefined, ValidateUpdate, ExpandableId } from './Util';
 import {
   CreateInvoiceSchema,
@@ -68,7 +68,7 @@ import {
   PayInvoiceSchema,
   PayInvoiceInput,
   ListInvoicesFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

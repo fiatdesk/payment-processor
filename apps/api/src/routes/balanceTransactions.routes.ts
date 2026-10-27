@@ -37,7 +37,7 @@ router.get(
   '/',
   OptionalConnectedAccount(),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
-    // Platforms may pass Zoneless-Account to list a connected account's transactions
+    // Platforms may pass FiatDesk-Account to list a connected account's transactions
     const accountId = req.connectedAccount?.id ?? req.user.account;
 
     Logger.info('Listing balance transactions', {

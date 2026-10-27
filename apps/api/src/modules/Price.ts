@@ -12,7 +12,7 @@ import {
   Price as PriceType,
   QueryOperators,
   RecurringInterval,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { ExtractChangedFields } from './Event';
 import { GetSettlement, IsSimulatedSettlement } from './chains/Settlement';
@@ -24,7 +24,7 @@ import {
   UpdatePriceSchema,
   UpdatePriceInput,
   ListPricesFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

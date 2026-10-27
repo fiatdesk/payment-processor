@@ -3,13 +3,13 @@ import { DocPage } from './types';
 export const AUTHENTICATION_PAGE: DocPage = {
   id: 'authentication',
   title: 'Authentication',
-  description: 'Authenticate Zoneless API requests with a secret API key.',
+  description: 'Authenticate FiatDesk API requests with a secret API key.',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'Every API request must include a secret API key. Live keys start with <code>sk_live_z_</code> and test keys start with <code>sk_test_z_</code>.',
+          text: 'Every API request must include a secret API key. Live keys start with <code>sk_live_fd_</code> and test keys start with <code>sk_test_fd_</code>.',
           html: true,
         },
         {
@@ -25,17 +25,17 @@ export const AUTHENTICATION_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Choose an environment' },
         {
           type: 'paragraph',
-          text: 'Zoneless Cloud has separate live and test environments. Use a key with the matching API URL.',
+          text: 'FiatDesk Cloud has separate live and test environments. Use a key with the matching API URL.',
         },
         {
           type: 'list',
           items: [
             {
-              text: '<strong>Live:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_live_z_</code> key. Live mode uses Ethereum mainnet and real USDC.',
+              text: '<strong>Live:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_live_fd_</code> key. Live mode uses Ethereum mainnet and real USDC.',
               html: true,
             },
             {
-              text: '<strong>Test:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_test_z_</code> key. Test mode uses simulated USDC, so you can try payments without a wallet or faucet.',
+              text: '<strong>Test:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_test_fd_</code> key. Test mode uses simulated USDC, so you can try payments without a wallet or faucet.',
               html: true,
             },
           ],
@@ -55,14 +55,14 @@ export const AUTHENTICATION_PAGE: DocPage = {
             {
               id: 'live',
               label: 'Live',
-              code: `ZONELESS_API_KEY=sk_live_z_YOUR_API_KEY
-ZONELESS_API_URL=https://api.yourdomain.com`,
+              code: `FIATDESK_API_KEY=sk_live_fd_YOUR_API_KEY
+FIATDESK_API_URL=https://api.yourdomain.com`,
             },
             {
               id: 'test',
               label: 'Test',
-              code: `ZONELESS_API_KEY=sk_test_z_YOUR_API_KEY
-ZONELESS_API_URL=https://api.yourdomain.com`,
+              code: `FIATDESK_API_KEY=sk_test_fd_YOUR_API_KEY
+FIATDESK_API_URL=https://api.yourdomain.com`,
             },
           ],
         },
@@ -74,7 +74,7 @@ ZONELESS_API_URL=https://api.yourdomain.com`,
         {
           type: 'heading',
           level: 3,
-          text: 'Zoneless Cloud',
+          text: 'FiatDesk Cloud',
         },
         {
           type: 'paragraph',
@@ -84,7 +84,7 @@ ZONELESS_API_URL=https://api.yourdomain.com`,
         {
           type: 'heading',
           level: 3,
-          text: 'Self-hosted Zoneless',
+          text: 'Self-hosted FiatDesk',
         },
         {
           type: 'paragraph',
@@ -114,10 +114,10 @@ ZONELESS_API_URL=https://api.yourdomain.com`,
             {
               id: 'curl',
               label: 'cURL',
-              code: `export ZONELESS_API_KEY="sk_live_z_YOUR_API_KEY"
+              code: `export FIATDESK_API_KEY="sk_live_fd_YOUR_API_KEY"
 
 curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: $ZONELESS_API_KEY"`,
+  -H "x-api-key: $FIATDESK_API_KEY"`,
             },
           ],
         },
@@ -144,18 +144,18 @@ curl https://api.yourdomain.com/v1/balance \\
             {
               id: 'node',
               label: 'Node.js',
-              code: `import { Zoneless } from '@zoneless/node';
+              code: `import { FiatDesk } from '@fiatdesk/node';
 
-const apiKey = process.env.ZONELESS_API_KEY;
-const apiUrl = process.env.ZONELESS_API_URL;
+const apiKey = process.env.FIATDESK_API_KEY;
+const apiUrl = process.env.FIATDESK_API_URL;
 
 if (!apiKey || !apiUrl) {
-  throw new Error('Missing Zoneless configuration');
+  throw new Error('Missing FiatDesk configuration');
 }
 
-const zoneless = new Zoneless(apiKey, apiUrl);
+const fiatdesk = new FiatDesk(apiKey, apiUrl);
 
-const balance = await zoneless.balance.retrieve();`,
+const balance = await fiatdesk.balance.retrieve();`,
             },
           ],
         },

@@ -15,7 +15,7 @@ import { RequirePlatform } from '../middleware/Authorization';
 import {
   CreateApiKeySchema,
   UpdateApiKeySchema,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 const router = express.Router();
 

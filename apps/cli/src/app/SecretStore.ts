@@ -1,7 +1,7 @@
 import { CliError } from './Errors';
 import { exitCodes } from './Types';
 
-const serviceName = 'zoneless-cli';
+const serviceName = 'fiatdesk-cli';
 
 export interface SecretStore {
   Delete(account: string): Promise<void>;

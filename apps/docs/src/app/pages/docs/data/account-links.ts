@@ -17,7 +17,7 @@ const ACCOUNT_LINK_OBJECT_JSON = `{
   "object": "account_link",
   "created": 1704067200,
   "expires_at": 1704070800,
-  "url": "https://dashboard.yourdomain.com/onboard?token=al_z_abc123..."
+  "url": "https://dashboard.yourdomain.com/onboard?token=al_fd_abc123..."
 }`;
 
 const ACCOUNT_LINK_ATTRIBUTES: Attribute[] = [
@@ -98,7 +98,7 @@ export const ACCOUNT_LINKS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Account Link object',
   description:
-    'Account Links are the means by which a platform grants a connected account permission to access Zoneless-hosted applications, such as the onboarding flow.',
+    'Account Links are the means by which a platform grants a connected account permission to access FiatDesk-hosted applications, such as the onboarding flow.',
   stripeDocsUrl: 'https://docs.stripe.com/api/account_links',
   endpoints: BuildEndpointSummaries(ACCOUNT_LINKS_SUBSECTION, [
     { method: 'POST', path: '/v1/account_links', pageId: 'create' },
@@ -135,7 +135,7 @@ export const ACCOUNT_LINKS_CREATE_PAGE: DocPage = {
   id: 'create',
   title: 'Create an account link',
   description:
-    'Creates an AccountLink object that includes a single-use Zoneless URL that the platform can redirect their user to in order to take them through the Connect Onboarding flow.',
+    'Creates an AccountLink object that includes a single-use FiatDesk URL that the platform can redirect their user to in order to take them through the Connect Onboarding flow.',
   endpoints: [{ method: 'POST', path: '/v1/account_links' }],
   sections: [
     {
@@ -167,8 +167,8 @@ export const ACCOUNT_LINKS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/account_links \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d account=acct_z_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d account=acct_fd_1Nv0FGQ9RKHgCVdK \\
   --data-urlencode refresh_url="https://example.com/reauth" \\
   --data-urlencode return_url="https://example.com/return" \\
   -d type=account_onboarding`,
@@ -178,8 +178,8 @@ export const ACCOUNT_LINKS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const accountLink = await zoneless.accountLinks.create({
-  account: 'acct_z_1Nv0FGQ9RKHgCVdK',
+const accountLink = await fiatdesk.accountLinks.create({
+  account: 'acct_fd_1Nv0FGQ9RKHgCVdK',
   refresh_url: 'https://example.com/reauth',
   return_url: 'https://example.com/return',
   type: 'account_onboarding',

@@ -49,7 +49,7 @@ const PaymentLinkPaymentIntentDataSchema = z.object({
 /**
  * Payment-method-specific configuration.
  * @remarks Stripe's documented Payment Link options here are card brand restrictions.
- * Zoneless only accepts USDC wallet payments; the `card` bag is retained for API parity,
+ * FiatDesk only accepts USDC wallet payments; the `card` bag is retained for API parity,
  * and `crypto` is exposed to match Checkout Session payment method options.
  */
 const PaymentLinkPaymentMethodOptionsSchema = z.object({

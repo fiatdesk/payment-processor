@@ -5,21 +5,21 @@ export const CONNECTED_ACCOUNTS_PAGE: DocPage = {
   id: 'connected-accounts',
   title: 'Connected Accounts',
   description:
-    'If you use Zoneless, you can issue requests on behalf of your connected accounts. To act as a connected account, include a Zoneless-Account header containing the connected account ID, which starts with the acct_z_ prefix.',
+    'If you use FiatDesk, you can issue requests on behalf of your connected accounts. To act as a connected account, include a FiatDesk-Account header containing the connected account ID, which starts with the acct_fd_ prefix.',
   stripeDocsUrl: 'https://docs.stripe.com/api/connected-accounts',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'The connected account ID is set per-request via the <code>Zoneless-Account</code> header. When using the Node.js SDK, pass the <code>zonelessAccount</code> option instead. Methods on the returned object reuse the same account ID.',
+          text: 'The connected account ID is set per-request via the <code>FiatDesk-Account</code> header. When using the Node.js SDK, pass the <code>fiatdeskAccount</code> option instead. Methods on the returned object reuse the same account ID.',
           html: true,
         },
         {
           type: 'callout',
           variant: 'info',
           title: 'Stripe equivalent: ',
-          text: "The <code>Zoneless-Account</code> header is the equivalent of Stripe's <code>Stripe-Account</code> header, and <code>zonelessAccount</code> replaces <code>stripeAccount</code> in the Node.js SDK.",
+          text: "The <code>FiatDesk-Account</code> header is the equivalent of Stripe's <code>Stripe-Account</code> header, and <code>fiatdeskAccount</code> replaces <code>stripeAccount</code> in the Node.js SDK.",
           html: true,
         },
         {
@@ -49,8 +49,8 @@ export const CONNECTED_ACCOUNTS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1Nv0FGQ9RKHgCVdK" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1Nv0FGQ9RKHgCVdK" \\
   -G`,
             },
             {
@@ -58,8 +58,8 @@ export const CONNECTED_ACCOUNTS_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const balance = await zoneless.balance.retrieve({
-  zonelessAccount: 'acct_z_1Nv0FGQ9RKHgCVdK',
+const balance = await fiatdesk.balance.retrieve({
+  fiatdeskAccount: 'acct_fd_1Nv0FGQ9RKHgCVdK',
 });`,
             },
           ],

@@ -11,7 +11,7 @@ import {
   signal,
   WritableSignal,
 } from '@angular/core';
-import type { MetricPoint } from '@zoneless/shared-types';
+import type { MetricPoint } from '@fiatdesk/shared-types';
 
 export interface LineChartTooltipRow {
   color: string;

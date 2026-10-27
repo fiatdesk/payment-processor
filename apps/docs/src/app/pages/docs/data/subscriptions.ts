@@ -22,7 +22,7 @@ export const SUBSCRIPTIONS_SUBSECTION: DocSubSection = {
 // ============================================
 
 const HOUR_INTERVAL_NOTE =
-  "<strong>Zoneless extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short subscription periods.";
+  "<strong>FiatDesk extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short subscription periods.";
 
 const RECURRING_INTERVAL_ENUM: Attribute['enumValues'] = [
   { value: 'hour', description: 'Billed every hour.' },
@@ -84,7 +84,7 @@ const SIMPLIFIED_TAX_RATE_CHILDREN: Attribute[] = [
     description:
       'The high-level tax type, such as <code>vat</code> or <code>sales_tax</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe supports 40+ jurisdiction-specific <code>tax_type</code> values. Zoneless keeps this as a plain string for maintainability.',
+      '<strong>Difference from Stripe:</strong> Stripe supports 40+ jurisdiction-specific <code>tax_type</code> values. FiatDesk keeps this as a plain string for maintainability.',
   },
 ];
 
@@ -119,7 +119,7 @@ const PRICE_DATA_CHILDREN: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -218,23 +218,23 @@ const PAYMENT_SETTINGS_CHILDREN: Attribute[] = [
       { value: 'crypto', description: 'USDC wallet payments on Ethereum.' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
   },
   {
     name: 'save_default_payment_method',
     type: 'enum',
     description:
-      'Configure whether Zoneless updates <code>subscription.default_payment_method</code> when payment succeeds. Defaults to <code>off</code>.',
+      'Configure whether FiatDesk updates <code>subscription.default_payment_method</code> when payment succeeds. Defaults to <code>off</code>.',
     enumValues: [
       {
         value: 'off',
         description:
-          'Zoneless never sets <code>subscription.default_payment_method</code>.',
+          'FiatDesk never sets <code>subscription.default_payment_method</code>.',
       },
       {
         value: 'on_subscription',
         description:
-          'Zoneless sets <code>subscription.default_payment_method</code> when a subscription payment succeeds.',
+          'FiatDesk sets <code>subscription.default_payment_method</code> when a subscription payment succeeds.',
       },
     ],
   },
@@ -462,7 +462,7 @@ const AUTOMATIC_TAX_PARAM_CHILDREN: Attribute[] = [
     type: 'boolean',
     required: true,
     description:
-      'Whether Zoneless automatically computes tax on this subscription.',
+      'Whether FiatDesk automatically computes tax on this subscription.',
   },
   {
     name: 'liability',
@@ -492,7 +492,7 @@ const SUBSCRIPTION_ITEM_OBJECT_CHILDREN: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless subscription item IDs are prefixed with <code>si_z_</code>.',
+      'Unique identifier for the object. FiatDesk subscription item IDs are prefixed with <code>si_fd_</code>.',
   },
   {
     name: 'object',
@@ -587,7 +587,7 @@ const SUBSCRIPTION_ITEM_OBJECT_CHILDREN: Attribute[] = [
     type: 'string',
     description: 'The platform account that owns this resource.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -596,7 +596,7 @@ const SUBSCRIPTION_ITEM_OBJECT_CHILDREN: Attribute[] = [
 // ============================================
 
 export const SUBSCRIPTION_OBJECT_JSON = `{
-  "id": "sub_z_1QvK9mR2eZvKYlo2CxH4pN8w",
+  "id": "sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w",
   "object": "subscription",
   "application": null,
   "application_fee_percent": null,
@@ -627,10 +627,10 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   "collection_method": "charge_automatically",
   "created": 1784745600,
   "currency": "usdc",
-  "customer": "cus_z_MayaChen91kL2",
+  "customer": "cus_fd_MayaChen91kL2",
   "customer_account": null,
   "days_until_due": null,
-  "default_payment_method": "pm_z_cryptoWallet7Hx",
+  "default_payment_method": "pm_fd_cryptoWallet7Hx",
   "default_source": null,
   "default_tax_rates": [],
   "description": "Pro membership",
@@ -650,7 +650,7 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
     "object": "list",
     "data": [
       {
-        "id": "si_z_9Km2pQxR4vL8nHw",
+        "id": "si_fd_9Km2pQxR4vL8nHw",
         "object": "subscription_item",
         "billed_until": null,
         "billing_thresholds": null,
@@ -659,17 +659,17 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
         "current_period_start": 1784745600,
         "discounts": [],
         "metadata": {},
-        "price": "price_z_ProMonthly25",
+        "price": "price_fd_ProMonthly25",
         "quantity": 1,
-        "subscription": "sub_z_1QvK9mR2eZvKYlo2CxH4pN8w",
+        "subscription": "sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w",
         "tax_rates": [],
-        "platform_account": "acct_z_Platform123abc"
+        "platform_account": "acct_fd_Platform123abc"
       }
     ],
     "has_more": false,
-    "url": "/v1/subscription_items?subscription=sub_z_1QvK9mR2eZvKYlo2CxH4pN8w"
+    "url": "/v1/subscription_items?subscription=sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w"
   },
-  "latest_invoice": "in_z_1QvK9nT3eZvKYlo2C8mR2qPx",
+  "latest_invoice": "in_fd_1QvK9nT3eZvKYlo2C8mR2qPx",
   "livemode": false,
   "managed_payments": null,
   "metadata": {},
@@ -701,7 +701,7 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
     }
   },
   "trial_start": null,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "subscription_onchain_id": "0x8e2b4d6f1a3c5e7b9d0f2a4c6e8b1d3f5a7c9e0b2d4f6a8c1e3b5d7f9a0c2e4b",
   "paused_on_chain": false,
   "cancel_pending_on_chain": false,
@@ -758,7 +758,7 @@ export const SUBSCRIPTION_OBJECT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless subscription IDs are prefixed with <code>sub_z_</code>.',
+      'Unique identifier for the object. FiatDesk subscription IDs are prefixed with <code>sub_fd_</code>.',
   },
   {
     name: 'customer',
@@ -849,7 +849,7 @@ export const SUBSCRIPTION_OBJECT_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'enum',
     description:
-      'Three-letter ISO currency code, in lowercase. Always <code>usdc</code> for Zoneless.',
+      'Three-letter ISO currency code, in lowercase. Always <code>usdc</code> for FiatDesk.',
     enumValues: [{ value: 'usdc' }],
     enumNote:
       '<strong>Difference from Stripe:</strong> Uses <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
@@ -858,7 +858,7 @@ export const SUBSCRIPTION_OBJECT_ATTRIBUTES: Attribute[] = [
     name: 'collection_method',
     type: 'enum',
     description:
-      "Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, Zoneless attempts to pay this subscription at the end of the cycle using the customer's default payment method (typically a crypto wallet). When sending an invoice, Zoneless emails your customer an invoice with payment instructions and marks the subscription as active.",
+      "Either <code>charge_automatically</code> or <code>send_invoice</code>. When charging automatically, FiatDesk attempts to pay this subscription at the end of the cycle using the customer's default payment method (typically a crypto wallet). When sending an invoice, FiatDesk emails your customer an invoice with payment instructions and marks the subscription as active.",
     enumValues: [{ value: 'charge_automatically' }, { value: 'send_invoice' }],
   },
   {
@@ -941,14 +941,14 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
         type: 'enum',
         nullable: true,
         description:
-          'If Zoneless disabled automatic tax, this enum describes why.',
+          'If FiatDesk disabled automatic tax, this enum describes why.',
         enumValues: [{ value: 'requires_location_inputs' }],
       },
       {
         name: 'enabled',
         type: 'boolean',
         description:
-          'Whether Zoneless automatically computes tax on this subscription.',
+          'Whether FiatDesk automatically computes tax on this subscription.',
       },
       {
         name: 'liability',
@@ -1446,7 +1446,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Payment settings passed on to invoices created by the subscription.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe also exposes <code>payment_method_options</code> for dozens of region-specific fiat rails (ACH, iDEAL, Konbini, and so on). Zoneless only supports <code>crypto</code> since every payment settles in USDC.',
+      '<strong>Difference from Stripe:</strong> Stripe also exposes <code>payment_method_options</code> for dozens of region-specific fiat rails (ACH, iDEAL, Konbini, and so on). FiatDesk only supports <code>crypto</code> since every payment settles in USDC.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -1599,24 +1599,24 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
   {
     name: 'subscription_onchain_id',
     type: 'string',
     nullable: true,
     description:
-      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period. When their USDC allowance to the Subscriptions contract does not cover this plan and their other live plans, they also sign a USDC permit that adds this plan’s bounded amount (at least 12 periods and at least a year) to their current allowance. Zoneless relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull. An on-chain cancel is terminal: the subscription cannot be revived, and the customer subscribes again through a new Checkout Session. Only one live subscription can have a given <code>subscription_onchain_id</code>.',
+      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period. When their USDC allowance to the Subscriptions contract does not cover this plan and their other live plans, they also sign a USDC permit that adds this plan’s bounded amount (at least 12 periods and at least a year) to their current allowance. FiatDesk relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull. An on-chain cancel is terminal: the subscription cannot be revived, and the customer subscribes again through a new Checkout Session. Only one live subscription can have a given <code>subscription_onchain_id</code>.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'paused_on_chain',
     type: 'boolean',
     description:
-      'True while the subscription is paused on-chain (by the customer or the plan owner). Zoneless then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain. Setting <code>pause_collection</code> yourself makes it <code>false</code>: a pause you set is never lifted this way.',
+      'True while the subscription is paused on-chain (by the customer or the plan owner). FiatDesk then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain. Setting <code>pause_collection</code> yourself makes it <code>false</code>: a pause you set is never lifted this way.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'cancel_pending_on_chain',
@@ -1624,7 +1624,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'True after the subscription was canceled while its on-chain cancel has not landed yet. Billing runs send the cancel again until the chain reads the subscription canceled, then set it to <code>false</code>. A new checkout for the same on-chain subscription is refused until then.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'cancel_pending_transaction_hash',
@@ -1633,7 +1633,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'The hash of the on-chain cancel last sent while <code>cancel_pending_on_chain</code> is true.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'cancel_pending_sent_at',
@@ -1642,7 +1642,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'When <code>cancel_pending_transaction_hash</code> was sent. A cancel still unmined 10 minutes later is re-priced at the same nonce.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
   {
     name: 'billing_lock_until',
@@ -1651,7 +1651,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     description:
       'Unix timestamp until which this subscription is claimed by a billing runner. Used to prevent duplicate cycle invoices across multiple API instances.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
@@ -1699,7 +1699,7 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
+          title: 'FiatDesk extension: ',
           text: "A subscription with a <code>subscription_onchain_id</code> is collected by the Subscriptions contract, which charges at most the plan’s amount once per period. It has exactly one item, with <code>quantity=1</code>, and nothing may raise an invoice above the price’s <code>unit_amount</code>: more items, a higher quantity, and invoice items, prorations or tax on top are refused with a 400 <code>invalid_request_error</code> whose code is <code>onchain_plan_amount_exceeded</code>. A trial (the price's <code>trial_period_days</code>) is the on-chain subscription's first charge time, which the customer signs: the contract refuses any charge before it. While trialing, the period runs from the subscribe time to <code>trial_end</code>, and the first cycle invoice starts at <code>trial_end</code>. The allowance the customer signs is shared by all of their plans, and a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).",
           html: true,
         },
@@ -1813,7 +1813,7 @@ const CREATE_SUBSCRIPTION_PARAMETERS: Attribute[] = [
     name: 'collection_method',
     type: 'enum',
     description:
-      'Either <code>charge_automatically</code>, or <code>send_invoice</code>. When charging automatically, Zoneless attempts to pay this subscription at the end of the cycle using the default payment method attached to the customer. When sending an invoice, Zoneless emails your customer an invoice with payment instructions and marks the subscription as active. Defaults to <code>charge_automatically</code>.',
+      'Either <code>charge_automatically</code>, or <code>send_invoice</code>. When charging automatically, FiatDesk attempts to pay this subscription at the end of the cycle using the default payment method attached to the customer. When sending an invoice, FiatDesk emails your customer an invoice with payment instructions and marks the subscription as active. Defaults to <code>charge_automatically</code>.',
     enumValues: [{ value: 'charge_automatically' }, { value: 'send_invoice' }],
   },
   {
@@ -1913,7 +1913,7 @@ const CREATE_SUBSCRIPTION_MORE_PARAMETERS: Attribute[] = [
             type: 'string',
             required: true,
             description:
-              'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+              'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
             enumNote:
               '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
           },
@@ -2114,7 +2114,7 @@ const CREATE_SUBSCRIPTION_MORE_PARAMETERS: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter ISO currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+      'Three-letter ISO currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -2169,7 +2169,7 @@ const CREATE_SUBSCRIPTION_MORE_PARAMETERS: Attribute[] = [
     description:
       'Payment settings to pass to invoices created by the subscription.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -2250,18 +2250,18 @@ export const SUBSCRIPTIONS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/subscriptions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d customer=cus_z_MayaChen91kL2 \\
-  -d "items[0][price]=price_z_ProMonthly25"`,
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d customer=cus_fd_MayaChen91kL2 \\
+  -d "items[0][price]=price_fd_ProMonthly25"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.create({
-  customer: 'cus_z_MayaChen91kL2',
-  items: [{ price: 'price_z_ProMonthly25' }],
+const subscription = await fiatdesk.subscriptions.create({
+  customer: 'cus_fd_MayaChen91kL2',
+  items: [{ price: 'price_fd_ProMonthly25' }],
 });`,
             },
           ],
@@ -2522,7 +2522,7 @@ const UPDATE_SUBSCRIPTION_MORE_PARAMETERS: Attribute[] = [
             type: 'string',
             required: true,
             description:
-              'Three-letter currency code, in lowercase. For Zoneless, use <code>usdc</code>.',
+              'Three-letter currency code, in lowercase. For FiatDesk, use <code>usdc</code>.',
             enumNote:
               '<strong>Difference from Stripe:</strong> Use <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
           },
@@ -2656,7 +2656,7 @@ const UPDATE_SUBSCRIPTION_MORE_PARAMETERS: Attribute[] = [
     description:
       'Payment settings to pass to invoices created by the subscription.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
+      '<strong>Difference from Stripe:</strong> FiatDesk only accepts USDC wallet payments, so only the <code>crypto</code> payment method options bag is exposed.',
     expandable: true,
     children: PAYMENT_SETTINGS_CHILDREN,
   },
@@ -2714,7 +2714,7 @@ export const SUBSCRIPTIONS_UPDATE_PAGE: DocPage = {
   id: 'update',
   title: 'Update a subscription',
   description:
-    'Updates an existing subscription to match the specified parameters. When changing prices or quantities, prorations are created by default. For example, if a customer upgrades from a 100 USDC plan to a 200 USDC plan mid-cycle, Zoneless creates a proration for the unused time on the old price and charges for the remaining time on the new price. Use proration_behavior to control or disable this.',
+    'Updates an existing subscription to match the specified parameters. When changing prices or quantities, prorations are created by default. For example, if a customer upgrades from a 100 USDC plan to a 200 USDC plan mid-cycle, FiatDesk creates a proration for the unused time on the old price and charges for the remaining time on the new price. Use proration_behavior to control or disable this.',
   stripeDocsUrl: 'https://docs.stripe.com/api/subscriptions/update',
   endpoints: [{ method: 'POST', path: '/v1/subscriptions/:id' }],
   sections: [
@@ -2741,8 +2741,8 @@ export const SUBSCRIPTIONS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_z_1QvK9mR2eZvKYlo2CxH4pN8w \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=8421`,
             },
             {
@@ -2750,8 +2750,8 @@ export const SUBSCRIPTIONS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.update(
-  'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w',
+const subscription = await fiatdesk.subscriptions.update(
+  'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w',
   {
     metadata: {
       order_id: '8421',
@@ -2801,16 +2801,16 @@ export const SUBSCRIPTIONS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_z_1QvK9mR2eZvKYlo2CxH4pN8w \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.retrieve(
-  'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w'
+const subscription = await fiatdesk.subscriptions.retrieve(
+  'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w'
 );`,
             },
           ],
@@ -2967,7 +2967,7 @@ export const SUBSCRIPTIONS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/subscriptions \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -2975,7 +2975,7 @@ export const SUBSCRIPTIONS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscriptions = await zoneless.subscriptions.list({
+const subscriptions = await fiatdesk.subscriptions.list({
   limit: 3,
 });`,
             },
@@ -3043,8 +3043,8 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
         {
           type: 'callout',
           variant: 'info',
-          title: 'Zoneless extension: ',
-          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs follow the cancel until the chain reads it canceled: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The cancellation stands either way, and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
+          title: 'FiatDesk extension: ',
+          text: 'When the subscription has a <code>subscription_onchain_id</code>, FiatDesk also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs follow the cancel until the chain reads it canceled: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The cancellation stands either way, and FiatDesk never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -3067,16 +3067,16 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/subscriptions/sub_z_1QvK9mR2eZvKYlo2CxH4pN8w \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/subscriptions/sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.cancel(
-  'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w'
+const subscription = await fiatdesk.subscriptions.cancel(
+  'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w'
 );`,
             },
           ],
@@ -3171,8 +3171,8 @@ export const SUBSCRIPTIONS_MIGRATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_z_1QvK9mR2eZvKYlo2CxH4pN8w/migrate \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w/migrate \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "billing_mode[type]"=flexible`,
             },
             {
@@ -3180,8 +3180,8 @@ export const SUBSCRIPTIONS_MIGRATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.migrate(
-  'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w',
+const subscription = await fiatdesk.subscriptions.migrate(
+  'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w',
   {
     billing_mode: {
       type: 'flexible',
@@ -3273,8 +3273,8 @@ export const SUBSCRIPTIONS_RESUME_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_z_1QvK9mR2eZvKYlo2CxH4pN8w/resume \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/subscriptions/sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w/resume \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d billing_cycle_anchor=now`,
             },
             {
@@ -3282,8 +3282,8 @@ export const SUBSCRIPTIONS_RESUME_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const subscription = await zoneless.subscriptions.resume(
-  'sub_z_1QvK9mR2eZvKYlo2CxH4pN8w',
+const subscription = await fiatdesk.subscriptions.resume(
+  'sub_fd_1QvK9mR2eZvKYlo2CxH4pN8w',
   {
     billing_cycle_anchor: 'now',
   }

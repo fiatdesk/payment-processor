@@ -22,7 +22,7 @@ import {
   SameAddress,
   type CheckoutTransferAuthorization,
   type Eip712TypedData,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AppError } from '../../utils/AppError';
 import { USDC_ABI } from './abi/Usdc';
 import { CentsToTokenUnits } from './PayoutEncoding';

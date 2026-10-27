@@ -38,9 +38,9 @@ class FakeWebhookClient implements WebhookClient {
     this.created.push(body);
     const endpoint: WebhookEndpointResponse = {
       enabled_events: body['enabled_events'] as string[],
-      id: 'we_z_created',
+      id: 'we_fd_created',
       metadata: body['metadata'] as Record<string, string>,
-      secret: 'whsec_z_created',
+      secret: 'whsec_fd_created',
       status: 'enabled',
       url: body['url'] as string,
     };
@@ -78,7 +78,7 @@ interface Fixture {
 
 async function CreateFixture(): Promise<Fixture> {
   const rootDirectory = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'zoneless-webhook-sync-')
+    path.join(os.tmpdir(), 'fiatdesk-webhook-sync-')
   );
   const projectDirectory = path.join(rootDirectory, 'project');
   await fs.mkdir(projectDirectory);
@@ -88,7 +88,7 @@ async function CreateFixture(): Promise<Fixture> {
     secretStore
   );
   const profile: AgentProfile = {
-    apiKeyPrefix: 'sk_test_z_',
+    apiKeyPrefix: 'sk_test_fd_',
     apiUrl: 'https://api.example.com/v1',
     mode: 'test',
     platformId: 'acct_test',
@@ -98,7 +98,7 @@ async function CreateFixture(): Promise<Fixture> {
   };
   await profileStore.SaveProfiles(
     { 'test-platform-test': profile },
-    { 'test-platform-test': 'sk_test_z_fixture' },
+    { 'test-platform-test': 'sk_test_fd_fixture' },
     'test-platform-test'
   );
 
@@ -110,7 +110,7 @@ async function CreateFixture(): Promise<Fixture> {
       preset: null,
       profile: 'test-platform-test',
       target: '.env',
-      url: 'https://example.ngrok.app/api/webhooks/zoneless',
+      url: 'https://example.ngrok.app/api/webhooks/fiatdesk',
     },
     profileStore,
     projectDirectory,
@@ -133,22 +133,22 @@ describe('Webhook sync', () => {
       expect(result).toMatchObject({
         created: true,
         dashboard_url: 'https://dashboard.example.com/account/developers',
-        endpoint_id: 'we_z_created',
+        endpoint_id: 'we_fd_created',
         mode: 'test',
         restart_required: true,
       });
-      expect(JSON.stringify(result)).not.toContain('whsec_z_created');
+      expect(JSON.stringify(result)).not.toContain('whsec_fd_created');
       expect(
         await fixture.secretStore.Get(
-          GetWebhookSecretAccount('test-platform-test', 'we_z_created')
+          GetWebhookSecretAccount('test-platform-test', 'we_fd_created')
         )
-      ).toBe('whsec_z_created');
+      ).toBe('whsec_fd_created');
       const environment = await fs.readFile(
         path.join(fixture.projectDirectory, '.env'),
         'utf8'
       );
-      expect(environment).toContain('ZONELESS_WEBHOOK_SECRET=whsec_z_created');
-      expect(environment).toContain('ZONELESS_API_URL=https://api.example.com');
+      expect(environment).toContain('FIATDESK_WEBHOOK_SECRET=whsec_fd_created');
+      expect(environment).toContain('FIATDESK_API_URL=https://api.example.com');
     } finally {
       await fs.rm(fixture.rootDirectory, { force: true, recursive: true });
     }
@@ -159,10 +159,10 @@ describe('Webhook sync', () => {
     try {
       const endpoint: WebhookEndpointResponse = {
         enabled_events: ['checkout.session.completed'],
-        id: 'we_z_existing',
+        id: 'we_fd_existing',
         metadata: {
-          zoneless_cli_managed: 'webhook_sync',
-          zoneless_workspace_id: 'workspace_test',
+          fiatdesk_cli_managed: 'webhook_sync',
+          fiatdesk_workspace_id: 'workspace_test',
         },
         status: 'enabled',
         url: 'https://old.example/webhook',
@@ -170,7 +170,7 @@ describe('Webhook sync', () => {
       const client = new FakeWebhookClient([endpoint]);
       await fixture.secretStore.Set(
         GetWebhookSecretAccount('test-platform-test', endpoint.id),
-        'whsec_z_existing'
+        'whsec_fd_existing'
       );
 
       const result = await SyncWebhook(client, {
@@ -187,7 +187,9 @@ describe('Webhook sync', () => {
         path.join(fixture.projectDirectory, '.env'),
         'utf8'
       );
-      expect(environment).toContain('ZONELESS_WEBHOOK_SECRET=whsec_z_existing');
+      expect(environment).toContain(
+        'FIATDESK_WEBHOOK_SECRET=whsec_fd_existing'
+      );
     } finally {
       await fs.rm(fixture.rootDirectory, { force: true, recursive: true });
     }
@@ -199,7 +201,7 @@ describe('Webhook sync', () => {
       const client = new FakeWebhookClient([
         {
           enabled_events: ['checkout.session.completed'],
-          id: 'we_z_dashboard',
+          id: 'we_fd_dashboard',
           metadata: {},
           status: 'enabled',
           url: fixture.command.url,

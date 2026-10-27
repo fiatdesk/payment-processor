@@ -2,7 +2,7 @@ import { CustomerDiscount, CustomerTaxRate } from './Customer';
 import { Price } from './Price';
 
 /**
- * Stripe-compatible Subscription Item object for Zoneless.
+ * Stripe-compatible Subscription Item object for FiatDesk.
  * Represents a price and quantity attached to a subscription.
  *
  * @see https://docs.stripe.com/api/subscription_items/object
@@ -45,7 +45,7 @@ export interface SubscriptionItem {
   tax_rates: (string | CustomerTaxRate)[] | null;
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

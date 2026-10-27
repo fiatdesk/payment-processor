@@ -1,6 +1,6 @@
 import { ProductModule } from '../modules/Product';
 import { Database } from '../modules/Database';
-import { Product, QueryOperators } from '@zoneless/shared-types';
+import { Product, QueryOperators } from '@fiatdesk/shared-types';
 import { ListHelper } from '../utils/ListHelper';
 import {
   CreateMockDatabase,
@@ -37,13 +37,13 @@ describe('ProductModule', () => {
 
   describe('ProductObject', () => {
     it('should create a product with sensible defaults', () => {
-      const product = module.ProductObject('acct_z_platform', {
+      const product = module.ProductObject('acct_fd_platform', {
         name: 'Test Product',
       });
 
       expect(product.object).toBe('product');
       expect(product.name).toBe('Test Product');
-      expect(product.platform_account).toBe('acct_z_platform');
+      expect(product.platform_account).toBe('acct_fd_platform');
       expect(product.description).toBeNull();
       expect(product.images).toEqual([]);
       expect(product.marketing_features).toEqual([]);
@@ -56,7 +56,7 @@ describe('ProductModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const product = module.ProductObject('acct_z_platform', {
+      const product = module.ProductObject('acct_fd_platform', {
         name: 'Test Product',
         description: 'Test Description',
         images: ['https://example.com/image.jpg'],
@@ -89,7 +89,7 @@ describe('ProductModule', () => {
 
   describe('CreateProduct', () => {
     it('should persist the product to the database', async () => {
-      const product = await module.CreateProduct('acct_z_platform', {
+      const product = await module.CreateProduct('acct_fd_platform', {
         name: 'Test Product',
       });
       expect(mockDb.Set).toHaveBeenCalledTimes(1);
@@ -100,20 +100,20 @@ describe('ProductModule', () => {
   describe('UpdateProduct', () => {
     it('should update product metadata', async () => {
       const existingProduct = {
-        id: 'prod_z_1',
+        id: 'prod_fd_1',
         object: 'product',
-        platform_account: 'acct_z_1',
+        platform_account: 'acct_fd_1',
         metadata: {},
       } as Product;
       mockDb.Get = jest.fn().mockResolvedValue(existingProduct);
 
-      const result = await module.UpdateProduct('prod_z_1', {
+      const result = await module.UpdateProduct('prod_fd_1', {
         metadata: { tracking_number: '12345' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'Products',
-        'prod_z_1',
+        'prod_fd_1',
         expect.objectContaining({ metadata: { tracking_number: '12345' } })
       );
       expect(result).toEqual(existingProduct);
@@ -128,10 +128,10 @@ describe('ProductModule', () => {
 
   describe('GetProduct', () => {
     it('should return the product when found', async () => {
-      const mockProduct = { id: 'prod_z_1', object: 'product' } as Product;
+      const mockProduct = { id: 'prod_fd_1', object: 'product' } as Product;
       mockDb.Get = jest.fn().mockResolvedValue(mockProduct);
 
-      const result = await module.GetProduct('prod_z_1');
+      const result = await module.GetProduct('prod_fd_1');
       expect(result).toEqual(mockProduct);
     });
 
@@ -148,13 +148,13 @@ describe('ProductModule', () => {
     it('should delete the product and return confirmation', async () => {
       mockDb.Get = jest
         .fn()
-        .mockResolvedValue({ id: 'prod_z_1', object: 'product' });
+        .mockResolvedValue({ id: 'prod_fd_1', object: 'product' });
 
-      const result = await module.DeleteProduct('prod_z_1');
+      const result = await module.DeleteProduct('prod_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('Products', 'prod_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('Products', 'prod_fd_1');
       expect(result).toEqual({
-        id: 'prod_z_1',
+        id: 'prod_fd_1',
         object: 'product',
         deleted: true,
       });
@@ -181,16 +181,16 @@ describe('ProductModule', () => {
           url: '/v1/products',
         });
       await module.ListProducts({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
         active: true,
         shippable: false,
-        ids: ['prod_z_1', 'prod_z_2'],
+        ids: ['prod_fd_1', 'prod_fd_2'],
         url: 'https://example.com/p',
       });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
             active: true,
@@ -198,7 +198,7 @@ describe('ProductModule', () => {
             url: 'https://example.com/p',
             id: {
               operator: QueryOperators['in'],
-              value: ['prod_z_1', 'prod_z_2'],
+              value: ['prod_fd_1', 'prod_fd_2'],
             },
           }),
         })
@@ -214,7 +214,7 @@ describe('ProductModule', () => {
           has_more: false,
           url: '/v1/products',
         });
-      await module.ListProducts({ account: 'acct_z_platform' });
+      await module.ListProducts({ account: 'acct_fd_platform' });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           filters: {},
@@ -231,7 +231,7 @@ describe('ProductModule', () => {
           has_more: false,
           url: '/v1/products',
         });
-      await module.ListProducts({ account: 'acct_z_platform', ids: [] });
+      await module.ListProducts({ account: 'acct_fd_platform', ids: [] });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           filters: expect.not.objectContaining({ id: expect.anything() }),

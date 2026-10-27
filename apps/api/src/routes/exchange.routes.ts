@@ -16,7 +16,7 @@ import {
   AccountLinkRecord,
   BRAND,
   LoginLinkRecord,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 const router = express.Router();
 const ACCOUNT_LINK_TOKEN_PREFIX = `al_${BRAND.idInfix}_`;

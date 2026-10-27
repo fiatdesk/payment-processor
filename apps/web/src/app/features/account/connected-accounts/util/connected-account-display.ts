@@ -1,5 +1,5 @@
-import type { Account, ExternalWallet } from '@zoneless/shared-types';
-import { IsRejectedAccountReason } from '@zoneless/shared-schemas';
+import type { Account, ExternalWallet } from '@fiatdesk/shared-types';
+import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 import { GetCountryName } from '../../../../utils';
 
 export function GetAccountStatus(account: Account): string {

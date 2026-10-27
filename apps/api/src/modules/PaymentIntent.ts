@@ -2,7 +2,7 @@
  * @fileOverview Methods for PaymentIntents
  *
  * A PaymentIntent tracks the lifecycle of a payment, from creation through
- * confirmation and capture. In Zoneless this maps to a USDC transfer on Ethereum.
+ * confirmation and capture. In FiatDesk this maps to a USDC transfer on Ethereum.
  *
  * @module PaymentIntent
  * @see https://docs.stripe.com/api/payment_intents
@@ -20,7 +20,7 @@ import {
   PaymentIntentAmountDetailsLineItem,
   QueryOperators,
   INCOMPLETE_PAYMENT_INTENT_STATUSES,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ValidateUpdate } from './Util';
 import { ExtractChangedFields } from './Event';
 import {
@@ -31,7 +31,7 @@ import {
   CancelPaymentIntentSchema,
   CancelPaymentIntentInput,
   ListPaymentIntentsFiltersInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';

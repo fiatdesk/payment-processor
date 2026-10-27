@@ -4,7 +4,7 @@ const ERROR_RESPONSE_JSON = `{
   "error": {
     "message": "Account not found",
     "type": "resource_missing",
-    "request_id": "req_z_abc123"
+    "request_id": "req_fd_abc123"
   }
 }`;
 
@@ -12,7 +12,7 @@ export const ERRORS_PAGE: DocPage = {
   id: 'errors',
   title: 'Errors',
   description:
-    'Zoneless uses conventional HTTP response codes to indicate the success or failure of an API request. Codes in the 2xx range indicate success. Codes in the 4xx range indicate an error given the information provided (e.g., a required parameter was omitted, authentication failed, etc.). Codes in the 5xx range indicate an error with the Zoneless server.',
+    'FiatDesk uses conventional HTTP response codes to indicate the success or failure of an API request. Codes in the 2xx range indicate success. Codes in the 4xx range indicate an error given the information provided (e.g., a required parameter was omitted, authentication failed, etc.). Codes in the 5xx range indicate an error with the FiatDesk server.',
   sections: [
     {
       left: [
@@ -227,7 +227,7 @@ export const ERRORS_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Handling errors' },
         {
           type: 'paragraph',
-          text: 'The Zoneless Node.js SDK raises exceptions for API errors, letting you handle them with <code>try/catch</code>. The error object contains <code>message</code>, <code>type</code>, and <code>statusCode</code> properties.',
+          text: 'The FiatDesk Node.js SDK raises exceptions for API errors, letting you handle them with <code>try/catch</code>. The error object contains <code>message</code>, <code>type</code>, and <code>statusCode</code> properties.',
           html: true,
         },
       ],
@@ -240,8 +240,8 @@ export const ERRORS_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `# Errors return a JSON body with an "error" key
-curl https://api.yourdomain.com/v1/accounts/acct_z_invalid \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"
+curl https://api.yourdomain.com/v1/accounts/acct_fd_invalid \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"
 
 # 404 response:
 # {
@@ -254,11 +254,11 @@ curl https://api.yourdomain.com/v1/accounts/acct_z_invalid \\
             {
               id: 'node',
               label: 'Node.js',
-              code: `import { Zoneless } from '@zoneless/node';
-const zoneless = new Zoneless('sk_live_z_YOUR_API_KEY', 'https://api.yourdomain.com');
+              code: `import { FiatDesk } from '@fiatdesk/node';
+const fiatdesk = new FiatDesk('sk_live_fd_YOUR_API_KEY', 'https://api.yourdomain.com');
 
 try {
-  const account = await zoneless.accounts.retrieve('acct_z_invalid');
+  const account = await fiatdesk.accounts.retrieve('acct_fd_invalid');
 } catch (error) {
   console.log(error.statusCode); // 404
   console.log(error.type);       // "resource_missing"

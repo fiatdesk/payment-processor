@@ -11,6 +11,6 @@ export default defineConfig({
   treeshake: true,
   minify: false,
   tsconfig: 'sdks/node/tsconfig.lib.json',
-  noExternal: ['@zoneless/shared-types'],
+  noExternal: ['@fiatdesk/shared-types'],
   external: ['viem'],
 });

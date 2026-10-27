@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EVENT_TYPES, EventType } from '@zoneless/shared-types';
+import { EVENT_TYPES, EventType } from '@fiatdesk/shared-types';
 
 /**
  * Schema for creating a webhook endpoint.

@@ -8,7 +8,7 @@
 import { Database } from './Database';
 import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';
-import { Event, EventDataObject, EventType } from '@zoneless/shared-types';
+import { Event, EventDataObject, EventType } from '@fiatdesk/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { GetAppConfig } from './AppConfig';
 import { GetPlatformAccountId } from './PlatformAccess';

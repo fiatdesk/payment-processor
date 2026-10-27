@@ -26,9 +26,9 @@ export class AgentPromptCta implements OnDestroy {
     'Paste into Cursor, Claude Code, or any coding agent to add USDC payouts.'
   );
   /** Card-variant heading and supporting copy. */
-  eyebrow = input('Add Zoneless with a coding agent');
+  eyebrow = input('Add FiatDesk with a coding agent');
   description = input(
-    'The easiest way to add Zoneless payouts to your platform. Your existing checkout and payout methods stay in place.'
+    'The easiest way to add FiatDesk payouts to your platform. Your existing checkout and payout methods stay in place.'
   );
 
   copyStatus = signal<CopyStatus>('idle');

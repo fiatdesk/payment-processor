@@ -25,7 +25,7 @@ import { TransactionListComponent } from '../../components';
 import type { PaginatedListColumn } from '../../../../shared';
 import { BalanceService, ReportingService } from '../../../../data';
 import { MetaService, StorageService } from '../../../../core';
-import type { MetricCompare, MetricInterval } from '@zoneless/shared-types';
+import type { MetricCompare, MetricInterval } from '@fiatdesk/shared-types';
 
 interface OverviewSettings {
   preset: DateRangePresetId;

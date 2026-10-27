@@ -1,5 +1,5 @@
-import { BRAND } from '@zoneless/shared-types';
-import { HttpClient, ZonelessApiError } from '../HttpClient';
+import { BRAND } from '@fiatdesk/shared-types';
+import { HttpClient, FiatDeskApiError } from '../HttpClient';
 
 describe('HttpClient', () => {
   const originalFetch = global.fetch;
@@ -17,14 +17,14 @@ describe('HttpClient', () => {
     global.fetch = fetchMock;
 
     const client = new HttpClient({
-      apiKey: 'sk_test_z_key',
+      apiKey: 'sk_test_fd_key',
       baseUrl: 'https://api.example.com/',
     });
 
     await client.Post(
       '/accounts',
       { email: 'seller@example.com' },
-      { idempotencyKey: 'key_1', zonelessAccount: 'acct_platform' }
+      { idempotencyKey: 'key_1', fiatdeskAccount: 'acct_platform' }
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -33,7 +33,7 @@ describe('HttpClient', () => {
     expect(init.method).toBe('POST');
     expect(init.headers).toEqual(
       expect.objectContaining({
-        'x-api-key': 'sk_test_z_key',
+        'x-api-key': 'sk_test_fd_key',
         'idempotency-key': 'key_1',
         [BRAND.connectedAccountHeader]: 'acct_platform',
       })
@@ -50,7 +50,7 @@ describe('HttpClient', () => {
     });
     const timeout = jest.spyOn(AbortSignal, 'timeout');
     const client = new HttpClient({
-      apiKey: 'sk_test_z_key',
+      apiKey: 'sk_test_fd_key',
       baseUrl: 'https://api.example.com',
       timeout: 45000,
     });
@@ -62,7 +62,7 @@ describe('HttpClient', () => {
     expect(client.GetTimeout()).toBe(45000);
   });
 
-  it('throws ZonelessApiError for JSON error responses', async () => {
+  it('throws FiatDeskApiError for JSON error responses', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -77,12 +77,12 @@ describe('HttpClient', () => {
     });
 
     const client = new HttpClient({
-      apiKey: 'sk_test_z_key',
+      apiKey: 'sk_test_fd_key',
       baseUrl: 'https://api.example.com',
     });
 
     await expect(client.Get('/accounts/acct_1')).rejects.toMatchObject({
-      name: 'ZonelessApiError',
+      name: 'FiatDeskApiError',
       type: 'invalid_request_error',
       message: 'Email is required',
       code: 'parameter_missing',
@@ -90,7 +90,7 @@ describe('HttpClient', () => {
       statusCode: 400,
     });
     await expect(client.Get('/accounts/acct_1')).rejects.toBeInstanceOf(
-      ZonelessApiError
+      FiatDeskApiError
     );
   });
 });

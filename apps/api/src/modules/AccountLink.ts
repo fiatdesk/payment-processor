@@ -2,7 +2,7 @@
  * @fileOverview Methods for AccountLinks
  *
  * Account Links are the means by which a Connect platform grants a connected
- * account permission to access Zoneless-hosted applications, such as Connect Onboarding.
+ * account permission to access FiatDesk-hosted applications, such as Connect Onboarding.
  *
  * @see https://docs.stripe.com/api/account_links
  * @module AccountLink
@@ -16,7 +16,7 @@ import {
   AccountLink,
   AccountLinkRecord,
   AccountLinkType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 /**
  * Converts an internal AccountLinkRecord to the Stripe-compatible API response.
@@ -39,7 +39,7 @@ export class AccountLinkModule {
   }
 
   /**
-   * Creates an AccountLink object that includes a single-use Zoneless URL
+   * Creates an AccountLink object that includes a single-use FiatDesk URL
    * that the platform can redirect their user to in order to take them
    * through the Connect Onboarding flow.
    *

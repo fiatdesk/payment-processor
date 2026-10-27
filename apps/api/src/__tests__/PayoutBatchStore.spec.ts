@@ -1,5 +1,5 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
-import type { PayoutBatch } from '@zoneless/shared-types';
+import type { PayoutBatch } from '@fiatdesk/shared-types';
 import { Database } from '../modules/Database';
 import {
   NONCE_LOCK_STATUSES,
@@ -29,12 +29,12 @@ const WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 function NewBatch(store: PayoutBatchStore): PayoutBatch {
   return store.NewPayoutBatch({
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     wallet_address: WALLET,
     chain_id: 31337,
     nonce: 4,
     batch_id: '0xabc',
-    payouts: ['po_z_1'],
+    payouts: ['po_fd_1'],
     total_amount: 1000,
     transaction_type: 'payout',
     to: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
@@ -62,7 +62,7 @@ describe('PayoutBatchStore', () => {
   describe('NewPayoutBatch', () => {
     it('starts a built batch with a pob id and no hashes', () => {
       expect(NewBatch(store)).toMatchObject({
-        id: 'pob_z_test001',
+        id: 'pob_fd_test001',
         object: 'payout_batch',
         status: 'built',
         transaction_hash: null,
@@ -122,7 +122,7 @@ describe('PayoutBatchStore', () => {
       db.Query.mockResolvedValue([batch]);
 
       await expect(
-        store.FindOutstanding('acct_z_platform', 31337, WALLET)
+        store.FindOutstanding('acct_fd_platform', 31337, WALLET)
       ).resolves.toBe(batch);
       expect(db.Query).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -131,7 +131,7 @@ describe('PayoutBatchStore', () => {
             {
               key: 'platform_account',
               operator: '==',
-              value: 'acct_z_platform',
+              value: 'acct_fd_platform',
             },
             { key: 'chain_id', operator: '==', value: 31337 },
             { key: 'wallet_address', operator: '==', value: WALLET },
@@ -173,7 +173,7 @@ describe('PayoutBatchStore', () => {
     });
 
     it('finds a platform’s replaced batches holding any of the payouts', async () => {
-      await store.FindReplacedWithPayouts('acct_z_platform', ['po_z_1']);
+      await store.FindReplacedWithPayouts('acct_fd_platform', ['po_fd_1']);
 
       expect(db.Query).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -181,9 +181,9 @@ describe('PayoutBatchStore', () => {
             {
               key: 'platform_account',
               operator: '==',
-              value: 'acct_z_platform',
+              value: 'acct_fd_platform',
             },
-            { key: 'payouts', operator: 'in', value: ['po_z_1'] },
+            { key: 'payouts', operator: 'in', value: ['po_fd_1'] },
             { key: 'status', operator: '==', value: 'replaced' },
           ],
         })
@@ -192,12 +192,12 @@ describe('PayoutBatchStore', () => {
 
     it('returns null when the wallet has no outstanding batch', async () => {
       await expect(
-        store.FindOutstanding('acct_z_platform', null, WALLET)
+        store.FindOutstanding('acct_fd_platform', null, WALLET)
       ).resolves.toBeNull();
     });
 
     it('gets a batch only for the platform that owns it', async () => {
-      await store.GetForPlatform('acct_z_platform', 'pob_z_1');
+      await store.GetForPlatform('acct_fd_platform', 'pob_fd_1');
 
       expect(db.Query).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -205,22 +205,26 @@ describe('PayoutBatchStore', () => {
             {
               key: 'platform_account',
               operator: '==',
-              value: 'acct_z_platform',
+              value: 'acct_fd_platform',
             },
-            { key: 'id', operator: '==', value: 'pob_z_1' },
+            { key: 'id', operator: '==', value: 'pob_fd_1' },
           ],
         })
       );
     });
 
     it('lists a platform’s outstanding batches oldest first', async () => {
-      await store.ListOutstanding('acct_z_platform');
+      await store.ListOutstanding('acct_fd_platform');
 
       expect(db.Query).toHaveBeenCalledWith({
         method: 'READ',
         collection: 'PayoutBatches',
         parameters: [
-          { key: 'platform_account', operator: '==', value: 'acct_z_platform' },
+          {
+            key: 'platform_account',
+            operator: '==',
+            value: 'acct_fd_platform',
+          },
           {
             key: 'status',
             operator: 'in',
@@ -232,12 +236,12 @@ describe('PayoutBatchStore', () => {
     });
 
     it('finds outstanding batches that contain any of the payouts', async () => {
-      await store.FindOutstandingWithPayouts(['po_z_1', 'po_z_2']);
+      await store.FindOutstandingWithPayouts(['po_fd_1', 'po_fd_2']);
 
       expect(db.Query).toHaveBeenCalledWith(
         expect.objectContaining({
           parameters: [
-            { key: 'payouts', operator: 'in', value: ['po_z_1', 'po_z_2'] },
+            { key: 'payouts', operator: 'in', value: ['po_fd_1', 'po_fd_2'] },
             {
               key: 'status',
               operator: 'in',
@@ -249,7 +253,7 @@ describe('PayoutBatchStore', () => {
     });
 
     it('finds a platform’s batch by any of its transaction hashes', async () => {
-      await store.FindByTransactionHash('acct_z_platform', '0xfeed');
+      await store.FindByTransactionHash('acct_fd_platform', '0xfeed');
 
       expect(db.Query).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -257,7 +261,7 @@ describe('PayoutBatchStore', () => {
             {
               key: 'platform_account',
               operator: '==',
-              value: 'acct_z_platform',
+              value: 'acct_fd_platform',
             },
             { key: 'transaction_hashes', operator: '==', value: '0xfeed' },
           ],
@@ -285,7 +289,7 @@ describe('PayoutBatchStore', () => {
         'PayoutBatches',
         {
           id: batch.id,
-          platform_account: 'acct_z_platform',
+          platform_account: 'acct_fd_platform',
           status: { $in: ['built'] },
         },
         {
@@ -303,7 +307,7 @@ describe('PayoutBatchStore', () => {
     it('rejects with 409 when the batch moved on concurrently', async () => {
       await expect(
         store.Transition(
-          { id: 'pob_z_1', platform_account: 'acct_z_platform' },
+          { id: 'pob_fd_1', platform_account: 'acct_fd_platform' },
           ['built'],
           { status: 'broadcast' }
         )

@@ -20,7 +20,7 @@ export const ACCOUNTS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const ACCOUNT_OBJECT_JSON = `{
-  "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "object": "account",
   "business_profile": {
     "mcc": null,
@@ -45,8 +45,8 @@ const ACCOUNT_OBJECT_JSON = `{
     "losses": {
       "payments": "application"
     },
-    "requirement_collection": "zoneless",
-    "zoneless_dashboard": {
+    "requirement_collection": "fiatdesk",
+    "fiatdesk_dashboard": {
       "type": "express"
     },
     "type": "application"
@@ -61,7 +61,7 @@ const ACCOUNT_OBJECT_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../external_accounts"
+    "url": "/v1/accounts/acct_fd_1Nv0.../external_accounts"
   },
   "future_requirements": {
     "alternatives": [],
@@ -74,9 +74,9 @@ const ACCOUNT_OBJECT_JSON = `{
     "pending_verification": []
   },
   "individual": {
-    "id": "person_z_1Nv0FGQ9RKHgCVdK",
+    "id": "person_fd_1Nv0FGQ9RKHgCVdK",
     "object": "person",
-    "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+    "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
     "address": null,
     "created": 1704067200,
     "dob": null,
@@ -110,11 +110,11 @@ const ACCOUNT_OBJECT_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../login_links"
+    "url": "/v1/accounts/acct_fd_1Nv0.../login_links"
   },
   "metadata": {},
   "payouts_enabled": false,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": {
     "alternatives": [],
     "current_deadline": null,
@@ -175,7 +175,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless account IDs are prefixed with <code>acct_z_</code>.',
+      'Unique identifier for the object. FiatDesk account IDs are prefixed with <code>acct_fd_</code>.',
   },
   {
     name: 'object',
@@ -260,7 +260,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     description:
       'A hash containing the set of capabilities that was requested for this account and their associated states. Keys are names of capabilities. Values may be <code>active</code>, <code>inactive</code>, or <code>pending</code>.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Zoneless has two capabilities: <code>transfers</code> and <code>usdc_payouts</code>. Stripe's payment method capabilities (card_payments, etc.) are not applicable since Zoneless uses USDC on Ethereum.",
+      "<strong>Difference from Stripe:</strong> FiatDesk has two capabilities: <code>transfers</code> and <code>usdc_payouts</code>. Stripe's payment method capabilities (card_payments, etc.) are not applicable since FiatDesk uses USDC on Ethereum.",
     expandable: true,
     children: [
       {
@@ -287,7 +287,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     description:
       'Whether the account can receive charges/payments. Defaults to <code>false</code> until the account completes onboarding.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> In Stripe, this indicates whether the account can process card payments. In Zoneless, this field is retained for API compatibility but is less relevant since Zoneless handles USDC payouts rather than card processing.',
+      '<strong>Difference from Stripe:</strong> In Stripe, this indicates whether the account can process card payments. In FiatDesk, this field is retained for API compatibility but is less relevant since FiatDesk handles USDC payouts rather than card processing.',
   },
   {
     name: 'controller',
@@ -311,9 +311,9 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
         description: 'Who collects onboarding requirements.',
         enumValues: [
           {
-            value: 'zoneless',
+            value: 'fiatdesk',
             description:
-              'Requirements are collected via the Zoneless Express dashboard (recommended).',
+              'Requirements are collected via the FiatDesk Express dashboard (recommended).',
           },
           {
             value: 'application',
@@ -322,7 +322,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
         ],
       },
       {
-        name: 'zoneless_dashboard',
+        name: 'fiatdesk_dashboard',
         type: 'object',
         nullable: true,
         description: 'Dashboard access configuration.',
@@ -340,7 +340,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
               {
                 value: 'none',
                 description:
-                  'No Zoneless dashboard. Platform provides its own UI.',
+                  'No FiatDesk dashboard. Platform provides its own UI.',
               },
             ],
           },
@@ -374,7 +374,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     name: 'default_currency',
     type: 'string',
     description:
-      'The default currency for the account. For Zoneless accounts, this is always <code>usdc</code>.',
+      'The default currency for the account. For FiatDesk accounts, this is always <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Always <code>usdc</code> instead of fiat currency codes like <code>usd</code>.',
   },
@@ -382,7 +382,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     name: 'details_submitted',
     type: 'boolean',
     description:
-      'Whether account details have been submitted. Accounts with Zoneless Dashboard access, which includes Express accounts, cannot receive payouts before this is true. Accounts where this is false should be directed to an onboarding flow to finish submitting account details.',
+      'Whether account details have been submitted. Accounts with FiatDesk Dashboard access, which includes Express accounts, cannot receive payouts before this is true. Accounts where this is false should be directed to an onboarding flow to finish submitting account details.',
   },
   {
     name: 'email',
@@ -410,7 +410,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
         name: 'data',
         type: 'array of objects',
         description:
-          'The list contains all external wallets that have been attached to the Zoneless account. These are Ethereum wallet addresses that can receive USDC payouts.',
+          'The list contains all external wallets that have been attached to the FiatDesk account. These are Ethereum wallet addresses that can receive USDC payouts.',
       },
       {
         name: 'has_more',
@@ -501,7 +501,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     type: 'object',
     nullable: true,
     description:
-      'Information about the person represented by the account. This property is null unless <code>business_type</code> is set to <code>individual</code>. After you create an Account Link to start Zoneless Onboarding, only a subset of this property is returned for accounts where <code>controller.requirement_collection</code> is <code>zoneless</code>, which includes Express accounts.',
+      'Information about the person represented by the account. This property is null unless <code>business_type</code> is set to <code>individual</code>. After you create an Account Link to start FiatDesk Onboarding, only a subset of this property is returned for accounts where <code>controller.requirement_collection</code> is <code>fiatdesk</code>, which includes Express accounts.',
     expandable: true,
     children: [
       {
@@ -683,14 +683,14 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this account. For connected accounts, this is the platform's account ID. For platform accounts, this is self-referential (equals the account's own <code>id</code>).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation where multiple platforms can each have their own connected accounts.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation where multiple platforms can each have their own connected accounts.",
   },
   {
     name: 'requirements',
     type: 'object',
     nullable: true,
     description:
-      'Details about the requirements for the account, including what information needs to be collected, verified, or reviewed, and by when. After a requirement is collected, verified, or reviewed, it is considered resolved. Most requirements can be addressed programmatically, however, some must be completed through a form or challenge using the Zoneless Interface.',
+      'Details about the requirements for the account, including what information needs to be collected, verified, or reviewed, and by when. After a requirement is collected, verified, or reviewed, it is considered resolved. Most requirements can be addressed programmatically, however, some must be completed through a form or challenge using the FiatDesk Interface.',
     expandable: true,
     children: [
       {
@@ -791,15 +791,15 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
     type: 'object',
     nullable: true,
     description:
-      'Options for customizing how the account functions within Zoneless.',
+      'Options for customizing how the account functions within FiatDesk.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settings are simpler since they focus on USDC payouts rather than card payments, invoices, and other Stripe-specific features.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settings are simpler since they focus on USDC payouts rather than card payments, invoices, and other Stripe-specific features.',
     children: [
       {
         name: 'branding',
         type: 'object',
         description:
-          "Settings used to apply the account's branding to the dashboard and other Zoneless surfaces.",
+          "Settings used to apply the account's branding to the dashboard and other FiatDesk surfaces.",
         children: [
           {
             name: 'icon',
@@ -835,21 +835,21 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
         name: 'dashboard',
         type: 'object',
         description:
-          'Settings used to configure the account within the Zoneless dashboard.',
+          'Settings used to configure the account within the FiatDesk dashboard.',
         children: [
           {
             name: 'display_name',
             type: 'string',
             nullable: true,
             description:
-              'The display name for this account. This is used on the Zoneless Dashboard to differentiate between accounts.',
+              'The display name for this account. This is used on the FiatDesk Dashboard to differentiate between accounts.',
           },
           {
             name: 'timezone',
             type: 'string',
             nullable: true,
             description:
-              'The timezone used in the Zoneless Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
+              'The timezone used in the FiatDesk Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
           },
         ],
       },
@@ -862,9 +862,9 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
             name: 'debit_negative_balances',
             type: 'boolean',
             description:
-              'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
+              'A Boolean indicating whether FiatDesk should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, FiatDesk cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -935,7 +935,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
         description:
           "URL to the platform's Terms of Service page. Only present on platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
       },
       {
         name: 'privacy_url',
@@ -944,7 +944,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
         description:
           "URL to the platform's Privacy Policy page. Only present on platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
       },
     ],
   },
@@ -953,7 +953,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
     type: 'object',
     nullable: true,
     description:
-      'Details on the acceptance of the Zoneless Services Agreement by the account representative.',
+      'Details on the acceptance of the FiatDesk Services Agreement by the account representative.',
     children: [
       {
         name: 'date',
@@ -977,7 +977,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
         enumValues: [
           {
             value: 'full',
-            description: 'The full Zoneless services agreement.',
+            description: 'The full FiatDesk services agreement.',
           },
           {
             value: 'recipient',
@@ -998,17 +998,17 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
     name: 'type',
     type: 'enum',
     description:
-      'The Zoneless account type. For most platforms, <code>express</code> is recommended.',
+      'The FiatDesk account type. For most platforms, <code>express</code> is recommended.',
     enumValues: [
       {
         value: 'express',
         description:
-          'Zoneless-hosted onboarding and dashboard. Recommended for most platforms.',
+          'FiatDesk-hosted onboarding and dashboard. Recommended for most platforms.',
       },
       {
         value: 'custom',
         description:
-          'Platform handles onboarding, Zoneless handles payouts. For advanced use cases.',
+          'Platform handles onboarding, FiatDesk handles payouts. For advanced use cases.',
       },
     ],
   },
@@ -1021,7 +1021,7 @@ export const ACCOUNTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Account object',
   description:
-    'This is an object representing a Zoneless account. You can retrieve it to see properties on the account like its current requirements or if the account is enabled to receive transfers and USDC payouts to their Ethereum wallet.',
+    'This is an object representing a FiatDesk account. You can retrieve it to see properties on the account like its current requirements or if the account is enabled to receive transfers and USDC payouts to their Ethereum wallet.',
   stripeDocsUrl: 'https://docs.stripe.com/api/accounts',
   endpoints: BuildEndpointSummaries(ACCOUNTS_SUBSECTION, [
     { method: 'POST', path: '/v1/accounts', pageId: 'create' },
@@ -1039,7 +1039,7 @@ export const ACCOUNTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Zoneless accounts receive USDC payouts to their Ethereum wallet. Create an account for each seller/recipient on your platform, then send them payouts.',
+          text: 'FiatDesk accounts receive USDC payouts to their Ethereum wallet. Create an account for each seller/recipient on your platform, then send them payouts.',
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -1151,7 +1151,7 @@ const CREATE_ACCOUNT_PARAMETERS: Attribute[] = [
         description:
           'The USDC payouts capability allows the account to receive USDC payouts to their Ethereum wallet.',
         enumNote:
-          "<strong>Zoneless-specific:</strong> This replaces Stripe's various payment method capabilities.",
+          "<strong>FiatDesk-specific:</strong> This replaces Stripe's various payment method capabilities.",
         children: [
           {
             name: 'requested',
@@ -1191,7 +1191,7 @@ const CREATE_ACCOUNT_PARAMETERS: Attribute[] = [
         ],
       },
       {
-        name: 'zoneless_dashboard',
+        name: 'fiatdesk_dashboard',
         type: 'object',
         description: 'Dashboard access configuration.',
         children: [
@@ -1225,7 +1225,7 @@ const CREATE_ACCOUNT_PARAMETERS: Attribute[] = [
     name: 'default_currency',
     type: 'string',
     description:
-      'Three-letter ISO currency code representing the default currency for the account. For Zoneless accounts, this is typically <code>usdc</code>.',
+      'Three-letter ISO currency code representing the default currency for the account. For FiatDesk accounts, this is typically <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Defaults to <code>usdc</code> instead of fiat currency codes.',
   },
@@ -1248,14 +1248,14 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
     name: 'settings',
     type: 'object',
     description:
-      'Options for customizing how the account functions within Zoneless.',
+      'Options for customizing how the account functions within FiatDesk.',
     expandable: true,
     children: [
       {
         name: 'branding',
         type: 'object',
         description:
-          "Settings used to apply the account's branding to the dashboard and other Zoneless surfaces.",
+          "Settings used to apply the account's branding to the dashboard and other FiatDesk surfaces.",
         children: [
           {
             name: 'icon',
@@ -1287,19 +1287,19 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         name: 'dashboard',
         type: 'object',
         description:
-          'Settings used to configure the account within the Zoneless dashboard.',
+          'Settings used to configure the account within the FiatDesk dashboard.',
         children: [
           {
             name: 'display_name',
             type: 'string',
             description:
-              'The display name for this account. This is used on the Zoneless Dashboard to differentiate between accounts.',
+              'The display name for this account. This is used on the FiatDesk Dashboard to differentiate between accounts.',
           },
           {
             name: 'timezone',
             type: 'string',
             description:
-              'The timezone used in the Zoneless Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
+              'The timezone used in the FiatDesk Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
           },
         ],
       },
@@ -1312,9 +1312,9 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             name: 'debit_negative_balances',
             type: 'boolean',
             description:
-              'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances.',
+              'A Boolean indicating whether FiatDesk should deduct future payouts to recover negative balances.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, FiatDesk cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -1365,7 +1365,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         description:
           "URL to the platform's Terms of Service page. Only applicable for platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It is used to display the platform's terms during connected account onboarding.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It is used to display the platform's terms during connected account onboarding.",
       },
       {
         name: 'privacy_url',
@@ -1374,7 +1374,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         description:
           "URL to the platform's Privacy Policy page. Only applicable for platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It is used to display the platform's privacy policy during connected account onboarding.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It is used to display the platform's privacy policy during connected account onboarding.",
       },
     ],
   },
@@ -1382,7 +1382,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
     name: 'tos_acceptance',
     type: 'object',
     description:
-      "Details on the account's acceptance of the Zoneless Services Agreement. This property can only be updated for accounts where <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts. This property defaults to a <code>full</code> service agreement when empty.",
+      "Details on the account's acceptance of the FiatDesk Services Agreement. This property can only be updated for accounts where <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts. This property defaults to a <code>full</code> service agreement when empty.",
     children: [
       {
         name: 'date',
@@ -1403,7 +1403,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         enumValues: [
           {
             value: 'full',
-            description: 'The full Zoneless services agreement.',
+            description: 'The full FiatDesk services agreement.',
           },
           {
             value: 'recipient',
@@ -1423,17 +1423,17 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
     name: 'type',
     type: 'enum',
     description:
-      'The type of Zoneless account to create. Defaults to <code>express</code> if not specified.',
+      'The type of FiatDesk account to create. Defaults to <code>express</code> if not specified.',
     enumValues: [
       {
         value: 'express',
         description:
-          'Zoneless-hosted onboarding and dashboard. Recommended for most platforms.',
+          'FiatDesk-hosted onboarding and dashboard. Recommended for most platforms.',
       },
       {
         value: 'custom',
         description:
-          'Platform handles onboarding, Zoneless handles payouts. For advanced use cases.',
+          'Platform handles onboarding, FiatDesk handles payouts. For advanced use cases.',
       },
     ],
   },
@@ -1443,7 +1443,7 @@ export const ACCOUNTS_CREATE_PAGE: DocPage = {
   id: 'create',
   title: 'Create an account',
   description:
-    "With Zoneless, you can create accounts for your users. To do this, you'll first need to register your platform.",
+    "With FiatDesk, you can create accounts for your users. To do this, you'll first need to register your platform.",
   endpoints: [{ method: 'POST', path: '/v1/accounts' }],
   sections: [
     {
@@ -1452,7 +1452,7 @@ export const ACCOUNTS_CREATE_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Quick start: ',
-          text: 'For most use cases, you only need to provide <code>country</code> and <code>email</code>. Zoneless will handle the rest via the onboarding flow.',
+          text: 'For most use cases, you only need to provide <code>country</code> and <code>email</code>. FiatDesk will handle the rest via the onboarding flow.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -1477,23 +1477,23 @@ export const ACCOUNTS_CREATE_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d country=US \\
   --data-urlencode email="tom.jones@example.com" \\
   -d "controller[losses][payments]"=application \\
-  -d "controller[zoneless_dashboard][type]"=express`,
+  -d "controller[fiatdesk_dashboard][type]"=express`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const account = await zoneless.accounts.create({
+const account = await fiatdesk.accounts.create({
   country: 'US',
   email: 'tom.jones@example.com',
   controller: {
     losses: { payments: 'application' },
-    zoneless_dashboard: { type: 'express' },
+    fiatdesk_dashboard: { type: 'express' },
   },
 });`,
             },
@@ -1530,15 +1530,15 @@ export const ACCOUNTS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const account = await zoneless.accounts.retrieve('acct_z_1Nv0FGQ9RKHgCVdK');`,
+const account = await fiatdesk.accounts.retrieve('acct_fd_1Nv0FGQ9RKHgCVdK');`,
             },
           ],
         },
@@ -1640,7 +1640,7 @@ const UPDATE_ACCOUNT_PARAMETERS: Attribute[] = [
         description:
           'The USDC payouts capability allows the account to receive USDC payouts to their Ethereum wallet.',
         enumNote:
-          "<strong>Zoneless-specific:</strong> This replaces Stripe's various payment method capabilities.",
+          "<strong>FiatDesk-specific:</strong> This replaces Stripe's various payment method capabilities.",
         children: [
           {
             name: 'requested',
@@ -1656,7 +1656,7 @@ const UPDATE_ACCOUNT_PARAMETERS: Attribute[] = [
     name: 'default_currency',
     type: 'string',
     description:
-      'Three-letter ISO currency code representing the default currency for the account. For Zoneless accounts, this is typically <code>usdc</code>.',
+      'Three-letter ISO currency code representing the default currency for the account. For FiatDesk accounts, this is typically <code>usdc</code>.',
     enumNote:
       '<strong>Difference from Stripe:</strong> Defaults to <code>usdc</code> instead of fiat currency codes.',
   },
@@ -1679,16 +1679,16 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
     name: 'settings',
     type: 'object',
     description:
-      'Options for customizing how the account functions within Zoneless.',
+      'Options for customizing how the account functions within FiatDesk.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless settings are simpler since they focus on USDC payouts rather than card payments, invoices, and other Stripe-specific features.',
+      '<strong>Difference from Stripe:</strong> FiatDesk settings are simpler since they focus on USDC payouts rather than card payments, invoices, and other Stripe-specific features.',
     expandable: true,
     children: [
       {
         name: 'branding',
         type: 'object',
         description:
-          "Settings used to apply the account's branding to the dashboard and other Zoneless surfaces.",
+          "Settings used to apply the account's branding to the dashboard and other FiatDesk surfaces.",
         children: [
           {
             name: 'icon',
@@ -1724,21 +1724,21 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         name: 'dashboard',
         type: 'object',
         description:
-          'Settings used to configure the account within the Zoneless dashboard.',
+          'Settings used to configure the account within the FiatDesk dashboard.',
         children: [
           {
             name: 'display_name',
             type: 'string',
             nullable: true,
             description:
-              'The display name for this account. This is used on the Zoneless Dashboard to differentiate between accounts.',
+              'The display name for this account. This is used on the FiatDesk Dashboard to differentiate between accounts.',
           },
           {
             name: 'timezone',
             type: 'string',
             nullable: true,
             description:
-              'The timezone used in the Zoneless Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
+              'The timezone used in the FiatDesk Dashboard for this account. A list of possible time zone values is maintained at the IANA Time Zone Database.',
           },
         ],
       },
@@ -1751,9 +1751,9 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             name: 'debit_negative_balances',
             type: 'boolean',
             description:
-              'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
+              'A Boolean indicating whether FiatDesk should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, FiatDesk cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -1817,7 +1817,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         description:
           "URL to the platform's Terms of Service page. Only applicable for platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It is used to display the platform's terms during connected account onboarding.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It is used to display the platform's terms during connected account onboarding.",
       },
       {
         name: 'privacy_url',
@@ -1826,7 +1826,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         description:
           "URL to the platform's Privacy Policy page. Only applicable for platform accounts.",
         enumNote:
-          "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It is used to display the platform's privacy policy during connected account onboarding.",
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It is used to display the platform's privacy policy during connected account onboarding.",
       },
     ],
   },
@@ -1834,7 +1834,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
     name: 'tos_acceptance',
     type: 'object',
     description:
-      "Details on the account's acceptance of the Zoneless Services Agreement. This property can only be updated for accounts where <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts. This property defaults to a <code>full</code> service agreement when empty.",
+      "Details on the account's acceptance of the FiatDesk Services Agreement. This property can only be updated for accounts where <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts. This property defaults to a <code>full</code> service agreement when empty.",
     children: [
       {
         name: 'date',
@@ -1855,7 +1855,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
         enumValues: [
           {
             value: 'full',
-            description: 'The full Zoneless services agreement.',
+            description: 'The full FiatDesk services agreement.',
           },
           {
             value: 'recipient',
@@ -1874,7 +1874,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
 ];
 
 const ACCOUNT_UPDATE_RESPONSE_JSON = `{
-  "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "object": "account",
   "business_profile": {
     "mcc": null,
@@ -1899,8 +1899,8 @@ const ACCOUNT_UPDATE_RESPONSE_JSON = `{
     "losses": {
       "payments": "application"
     },
-    "requirement_collection": "zoneless",
-    "zoneless_dashboard": {
+    "requirement_collection": "fiatdesk",
+    "fiatdesk_dashboard": {
       "type": "express"
     },
     "type": "application"
@@ -1915,7 +1915,7 @@ const ACCOUNT_UPDATE_RESPONSE_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../external_accounts"
+    "url": "/v1/accounts/acct_fd_1Nv0.../external_accounts"
   },
   "future_requirements": {
     "alternatives": [],
@@ -1928,9 +1928,9 @@ const ACCOUNT_UPDATE_RESPONSE_JSON = `{
     "pending_verification": []
   },
   "individual": {
-    "id": "person_z_1Nv0FGQ9RKHgCVdK",
+    "id": "person_fd_1Nv0FGQ9RKHgCVdK",
     "object": "person",
-    "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+    "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
     "address": null,
     "created": 1704067200,
     "dob": null,
@@ -1964,13 +1964,13 @@ const ACCOUNT_UPDATE_RESPONSE_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../login_links"
+    "url": "/v1/accounts/acct_fd_1Nv0.../login_links"
   },
   "metadata": {
     "order_id": "6735"
   },
   "payouts_enabled": false,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": {
     "alternatives": [],
     "current_deadline": null,
@@ -2056,8 +2056,8 @@ export const ACCOUNTS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d "metadata[order_id]"=6735`,
             },
             {
@@ -2065,8 +2065,8 @@ export const ACCOUNTS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const account = await zoneless.accounts.update(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
+const account = await fiatdesk.accounts.update(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
   {
     metadata: {
       order_id: '6735',
@@ -2087,7 +2087,7 @@ const account = await zoneless.accounts.update(
 };
 
 const ACCOUNT_DELETE_RESPONSE_JSON = `{
-  "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "object": "account",
   "deleted": true
 }`;
@@ -2095,7 +2095,7 @@ const ACCOUNT_DELETE_RESPONSE_JSON = `{
 export const ACCOUNTS_DELETE_PAGE: DocPage = {
   id: 'delete',
   title: 'Delete an account',
-  description: 'With Zoneless, you can delete accounts you manage.',
+  description: 'With FiatDesk, you can delete accounts you manage.',
   endpoints: [{ method: 'DELETE', path: '/v1/accounts/:id' }],
   sections: [
     {
@@ -2117,15 +2117,15 @@ export const ACCOUNTS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.accounts.del('acct_z_1Nv0FGQ9RKHgCVdK');`,
+const deleted = await fiatdesk.accounts.del('acct_fd_1Nv0FGQ9RKHgCVdK');`,
             },
           ],
         },
@@ -2176,7 +2176,7 @@ const LIST_ACCOUNTS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>acct_z_bar</code>, your subsequent call can include <code>ending_before=acct_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>acct_fd_bar</code>, your subsequent call can include <code>ending_before=acct_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -2188,7 +2188,7 @@ const LIST_ACCOUNTS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>acct_z_foo</code>, your subsequent call can include <code>starting_after=acct_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>acct_fd_foo</code>, your subsequent call can include <code>starting_after=acct_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
@@ -2198,7 +2198,7 @@ const LIST_ACCOUNTS_RESPONSE_JSON = `{
   "has_more": false,
   "data": [
     {
-      "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "object": "account",
       "business_profile": {
         "mcc": null,
@@ -2223,8 +2223,8 @@ const LIST_ACCOUNTS_RESPONSE_JSON = `{
         "losses": {
           "payments": "application"
         },
-        "requirement_collection": "zoneless",
-        "zoneless_dashboard": {
+        "requirement_collection": "fiatdesk",
+        "fiatdesk_dashboard": {
           "type": "express"
         },
         "type": "application"
@@ -2246,7 +2246,7 @@ const LIST_ACCOUNTS_RESPONSE_JSON = `{
       },
       "metadata": {},
       "payouts_enabled": false,
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "requirements": {
         "alternatives": [],
         "current_deadline": null,
@@ -2308,7 +2308,7 @@ export const ACCOUNTS_LIST_PAGE: DocPage = {
   id: 'list',
   title: 'List all connected accounts',
   description:
-    'Returns a list of accounts connected to your platform via Zoneless. This endpoint requires a platform API key.',
+    'Returns a list of accounts connected to your platform via FiatDesk. This endpoint requires a platform API key.',
   endpoints: [{ method: 'GET', path: '/v1/accounts' }],
   sections: [
     {
@@ -2336,7 +2336,7 @@ export const ACCOUNTS_LIST_PAGE: DocPage = {
               id: 'curl',
               label: 'cURL',
               code: `curl -G https://api.yourdomain.com/v1/accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -2344,7 +2344,7 @@ export const ACCOUNTS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const accounts = await zoneless.accounts.list({
+const accounts = await fiatdesk.accounts.list({
   limit: 3,
 });`,
             },
@@ -2388,7 +2388,7 @@ const REJECT_ACCOUNT_PARAMETERS: Attribute[] = [
 ];
 
 const ACCOUNT_REJECT_RESPONSE_JSON = `{
-  "id": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "id": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "object": "account",
   "business_profile": {
     "mcc": null,
@@ -2413,8 +2413,8 @@ const ACCOUNT_REJECT_RESPONSE_JSON = `{
     "losses": {
       "payments": "application"
     },
-    "requirement_collection": "zoneless",
-    "zoneless_dashboard": {
+    "requirement_collection": "fiatdesk",
+    "fiatdesk_dashboard": {
       "type": "express"
     },
     "type": "application"
@@ -2429,7 +2429,7 @@ const ACCOUNT_REJECT_RESPONSE_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../external_accounts"
+    "url": "/v1/accounts/acct_fd_1Nv0.../external_accounts"
   },
   "future_requirements": {
     "alternatives": [],
@@ -2442,9 +2442,9 @@ const ACCOUNT_REJECT_RESPONSE_JSON = `{
     "pending_verification": []
   },
   "individual": {
-    "id": "person_z_1Nv0FGQ9RKHgCVdK",
+    "id": "person_fd_1Nv0FGQ9RKHgCVdK",
     "object": "person",
-    "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+    "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
     "address": null,
     "created": 1704067200,
     "dob": null,
@@ -2478,11 +2478,11 @@ const ACCOUNT_REJECT_RESPONSE_JSON = `{
     "data": [],
     "has_more": false,
     "total_count": 0,
-    "url": "/v1/accounts/acct_z_1Nv0.../login_links"
+    "url": "/v1/accounts/acct_fd_1Nv0.../login_links"
   },
   "metadata": {},
   "payouts_enabled": false,
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": {
     "alternatives": [],
     "current_deadline": null,
@@ -2526,7 +2526,7 @@ export const ACCOUNTS_REJECT_PAGE: DocPage = {
   id: 'reject',
   title: 'Reject an account',
   description:
-    'With Zoneless, you can reject accounts that you have flagged as suspicious. Only accounts where your platform is liable for negative account balances, which includes Custom and Express accounts, can be rejected. Accounts can only be rejected after all balances are zero.',
+    'With FiatDesk, you can reject accounts that you have flagged as suspicious. Only accounts where your platform is liable for negative account balances, which includes Custom and Express accounts, can be rejected. Accounts can only be rejected after all balances are zero.',
   endpoints: [{ method: 'POST', path: '/v1/accounts/:id/reject' }],
   sections: [
     {
@@ -2551,8 +2551,8 @@ export const ACCOUNTS_REJECT_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/reject \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/reject \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d reason=fraud`,
             },
             {
@@ -2560,8 +2560,8 @@ export const ACCOUNTS_REJECT_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const account = await zoneless.accounts.reject(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
+const account = await fiatdesk.accounts.reject(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
   {
     reason: 'fraud',
   }

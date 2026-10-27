@@ -8,7 +8,7 @@ import { RecurringIntervalSchema } from './PriceSchema';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Controls how Zoneless handles payment when a subscription update requires payment
+ * Controls how FiatDesk handles payment when a subscription update requires payment
  * and `collection_method=charge_automatically`.
  */
 export const SubscriptionPaymentBehaviorSchema = z.enum([

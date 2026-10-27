@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { PaymentIntent } from '@zoneless/shared-types';
-import { UpdatePaymentIntentInput } from '@zoneless/shared-schemas';
+import { PaymentIntent } from '@fiatdesk/shared-types';
+import { UpdatePaymentIntentInput } from '@fiatdesk/shared-schemas';
 
 @Injectable({
   providedIn: 'root',

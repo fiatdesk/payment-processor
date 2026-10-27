@@ -1,6 +1,6 @@
 import { BaseResource } from './Base';
 import { RequestExtraOptions } from '../HttpClient';
-import { Balance } from '@zoneless/shared-types';
+import { Balance } from '@fiatdesk/shared-types';
 /** @deprecated Use RequestExtraOptions instead */
 export type RetrieveBalanceOptions = RequestExtraOptions;
 

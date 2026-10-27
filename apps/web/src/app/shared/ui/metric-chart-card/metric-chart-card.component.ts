@@ -9,7 +9,7 @@ import type {
   MetricInterval,
   MetricPoint,
   MetricSeries,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { MoreInfoHoverComponent } from '../more-info-hover/more-info-hover.component';
 import { LineChartComponent } from '../line-chart/line-chart.component';
 

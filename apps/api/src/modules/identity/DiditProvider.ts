@@ -14,7 +14,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import {
   IdentityVerificationSessionStatus,
   IdentityVerificationSessionType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AppError } from '../../utils/AppError';
 import { Logger } from '../../utils/Logger';
 import {

@@ -10,12 +10,12 @@ export type ExitCode = (typeof exitCodes)[keyof typeof exitCodes];
 export interface Environment {
   HOME?: string;
   XDG_CONFIG_HOME?: string;
-  ZONELESS_ACTIVATION_URL?: string;
-  ZONELESS_AUTH_POLL_INTERVAL_MS?: string;
-  ZONELESS_AUTH_URL?: string;
-  ZONELESS_API_KEY?: string;
-  ZONELESS_API_URL?: string;
-  ZONELESS_PROFILE?: string;
+  FIATDESK_ACTIVATION_URL?: string;
+  FIATDESK_AUTH_POLL_INTERVAL_MS?: string;
+  FIATDESK_AUTH_URL?: string;
+  FIATDESK_API_KEY?: string;
+  FIATDESK_API_URL?: string;
+  FIATDESK_PROFILE?: string;
 }
 
 export interface Writable {
@@ -35,7 +35,7 @@ export interface DoctorCommand {
   profile?: string;
 }
 
-/** Billing frequencies accepted by the Zoneless prices API. */
+/** Billing frequencies accepted by the FiatDesk prices API. */
 export const recurringIntervals = [
   'hour',
   'day',

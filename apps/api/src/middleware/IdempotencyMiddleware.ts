@@ -5,7 +5,7 @@ import { AppError } from '../utils/AppError';
 import { Logger } from '../utils/Logger';
 import { Now } from '../utils/Timestamp';
 import { Database } from '../modules/Database';
-import { IdempotencyKey } from '@zoneless/shared-types';
+import { IdempotencyKey } from '@fiatdesk/shared-types';
 
 const db = new Database();
 const IDEMPOTENCY_COLLECTION = 'IdempotencyKeys';

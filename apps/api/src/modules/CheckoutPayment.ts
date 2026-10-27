@@ -55,7 +55,7 @@ import { Now } from '../utils/Timestamp';
 import {
   ConfirmCheckoutPaymentInput,
   PrepareCheckoutPaymentInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import {
   Account,
   BalanceTransaction,
@@ -68,7 +68,7 @@ import {
   Product,
   Subscription,
   SubscriptionItem,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 /**
  * What PreparePayment returns: the authorization to sign (payment mode) or

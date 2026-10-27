@@ -3,7 +3,7 @@ import type { Invoice } from './Invoice';
 import { PaymentIntent } from './PaymentIntent';
 
 /**
- * Stripe-compatible Invoice Payment object for Zoneless.
+ * Stripe-compatible Invoice Payment object for FiatDesk.
  * Represents a payment applied toward an invoice. Settled in on-chain USDC.
  *
  * @see https://docs.stripe.com/api/invoice-payment/object
@@ -29,7 +29,7 @@ export interface InvoicePayment {
   /** The invoice that was paid. Expandable. */
   invoice: string | Invoice;
   /**
-   * Zoneless automatically creates a default InvoicePayment when the invoice is finalized, and
+   * FiatDesk automatically creates a default InvoicePayment when the invoice is finalized, and
    * keeps it synchronized with the invoice's amount_remaining. The PaymentIntent associated with
    * the default payment can't be edited or canceled directly.
    */
@@ -45,7 +45,7 @@ export interface InvoicePayment {
 
   /**
    * The platform account that owns this resource.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 }

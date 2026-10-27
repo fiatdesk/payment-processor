@@ -10,7 +10,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { WebhookEndpoint } from '@zoneless/shared-types';
+import { WebhookEndpoint } from '@fiatdesk/shared-types';
 import { VALID_EVENT_TYPES } from '../../../../../data/services/webhook-endpoint.service';
 
 export type WebhookEndpointFormMode = 'create' | 'edit';

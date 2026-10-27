@@ -1,12 +1,12 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService, GetApiErrorCode, type ApiError } from '../../core';
-import { Subscription } from '@zoneless/shared-types';
+import { Subscription } from '@fiatdesk/shared-types';
 import {
   CancelSubscriptionInput,
   CreateSubscriptionInput,
   ResumeSubscriptionInput,
   UpdateSubscriptionInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 /**
  * Shown for a 400 `onchain_plan_amount_exceeded` in place of the API's

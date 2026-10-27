@@ -14,7 +14,7 @@ import {
   IsTransactionHash,
   type Invoice,
   type Subscription,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Subscription as RxSubscription } from 'rxjs';
 import { ConfigService, SubscriptionService } from '../../../../../data';
 import { MetaService } from '../../../../../core';

@@ -5,28 +5,28 @@ export const MIGRATE_FROM_STRIPE_PAGE: DocPage = {
   id: 'migrate-from-stripe',
   title: 'Migrate from Stripe',
   description:
-    'Move a Stripe Connect integration to Zoneless and pay sellers in USDC on Ethereum.',
+    'Move a Stripe Connect integration to FiatDesk and pay sellers in USDC on Ethereum.',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'Zoneless is a drop-in replacement for the Connect side of a Stripe integration. Account creation, Express onboarding, transfers, payouts, and webhooks follow the same API structure, with USDC and Ethereum wallets in place of fiat and bank accounts.',
+          text: 'FiatDesk is a drop-in replacement for the Connect side of a Stripe integration. Account creation, Express onboarding, transfers, payouts, and webhooks follow the same API structure, with USDC and Ethereum wallets in place of fiat and bank accounts.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'You can also use <a href="/checkout-api-quickstart">Zoneless Checkout</a> and the payments APIs, but you do not have to move customer payments. A common setup is to keep collecting payments with Stripe, convert the money you need for seller payouts to USDC, and <a href="/fund-platform-wallet">fund your Zoneless platform wallet</a>.',
+          text: 'You can also use <a href="/checkout-api-quickstart">FiatDesk Checkout</a> and the payments APIs, but you do not have to move customer payments. A common setup is to keep collecting payments with Stripe, convert the money you need for seller payouts to USDC, and <a href="/fund-platform-wallet">fund your FiatDesk platform wallet</a>.',
           html: true,
         },
       ],
     },
     {
       left: [
-        { type: 'heading', level: 2, text: '1. Install the Zoneless SDK' },
+        { type: 'heading', level: 2, text: '1. Install the FiatDesk SDK' },
         {
           type: 'paragraph',
-          text: 'Install <code>@zoneless/node</code>. Keep the Stripe SDK if you still use it to collect customer payments.',
+          text: 'Install <code>@fiatdesk/node</code>. Keep the Stripe SDK if you still use it to collect customer payments.',
           html: true,
         },
       ],
@@ -35,8 +35,8 @@ export const MIGRATE_FROM_STRIPE_PAGE: DocPage = {
           type: 'code',
           title: 'Install',
           tabs: [
-            { id: 'npm', label: 'npm', code: 'npm install @zoneless/node' },
-            { id: 'yarn', label: 'yarn', code: 'yarn add @zoneless/node' },
+            { id: 'npm', label: 'npm', code: 'npm install @fiatdesk/node' },
+            { id: 'yarn', label: 'yarn', code: 'yarn add @fiatdesk/node' },
           ],
         },
       ],
@@ -51,7 +51,7 @@ export const MIGRATE_FROM_STRIPE_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Use <code>https://api.yourdomain.com</code> for Zoneless Cloud, or your own API URL if you self-host. Zoneless IDs use prefixes such as <code>acct_z_</code>, <code>tr_z_</code>, and <code>po_z_</code>.',
+          text: 'Use <code>https://api.yourdomain.com</code> for FiatDesk Cloud, or your own API URL if you self-host. FiatDesk IDs use prefixes such as <code>acct_fd_</code>, <code>tr_fd_</code>, and <code>po_fd_</code>.',
           html: true,
         },
       ],
@@ -74,7 +74,7 @@ const stripe = new Stripe(
 ${NODE_INIT}
 
 // The API call stays the same
-const account = await zoneless.accounts.create({
+const account = await fiatdesk.accounts.create({
   type: 'express',
   country: 'US',
   email: 'seller@example.com',
@@ -93,7 +93,7 @@ const account = await zoneless.accounts.create({
         },
         {
           type: 'paragraph',
-          text: 'Requests made on behalf of a connected account need one naming change. Replace the <code>Stripe-Account</code> header with <code>Zoneless-Account</code>. In the Node.js SDK, replace <code>stripeAccount</code> with <code>zonelessAccount</code>. See <a href="/connected-accounts">Connected Accounts</a> for both examples.',
+          text: 'Requests made on behalf of a connected account need one naming change. Replace the <code>Stripe-Account</code> header with <code>FiatDesk-Account</code>. In the Node.js SDK, replace <code>stripeAccount</code> with <code>fiatdeskAccount</code>. See <a href="/connected-accounts">Connected Accounts</a> for both examples.',
           html: true,
         },
         {
@@ -111,14 +111,14 @@ const account = await zoneless.accounts.create({
               id: 'curl',
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/balance \\
-  -H "x-api-key: $ZONELESS_API_KEY" \\
-  -H "Zoneless-Account: acct_z_1234..."`,
+  -H "x-api-key: $FIATDESK_API_KEY" \\
+  -H "FiatDesk-Account: acct_fd_1234..."`,
             },
             {
               id: 'node',
               label: 'Node.js',
-              code: `const balance = await zoneless.balance.retrieve({
-  zonelessAccount: 'acct_z_1234...',
+              code: `const balance = await fiatdesk.balance.retrieve({
+  fiatdeskAccount: 'acct_fd_1234...',
 });`,
             },
           ],
@@ -136,7 +136,7 @@ const account = await zoneless.accounts.create({
           type: 'list',
           items: [
             {
-              text: 'Create a <strong><a href="/transfers">transfer</a></strong> to credit the connected account\'s Zoneless balance.',
+              text: 'Create a <strong><a href="/transfers">transfer</a></strong> to credit the connected account\'s FiatDesk balance.',
               html: true,
             },
             {
@@ -174,7 +174,7 @@ const account = await zoneless.accounts.create({
         { type: 'heading', level: 3, text: 'Wallets instead of bank accounts' },
         {
           type: 'paragraph',
-          text: 'The <code>external_accounts</code> collection contains Ethereum wallets. Wallet objects use the <code>wa_z_</code> prefix and expose a <code>wallet_address</code> instead of bank routing and account numbers. See <a href="/external-wallets">External Wallets</a>.',
+          text: 'The <code>external_accounts</code> collection contains Ethereum wallets. Wallet objects use the <code>wa_fd_</code> prefix and expose a <code>wallet_address</code> instead of bank routing and account numbers. See <a href="/external-wallets">External Wallets</a>.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'On-chain payout processing' },
@@ -186,19 +186,19 @@ const account = await zoneless.accounts.create({
         { type: 'heading', level: 3, text: 'Payout timing' },
         {
           type: 'paragraph',
-          text: 'Zoneless payouts default to <code>instant</code>. Once submitted, Ethereum transactions usually confirm within about a minute. Payout statuses and failure fields are documented in the <a href="/payouts">Payout object</a>.',
+          text: 'FiatDesk payouts default to <code>instant</code>. Once submitted, Ethereum transactions usually confirm within about a minute. Payout statuses and failure fields are documented in the <a href="/payouts">Payout object</a>.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'Webhook signatures' },
         {
           type: 'paragraph',
-          text: 'Replace <code>stripe.webhooks</code> with <code>zoneless.webhooks</code>, and read the signature from the <code>Zoneless-Signature</code> header. The raw request body and endpoint signing secret are used in the same way. See <a href="/webhooks">Webhooks</a> for a complete Express handler.',
+          text: 'Replace <code>stripe.webhooks</code> with <code>fiatdesk.webhooks</code>, and read the signature from the <code>FiatDesk-Signature</code> header. The raw request body and endpoint signing secret are used in the same way. See <a href="/webhooks">Webhooks</a> for a complete Express handler.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'Cloud or self-hosted' },
         {
           type: 'paragraph',
-          text: 'Zoneless Cloud uses <code>https://api.yourdomain.com</code>. If you <a href="/self-hosting">self-host Zoneless</a>, use your instance URL when you create the SDK client and when you make direct API requests.',
+          text: 'FiatDesk Cloud uses <code>https://api.yourdomain.com</code>. If you <a href="/self-hosting">self-host FiatDesk</a>, use your instance URL when you create the SDK client and when you make direct API requests.',
           html: true,
         },
       ],
@@ -218,9 +218,9 @@ const account = await zoneless.accounts.create({
 // );
 
 // After:
-const event = zoneless.webhooks.constructEvent(
+const event = fiatdesk.webhooks.constructEvent(
   req.rawBody,
-  req.headers['zoneless-signature'],
+  req.headers['fiatdesk-signature'],
   webhookSecret
 );`,
             },
@@ -243,7 +243,7 @@ const event = zoneless.webhooks.constructEvent(
             { text: 'Transfer USDC to the connected account balance.' },
             { text: 'Create and process a payout.' },
             {
-              text: 'Confirm that your webhook handler accepts Zoneless events.',
+              text: 'Confirm that your webhook handler accepts FiatDesk events.',
             },
           ],
         },

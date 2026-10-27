@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import type { Account } from '@zoneless/shared-types';
+import type { Account } from '@fiatdesk/shared-types';
 import { AccountService } from '../../../../../data';
 
 @Component({

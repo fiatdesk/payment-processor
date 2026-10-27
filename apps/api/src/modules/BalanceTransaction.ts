@@ -17,13 +17,13 @@ import {
   BalanceTransactionStatus,
   BalanceTransactionType as BalanceTransactionTypeEnum,
   BalanceTransactionFeeDetail,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { ValidateUpdate } from './Util';
 import {
   CreateBalanceTransactionSchema,
   CreateBalanceTransactionInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 export class BalanceTransactionModule {
   db: Database;

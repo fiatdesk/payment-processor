@@ -30,8 +30,8 @@ import {
   CreateSubscriptionItemSchema,
   UpdateSubscriptionItemSchema,
   DeleteSubscriptionItemSchema,
-} from '@zoneless/shared-schemas';
-import { SubscriptionItem } from '@zoneless/shared-types';
+} from '@fiatdesk/shared-schemas';
+import { SubscriptionItem } from '@fiatdesk/shared-types';
 import { ApplyExpand } from '../utils/Expand';
 
 const router = express.Router();

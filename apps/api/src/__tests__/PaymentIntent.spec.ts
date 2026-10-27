@@ -10,7 +10,7 @@ import {
   PaymentIntentAmountDetailsLineItem,
   QueryOperators,
   INCOMPLETE_PAYMENT_INTENT_STATUSES,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CreateMockDatabase,
   DeterministicId,
@@ -60,13 +60,13 @@ describe('PaymentIntentModule', () => {
 
   describe('PaymentIntentObject', () => {
     it('should create a PaymentIntent with sensible defaults', () => {
-      const paymentIntent = module.PaymentIntentObject('acct_z_platform', {
+      const paymentIntent = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
 
       expect(paymentIntent.object).toBe('payment_intent');
-      expect(paymentIntent.platform_account).toBe('acct_z_platform');
+      expect(paymentIntent.platform_account).toBe('acct_fd_platform');
       expect(paymentIntent.amount).toBe(2000);
       expect(paymentIntent.amount_capturable).toBe(0);
       expect(paymentIntent.amount_received).toBe(0);
@@ -101,7 +101,7 @@ describe('PaymentIntentModule', () => {
     });
 
     it('should accept provided input fields', () => {
-      const paymentIntent = module.PaymentIntentObject('acct_z_platform', {
+      const paymentIntent = module.PaymentIntentObject('acct_fd_platform', {
         amount: 5000,
         currency: 'usdc',
         application_fee_amount: 100,
@@ -111,10 +111,10 @@ describe('PaymentIntentModule', () => {
         },
         capture_method: 'manual',
         confirmation_method: 'manual',
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
         description: 'Test payment',
         metadata: { order_id: '123' },
-        payment_method: 'pm_z_1',
+        payment_method: 'pm_fd_1',
         payment_method_types: ['crypto'],
         receipt_email: 'buyer@example.com',
         setup_future_usage: 'off_session',
@@ -127,7 +127,7 @@ describe('PaymentIntentModule', () => {
           name: 'Jane Doe',
           phone: '+14155552671',
         },
-        statement_descriptor: 'ZONELESS',
+        statement_descriptor: 'FIATDESK',
         transfer_group: 'group_1',
       });
 
@@ -139,10 +139,10 @@ describe('PaymentIntentModule', () => {
       });
       expect(paymentIntent.capture_method).toBe('manual');
       expect(paymentIntent.confirmation_method).toBe('manual');
-      expect(paymentIntent.customer).toBe('cus_z_1');
+      expect(paymentIntent.customer).toBe('cus_fd_1');
       expect(paymentIntent.description).toBe('Test payment');
       expect(paymentIntent.metadata).toEqual({ order_id: '123' });
-      expect(paymentIntent.payment_method).toBe('pm_z_1');
+      expect(paymentIntent.payment_method).toBe('pm_fd_1');
       expect(paymentIntent.status).toBe('requires_confirmation');
       expect(paymentIntent.receipt_email).toBe('buyer@example.com');
       expect(paymentIntent.setup_future_usage).toBe('off_session');
@@ -160,7 +160,7 @@ describe('PaymentIntentModule', () => {
         phone: '+14155552671',
         tracking_number: null,
       });
-      expect(paymentIntent.statement_descriptor).toBe('ZONELESS');
+      expect(paymentIntent.statement_descriptor).toBe('FIATDESK');
       expect(paymentIntent.transfer_group).toBe('group_1');
     });
   });
@@ -168,7 +168,7 @@ describe('PaymentIntentModule', () => {
   describe('CreatePaymentIntent', () => {
     it('should persist the PaymentIntent to the database', async () => {
       const paymentIntent = await module.CreatePaymentIntent(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           amount: 2000,
           currency: 'usdc',
@@ -186,7 +186,7 @@ describe('PaymentIntentModule', () => {
 
     it('should default currency to usdc when omitted', async () => {
       const paymentIntent = await module.CreatePaymentIntent(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           amount: 2000,
         } as Parameters<PaymentIntentModule['CreatePaymentIntent']>[1]
@@ -197,7 +197,7 @@ describe('PaymentIntentModule', () => {
 
     it('should reject unsupported currencies', async () => {
       await expect(
-        module.CreatePaymentIntent('acct_z_platform', {
+        module.CreatePaymentIntent('acct_fd_platform', {
           amount: 2000,
           currency: 'usd',
         })
@@ -206,7 +206,7 @@ describe('PaymentIntentModule', () => {
 
     it('should reject confirm=true until confirm is implemented', async () => {
       await expect(
-        module.CreatePaymentIntent('acct_z_platform', {
+        module.CreatePaymentIntent('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
           confirm: true,
@@ -216,7 +216,7 @@ describe('PaymentIntentModule', () => {
 
     it('should reject application_fee_amount greater than amount', async () => {
       await expect(
-        module.CreatePaymentIntent('acct_z_platform', {
+        module.CreatePaymentIntent('acct_fd_platform', {
           amount: 100,
           currency: 'usdc',
           application_fee_amount: 200,
@@ -226,46 +226,46 @@ describe('PaymentIntentModule', () => {
 
     it('should validate the customer belongs to the platform', async () => {
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_other',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_other',
       } as never);
 
       await expect(
-        module.CreatePaymentIntent('acct_z_platform', {
+        module.CreatePaymentIntent('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          customer: 'cus_z_1',
+          customer: 'cus_fd_1',
         })
       ).rejects.toThrow(/Customer not found/);
     });
 
     it('should accept a customer on the same platform', async () => {
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_platform',
       } as never);
 
       const paymentIntent = await module.CreatePaymentIntent(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           amount: 2000,
           currency: 'usdc',
-          customer: 'cus_z_1',
+          customer: 'cus_fd_1',
         }
       );
 
-      expect(paymentIntent.customer).toBe('cus_z_1');
-      expect(mockCustomerModule.GetCustomer).toHaveBeenCalledWith('cus_z_1');
+      expect(paymentIntent.customer).toBe('cus_fd_1');
+      expect(mockCustomerModule.GetCustomer).toHaveBeenCalledWith('cus_fd_1');
     });
 
     it('should validate transfer_data destination is a connected account', async () => {
       jest.spyOn(AccountModule.prototype, 'GetAccount').mockResolvedValue(null);
 
       await expect(
-        module.CreatePaymentIntent('acct_z_platform', {
+        module.CreatePaymentIntent('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
-          transfer_data: { destination: 'acct_z_missing' },
+          transfer_data: { destination: 'acct_fd_missing' },
         })
       ).rejects.toThrow(/No such connected account/);
     });
@@ -273,7 +273,7 @@ describe('PaymentIntentModule', () => {
 
   describe('GetPaymentIntent', () => {
     it('should return the PaymentIntent from the database', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -288,7 +288,7 @@ describe('PaymentIntentModule', () => {
 
   describe('RetrievePaymentIntent', () => {
     it('should return the PaymentIntent without a client_secret', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -300,7 +300,7 @@ describe('PaymentIntentModule', () => {
     });
 
     it('should accept a matching client_secret', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -315,7 +315,7 @@ describe('PaymentIntentModule', () => {
     });
 
     it('should reject a mismatched client_secret', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -330,14 +330,14 @@ describe('PaymentIntentModule', () => {
       mockDb.Get.mockResolvedValue(null);
 
       await expect(
-        module.RetrievePaymentIntent('pi_z_missing')
+        module.RetrievePaymentIntent('pi_fd_missing')
       ).rejects.toThrow(/Payment intent not found/);
     });
   });
 
   describe('CancelPaymentIntent', () => {
     it('should cancel a PaymentIntent in requires_payment_method', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -368,7 +368,7 @@ describe('PaymentIntentModule', () => {
     });
 
     it('should persist the cancellation_reason', async () => {
-      const stored = module.PaymentIntentObject('acct_z_platform', {
+      const stored = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -395,7 +395,7 @@ describe('PaymentIntentModule', () => {
 
     it('should allow canceling from requires_capture', async () => {
       const stored = {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         }),
@@ -424,7 +424,7 @@ describe('PaymentIntentModule', () => {
 
     it('should reject cancel when status is succeeded', async () => {
       const stored = {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         }),
@@ -439,7 +439,7 @@ describe('PaymentIntentModule', () => {
 
     it('should reject cancel when already canceled', async () => {
       const stored = {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         }),
@@ -455,7 +455,7 @@ describe('PaymentIntentModule', () => {
     it('should throw when PaymentIntent does not exist', async () => {
       mockDb.Get.mockResolvedValue(null);
 
-      await expect(module.CancelPaymentIntent('pi_z_missing')).rejects.toThrow(
+      await expect(module.CancelPaymentIntent('pi_fd_missing')).rejects.toThrow(
         /Payment intent not found/
       );
     });
@@ -468,7 +468,7 @@ describe('PaymentIntentModule', () => {
       > = {}
     ) {
       const stored = {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         }),
@@ -522,20 +522,20 @@ describe('PaymentIntentModule', () => {
       const stored = SeedPaymentIntent({ payment_method: null });
       const updated = {
         ...stored,
-        payment_method: 'pm_z_1',
+        payment_method: 'pm_fd_1',
         status: 'requires_confirmation' as const,
       };
       mockDb.Get.mockResolvedValueOnce(stored).mockResolvedValueOnce(updated);
 
       await module.UpdatePaymentIntent(stored.id, {
-        payment_method: 'pm_z_1',
+        payment_method: 'pm_fd_1',
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'PaymentIntents',
         stored.id,
         expect.objectContaining({
-          payment_method: 'pm_z_1',
+          payment_method: 'pm_fd_1',
           status: 'requires_confirmation',
         })
       );
@@ -543,7 +543,7 @@ describe('PaymentIntentModule', () => {
 
     it('should unset payment_method when an empty string is passed', async () => {
       const stored = SeedPaymentIntent({
-        payment_method: 'pm_z_1',
+        payment_method: 'pm_fd_1',
         status: 'requires_confirmation',
       });
       const updated = {
@@ -571,7 +571,7 @@ describe('PaymentIntentModule', () => {
       SeedPaymentIntent({ status: 'succeeded' });
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
+        module.UpdatePaymentIntent('pi_fd_test001', {
           metadata: { order_id: '1' },
         })
       ).rejects.toThrow(/cannot be updated in status 'succeeded'/);
@@ -581,7 +581,7 @@ describe('PaymentIntentModule', () => {
       SeedPaymentIntent();
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
+        module.UpdatePaymentIntent('pi_fd_test001', {
           currency: 'usd',
         })
       ).rejects.toThrow(/not supported/);
@@ -591,7 +591,7 @@ describe('PaymentIntentModule', () => {
       SeedPaymentIntent({ amount: 100 });
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
+        module.UpdatePaymentIntent('pi_fd_test001', {
           application_fee_amount: 200,
         })
       ).rejects.toThrow(/application_fee_amount/);
@@ -601,7 +601,7 @@ describe('PaymentIntentModule', () => {
       SeedPaymentIntent({ transfer_group: 'group_1' });
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
+        module.UpdatePaymentIntent('pi_fd_test001', {
           transfer_group: 'group_2',
         })
       ).rejects.toThrow(/transfer_group/);
@@ -611,7 +611,7 @@ describe('PaymentIntentModule', () => {
       SeedPaymentIntent();
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
+        module.UpdatePaymentIntent('pi_fd_test001', {
           payment_method_data: { type: 'crypto' },
         })
       ).rejects.toThrow(/payment_method_data/);
@@ -621,7 +621,7 @@ describe('PaymentIntentModule', () => {
       mockDb.Get.mockResolvedValue(null);
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_missing', {
+        module.UpdatePaymentIntent('pi_fd_missing', {
           metadata: { order_id: '1' },
         })
       ).rejects.toThrow(/Payment intent not found/);
@@ -630,13 +630,13 @@ describe('PaymentIntentModule', () => {
     it('should validate the customer belongs to the platform', async () => {
       SeedPaymentIntent();
       mockCustomerModule.GetCustomer.mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_other',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_other',
       } as never);
 
       await expect(
-        module.UpdatePaymentIntent('pi_z_test001', {
-          customer: 'cus_z_1',
+        module.UpdatePaymentIntent('pi_fd_test001', {
+          customer: 'cus_fd_1',
         })
       ).rejects.toThrow(/Customer not found/);
     });
@@ -654,20 +654,20 @@ describe('PaymentIntentModule', () => {
         });
 
       await module.ListPaymentIntents({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
-        customer: 'cus_z_1',
-        customer_account: 'acct_z_customer',
+        customer: 'cus_fd_1',
+        customer_account: 'acct_fd_customer',
         status: 'succeeded',
       });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
-            customer: 'cus_z_1',
-            customer_account: 'acct_z_customer',
+            customer: 'cus_fd_1',
+            customer_account: 'acct_fd_customer',
             status: 'succeeded',
           }),
         })
@@ -686,7 +686,7 @@ describe('PaymentIntentModule', () => {
         });
 
       await module.ListPaymentIntents({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         status: 'incomplete',
       });
 
@@ -713,7 +713,7 @@ describe('PaymentIntentModule', () => {
           url: '/v1/payment_intents',
         });
 
-      await module.ListPaymentIntents({ account: 'acct_z_platform' });
+      await module.ListPaymentIntents({ account: 'acct_fd_platform' });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -729,7 +729,7 @@ describe('PaymentIntentModule', () => {
       overrides: Partial<PaymentIntentAmountDetailsLineItem> = {}
     ): PaymentIntentAmountDetailsLineItem {
       return {
-        id: 'uli_z_1',
+        id: 'uli_fd_1',
         object: 'payment_intent_amount_details_line_item',
         discount_amount: null,
         payment_method_options: null,
@@ -745,23 +745,23 @@ describe('PaymentIntentModule', () => {
 
     function BuildPaymentIntentWithThreeItems(): PaymentIntent {
       return {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 6000,
           currency: 'usdc',
         }),
         amount_details: {
           tip: {},
           line_items: [
-            BuildLineItem({ id: 'uli_z_1', product_name: 'A' }),
-            BuildLineItem({ id: 'uli_z_2', product_name: 'B' }),
-            BuildLineItem({ id: 'uli_z_3', product_name: 'C' }),
+            BuildLineItem({ id: 'uli_fd_1', product_name: 'A' }),
+            BuildLineItem({ id: 'uli_fd_2', product_name: 'B' }),
+            BuildLineItem({ id: 'uli_fd_3', product_name: 'C' }),
           ],
         },
       };
     }
 
     it('should assign stable IDs to line items on create', () => {
-      const paymentIntent = module.PaymentIntentObject('acct_z_platform', {
+      const paymentIntent = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
         amount_details: {
@@ -781,7 +781,7 @@ describe('PaymentIntentModule', () => {
 
       expect(paymentIntent.amount_details?.line_items).toEqual([
         expect.objectContaining({
-          id: expect.stringMatching(/^uli_z_/),
+          id: expect.stringMatching(/^uli_fd_/),
           object: 'payment_intent_amount_details_line_item',
           product_name: 'Product 001',
           quantity: 1,
@@ -804,8 +804,8 @@ describe('PaymentIntentModule', () => {
 
       expect(result.object).toBe('list');
       expect(result.data.map((item) => item.id)).toEqual([
-        'uli_z_1',
-        'uli_z_2',
+        'uli_fd_1',
+        'uli_fd_2',
       ]);
       expect(result.has_more).toBe(true);
       expect(result.url).toBe(
@@ -817,12 +817,12 @@ describe('PaymentIntentModule', () => {
       const paymentIntent = BuildPaymentIntentWithThreeItems();
 
       const result = module.ListAmountDetailsLineItems(paymentIntent, {
-        startingAfter: 'uli_z_1',
+        startingAfter: 'uli_fd_1',
       });
 
       expect(result.data.map((item) => item.id)).toEqual([
-        'uli_z_2',
-        'uli_z_3',
+        'uli_fd_2',
+        'uli_fd_3',
       ]);
       expect(result.has_more).toBe(false);
     });
@@ -831,18 +831,18 @@ describe('PaymentIntentModule', () => {
       const paymentIntent = BuildPaymentIntentWithThreeItems();
 
       const result = module.ListAmountDetailsLineItems(paymentIntent, {
-        endingBefore: 'uli_z_3',
+        endingBefore: 'uli_fd_3',
       });
 
       expect(result.data.map((item) => item.id)).toEqual([
-        'uli_z_1',
-        'uli_z_2',
+        'uli_fd_1',
+        'uli_fd_2',
       ]);
       expect(result.has_more).toBe(false);
     });
 
     it('should return an empty list when there are no line items', () => {
-      const paymentIntent = module.PaymentIntentObject('acct_z_platform', {
+      const paymentIntent = module.PaymentIntentObject('acct_fd_platform', {
         amount: 2000,
         currency: 'usdc',
       });
@@ -858,7 +858,7 @@ describe('PaymentIntentModule', () => {
 
       expect(() =>
         module.ListAmountDetailsLineItems(paymentIntent, {
-          startingAfter: 'uli_z_unknown',
+          startingAfter: 'uli_fd_unknown',
         })
       ).toThrow('Invalid starting_after ID');
     });
@@ -869,7 +869,7 @@ describe('PaymentIntentModule', () => {
       status: PaymentIntent['status'] = 'requires_payment_method'
     ): PaymentIntent {
       return {
-        ...module.PaymentIntentObject('acct_z_platform', {
+        ...module.PaymentIntentObject('acct_fd_platform', {
           amount: 2000,
           currency: 'usdc',
         }),
@@ -903,7 +903,7 @@ describe('PaymentIntentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.updated',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated,
         expect.objectContaining({
           previousAttributes: expect.objectContaining({
@@ -950,7 +950,7 @@ describe('PaymentIntentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.requires_action',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated
       );
       expect(result.status).toBe('requires_action');
@@ -999,7 +999,7 @@ describe('PaymentIntentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.processing',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated
       );
       expect(result.status).toBe('processing');
@@ -1045,7 +1045,7 @@ describe('PaymentIntentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.succeeded',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated
       );
       expect(result.status).toBe('succeeded');
@@ -1091,7 +1091,7 @@ describe('PaymentIntentModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.payment_failed',
-        'acct_z_platform',
+        'acct_fd_platform',
         updated
       );
       expect(result.status).toBe('requires_payment_method');

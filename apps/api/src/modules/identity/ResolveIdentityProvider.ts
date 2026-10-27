@@ -7,7 +7,7 @@
 import {
   Account as AccountType,
   AccountBusinessType,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AppError } from '../../utils/AppError';
 import { DecryptIdentitySecret } from './IdentitySettingsCrypto';
 import { diditProvider } from './DiditProvider';

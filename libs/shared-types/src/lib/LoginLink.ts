@@ -1,8 +1,8 @@
 /**
- * Stripe-compatible LoginLink API response object for Zoneless Connect.
+ * Stripe-compatible LoginLink API response object for FiatDesk Connect.
  *
  * Login Links are single-use URLs that take an Express account to the login page
- * for their Zoneless dashboard. A Login Link differs from an Account Link in that
+ * for their FiatDesk dashboard. A Login Link differs from an Account Link in that
  * it takes the user directly to their Express dashboard for the specified account.
  *
  * This represents the response returned from POST /v1/accounts/:id/login_links.

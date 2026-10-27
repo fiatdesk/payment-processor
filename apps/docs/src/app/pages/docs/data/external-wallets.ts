@@ -19,9 +19,9 @@ export const EXTERNAL_WALLETS_SUBSECTION: DocSubSection = {
 // Shared Data
 // ============================================
 const EXTERNAL_WALLET_OBJECT_JSON = `{
-  "id": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "id": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "object": "wallet",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "account_holder_name": "Tom Jones",
   "account_holder_type": "individual",
   "available_payout_methods": [
@@ -38,7 +38,7 @@ const EXTERNAL_WALLET_OBJECT_JSON = `{
   "last4": "79C8",
   "metadata": {},
   "network": "ethereum",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": null,
   "status": "new",
   "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
@@ -49,7 +49,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     name: 'id',
     type: 'string',
     description:
-      'Unique identifier for the object. Zoneless external wallet IDs are prefixed with <code>wa_z_</code>.',
+      'Unique identifier for the object. FiatDesk external wallet IDs are prefixed with <code>wa_fd_</code>.',
   },
   {
     name: 'object',
@@ -57,13 +57,13 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     description:
       "String representing the object's type. Objects of the same type share the same value. Always <code>wallet</code>.",
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe returns <code>bank_account</code>. Zoneless returns <code>wallet</code> for Ethereum wallets.',
+      '<strong>Difference from Stripe:</strong> Stripe returns <code>bank_account</code>. FiatDesk returns <code>wallet</code> for Ethereum wallets.',
   },
   {
     name: 'account',
     type: 'string',
     nullable: true,
-    description: 'The Zoneless account this wallet belongs to.',
+    description: 'The FiatDesk account this wallet belongs to.',
   },
   {
     name: 'account_holder_name',
@@ -116,9 +116,9 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     name: 'currency',
     type: 'string',
     description:
-      'Three-letter currency code representing the currency for payouts. For Zoneless, this is typically <code>usdc</code>.',
+      'Three-letter currency code representing the currency for payouts. For FiatDesk, this is typically <code>usdc</code>.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses ISO currency codes like <code>usd</code>. Zoneless uses <code>usdc</code> for USDC stablecoin.',
+      '<strong>Difference from Stripe:</strong> Stripe uses ISO currency codes like <code>usd</code>. FiatDesk uses <code>usdc</code> for USDC stablecoin.',
   },
   {
     name: 'customer',
@@ -180,7 +180,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The last four characters of the wallet address.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe shows last 4 digits of bank account. Zoneless shows the last 4 hex characters of the Ethereum wallet address.',
+      '<strong>Difference from Stripe:</strong> Stripe shows last 4 digits of bank account. FiatDesk shows the last 4 hex characters of the Ethereum wallet address.',
   },
   {
     name: 'metadata',
@@ -195,7 +195,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     description:
       'The blockchain network this wallet is on. Currently always <code>ethereum</code>.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It identifies the blockchain network.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It identifies the blockchain network.",
   },
   {
     name: 'requirements',
@@ -286,7 +286,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     description:
       'The full Ethereum wallet address where USDC payouts are sent.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This replaces Stripe's <code>account_number</code> and <code>routing_number</code>. Ethereum addresses are always 42 characters (<code>0x</code> plus 40 hex characters).",
+      "<strong>FiatDesk extension:</strong> This replaces Stripe's <code>account_number</code> and <code>routing_number</code>. Ethereum addresses are always 42 characters (<code>0x</code> plus 40 hex characters).",
   },
 ];
 
@@ -297,7 +297,7 @@ const EXTERNAL_WALLET_MORE_ATTRIBUTES: Attribute[] = [
     description:
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
 ];
 
@@ -345,7 +345,7 @@ export const EXTERNAL_WALLETS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'External wallets in Zoneless replace bank accounts in Stripe. Instead of routing numbers and account numbers, you provide an Ethereum wallet address to receive USDC payouts.',
+          text: 'External wallets in FiatDesk replace bank accounts in Stripe. Instead of routing numbers and account numbers, you provide an Ethereum wallet address to receive USDC payouts.',
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -376,7 +376,7 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     description:
       'The Ethereum wallet address where USDC payouts will be sent. This must be a valid Ethereum address (42 characters, <code>0x</code> plus 40 hex characters). All-lowercase or correctly checksummed (EIP-55) input is accepted, a wrong checksum is rejected, and the address is stored and returned in EIP-55 form.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Replaces Stripe's <code>external_account</code> object with bank account details. Zoneless only requires the wallet address.",
+      "<strong>Difference from Stripe:</strong> Replaces Stripe's <code>external_account</code> object with bank account details. FiatDesk only requires the wallet address.",
   },
   {
     name: 'account_holder_name',
@@ -417,14 +417,14 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     type: 'string',
     description: 'The blockchain network. Defaults to <code>ethereum</code>.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 
 const CREATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
-  "id": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "id": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "object": "wallet",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "account_holder_name": null,
   "account_holder_type": null,
   "available_payout_methods": [
@@ -441,7 +441,7 @@ const CREATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
   "last4": "79C8",
   "metadata": {},
   "network": "ethereum",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": null,
   "status": "new",
   "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
@@ -486,8 +486,8 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d wallet_address=0x70997970C51812dc3A010C7d01b50e0d17dc79C8`,
             },
             {
@@ -495,8 +495,8 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const externalWallet = await zoneless.accounts.createExternalAccount(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
+const externalWallet = await fiatdesk.accounts.createExternalAccount(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
   {
     wallet_address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   }
@@ -550,9 +550,9 @@ const UPDATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
 ];
 
 const UPDATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
-  "id": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "id": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "object": "wallet",
-  "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+  "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
   "account_holder_name": "Tom Jones",
   "account_holder_type": "individual",
   "available_payout_methods": [
@@ -571,7 +571,7 @@ const UPDATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
     "order_id": "6735"
   },
   "network": "ethereum",
-  "platform_account": "acct_z_Platform123abc",
+  "platform_account": "acct_fd_Platform123abc",
   "requirements": null,
   "status": "new",
   "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
@@ -611,8 +611,8 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts/wa_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts/wa_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d account_holder_name="Tom Jones" \\
   -d "metadata[order_id]"=6735`,
             },
@@ -621,9 +621,9 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const externalWallet = await zoneless.accounts.updateExternalAccount(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
-  'wa_z_1Nv0FGQ9RKHgCVdK',
+const externalWallet = await fiatdesk.accounts.updateExternalAccount(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
+  'wa_fd_1Nv0FGQ9RKHgCVdK',
   {
     account_holder_name: 'Tom Jones',
     metadata: {
@@ -678,17 +678,17 @@ export const EXTERNAL_WALLETS_RETRIEVE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts/wa_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts/wa_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const externalWallet = await zoneless.accounts.retrieveExternalAccount(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
-  'wa_z_1Nv0FGQ9RKHgCVdK'
+const externalWallet = await fiatdesk.accounts.retrieveExternalAccount(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
+  'wa_fd_1Nv0FGQ9RKHgCVdK'
 );`,
             },
           ],
@@ -711,7 +711,7 @@ const LIST_EXTERNAL_WALLETS_PARAMETERS: Attribute[] = [
     name: 'ending_before',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>wa_z_bar</code>, your subsequent call can include <code>ending_before=wa_z_bar</code> in order to fetch the previous page of the list.',
+      'A cursor for use in pagination. <code>ending_before</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, starting with <code>wa_fd_bar</code>, your subsequent call can include <code>ending_before=wa_fd_bar</code> in order to fetch the previous page of the list.',
   },
   {
     name: 'limit',
@@ -723,19 +723,19 @@ const LIST_EXTERNAL_WALLETS_PARAMETERS: Attribute[] = [
     name: 'starting_after',
     type: 'string',
     description:
-      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>wa_z_foo</code>, your subsequent call can include <code>starting_after=wa_z_foo</code> in order to fetch the next page of the list.',
+      'A cursor for use in pagination. <code>starting_after</code> is an object ID that defines your place in the list. For instance, if you make a list request and receive 100 objects, ending with <code>wa_fd_foo</code>, your subsequent call can include <code>starting_after=wa_fd_foo</code> in order to fetch the next page of the list.',
   },
 ];
 
 const LIST_EXTERNAL_WALLETS_RESPONSE_JSON = `{
   "object": "list",
-  "url": "/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts",
+  "url": "/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts",
   "has_more": false,
   "data": [
     {
-      "id": "wa_z_1Nv0FGQ9RKHgCVdK",
+      "id": "wa_fd_1Nv0FGQ9RKHgCVdK",
       "object": "wallet",
-      "account": "acct_z_1Nv0FGQ9RKHgCVdK",
+      "account": "acct_fd_1Nv0FGQ9RKHgCVdK",
       "account_holder_name": "Tom Jones",
       "account_holder_type": "individual",
       "available_payout_methods": [
@@ -752,7 +752,7 @@ const LIST_EXTERNAL_WALLETS_RESPONSE_JSON = `{
       "last4": "79C8",
       "metadata": {},
       "network": "ethereum",
-      "platform_account": "acct_z_Platform123abc",
+      "platform_account": "acct_fd_Platform123abc",
       "requirements": null,
       "status": "new",
       "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
@@ -792,8 +792,8 @@ export const EXTERNAL_WALLETS_LIST_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -G https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
+              code: `curl -G https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
   -d limit=3`,
             },
             {
@@ -801,8 +801,8 @@ export const EXTERNAL_WALLETS_LIST_PAGE: DocPage = {
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const externalWallets = await zoneless.accounts.listExternalAccounts(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
+const externalWallets = await fiatdesk.accounts.listExternalAccounts(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
   {
     limit: 3,
   }
@@ -824,7 +824,7 @@ const externalWallets = await zoneless.accounts.listExternalAccounts(
 // Delete External Wallet
 // ============================================
 const DELETE_EXTERNAL_WALLET_RESPONSE_JSON = `{
-  "id": "wa_z_1Nv0FGQ9RKHgCVdK",
+  "id": "wa_fd_1Nv0FGQ9RKHgCVdK",
   "object": "wallet",
   "deleted": true
 }`;
@@ -866,17 +866,17 @@ export const EXTERNAL_WALLETS_DELETE_PAGE: DocPage = {
             {
               id: 'curl',
               label: 'cURL',
-              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts/wa_z_1Nv0FGQ9RKHgCVdK \\
-  -H "x-api-key: sk_live_z_YOUR_API_KEY"`,
+              code: `curl -X DELETE https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts/wa_fd_1Nv0FGQ9RKHgCVdK \\
+  -H "x-api-key: sk_live_fd_YOUR_API_KEY"`,
             },
             {
               id: 'node',
               label: 'Node.js',
               code: `${NODE_INIT}
 
-const deleted = await zoneless.accounts.deleteExternalAccount(
-  'acct_z_1Nv0FGQ9RKHgCVdK',
-  'wa_z_1Nv0FGQ9RKHgCVdK'
+const deleted = await fiatdesk.accounts.deleteExternalAccount(
+  'acct_fd_1Nv0FGQ9RKHgCVdK',
+  'wa_fd_1Nv0FGQ9RKHgCVdK'
 );`,
             },
           ],

@@ -1,11 +1,11 @@
 import { Injectable, signal, WritableSignal, inject } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
-import { Account, ListResponse, LoginLink } from '@zoneless/shared-types';
+import { Account, ListResponse, LoginLink } from '@fiatdesk/shared-types';
 import {
   CreateAccountInput,
   FormatPayoutVolumeThresholdCents,
   UpdateAccountInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 import { SettingsCardRow } from '../../shared';
 import { FormatBusinessType, IsBusinessAccount } from '../../utils';
 
@@ -164,7 +164,7 @@ export class AccountService {
 
   /**
    * Search connected accounts by email, name, account id, or
-   * verification session id (`vs_z...` or Didit session id).
+   * verification session id (`vs_fd...` or Didit session id).
    */
   async SearchConnectedAccounts(
     query: string,

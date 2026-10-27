@@ -1,4 +1,4 @@
-import { Account, AccountBusinessType } from '@zoneless/shared-types';
+import { Account, AccountBusinessType } from '@fiatdesk/shared-types';
 
 /**
  * True when the account represents a legal entity rather than a person.

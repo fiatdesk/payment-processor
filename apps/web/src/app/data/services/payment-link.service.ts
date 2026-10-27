@@ -3,11 +3,11 @@ import { ApiService } from '../../core';
 import {
   CheckoutSessionLineItemList,
   PaymentLink,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   CreatePaymentLinkInput,
   UpdatePaymentLinkInput,
-} from '@zoneless/shared-schemas';
+} from '@fiatdesk/shared-schemas';
 
 @Injectable({
   providedIn: 'root',

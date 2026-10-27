@@ -8,7 +8,7 @@
  * @module ChainCursorStore
  */
 
-import { QueryOperators } from '@zoneless/shared-types';
+import { QueryOperators } from '@fiatdesk/shared-types';
 import { Now } from '../utils/Timestamp';
 import type { Database } from './Database';
 

@@ -19,7 +19,7 @@ import {
   EventType,
   WebhookDelivery,
   WebhookEndpointRecord,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { Database } from './Database';
 import { EventModule } from './Event';
 import { AccountModule } from './Account';

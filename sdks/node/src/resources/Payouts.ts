@@ -2,7 +2,7 @@
 import { parseTransaction, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { BaseResource } from './Base';
-import { RequestExtraOptions, ZonelessPayoutBatchError } from '../HttpClient';
+import { RequestExtraOptions, FiatDeskPayoutBatchError } from '../HttpClient';
 import { ApplyDateFilter } from '../utils';
 import {
   EnsureAllowanceResult,
@@ -12,7 +12,7 @@ import {
   ProcessPendingResult,
   ReconcileResponse,
   ListResponse,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import type {
   CreatePayoutInput,
   UpdatePayoutInput,
@@ -118,12 +118,12 @@ export class Payouts extends BaseResource {
    * @param params - Payout IDs, plus optional `replace` and `deadline_seconds`
    * @param options - Optional request options
    * @returns Unsigned transaction data ready for signing
-   * @throws ZonelessPayoutBatchError with `code` set, e.g.
+   * @throws FiatDeskPayoutBatchError with `code` set, e.g.
    *   `payout_batch_in_progress` while another batch holds the wallet
    *
    * @example
    * ```typescript
-   * const build = await zoneless.payouts.build({
+   * const build = await fiatdesk.payouts.build({
    *   payouts: ['po_z123', 'po_z456', 'po_z789']
    * });
    * console.log(build.transaction_type, build.estimated_fee); // fee in wei
@@ -156,14 +156,14 @@ export class Payouts extends BaseResource {
    * @param params - The signed transaction or hash, and the payout IDs
    * @param options - Optional request options
    * @returns Broadcast result with the transaction hash and updated payouts
-   * @throws ZonelessPayoutBatchError with `code` set, e.g.
+   * @throws FiatDeskPayoutBatchError with `code` set, e.g.
    *   `transaction_not_found` or `payout_batch_mismatch`, or
    *   `broadcast_timeout` when no answer arrived in time: the transaction may
    *   still be mined, so call `reconcile()` later and never sign it again
    *
    * @example
    * ```typescript
-   * const result = await zoneless.payouts.broadcast({
+   * const result = await fiatdesk.payouts.broadcast({
    *   signed_transaction: signedTx,
    *   payouts: ['po_z123', 'po_z456', 'po_z789']
    * });
@@ -194,7 +194,7 @@ export class Payouts extends BaseResource {
       );
     } catch (error) {
       if (!IsTimeout(error)) throw error;
-      throw new ZonelessPayoutBatchError({
+      throw new FiatDeskPayoutBatchError({
         type: 'broadcast_timeout',
         code: 'broadcast_timeout',
         message: `Broadcast got no answer within ${
@@ -214,7 +214,7 @@ export class Payouts extends BaseResource {
    *
    * @example
    * ```typescript
-   * const result = await zoneless.payouts.reconcile();
+   * const result = await fiatdesk.payouts.reconcile();
    * console.log(`${result.paid} paid, ${result.pending} still pending`);
    * ```
    *
@@ -241,7 +241,7 @@ export class Payouts extends BaseResource {
    *
    * @example
    * ```typescript
-   * const { build, approval } = await zoneless.payouts.ensureAllowance(
+   * const { build, approval } = await fiatdesk.payouts.ensureAllowance(
    *   process.env.WALLET_PRIVATE_KEY as `0x${string}`,
    *   { payouts: ['po_z123', 'po_z456'] }
    * );
@@ -299,12 +299,12 @@ export class Payouts extends BaseResource {
    * @param options - `limit` (default and max 100), `replace`, `expectedSigner`
    *   and request options
    * @returns Result containing the transaction hash, processed payouts, and has_more flag
-   * @throws ZonelessPayoutBatchError, e.g. `payout_batch_in_progress` while
+   * @throws FiatDeskPayoutBatchError, e.g. `payout_batch_in_progress` while
    *   another batch holds the wallet (retry with `replace: true` for the same set)
    *
    * @example
    * ```typescript
-   * const result = await zoneless.payouts.processBatch(
+   * const result = await fiatdesk.payouts.processBatch(
    *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * console.log(`${result.status}: ${result.payouts.length} payouts`);
@@ -397,11 +397,11 @@ export class Payouts extends BaseResource {
    *
    * @example
    * ```typescript
-   * const results = await zoneless.payouts.processAll(
+   * const results = await fiatdesk.payouts.processAll(
    *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
    * const last = results[results.length - 1];
-   * if (last?.status === 'pending') await zoneless.payouts.reconcile();
+   * if (last?.status === 'pending') await fiatdesk.payouts.reconcile();
    * ```
    *
    * @see /payouts/process-all
@@ -453,14 +453,14 @@ export class Payouts extends BaseResource {
    *
    * @example
    * ```typescript
-   * const build = await zoneless.payouts.build({
+   * const build = await fiatdesk.payouts.build({
    *   payouts: ['po_z123', 'po_z456']
    * });
-   * const signedTx = await zoneless.payouts.sign(
+   * const signedTx = await fiatdesk.payouts.sign(
    *   build,
    *   process.env.WALLET_PRIVATE_KEY as `0x${string}`
    * );
-   * const result = await zoneless.payouts.broadcast({
+   * const result = await fiatdesk.payouts.broadcast({
    *   signed_transaction: signedTx,
    *   payouts: build.payouts.map((p) => p.id)
    * });
@@ -505,12 +505,12 @@ export class Payouts extends BaseResource {
     return signer.signTransaction(transaction);
   }
 
-  /** Re-throws payout batch API errors as `ZonelessPayoutBatchError`. */
+  /** Re-throws payout batch API errors as `FiatDeskPayoutBatchError`. */
   private async PayoutBatchCall<T>(call: () => Promise<T>): Promise<T> {
     try {
       return await call();
     } catch (error) {
-      throw ZonelessPayoutBatchError.From(error);
+      throw FiatDeskPayoutBatchError.From(error);
     }
   }
 

@@ -5,7 +5,7 @@ import {
   CheckoutSessionLineItem,
   Price,
   Product,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { EventService } from '../modules/EventService';
 import { PriceModule } from '../modules/Price';
 import { ProductModule } from '../modules/Product';
@@ -42,12 +42,12 @@ jest.mock('../modules/AppConfig', () => ({
 
 function BuildPrice(overrides: Partial<Price> = {}): Price {
   return {
-    id: 'price_z_1',
+    id: 'price_fd_1',
     active: true,
     currency: 'usdc',
     metadata: {},
     nickname: null,
-    product: 'prod_z_1',
+    product: 'prod_fd_1',
     recurring: null,
     tax_behavior: 'unspecified',
     type: 'one_time',
@@ -63,7 +63,7 @@ function BuildPrice(overrides: Partial<Price> = {}): Price {
     tiers_mode: null,
     transform_quantity: null,
     unit_amount_decimal: '1000',
-    platform_account: 'acct_z_platform',
+    platform_account: 'acct_fd_platform',
     subscription_plan_id: null,
     ...overrides,
   };
@@ -73,7 +73,7 @@ function BuildLineItem(
   overrides: Partial<CheckoutSessionLineItem> = {}
 ): CheckoutSessionLineItem {
   return {
-    id: 'li_z_1',
+    id: 'li_fd_1',
     object: 'item',
     amount_discount: 0,
     amount_subtotal: 1000,
@@ -126,7 +126,7 @@ describe('CheckoutSessionModule', () => {
     lineItems: CheckoutSessionLineItem[] = [BuildLineItem()]
   ): CheckoutSession {
     return module.CheckoutSessionObject(
-      'acct_z_platform',
+      'acct_fd_platform',
       { mode: 'payment', success_url: 'https://example.com/success' },
       lineItems
     );
@@ -137,7 +137,7 @@ describe('CheckoutSessionModule', () => {
       const session = BuildOpenSession();
 
       expect(session.object).toBe('checkout.session');
-      expect(session.platform_account).toBe('acct_z_platform');
+      expect(session.platform_account).toBe('acct_fd_platform');
       expect(session.mode).toBe('payment');
       expect(session.status).toBe('open');
       expect(session.payment_status).toBe('unpaid');
@@ -194,7 +194,7 @@ describe('CheckoutSessionModule', () => {
 
       expect(session.line_items).toEqual({
         object: 'list',
-        data: [expect.objectContaining({ id: 'li_z_1' })],
+        data: [expect.objectContaining({ id: 'li_fd_1' })],
         has_more: false,
         url: `/v1/checkout/sessions/${session.id}/line_items`,
       });
@@ -202,7 +202,7 @@ describe('CheckoutSessionModule', () => {
 
     it('should not compute payment amounts in setup mode', () => {
       const session = module.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         { mode: 'setup', success_url: 'https://example.com/success' },
         []
       );
@@ -218,7 +218,7 @@ describe('CheckoutSessionModule', () => {
 
     it('should issue a client_secret instead of a url for embedded sessions', () => {
       const session = module.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           mode: 'payment',
           ui_mode: 'embedded_page',
@@ -235,7 +235,7 @@ describe('CheckoutSessionModule', () => {
 
     it('should map custom fields, filling unset values with null', () => {
       const session = module.CheckoutSessionObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           mode: 'payment',
           success_url: 'https://example.com/success',
@@ -275,30 +275,30 @@ describe('CheckoutSessionModule', () => {
       mockDb.Get = jest
         .fn()
         .mockImplementation(async (collection: string, id: string) => {
-          if (collection === 'Prices' && id === 'price_z_1') {
+          if (collection === 'Prices' && id === 'price_fd_1') {
             return BuildPrice();
           }
-          if (collection === 'Products' && id === 'prod_z_1') {
-            return { id: 'prod_z_1', name: 'Test Product' } as Product;
+          if (collection === 'Products' && id === 'prod_fd_1') {
+            return { id: 'prod_fd_1', name: 'Test Product' } as Product;
           }
           return null;
         });
 
-      const session = await module.CreateCheckoutSession('acct_z_platform', {
+      const session = await module.CreateCheckoutSession('acct_fd_platform', {
         mode: 'payment',
         success_url: 'https://example.com/success',
-        line_items: [{ price: 'price_z_1', quantity: 2 }],
+        line_items: [{ price: 'price_fd_1', quantity: 2 }],
       });
 
       expect(mockDb.Set).toHaveBeenCalledWith(
         'PaymentIntents',
-        expect.stringContaining('pi_z'),
+        expect.stringContaining('pi_fd'),
         expect.objectContaining({
           object: 'payment_intent',
           amount: 2000,
           currency: 'usdc',
           status: 'requires_payment_method',
-          platform_account: 'acct_z_platform',
+          platform_account: 'acct_fd_platform',
         })
       );
       expect(mockDb.Set).toHaveBeenCalledWith(
@@ -306,7 +306,7 @@ describe('CheckoutSessionModule', () => {
         session.id,
         session
       );
-      expect(session.payment_intent).toEqual(expect.stringContaining('pi_z'));
+      expect(session.payment_intent).toEqual(expect.stringContaining('pi_fd'));
       expect(session.line_items?.data).toEqual([
         expect.objectContaining({
           object: 'item',
@@ -315,14 +315,14 @@ describe('CheckoutSessionModule', () => {
           currency: 'usdc',
           description: 'Test Product',
           quantity: 2,
-          price: expect.objectContaining({ id: 'price_z_1' }),
+          price: expect.objectContaining({ id: 'price_fd_1' }),
         }),
       ]);
       expect(session.amount_subtotal).toBe(2000);
       expect(session.amount_total).toBe(2000);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.created',
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.objectContaining({
           id: session.payment_intent,
           amount: 2000,
@@ -336,23 +336,23 @@ describe('CheckoutSessionModule', () => {
       mockDb.Get = jest
         .fn()
         .mockImplementation(async (collection: string, id: string) => {
-          if (collection === 'Prices' && id === 'price_z_1') {
+          if (collection === 'Prices' && id === 'price_fd_1') {
             return BuildPrice();
           }
-          if (collection === 'Products' && id === 'prod_z_1') {
-            return { id: 'prod_z_1', name: 'Test Product' } as Product;
+          if (collection === 'Products' && id === 'prod_fd_1') {
+            return { id: 'prod_fd_1', name: 'Test Product' } as Product;
           }
           return null;
         });
 
-      const session = await module.CreateCheckoutSession('acct_z_platform', {
+      const session = await module.CreateCheckoutSession('acct_fd_platform', {
         mode: 'payment',
         success_url: 'https://example.com/success',
-        line_items: [{ price: 'price_z_1', quantity: 1 }],
+        line_items: [{ price: 'price_fd_1', quantity: 1 }],
         payment_intent_data: {
           description: 'Order #42',
           metadata: { order_id: '42' },
-          statement_descriptor: 'ZONELESS',
+          statement_descriptor: 'FIATDESK',
         },
       });
 
@@ -362,13 +362,13 @@ describe('CheckoutSessionModule', () => {
         expect.objectContaining({
           description: 'Order #42',
           metadata: { order_id: '42' },
-          statement_descriptor: 'ZONELESS',
+          statement_descriptor: 'FIATDESK',
         })
       );
     });
 
     it('should not create a PaymentIntent in setup mode', async () => {
-      const session = await module.CreateCheckoutSession('acct_z_platform', {
+      const session = await module.CreateCheckoutSession('acct_fd_platform', {
         mode: 'setup',
         success_url: 'https://example.com/success',
       });
@@ -403,7 +403,7 @@ describe('CheckoutSessionModule', () => {
             store.get(`${collection}:${id}`) ?? null
         );
 
-      const session = await module.CreateCheckoutSession('acct_z_platform', {
+      const session = await module.CreateCheckoutSession('acct_fd_platform', {
         mode: 'payment',
         success_url: 'https://example.com/success',
         line_items: [
@@ -420,12 +420,12 @@ describe('CheckoutSessionModule', () => {
 
       expect(mockDb.Set).toHaveBeenCalledWith(
         'Prices',
-        expect.stringContaining('price_z'),
+        expect.stringContaining('price_fd'),
         expect.objectContaining({ unit_amount: 2500 })
       );
       expect(mockDb.Set).toHaveBeenCalledWith(
         'Products',
-        expect.stringContaining('prod_z'),
+        expect.stringContaining('prod_fd'),
         expect.objectContaining({ name: 'Inline Product' })
       );
       expect(session.line_items?.data[0]).toEqual(
@@ -440,13 +440,13 @@ describe('CheckoutSessionModule', () => {
     it('should throw when a line item price belongs to another platform', async () => {
       mockDb.Get = jest
         .fn()
-        .mockResolvedValue(BuildPrice({ platform_account: 'acct_z_other' }));
+        .mockResolvedValue(BuildPrice({ platform_account: 'acct_fd_other' }));
 
       await expect(
-        module.CreateCheckoutSession('acct_z_platform', {
+        module.CreateCheckoutSession('acct_fd_platform', {
           mode: 'payment',
           success_url: 'https://example.com/success',
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
         })
       ).rejects.toThrow('Price not found');
       expect(mockDb.Set).not.toHaveBeenCalled();
@@ -456,11 +456,11 @@ describe('CheckoutSessionModule', () => {
       mockDb.Get = jest.fn().mockResolvedValue(null);
 
       await expect(
-        module.CreateCheckoutSession('acct_z_platform', {
+        module.CreateCheckoutSession('acct_fd_platform', {
           mode: 'payment',
           success_url: 'https://example.com/success',
-          customer: 'cus_z_missing',
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+          customer: 'cus_fd_missing',
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
         })
       ).rejects.toThrow('Customer not found');
       expect(mockDb.Set).not.toHaveBeenCalled();
@@ -468,7 +468,7 @@ describe('CheckoutSessionModule', () => {
 
     it('should throw a validation error when line_items are missing in payment mode', async () => {
       await expect(
-        module.CreateCheckoutSession('acct_z_platform', {
+        module.CreateCheckoutSession('acct_fd_platform', {
           mode: 'payment',
           success_url: 'https://example.com/success',
         })
@@ -478,9 +478,9 @@ describe('CheckoutSessionModule', () => {
 
     it('should throw a validation error when success_url is missing for hosted sessions', async () => {
       await expect(
-        module.CreateCheckoutSession('acct_z_platform', {
+        module.CreateCheckoutSession('acct_fd_platform', {
           mode: 'payment',
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
         })
       ).rejects.toThrow();
       expect(mockDb.Set).not.toHaveBeenCalled();
@@ -490,33 +490,33 @@ describe('CheckoutSessionModule', () => {
       mockDb.Get = jest
         .fn()
         .mockImplementation(async (collection: string, id: string) => {
-          if (collection === 'Prices' && id === 'price_z_1') {
+          if (collection === 'Prices' && id === 'price_fd_1') {
             return BuildPrice();
           }
-          if (collection === 'Products' && id === 'prod_z_1') {
-            return { id: 'prod_z_1', name: 'Test Product' } as Product;
+          if (collection === 'Products' && id === 'prod_fd_1') {
+            return { id: 'prod_fd_1', name: 'Test Product' } as Product;
           }
           return null;
         });
 
       const session = await module.CreateCheckoutSession(
-        'acct_z_platform',
+        'acct_fd_platform',
         {
           mode: 'payment',
-          line_items: [{ price: 'price_z_1', quantity: 1 }],
+          line_items: [{ price: 'price_fd_1', quantity: 1 }],
           ui_mode: 'hosted_page',
         },
-        { payment_link: 'plink_z_1' }
+        { payment_link: 'plink_fd_1' }
       );
 
       expect(session.success_url).toBeNull();
-      expect(session.payment_link).toBe('plink_z_1');
+      expect(session.payment_link).toBe('plink_fd_1');
       expect(mockDb.Set).toHaveBeenCalledWith(
         'CheckoutSessions',
         session.id,
         expect.objectContaining({
           success_url: null,
-          payment_link: 'plink_z_1',
+          payment_link: 'plink_fd_1',
         })
       );
     });
@@ -569,27 +569,27 @@ describe('CheckoutSessionModule', () => {
 
     it('should retain, update, add and remove line items, recomputing totals', async () => {
       const existingSession = BuildOpenSession([
-        BuildLineItem({ id: 'li_z_1' }),
-        BuildLineItem({ id: 'li_z_2' }),
+        BuildLineItem({ id: 'li_fd_1' }),
+        BuildLineItem({ id: 'li_fd_2' }),
       ]);
       mockDb.Get = jest
         .fn()
         .mockImplementation(async (collection: string, id: string) => {
           if (collection === 'CheckoutSessions') return existingSession;
-          if (collection === 'Prices' && id === 'price_z_2') {
-            return BuildPrice({ id: 'price_z_2', unit_amount: 500 });
+          if (collection === 'Prices' && id === 'price_fd_2') {
+            return BuildPrice({ id: 'price_fd_2', unit_amount: 500 });
           }
           if (collection === 'Products') {
-            return { id: 'prod_z_1', name: 'Test Product' } as Product;
+            return { id: 'prod_fd_1', name: 'Test Product' } as Product;
           }
           return null;
         });
 
-      // Retain li_z_1 with a new quantity, add a new item, omit (remove) li_z_2
+      // Retain li_fd_1 with a new quantity, add a new item, omit (remove) li_fd_2
       await module.UpdateCheckoutSession(existingSession.id, {
         line_items: [
-          { id: 'li_z_1', quantity: 3 },
-          { price: 'price_z_2', quantity: 2 },
+          { id: 'li_fd_1', quantity: 3 },
+          { price: 'price_fd_2', quantity: 2 },
         ],
       });
 
@@ -602,14 +602,14 @@ describe('CheckoutSessionModule', () => {
           line_items: expect.objectContaining({
             data: [
               expect.objectContaining({
-                id: 'li_z_1',
+                id: 'li_fd_1',
                 quantity: 3,
                 amount_total: 3000,
               }),
               expect.objectContaining({
                 quantity: 2,
                 amount_total: 1000,
-                price: expect.objectContaining({ id: 'price_z_2' }),
+                price: expect.objectContaining({ id: 'price_fd_2' }),
               }),
             ],
           }),
@@ -623,7 +623,7 @@ describe('CheckoutSessionModule', () => {
 
       await expect(
         module.UpdateCheckoutSession(existingSession.id, {
-          line_items: [{ id: 'li_z_unknown', quantity: 2 }],
+          line_items: [{ id: 'li_fd_unknown', quantity: 2 }],
         })
       ).rejects.toThrow('No such line item');
       expect(mockDb.Update).not.toHaveBeenCalled();
@@ -670,13 +670,13 @@ describe('CheckoutSessionModule', () => {
     it('should expire an open session, cancel its PaymentIntent, and emit events', async () => {
       const openSession = {
         ...BuildOpenSession(),
-        payment_intent: 'pi_z_1',
+        payment_intent: 'pi_fd_1',
       };
       const paymentIntent = paymentIntentModule.PaymentIntentObject(
-        'acct_z_platform',
+        'acct_fd_platform',
         { amount: 1000, currency: 'usdc' }
       );
-      paymentIntent.id = 'pi_z_1';
+      paymentIntent.id = 'pi_fd_1';
       const canceledPaymentIntent = {
         ...paymentIntent,
         status: 'canceled' as const,
@@ -700,7 +700,7 @@ describe('CheckoutSessionModule', () => {
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'PaymentIntents',
-        'pi_z_1',
+        'pi_fd_1',
         expect.objectContaining({
           status: 'canceled',
           cancellation_reason: 'abandoned',
@@ -717,16 +717,16 @@ describe('CheckoutSessionModule', () => {
       ]);
       expect(eventService.Emit).toHaveBeenCalledWith(
         'payment_intent.canceled',
-        'acct_z_platform',
+        'acct_fd_platform',
         expect.objectContaining({
-          id: 'pi_z_1',
+          id: 'pi_fd_1',
           status: 'canceled',
           cancellation_reason: 'abandoned',
         })
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'checkout.session.expired',
-        'acct_z_platform',
+        'acct_fd_platform',
         expiredSession
       );
       expect(result).toEqual(expiredSession);
@@ -749,7 +749,7 @@ describe('CheckoutSessionModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'checkout.session.expired',
-        'acct_z_platform',
+        'acct_fd_platform',
         expiredSession
       );
       expect(eventService.Emit).toHaveBeenCalledTimes(1);
@@ -781,7 +781,7 @@ describe('CheckoutSessionModule', () => {
     it('should complete an open session and emit checkout.session.completed', async () => {
       const openSession = {
         ...BuildOpenSession(),
-        payment_intent: 'pi_z_1',
+        payment_intent: 'pi_fd_1',
       };
       const completedSession = {
         ...openSession,
@@ -822,7 +822,7 @@ describe('CheckoutSessionModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'checkout.session.completed',
-        'acct_z_platform',
+        'acct_fd_platform',
         completedSession
       );
       expect(result).toEqual(completedSession);
@@ -833,7 +833,7 @@ describe('CheckoutSessionModule', () => {
       mockDb.FindOneAndUpdateByFilter = jest.fn().mockResolvedValue(null);
 
       await expect(
-        module.CompleteCheckoutSession('cs_z_1', {
+        module.CompleteCheckoutSession('cs_fd_1', {
           transaction_hash: 'sig_abc',
           payer_wallet: 'payer_wallet_1',
         })
@@ -848,20 +848,20 @@ describe('CheckoutSessionModule', () => {
     it('should change the hash only while the open session still holds the expected one', async () => {
       mockDb.FindOneAndUpdateByFilter = jest
         .fn()
-        .mockResolvedValueOnce({ id: 'cs_z_1' })
+        .mockResolvedValueOnce({ id: 'cs_fd_1' })
         .mockResolvedValueOnce(null);
 
       await expect(
-        module.SetPaymentTransactionHash('cs_z_1', '0xabc', null)
+        module.SetPaymentTransactionHash('cs_fd_1', '0xabc', null)
       ).resolves.toBe(true);
       await expect(
-        module.SetPaymentTransactionHash('cs_z_1', '0xdef', null)
+        module.SetPaymentTransactionHash('cs_fd_1', '0xdef', null)
       ).resolves.toBe(false);
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenNthCalledWith(
         1,
         'CheckoutSessions',
         {
-          id: 'cs_z_1',
+          id: 'cs_fd_1',
           status: 'open',
           'payment_details.transaction_hash': null,
         },
@@ -880,14 +880,14 @@ describe('CheckoutSessionModule', () => {
     it('writes the payment details whole on a session without them', async () => {
       mockDb.FindOneAndUpdateByFilter = jest
         .fn()
-        .mockResolvedValue({ id: 'cs_z_1' });
+        .mockResolvedValue({ id: 'cs_fd_1' });
 
       await expect(
-        module.RecordPreparedPayment('cs_z_1', details)
+        module.RecordPreparedPayment('cs_fd_1', details)
       ).resolves.toBe(true);
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'CheckoutSessions',
-        { id: 'cs_z_1', status: 'open', payment_details: null },
+        { id: 'cs_fd_1', status: 'open', payment_details: null },
         { payment_details: { transaction_hash: null, ...details } }
       );
     });
@@ -899,12 +899,12 @@ describe('CheckoutSessionModule', () => {
         .mockResolvedValueOnce(null);
 
       await expect(
-        module.RecordPreparedPayment('cs_z_1', details)
+        module.RecordPreparedPayment('cs_fd_1', details)
       ).resolves.toBe(false);
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenLastCalledWith(
         'CheckoutSessions',
         {
-          id: 'cs_z_1',
+          id: 'cs_fd_1',
           status: 'open',
           'payment_details.transaction_hash': null,
         },
@@ -923,15 +923,15 @@ describe('CheckoutSessionModule', () => {
     it('claims an unclaimed open session', async () => {
       mockDb.FindOneAndUpdateByFilter = jest
         .fn()
-        .mockResolvedValue({ id: 'cs_z_1' });
+        .mockResolvedValue({ id: 'cs_fd_1' });
 
       await expect(
-        module.ClaimPaymentSettlement('cs_z_1', '0xabc')
+        module.ClaimPaymentSettlement('cs_fd_1', '0xabc')
       ).resolves.toBe(true);
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledWith(
         'CheckoutSessions',
         {
-          id: 'cs_z_1',
+          id: 'cs_fd_1',
           status: 'open',
           'payment_details.settling_since': null,
         },
@@ -949,14 +949,14 @@ describe('CheckoutSessionModule', () => {
       mockDb.FindOneAndUpdateByFilter = jest
         .fn()
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'cs_z_1' });
+        .mockResolvedValueOnce({ id: 'cs_fd_1' });
       mockDb.Get = jest.fn().mockResolvedValue({
         ...BuildOpenSession(),
         payment_details: { settling_since: since },
       });
 
       await expect(
-        module.ClaimPaymentSettlement('cs_z_1', '0xabc')
+        module.ClaimPaymentSettlement('cs_fd_1', '0xabc')
       ).resolves.toBe(taken);
       expect(mockDb.FindOneAndUpdateByFilter).toHaveBeenCalledTimes(
         taken ? 2 : 1
@@ -1009,24 +1009,24 @@ describe('CheckoutSessionModule', () => {
           url: '/v1/checkout/sessions',
         });
       await module.ListCheckoutSessions({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
         customer_details: { email: 'test@example.com' },
-        payment_intent: 'pi_z_1',
+        payment_intent: 'pi_fd_1',
         status: 'open',
-        subscription: 'sub_z_1',
+        subscription: 'sub_fd_1',
       });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
-            customer: 'cus_z_1',
+            customer: 'cus_fd_1',
             'customer_details.email': 'test@example.com',
-            payment_intent: 'pi_z_1',
+            payment_intent: 'pi_fd_1',
             status: 'open',
-            subscription: 'sub_z_1',
+            subscription: 'sub_fd_1',
           }),
         })
       );
@@ -1042,7 +1042,7 @@ describe('CheckoutSessionModule', () => {
           has_more: false,
           url: '/v1/checkout/sessions',
         });
-      await module.ListCheckoutSessions({ account: 'acct_z_platform' });
+      await module.ListCheckoutSessions({ account: 'acct_fd_platform' });
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({ filters: {} })
       );
@@ -1053,9 +1053,9 @@ describe('CheckoutSessionModule', () => {
   describe('ListLineItems', () => {
     function BuildSessionWithThreeItems(): CheckoutSession {
       return BuildOpenSession([
-        BuildLineItem({ id: 'li_z_1' }),
-        BuildLineItem({ id: 'li_z_2' }),
-        BuildLineItem({ id: 'li_z_3' }),
+        BuildLineItem({ id: 'li_fd_1' }),
+        BuildLineItem({ id: 'li_fd_2' }),
+        BuildLineItem({ id: 'li_fd_3' }),
       ]);
     }
 
@@ -1065,7 +1065,10 @@ describe('CheckoutSessionModule', () => {
       const result = module.ListLineItems(session, { limit: 2 });
 
       expect(result.object).toBe('list');
-      expect(result.data.map((item) => item.id)).toEqual(['li_z_1', 'li_z_2']);
+      expect(result.data.map((item) => item.id)).toEqual([
+        'li_fd_1',
+        'li_fd_2',
+      ]);
       expect(result.has_more).toBe(true);
       expect(result.url).toBe(`/v1/checkout/sessions/${session.id}/line_items`);
     });
@@ -1074,10 +1077,13 @@ describe('CheckoutSessionModule', () => {
       const session = BuildSessionWithThreeItems();
 
       const result = module.ListLineItems(session, {
-        startingAfter: 'li_z_1',
+        startingAfter: 'li_fd_1',
       });
 
-      expect(result.data.map((item) => item.id)).toEqual(['li_z_2', 'li_z_3']);
+      expect(result.data.map((item) => item.id)).toEqual([
+        'li_fd_2',
+        'li_fd_3',
+      ]);
       expect(result.has_more).toBe(false);
     });
 
@@ -1085,10 +1091,13 @@ describe('CheckoutSessionModule', () => {
       const session = BuildSessionWithThreeItems();
 
       const result = module.ListLineItems(session, {
-        endingBefore: 'li_z_3',
+        endingBefore: 'li_fd_3',
       });
 
-      expect(result.data.map((item) => item.id)).toEqual(['li_z_1', 'li_z_2']);
+      expect(result.data.map((item) => item.id)).toEqual([
+        'li_fd_1',
+        'li_fd_2',
+      ]);
       expect(result.has_more).toBe(false);
     });
 
@@ -1096,7 +1105,7 @@ describe('CheckoutSessionModule', () => {
       const session = BuildSessionWithThreeItems();
 
       expect(() =>
-        module.ListLineItems(session, { startingAfter: 'li_z_unknown' })
+        module.ListLineItems(session, { startingAfter: 'li_fd_unknown' })
       ).toThrow('Invalid starting_after ID');
     });
   });

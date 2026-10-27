@@ -4,14 +4,14 @@ export const DEPLOYMENT_PAGE: DocPage = {
   id: 'deployment',
   title: 'Deployment',
   description:
-    'Deploy a self-hosted Zoneless instance to a Linux server with Docker.',
+    'Deploy a self-hosted FiatDesk instance to a Linux server with Docker.',
   sections: [
     {
       left: [
         { type: 'heading', level: 2, text: 'Choose a VPS provider' },
         {
           type: 'paragraph',
-          text: 'Zoneless runs on any Linux server with Docker. These steps use Ubuntu 24.04.',
+          text: 'FiatDesk runs on any Linux server with Docker. These steps use Ubuntu 24.04.',
         },
         {
           type: 'list',
@@ -113,7 +113,7 @@ export const DEPLOYMENT_PAGE: DocPage = {
     },
     {
       left: [
-        { type: 'heading', level: 2, text: '4. Clone Zoneless' },
+        { type: 'heading', level: 2, text: '4. Clone FiatDesk' },
         {
           type: 'paragraph',
           text: 'Clone the repository and navigate into it.',
@@ -181,7 +181,7 @@ SINGLE_TENANT=true`,
     },
     {
       left: [
-        { type: 'heading', level: 2, text: '6. Start Zoneless' },
+        { type: 'heading', level: 2, text: '6. Start FiatDesk' },
         {
           type: 'paragraph',
           text: 'Build and start the containers. The first build may take a few minutes.',

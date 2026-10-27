@@ -14,7 +14,7 @@ import {
   QueryOperators,
   type PayoutBatch,
   type PayoutBatchStatus,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import { AppError } from '../utils/AppError';
 import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';

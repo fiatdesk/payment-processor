@@ -116,14 +116,14 @@ export interface Payout {
    * The platform account that owns this resource.
    * For connected account resources, this is the platform's account ID.
    * For platform's own resources, this equals the account field (self-referential).
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   platform_account: string;
 
   /**
    * Payout batch that holds this payout while it is built or broadcast, or
    * paid it. A held payout cannot be canceled or built into another batch.
-   * @zoneless_extension
+   * @fiatdesk_extension
    */
   payout_batch?: string | null;
 }
@@ -155,7 +155,7 @@ export type PayoutBatchStatus =
 /**
  * Internal record of one built payout batch transaction. At most one batch
  * per wallet is `built` or `broadcast` at a time, which serialises nonces.
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 export interface PayoutBatch {
   id: string;
@@ -277,7 +277,7 @@ export interface PayoutBatchBroadcastResponse {
 
 /**
  * Result of reconciling a platform's outstanding payout batches.
- * @zoneless_extension
+ * @fiatdesk_extension
  */
 export interface ReconcileResponse {
   object: 'payout_reconcile';

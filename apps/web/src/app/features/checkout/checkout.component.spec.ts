@@ -6,7 +6,7 @@ import {
   CheckoutSession,
   CheckoutSubscribeAuthorization,
   Eip712TypedData,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 
 import { Eip1193Provider, MetaService } from '../../core';
 import { CheckoutSessionService } from '../../data/services/checkout-session.service';

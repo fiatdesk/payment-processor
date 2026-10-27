@@ -3,7 +3,7 @@ import { DocPage } from './types';
 export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
   id: 'local-development',
   title: 'Local Development',
-  description: 'Test and debug a local Zoneless instance running in Docker.',
+  description: 'Test and debug a local FiatDesk instance running in Docker.',
   sections: [
     {
       left: [
@@ -170,7 +170,7 @@ http://host.docker.internal:4242/webhook`,
             {
               id: 'bash',
               label: 'Terminal',
-              code: 'docker logs --follow zoneless-api',
+              code: 'docker logs --follow fiatdesk-api',
             },
           ],
         },
@@ -187,7 +187,7 @@ http://host.docker.internal:4242/webhook`,
               html: true,
             },
             {
-              text: '<strong><a href="/deployment">Deployment</a>:</strong> Run Zoneless on a server',
+              text: '<strong><a href="/deployment">Deployment</a>:</strong> Run FiatDesk on a server',
               html: true,
             },
           ],

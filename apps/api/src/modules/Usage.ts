@@ -10,7 +10,7 @@
  */
 
 import { Database } from './Database';
-import { UsageCounter, OperatorUsage } from '@zoneless/shared-types';
+import { UsageCounter, OperatorUsage } from '@fiatdesk/shared-types';
 import { Logger } from '../utils/Logger';
 
 export class UsageModule {

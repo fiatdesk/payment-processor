@@ -19,40 +19,40 @@ describe('ChainCursorStore', () => {
   });
 
   it('has no cursor before a wallet is first scanned', async () => {
-    await expect(store.Get('wa_z_platform', SEPOLIA)).resolves.toBeNull();
+    await expect(store.Get('wa_fd_platform', SEPOLIA)).resolves.toBeNull();
   });
 
   it('stores the last scanned block under the wallet id', async () => {
-    await store.Set('wa_z_platform', SEPOLIA, 4998);
+    await store.Set('wa_fd_platform', SEPOLIA, 4998);
 
-    await expect(store.Get('wa_z_platform', SEPOLIA)).resolves.toEqual({
-      id: 'wa_z_platform',
+    await expect(store.Get('wa_fd_platform', SEPOLIA)).resolves.toEqual({
+      id: 'wa_fd_platform',
       chain_id: SEPOLIA,
       last_scanned_block: 4998,
       updated: GetFixedTimestamp(),
     });
     expect(memory.All('ChainCursors')).toEqual([
       expect.objectContaining({
-        id: 'wa_z_platform',
+        id: 'wa_fd_platform',
         last_scanned_block: 4998,
       }),
     ]);
   });
 
   it('replaces the cursor on the next scan', async () => {
-    await store.Set('wa_z_platform', SEPOLIA, 4998);
-    await store.Set('wa_z_platform', SEPOLIA, 6998);
+    await store.Set('wa_fd_platform', SEPOLIA, 4998);
+    await store.Set('wa_fd_platform', SEPOLIA, 6998);
 
-    await expect(store.Get('wa_z_platform', SEPOLIA)).resolves.toMatchObject({
+    await expect(store.Get('wa_fd_platform', SEPOLIA)).resolves.toMatchObject({
       last_scanned_block: 6998,
     });
     expect(memory.All('ChainCursors')).toHaveLength(1);
   });
 
   it('ignores a cursor recorded on another chain', async () => {
-    await store.Set('wa_z_platform', 31337, 40);
+    await store.Set('wa_fd_platform', 31337, 40);
 
-    await expect(store.Get('wa_z_platform', SEPOLIA)).resolves.toBeNull();
+    await expect(store.Get('wa_fd_platform', SEPOLIA)).resolves.toBeNull();
   });
 
   it('propagates a failed read instead of reporting no cursor', async () => {
@@ -60,7 +60,7 @@ describe('ChainCursorStore', () => {
       .spyOn(memory, 'Query')
       .mockRejectedValue(new Error('connection reset'));
 
-    await expect(store.Get('wa_z_platform', SEPOLIA)).rejects.toThrow(
+    await expect(store.Get('wa_fd_platform', SEPOLIA)).rejects.toThrow(
       'connection reset'
     );
   });

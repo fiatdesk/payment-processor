@@ -11,8 +11,8 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Account } from '@zoneless/shared-types';
-import { UpdateAccountInput } from '@zoneless/shared-schemas';
+import { Account } from '@fiatdesk/shared-types';
+import { UpdateAccountInput } from '@fiatdesk/shared-schemas';
 
 export type BusinessProfileFormMode = 'setup' | 'edit';
 

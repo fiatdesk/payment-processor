@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import type { Invoice, InvoicePayment } from '@zoneless/shared-types';
+import type { Invoice, InvoicePayment } from '@fiatdesk/shared-types';
 import { Subscription as RxSubscription } from 'rxjs';
 import { InvoiceService } from '../../../../../data';
 import { MetaService } from '../../../../../core';

@@ -3,7 +3,7 @@ import { Database } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import { CustomerModule } from '../modules/Customer';
 import { PriceModule } from '../modules/Price';
-import { InvoiceItem, QueryOperators } from '@zoneless/shared-types';
+import { InvoiceItem, QueryOperators } from '@fiatdesk/shared-types';
 import { ListHelper } from '../utils/ListHelper';
 import {
   CreateMockDatabase,
@@ -43,15 +43,15 @@ describe('InvoiceItemModule', () => {
     } as unknown as jest.Mocked<EventService>;
     customerModule = {
       GetCustomer: jest.fn().mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_platform',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_platform',
       }),
     } as unknown as jest.Mocked<CustomerModule>;
     priceModule = {
       GetPrice: jest.fn().mockResolvedValue({
-        id: 'price_z_1',
-        platform_account: 'acct_z_platform',
-        product: 'prod_z_1',
+        id: 'price_fd_1',
+        platform_account: 'acct_fd_platform',
+        product: 'prod_fd_1',
         unit_amount: 1099,
         unit_amount_decimal: '1099',
         currency: 'usdc',
@@ -69,8 +69,8 @@ describe('InvoiceItemModule', () => {
   describe('InvoiceItemObject', () => {
     it('should create an invoice item with sensible defaults', () => {
       const invoiceItem = module.InvoiceItemObject(
-        'acct_z_platform',
-        { customer: 'cus_z_1', amount: 1099 },
+        'acct_fd_platform',
+        { customer: 'cus_fd_1', amount: 1099 },
         {
           amount: 1099,
           currency: 'usdc',
@@ -83,10 +83,10 @@ describe('InvoiceItemModule', () => {
       );
 
       expect(invoiceItem.object).toBe('invoiceitem');
-      expect(invoiceItem.customer).toBe('cus_z_1');
+      expect(invoiceItem.customer).toBe('cus_fd_1');
       expect(invoiceItem.amount).toBe(1099);
       expect(invoiceItem.currency).toBe('usdc');
-      expect(invoiceItem.platform_account).toBe('acct_z_platform');
+      expect(invoiceItem.platform_account).toBe('acct_fd_platform');
       expect(invoiceItem.date).toBe(GetFixedTimestamp());
       expect(invoiceItem.created).toBe(GetFixedTimestamp());
       expect(invoiceItem.quantity).toBe(1);
@@ -104,8 +104,8 @@ describe('InvoiceItemModule', () => {
 
     it('should default discountable to false for negative amounts', () => {
       const invoiceItem = module.InvoiceItemObject(
-        'acct_z_platform',
-        { customer: 'cus_z_1', amount: -500 },
+        'acct_fd_platform',
+        { customer: 'cus_fd_1', amount: -500 },
         {
           amount: -500,
           currency: 'usdc',
@@ -124,8 +124,8 @@ describe('InvoiceItemModule', () => {
 
   describe('CreateInvoiceItem', () => {
     it('should persist the invoice item and emit invoiceitem.created', async () => {
-      const invoiceItem = await module.CreateInvoiceItem('acct_z_platform', {
-        customer: 'cus_z_1',
+      const invoiceItem = await module.CreateInvoiceItem('acct_fd_platform', {
+        customer: 'cus_fd_1',
         amount: 1099,
       });
 
@@ -136,26 +136,26 @@ describe('InvoiceItemModule', () => {
       );
       expect(eventService.Emit).toHaveBeenCalledWith(
         'invoiceitem.created',
-        'acct_z_platform',
+        'acct_fd_platform',
         invoiceItem
       );
-      expect(customerModule.GetCustomer).toHaveBeenCalledWith('cus_z_1');
+      expect(customerModule.GetCustomer).toHaveBeenCalledWith('cus_fd_1');
     });
 
     it('should resolve amount from pricing.price', async () => {
-      const invoiceItem = await module.CreateInvoiceItem('acct_z_platform', {
-        customer: 'cus_z_1',
-        pricing: { price: 'price_z_1' },
+      const invoiceItem = await module.CreateInvoiceItem('acct_fd_platform', {
+        customer: 'cus_fd_1',
+        pricing: { price: 'price_fd_1' },
         quantity: 2,
       });
 
-      expect(priceModule.GetPrice).toHaveBeenCalledWith('price_z_1');
+      expect(priceModule.GetPrice).toHaveBeenCalledWith('price_fd_1');
       expect(invoiceItem.amount).toBe(2198);
       expect(invoiceItem.quantity).toBe(2);
       expect(invoiceItem.pricing).toEqual({
         price_details: {
-          price: 'price_z_1',
-          product: 'prod_z_1',
+          price: 'price_fd_1',
+          product: 'prod_fd_1',
         },
         type: 'price_details',
         unit_amount_decimal: '1099',
@@ -164,13 +164,13 @@ describe('InvoiceItemModule', () => {
 
     it('should reject customers that do not belong to the platform', async () => {
       customerModule.GetCustomer = jest.fn().mockResolvedValue({
-        id: 'cus_z_1',
-        platform_account: 'acct_z_other',
+        id: 'cus_fd_1',
+        platform_account: 'acct_fd_other',
       });
 
       await expect(
-        module.CreateInvoiceItem('acct_z_platform', {
-          customer: 'cus_z_1',
+        module.CreateInvoiceItem('acct_fd_platform', {
+          customer: 'cus_fd_1',
           amount: 100,
         })
       ).rejects.toThrow('Customer not found');
@@ -178,8 +178,8 @@ describe('InvoiceItemModule', () => {
 
     it('should reject unsupported currencies', async () => {
       await expect(
-        module.CreateInvoiceItem('acct_z_platform', {
-          customer: 'cus_z_1',
+        module.CreateInvoiceItem('acct_fd_platform', {
+          customer: 'cus_fd_1',
           amount: 100,
           currency: 'usd',
         })
@@ -190,9 +190,9 @@ describe('InvoiceItemModule', () => {
   describe('UpdateInvoiceItem', () => {
     it('should update metadata without emitting an updated event', async () => {
       const existing = {
-        id: 'ii_z_1',
+        id: 'ii_fd_1',
         object: 'invoiceitem',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
         amount: 1099,
         quantity: 1,
         discountable: true,
@@ -207,13 +207,13 @@ describe('InvoiceItemModule', () => {
       } as InvoiceItem;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      const result = await module.UpdateInvoiceItem('ii_z_1', {
+      const result = await module.UpdateInvoiceItem('ii_fd_1', {
         metadata: { order_id: '6735' },
       });
 
       expect(mockDb.Update).toHaveBeenCalledWith(
         'InvoiceItems',
-        'ii_z_1',
+        'ii_fd_1',
         expect.objectContaining({ metadata: { order_id: '6735' } })
       );
       expect(eventService.Emit).not.toHaveBeenCalled();
@@ -229,10 +229,10 @@ describe('InvoiceItemModule', () => {
 
   describe('GetInvoiceItem', () => {
     it('should return the invoice item when found', async () => {
-      const mockItem = { id: 'ii_z_1', object: 'invoiceitem' } as InvoiceItem;
+      const mockItem = { id: 'ii_fd_1', object: 'invoiceitem' } as InvoiceItem;
       mockDb.Get = jest.fn().mockResolvedValue(mockItem);
 
-      const result = await module.GetInvoiceItem('ii_z_1');
+      const result = await module.GetInvoiceItem('ii_fd_1');
       expect(result).toEqual(mockItem);
     });
 
@@ -245,22 +245,22 @@ describe('InvoiceItemModule', () => {
   describe('DeleteInvoiceItem', () => {
     it('should delete and emit invoiceitem.deleted', async () => {
       const existing = {
-        id: 'ii_z_1',
+        id: 'ii_fd_1',
         object: 'invoiceitem',
-        platform_account: 'acct_z_platform',
+        platform_account: 'acct_fd_platform',
       } as InvoiceItem;
       mockDb.Get = jest.fn().mockResolvedValue(existing);
 
-      const result = await module.DeleteInvoiceItem('ii_z_1');
+      const result = await module.DeleteInvoiceItem('ii_fd_1');
 
-      expect(mockDb.Delete).toHaveBeenCalledWith('InvoiceItems', 'ii_z_1');
+      expect(mockDb.Delete).toHaveBeenCalledWith('InvoiceItems', 'ii_fd_1');
       expect(eventService.Emit).toHaveBeenCalledWith(
         'invoiceitem.deleted',
-        'acct_z_platform',
+        'acct_fd_platform',
         existing
       );
       expect(result).toEqual({
-        id: 'ii_z_1',
+        id: 'ii_fd_1',
         object: 'invoiceitem',
         deleted: true,
       });
@@ -285,18 +285,18 @@ describe('InvoiceItemModule', () => {
         });
 
       await module.ListInvoiceItems({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         limit: 25,
-        customer: 'cus_z_1',
+        customer: 'cus_fd_1',
         pending: true,
       });
 
       expect(listSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          account: 'acct_z_platform',
+          account: 'acct_fd_platform',
           limit: 25,
           filters: expect.objectContaining({
-            customer: 'cus_z_1',
+            customer: 'cus_fd_1',
             invoice: null,
           }),
         })
@@ -314,7 +314,7 @@ describe('InvoiceItemModule', () => {
         });
 
       await module.ListInvoiceItems({
-        account: 'acct_z_platform',
+        account: 'acct_fd_platform',
         pending: false,
       });
 

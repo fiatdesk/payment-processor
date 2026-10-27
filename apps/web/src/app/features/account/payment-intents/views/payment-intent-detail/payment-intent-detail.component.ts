@@ -14,7 +14,7 @@ import type {
   ChargePaymentMethodDetailsCrypto,
   Customer,
   PaymentIntent,
-} from '@zoneless/shared-types';
+} from '@fiatdesk/shared-types';
 import {
   ChargeService,
   ConfigService,
