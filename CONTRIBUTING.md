@@ -55,7 +55,7 @@ npm run dev
 
 To run the full Docker stack instead (API, dashboard, and database behind one local URL), follow the self-hosting and local development guides in [`apps/docs`](apps/docs).
 
-Test mode uses simulated funds by default (`SETTLEMENT_RAIL=simulated`). To exercise Ethereum Sepolia, set `LIVEMODE=false`, `SETTLEMENT_RAIL=onchain` and `ETH_RPC_URL`. Automated tests never contact a public network: Solidity tests run with `npx nx run contracts:test` (Foundry), and API integration tests run against a local Anvil chain with `npx nx run api:test-anvil`. See [`contracts/README.md`](contracts/README.md).
+Test mode uses simulated funds by default (`SETTLEMENT_RAIL=simulated`). To exercise Ethereum Sepolia, set `LIVEMODE=false`, `SETTLEMENT_RAIL=onchain` and `ETH_RPC_URL`. The default test suites never contact a public network: Solidity tests run with `npx nx run contracts:test` (Foundry), and API integration tests run against a local Anvil chain with `npx nx run api:test-anvil`. See [`contracts/README.md`](contracts/README.md).
 
 ### Tests, lint, and formatting
 

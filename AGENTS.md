@@ -4,7 +4,7 @@ Zoneless is an open-source, Stripe-compatible payments platform that uses USDC o
 
 This is an Nx monorepo with an Angular frontend (dashboard, checkout, connected-account onboarding, and docs), an Express API, and the Node SDK in [`sdks/node`](sdks/node).
 
-Solidity contracts (`PayoutBatch`, `Subscriptions`) live in [`contracts`](contracts) and are built and tested with Foundry (`npx nx run contracts:test`). API integration tests against a local Anvil chain run with `npx nx run api:test-anvil`. Tests never contact a public RPC.
+Solidity contracts (`PayoutBatch`, `Subscriptions`) live in [`contracts`](contracts) and are built and tested with Foundry (`npx nx run contracts:test`). API integration tests against a local Anvil chain run with `npx nx run api:test-anvil`. The default test suites never contact a public RPC.
 
 Public product docs live in [`apps/docs`](apps/docs). Serve them with `npx nx serve docs`. Edit the TypeScript page trees, not generated Markdown.
 

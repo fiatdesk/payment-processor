@@ -1286,7 +1286,7 @@ async function ChargeRefused(
     );
     if (allowance < amount) {
       throw new AppError(
-        "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit",
+        "The subscriber's USDC allowance for this subscription is used up; the subscriber must approve more USDC (subscribe again) for renewals to resume.",
         402,
         COLLECTION_FAILED_ALLOWANCE
       );

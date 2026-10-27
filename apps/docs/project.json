@@ -77,7 +77,14 @@
     "lint": {
       "executor": "@nx/eslint:lint"
     },
+    "test-scripts": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsx --test apps/docs/scripts/generate-agent-docs.test.ts"
+      }
+    },
     "test": {
+      "dependsOn": ["test-scripts"],
       "executor": "@nx/jest:jest",
       "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
       "options": {

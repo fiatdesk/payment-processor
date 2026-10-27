@@ -142,7 +142,11 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   );
   assert.ok(marketplaceRoute);
 
-  await GenerateAgentDocs({ outputDir, routes: [marketplaceRoute] });
+  await GenerateAgentDocs({
+    outputDir,
+    routes: [marketplaceRoute],
+    siteUrl: 'https://docs.example.com',
+  });
 
   const markdown = await fs.readFile(
     path.join(outputDir, 'agent-marketplace-quickstart.md'),

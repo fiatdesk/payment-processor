@@ -1809,8 +1809,9 @@ export class InvoiceModule {
   }
 
   /**
-   * `customer.subscription.allowance_exhausted`: the subscriber must sign a
-   * new USDC permit before the subscription can be collected again.
+   * `customer.subscription.allowance_exhausted`: the subscriber's USDC
+   * allowance is used up, so they must approve more USDC (or subscribe again)
+   * before renewals can be collected. There is no hosted page for this.
    */
   private async EmitAllowanceExhausted(invoice: InvoiceType): Promise<void> {
     const subscriptionId = ExpandableId(
