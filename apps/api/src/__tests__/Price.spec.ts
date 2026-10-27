@@ -9,6 +9,11 @@ import {
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
+import {
+  CreateMockSettlement,
+  MOCK_PLAN_KEY,
+  MOCK_PLAN_OWNER,
+} from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -24,6 +29,14 @@ jest.mock('../modules/AppConfig', () => ({
     appSecret: 'test-secret',
   })),
 }));
+// Recurring prices register their plan only on the simulated rail in tests.
+const mockSettlement = CreateMockSettlement();
+jest.mock('../modules/chains/Settlement', () => ({
+  GetSettlement: jest.fn(() => mockSettlement),
+  IsSimulatedSettlement: jest.fn(() => true),
+}));
+
+const PLATFORM_WALLET = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
 describe('PriceModule', () => {
   let module: PriceModule;
@@ -121,7 +134,45 @@ describe('PriceModule', () => {
       expect(mockDb.Set).toHaveBeenCalledTimes(2);
       expect(mockDb.Set).toHaveBeenCalledWith('Products', product.id, product);
       expect(mockDb.Set).toHaveBeenCalledWith('Prices', price.id, price);
+      expect(mockSettlement.CreateSubscriptionPlan).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ['month', 1, 720 * 3600],
+      ['day', 2, 48 * 3600],
+    ] as const)(
+      'registers a %s × %i plan with its period in seconds and stores the plan key',
+      async (interval, intervalCount, periodSeconds) => {
+        const product = await productModule.CreateProduct('acct_z_platform', {
+          name: 'Pro',
+        });
+        mockDb.Get.mockResolvedValueOnce(product);
+        mockDb.Find2Custom.mockResolvedValueOnce([
+          { wallet_address: PLATFORM_WALLET, default_for_currency: true },
+        ]);
+
+        const price = await module.CreatePrice('acct_z_platform', {
+          unit_amount: 2000,
+          currency: 'usdc',
+          product: product.id,
+          recurring: { interval, interval_count: intervalCount },
+        });
+
+        expect(mockSettlement.CreateSubscriptionPlan).toHaveBeenCalledWith(
+          price.id,
+          periodSeconds,
+          2000,
+          PLATFORM_WALLET,
+          MOCK_PLAN_OWNER
+        );
+        expect(price.subscription_plan_id).toBe(MOCK_PLAN_KEY);
+        expect(mockDb.Set).toHaveBeenCalledWith(
+          'Prices',
+          price.id,
+          expect.objectContaining({ subscription_plan_id: MOCK_PLAN_KEY })
+        );
+      }
+    );
   });
 
   describe('UpdatePrice', () => {

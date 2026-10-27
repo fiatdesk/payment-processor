@@ -67,12 +67,13 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
 - **Subscribing.**
   - A subscription's id is `subId = keccak256(abi.encode(planKey, subscriber))`.
   - `subscriptions(subId)` returns its plan key, subscriber, next due time, status (`None`, `Active`, `Paused`, `Canceled`) and who paused it (`PausedBy`: `None`, `Subscriber`, `Owner`).
-  - A wallet subscribes itself with `subscribe(planKey)`, paying the gas.
-  - A relayer can subscribe it with `subscribeWithAuthorization(planKey, subscriber, terms, deadline, sig)`.
-    - `sig` is the subscriber's EIP-712 signature over `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)`.
+  - A wallet subscribes itself with `subscribe(planKey)`, paying the gas, or with `subscribe(planKey, firstChargeAt)` to start later.
+  - A relayer can subscribe it with `subscribeWithAuthorization(planKey, subscriber, terms, firstChargeAt, deadline, sig)`.
+    - `sig` is the subscriber's EIP-712 signature over `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)`.
+    - `firstChargeAt` is when the first period is due: `0` for the subscribe time, else a time from now to `MAX_FIRST_CHARGE_DELAY` (365 days) ahead, else `InvalidFirstCharge`. The API uses it for trials: the first charge is at the trial's end. It is signed, so a relayer cannot move it, and it is not a plan term, so it is not part of `terms`.
     - `nonce` is `nonces(subscriber)`, read right before signing.
     - The domain is name `Subscriptions`, version `1`, the chain id and the contract address (`eip712Domain()`).
-    - `terms` is the struct `(token, amount, periodSeconds)` and must equal the plan's, else `TermsMismatch`. It is one struct because twelve separate arguments would not decode without the IR pipeline.
+    - `terms` is the struct `(token, amount, periodSeconds)` and must equal the plan's, else `TermsMismatch`. It is one struct because thirteen separate `subscribeWithPermit` arguments would not decode without the IR pipeline.
     - The wallet prompt therefore shows the token, amount and period being agreed to.
     - The deadline is inclusive, and short deadlines are expected.
   - `subscribeWithPermit` first applies the subscriber's EIP-2612 `permit` for this contract on the plan's token, so a first-time subscriber needs no ETH. If someone submits that permit first, the subscribe still goes through.
@@ -81,7 +82,7 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
   - A subscriber who cancels may subscribe again, which starts a new schedule.
 - **Charging.**
   - Only the plan's puller can `charge(subId, amount)`.
-  - Billing periods follow a fixed grid from the subscribe time, and the first period is due at once.
+  - Billing periods follow a fixed grid from the first charge time: the subscribe time, or `firstChargeAt`. No charge is possible before it (`NotDueYet`).
   - A charge moves `nextChargeAt` to the first grid point after the charge. A period the puller missed is skipped, never collected later, so no subscriber is charged more than once per billing period.
   - Checks run in this order:
     1. `Unauthorized`: not the puller, or an unknown subscription.
@@ -97,8 +98,8 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
     - if the current period has not been charged when the subscription resumes, it is due at once;
     - periods that passed entirely while paused are skipped.
 - **Allowances.**
-  - The contract expects a bounded allowance. The API permits `amount × max(12, ceil(365 days / periodSeconds))`, at least 12 periods and at least a year of service, and asks for a new permit when it runs out.
-  - The per-period cap is enforced by `charge`, and the allowance caps the total. So a `Subscribe` signature obtained by phishing can spend at most the victim's remaining allowance to this contract.
+  - The contract expects a bounded allowance. One allowance to this contract serves all of a wallet's plans, so the API's permit adds `amount × max(12, ceil(365 days / periodSeconds))` (at least 12 periods and at least a year of service) to the wallet's current allowance. It asks for a permit when the allowance is below that value for the new plan plus the same value for each of the wallet's other live plans.
+  - The per-period cap is enforced by `charge`, and the allowance caps the total. So a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).
   - A subscriber stops all pulls by cancelling, or by revoking the allowance (`approve(subscriptions, 0)`), after which every `charge` reverts.
 - **USDC blacklist.**
   - If Circle blacklists a subscriber, `charge` reverts for that subscription, and the schedule is left as it was.

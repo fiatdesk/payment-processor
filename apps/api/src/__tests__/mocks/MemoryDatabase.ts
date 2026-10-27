@@ -1,10 +1,13 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
- * In-memory stand-in for `Database` with the Mongo semantics the payout flow
- * relies on: equality and `$in`/`$ne` filters (array fields match by
- * containment), `$set`/`$addToSet`/`$unset` updates with dotted paths,
- * transactions that roll back when the callback throws, and opt-in unique
- * indexes. Pass it where a `Database` is expected with `AsDatabase()`.
+ * In-memory stand-in for `Database` with the Mongo semantics the payout and
+ * billing flows rely on: equality, `$in`/`$ne`, range and top-level `$or`
+ * filters (array fields match by containment), `$set`/`$setOnInsert`/`$inc`/
+ * `$addToSet`/`$unset` updates with dotted paths, upserts by `id`, ordered
+ * queries with `startAt` /
+ * `startAfter` cursors, transactions that roll back when the callback
+ * throws, and opt-in unique (optionally partial) indexes. Pass it where a
+ * `Database` is expected with `AsDatabase()`.
  */
 
 import type { QueryParameters } from '@zoneless/shared-types';
@@ -13,22 +16,28 @@ import type { Database } from '../../modules/Database';
 type Doc = Record<string, unknown>;
 type Filter = Record<string, unknown>;
 
+interface UniqueIndexSpec {
+  fields: string[];
+  /** Mongo's `partialFilterExpression`: only matching documents take part */
+  partial?: Filter;
+}
+
 export class MemoryDatabase {
   private collections = new Map<string, Map<string, Doc>>();
-  private uniqueIndexes = new Map<string, string[][]>();
+  private uniqueIndexes = new Map<string, UniqueIndexSpec[]>();
 
   AsDatabase(): Database {
     return this as unknown as Database;
   }
 
   /**
-   * Mirrors a unique compound index that is partial on its fields: only
-   * documents holding every field take part. `Set` and `Update` then reject
-   * a clashing write with Mongo's duplicate-key error (code 11000).
+   * Mirrors a unique compound index. Only documents holding every field,
+   * and matching `partial` when given, take part. Writes that clash fail
+   * with Mongo's duplicate-key error (code 11000).
    */
-  UniqueIndex(collection: string, fields: string[]): void {
+  UniqueIndex(collection: string, fields: string[], partial?: Filter): void {
     const indexes = this.uniqueIndexes.get(collection) ?? [];
-    this.uniqueIndexes.set(collection, [...indexes, fields]);
+    this.uniqueIndexes.set(collection, [...indexes, { fields, partial }]);
   }
 
   Seed(collection: string, ...docs: Doc[]): void {
@@ -54,9 +63,11 @@ export class MemoryDatabase {
     return doc ? (Clone(doc) as T) : null;
   }
 
+  /** An upsert by `id`; `$setOnInsert` applies only when it inserts. */
   async Set<T>(collection: string, id: string, data: Partial<T>): Promise<T> {
-    const doc = Clone(this.Collection(collection).get(id) ?? { id });
-    ApplyUpdate(doc, data as Doc);
+    const existing = this.Collection(collection).get(id);
+    const doc = Clone(existing ?? { id });
+    ApplyUpdate(doc, data as Doc, !existing);
     return Clone(this.Store(collection, id, doc)) as T;
   }
 
@@ -81,8 +92,9 @@ export class MemoryDatabase {
       Matches(candidate, filter)
     );
     if (!doc) return null;
-    ApplyUpdate(doc, data);
-    return Clone(doc) as T;
+    const updated = Clone(doc);
+    ApplyUpdate(updated, data);
+    return Clone(this.Store(collection, String(doc.id), updated)) as T;
   }
 
   async Find<T>(
@@ -120,12 +132,25 @@ export class MemoryDatabase {
   async Query<T>(options: QueryParameters): Promise<T[]> {
     const filter: Filter = {};
     for (const { key, operator, value } of options.parameters ?? []) {
-      Object.assign(filter, OperatorFilter(key, operator, value));
+      Merge(filter, OperatorFilter(key, operator, value));
+    }
+    const [order] = options.orderBy ?? [];
+    const orderKey = order?.key ?? 'created';
+    const descending = (order?.direction ?? 'desc') === 'desc';
+    // Cursors bound the first order key, as Database.Query does.
+    if (options.startAfter !== undefined) {
+      Merge(filter, {
+        [orderKey]: { [descending ? '$lt' : '$gt']: options.startAfter },
+      });
+    }
+    if (options.startAt !== undefined) {
+      Merge(filter, {
+        [orderKey]: { [descending ? '$lte' : '$gte']: options.startAt },
+      });
     }
     const results = this.Filter<T>(options.collection, filter);
-    const [order] = options.orderBy ?? [];
     if (order) {
-      const sign = order.direction === 'desc' ? -1 : 1;
+      const sign = descending ? -1 : 1;
       results.sort(
         (a, b) =>
           sign *
@@ -134,6 +159,13 @@ export class MemoryDatabase {
       );
     }
     return options.limit ? results.slice(0, options.limit) : results;
+  }
+
+  async Delete(
+    collection: string,
+    id: string
+  ): Promise<{ deletedCount: number }> {
+    return { deletedCount: this.Collection(collection).delete(id) ? 1 : 0 };
   }
 
   async RunTransaction<T>(fn: (session: never) => Promise<T>): Promise<T> {
@@ -153,20 +185,19 @@ export class MemoryDatabase {
 
   private Store(collection: string, id: string, doc: Doc): Doc {
     const docs = this.Collection(collection);
-    for (const fields of this.uniqueIndexes.get(collection) ?? []) {
-      const key = fields.map((field) => Read(doc, field));
-      if (key.some((value) => value === undefined)) continue;
+    for (const { fields, partial } of this.uniqueIndexes.get(collection) ??
+      []) {
+      const Indexed = (candidate: Doc) =>
+        fields.every((field) => Read(candidate, field) !== undefined) &&
+        (!partial || Matches(candidate, partial));
+      if (!Indexed(doc)) continue;
       const clash = [...docs].some(
         ([otherId, other]) =>
           otherId !== id &&
-          fields.every((field, i) => Read(other, field) === key[i])
+          Indexed(other) &&
+          fields.every((field) => Read(other, field) === Read(doc, field))
       );
-      if (clash) {
-        throw Object.assign(
-          new Error(`E11000 duplicate key error collection: ${collection}`),
-          { code: 11000 }
-        );
-      }
+      if (clash) throw DuplicateKey(collection);
     }
     docs.set(id, doc);
     return doc;
@@ -192,6 +223,20 @@ function Clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+function DuplicateKey(collection: string): Error {
+  return Object.assign(
+    new Error(`E11000 duplicate key error collection: ${collection}`),
+    { code: 11000 }
+  );
+}
+
+const RANGE_OPERATORS: Record<string, string> = {
+  '<': '$lt',
+  '<=': '$lte',
+  '>': '$gt',
+  '>=': '$gte',
+};
+
 function OperatorFilter(
   field: string,
   operator: string,
@@ -202,23 +247,72 @@ function OperatorFilter(
       return { [field]: { $in: value } };
     case '!=':
       return { [field]: { $ne: value } };
+    case 'exists':
+      return { [field]: { $exists: value === true } };
     default:
-      return { [field]: value };
+      return RANGE_OPERATORS[operator]
+        ? { [field]: { [RANGE_OPERATORS[operator]]: value } }
+        : { [field]: value };
+  }
+}
+
+/** Adds `extra` to `filter`, combining operator conditions on one field. */
+function Merge(filter: Filter, extra: Filter): void {
+  for (const [path, condition] of Object.entries(extra)) {
+    const existing = filter[path];
+    filter[path] =
+      IsOperator(existing) && IsOperator(condition)
+        ? { ...existing, ...condition }
+        : condition;
+  }
+}
+
+/** A range bound; null and missing values never satisfy one, as in Mongo. */
+function InRange(value: unknown, operator: string, bound: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  const a = value as number;
+  const b = bound as number;
+  switch (operator) {
+    case '$lt':
+      return a < b;
+    case '$lte':
+      return a <= b;
+    case '$gt':
+      return a > b;
+    default:
+      return a >= b;
   }
 }
 
 function Matches(doc: Doc, filter: Filter): boolean {
   return Object.entries(filter).every(([path, condition]) => {
+    if (path === '$or') {
+      return (condition as Filter[]).some((branch) => Matches(doc, branch));
+    }
     const value = Read(doc, path);
     const values = Array.isArray(value) ? value : [value];
     if (IsOperator(condition)) {
-      if ('$in' in condition) {
-        return values.some((v) =>
-          (condition.$in as unknown[]).includes(v ?? null)
-        );
-      }
-      if ('$ne' in condition) return !values.includes(condition.$ne);
-      throw new Error(`Unsupported filter ${JSON.stringify(condition)}`);
+      return Object.entries(condition).every(([operator, operand]) => {
+        switch (operator) {
+          case '$in':
+            return values.some((v) =>
+              (operand as unknown[]).includes(v ?? null)
+            );
+          case '$ne':
+            return !values.includes(operand);
+          case '$exists':
+            return (value !== undefined) === operand;
+          case '$type':
+            return typeof value === operand;
+          case '$lt':
+          case '$lte':
+          case '$gt':
+          case '$gte':
+            return values.some((v) => InRange(v, operator, operand));
+          default:
+            throw new Error(`Unsupported filter ${JSON.stringify(condition)}`);
+        }
+      });
     }
     // An array condition matches the whole array exactly, as in Mongo.
     if (Array.isArray(condition)) {
@@ -228,14 +322,18 @@ function Matches(doc: Doc, filter: Filter): boolean {
   });
 }
 
-function ApplyUpdate(doc: Doc, update: Doc): void {
+function ApplyUpdate(doc: Doc, update: Doc, inserting = false): void {
   const operators = Object.keys(update).some((key) => key.startsWith('$'));
   const changes = operators ? update : { $set: update };
   for (const [operator, fields] of Object.entries(changes)) {
     for (const [path, value] of Object.entries(fields as Doc)) {
       if (operator === '$set') Write(doc, path, Clone(value));
-      else if (operator === '$unset') Write(doc, path, undefined);
-      else if (operator === '$addToSet') {
+      else if (operator === '$setOnInsert') {
+        if (inserting) Write(doc, path, Clone(value));
+      } else if (operator === '$unset') Write(doc, path, undefined);
+      else if (operator === '$inc') {
+        Write(doc, path, Number(Read(doc, path) ?? 0) + Number(value));
+      } else if (operator === '$addToSet') {
         const list = (Read(doc, path) as unknown[] | undefined) ?? [];
         if (!list.includes(value)) Write(doc, path, [...list, value]);
       } else throw new Error(`Unsupported update operator ${operator}`);

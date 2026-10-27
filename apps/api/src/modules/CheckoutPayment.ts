@@ -2,8 +2,8 @@
 /**
  * @fileOverview Methods for the public hosted checkout payment flow:
  * bootstrapping the payment page, preparing the USDC authorization (or the
- * subscribe transaction) the customer signs, and relaying, confirming and
- * completing it on-chain.
+ * permit and subscribe signatures) the customer signs, and relaying,
+ * confirming and completing it on-chain.
  *
  * @module CheckoutPayment
  */
@@ -28,10 +28,24 @@ import {
   type Settlement,
 } from './chains/Settlement';
 import { BuildTransferAuthorization } from './chains/CheckoutAuthorization';
-import type {
-  CheckoutPaymentVerification,
-  UnsignedTransaction,
+import { CurrentDueAt, PermitValue } from './chains/SubscriptionAuthorization';
+import {
+  COLLECTION_DECLINE_CODES,
+  ONCHAIN_PLAN_AMOUNT_EXCEEDED,
+  PAUSED_ON_CHAIN,
+  PERIOD_ALREADY_COLLECTED,
+  type CheckoutPaymentVerification,
+  type SignedTransaction,
 } from './chains/types';
+import { CentsToTokenUnits } from './chains/PayoutEncoding';
+import {
+  ClaimHashes,
+  SubscriptionCycleClaims,
+} from './SubscriptionCycleClaims';
+import {
+  RecurringIntervalToSeconds,
+  SECONDS_PER_DAY,
+} from '../utils/RecurringInterval';
 import { GetCheckoutConfirmTimeoutMs } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -52,20 +66,78 @@ import {
   IsTransactionHash,
   Price,
   Product,
+  Subscription,
+  SubscriptionItem,
 } from '@zoneless/shared-types';
 
 /**
  * What PreparePayment returns: the authorization to sign (payment mode) or
- * the unsigned subscribe transaction (subscription mode).
+ * the permit and subscribe messages to sign (subscription mode).
  */
 export type PreparedCheckoutPayment = CheckoutPaymentTransaction;
 
 /** Fields of a prepared subscription checkout. */
-type PreparedSubscribe = UnsignedTransaction &
-  Pick<
-    CheckoutPaymentTransaction,
-    'already_subscribed' | 'subscription_onchain_id'
-  >;
+type PreparedSubscription = Pick<
+  CheckoutPaymentTransaction,
+  | 'relayed'
+  | 'estimated_fee'
+  | 'fee_currency'
+  | 'chain_id'
+  | 'subscription'
+  | 'already_subscribed'
+  | 'subscription_onchain_id'
+>;
+
+/** The first-period charge of a subscription checkout. */
+interface FirstCharge {
+  transactionHash: string;
+  /** The period the charge paid; `end` null when the rail keeps no schedule */
+  period: { start: number; end: number | null };
+}
+
+/** The signed subscribe (or its transaction) a subscription confirm sends. */
+interface SubscribeConfirmation {
+  permitSignature?: string;
+  subscribeSignature?: string;
+  deadline?: number;
+  transactionHash?: string;
+}
+
+/** The trial a recurring price gives before its first charge, in seconds. */
+function TrialSeconds(price: Price): number {
+  const days = price.recurring?.trial_period_days ?? 0;
+  return days > 0 ? days * SECONDS_PER_DAY : 0;
+}
+
+/**
+ * 409 `period_already_collected`: the period due on-chain was collected
+ * without this session's charge, so the session cannot be recorded as paid
+ * and nothing is created.
+ */
+function PeriodAlreadyCollected(): AppError {
+  return new AppError(
+    'This on-chain subscription period is already collected; this checkout did not pay it',
+    409,
+    PERIOD_ALREADY_COLLECTED,
+    { code: PERIOD_ALREADY_COLLECTED }
+  );
+}
+
+/**
+ * On-chain plans collect one price per period, so subscription checkout
+ * takes quantity 1 (400 `onchain_plan_amount_exceeded`).
+ */
+function AssertSingleQuantity(session: CheckoutSession): void {
+  const quantity = session.line_items?.data?.[0]?.quantity ?? 1;
+  if (quantity !== 1) {
+    throw new AppError(
+      'Subscription checkout takes quantity 1: an on-chain plan collects one price per period',
+      ERRORS.INVALID_REQUEST.status,
+      ERRORS.INVALID_REQUEST.type,
+      { code: ONCHAIN_PLAN_AMOUNT_EXCEEDED }
+    );
+  }
+}
 
 /** How long a confirm waits for another one recording the same payment. */
 const SETTLEMENT_WAIT_MS = 10_000;
@@ -159,6 +231,7 @@ export class CheckoutPaymentModule {
   private readonly customerModule: CustomerModule | null;
   private readonly subscriptionModule: SubscriptionModule | null;
   private readonly settlement: Settlement;
+  private readonly cycleClaims: SubscriptionCycleClaims;
 
   constructor(
     db: Database,
@@ -185,6 +258,7 @@ export class CheckoutPaymentModule {
     this.customerModule = customerModule || null;
     this.subscriptionModule = subscriptionModule || null;
     this.settlement = settlement || GetSettlement();
+    this.cycleClaims = new SubscriptionCycleClaims(db);
   }
 
   /**
@@ -285,8 +359,9 @@ export class CheckoutPaymentModule {
 
   /**
    * Prepare what the customer signs. One-time sessions get an EIP-3009 USDC
-   * authorization that the API relays (the customer pays no gas);
-   * subscription sessions get an unsigned `subscribe` transaction.
+   * authorization; subscription sessions get the Subscriptions contract's
+   * `Subscribe` message and, when the wallet's allowance is too low, a USDC
+   * permit. The API relays either, so the customer pays no gas.
    */
   async PreparePayment(
     urlSlug: string,
@@ -360,10 +435,7 @@ export class CheckoutPaymentModule {
       merchantWallet.wallet_address;
     const prepared =
       session.mode === 'subscription'
-        ? {
-            relayed: false,
-            ...(await this.PrepareSubscribeTransaction(session, payerWallet)),
-          }
+        ? await this.PrepareSubscription(session, payerWallet)
         : await this.PrepareAuthorization(session, payerWallet, merchant);
 
     // Re-preparing during a relay returns the same authorization to sign
@@ -373,6 +445,9 @@ export class CheckoutPaymentModule {
         payer_wallet: payerWallet,
         relayed: prepared.relayed,
         merchant_wallet: merchant,
+        ...('subscription' in prepared
+          ? { first_charge_at: prepared.subscription?.first_charge_at ?? null }
+          : {}),
       });
     }
 
@@ -405,44 +480,125 @@ export class CheckoutPaymentModule {
     };
   }
 
-  private async PrepareSubscribeTransaction(
+  private async PrepareSubscription(
     session: CheckoutSession,
     payerWallet: string
-  ): Promise<PreparedSubscribe> {
-    const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_id) {
-      throw new AppError(
-        'This subscription price has no on-chain plan. Recreate the price and try again.',
-        ERRORS.INVALID_REQUEST.status,
-        ERRORS.INVALID_REQUEST.type
-      );
-    }
-
-    const existingSubscriptionId =
-      await this.settlement.FindExistingSubscription(
-        price.subscription_plan_id,
-        payerWallet
-      );
-    if (existingSubscriptionId) {
+  ): Promise<PreparedSubscription> {
+    const planKey = this.RequirePlanKey(session);
+    AssertSingleQuantity(session);
+    const existing = await this.settlement.FindExistingSubscription(
+      planKey,
+      payerWallet
+    );
+    if (existing) {
       // A prior attempt likely landed on-chain while its confirm failed.
-      const { chain_id, native_currency } = this.settlement.Describe();
+      const { chain_id, native_currency, rail } = this.settlement.Describe();
       return {
-        unsigned_transaction: '',
+        relayed: rail === 'onchain',
         estimated_fee: '0',
         fee_currency: native_currency,
         chain_id,
-        nonce: null,
-        to: null,
         already_subscribed: true,
-        subscription_onchain_id: existingSubscriptionId,
+        subscription_onchain_id: existing,
+        subscription: {
+          plan_id: planKey,
+          needs_permit: false,
+          permit_typed_data: null,
+          subscribe_typed_data: null,
+          deadline: null,
+          first_charge_at: null,
+          already_subscribed: true,
+          subscription_onchain_id: existing,
+        },
       };
     }
 
-    return this.settlement.BuildSubscribeTransaction(
+    const prepared = await this.settlement.BuildSubscribeAuthorization(
       payerWallet,
-      price.id,
-      price.subscription_plan_id
+      planKey,
+      session.expires_at,
+      {
+        otherPlansAllowance: await this.OtherPlansAllowance(
+          payerWallet,
+          planKey
+        ),
+        trialSeconds: TrialSeconds(this.RequireRecurringCheckoutPrice(session)),
+      }
     );
+    return {
+      relayed: prepared.subscribe_typed_data !== null,
+      estimated_fee: prepared.estimated_fee,
+      fee_currency: prepared.fee_currency,
+      chain_id: prepared.chain_id,
+      already_subscribed: false,
+      subscription: {
+        plan_id: planKey,
+        needs_permit: prepared.needs_permit,
+        permit_typed_data: prepared.permit_typed_data,
+        subscribe_typed_data: prepared.subscribe_typed_data,
+        deadline: prepared.deadline,
+        first_charge_at: prepared.first_charge_at,
+        already_subscribed: false,
+        subscription_onchain_id: null,
+      },
+    };
+  }
+
+  /**
+   * The bounded permit values (`PermitValue`) of the wallet's other live
+   * on-chain subscriptions on this instance. One USDC allowance to the
+   * Subscriptions contract serves all of them, so a new subscriber needs a
+   * permit while the allowance is below their sum plus the new plan's.
+   */
+  private async OtherPlansAllowance(
+    wallet: string,
+    planKey: string
+  ): Promise<bigint> {
+    const subscriptions =
+      (await this.db.FindCustom<Subscription>(
+        'Subscriptions',
+        'default_payment_method',
+        '==',
+        wallet
+      )) ?? [];
+    let total = 0n;
+    for (const subscription of subscriptions) {
+      if (
+        !subscription.subscription_onchain_id ||
+        subscription.status === 'canceled' ||
+        subscription.status === 'incomplete_expired'
+      ) {
+        continue;
+      }
+      const items =
+        (await this.db.Find<SubscriptionItem>(
+          'SubscriptionItems',
+          'subscription',
+          subscription.id
+        )) ?? [];
+      for (const item of items) {
+        const priceId =
+          typeof item.price === 'string' ? item.price : item.price.id;
+        const price = await this.db.Get<Price>('Prices', priceId);
+        if (
+          !price?.subscription_plan_id ||
+          price.subscription_plan_id === planKey ||
+          price.unit_amount === null
+        ) {
+          continue;
+        }
+        total += PermitValue({
+          amount: CentsToTokenUnits(price.unit_amount),
+          periodSeconds: BigInt(
+            RecurringIntervalToSeconds(
+              price.recurring?.interval ?? 'month',
+              price.recurring?.interval_count ?? 1
+            )
+          ),
+        });
+      }
+    }
+    return total;
   }
 
   /**
@@ -451,8 +607,10 @@ export class CheckoutPaymentModule {
    * hash before sending, waits up to CHECKOUT_CONFIRM_TIMEOUT_MS and
    * verifies it; a payment still confirming is a 409 `payment_pending` that
    * the client retries with the returned `transaction_hash`. Subscription
-   * mode verifies the on-chain subscribe, creates the off-chain
-   * Subscription, and collects the first period (unless trialing).
+   * mode relays the signed subscribe (`subscribe_signature`, with its
+   * `permit_signature` and `deadline`) the same way, verifies the on-chain
+   * subscription, creates the off-chain Subscription, and collects the
+   * first period (unless trialing).
    *
    * Confirms of one session run one at a time in this process.
    */
@@ -491,22 +649,21 @@ export class CheckoutPaymentModule {
     }
 
     if (session.mode === 'subscription') {
-      this.AssertSessionPayable(session);
+      // A subscribe that is already relayed may finish after `expires_at`.
+      this.AssertSessionPayable(session, { allowExpired: true });
       if (body.already_subscribed) {
+        this.AssertSessionNotExpired(session);
         return this.ConfirmSubscriptionFromExistingOnChain(
           session,
           body.subscription_onchain_id
         );
       }
-      if (!transactionHash) {
-        throw new AppError(
-          'transaction_hash is required',
-          ERRORS.VALIDATION_ERROR.status,
-          ERRORS.VALIDATION_ERROR.type
-        );
-      }
-      await this.AssertTransactionUnused(session, transactionHash);
-      return this.ConfirmSubscription(session, transactionHash);
+      return this.ConfirmSubscription(session, {
+        permitSignature: body.permit_signature,
+        subscribeSignature: body.subscribe_signature,
+        deadline: body.deadline,
+        transactionHash,
+      });
     }
 
     // USDC refuses the authorization after `expires_at`, so a payment that
@@ -694,9 +851,15 @@ export class CheckoutPaymentModule {
    * when another confirm recorded the payment meanwhile. A claim that is not
    * released in time answers `payment_pending`.
    */
+  /**
+   * Waits for the session's settlement claim under `paidBy`. While another
+   * confirm holds it past the wait, the 409 names `reportedHash` (by
+   * default `paidBy`), the transaction the client may confirm with.
+   */
   private async ClaimSettlement(
     session: CheckoutSession,
-    paidBy: string
+    paidBy: string,
+    reportedHash: string | null = paidBy
   ): Promise<CheckoutSession | null> {
     const deadline = Date.now() + SETTLEMENT_WAIT_MS;
     for (;;) {
@@ -723,7 +886,7 @@ export class CheckoutPaymentModule {
       }
       if (Date.now() >= deadline) {
         throw PaymentPending(
-          paidBy,
+          reportedHash,
           'Another confirmation is recording this payment. Confirm again shortly.',
           'another_confirmation'
         );
@@ -891,8 +1054,9 @@ export class CheckoutPaymentModule {
       sessionId: session.id,
       expiresAt: session.expires_at,
     });
-    let current = recorded;
-    let recordedHere: string | null = null;
+    const recorder = this.RelayRecorder(session, recorded, 'payment', () =>
+      this.MarkPaymentIntentProcessing(session)
+    );
     try {
       const hash = await this.settlement.RelayCheckoutAuthorization(
         authorization,
@@ -900,39 +1064,21 @@ export class CheckoutPaymentModule {
         {
           pendingHash: recorded,
           createdAt: session.created,
-          onSigned: async (hash) => {
-            await this.MarkPaymentIntentProcessing(session);
-            const claimed =
-              await this.checkoutSessionModule.SetPaymentTransactionHash(
-                session.id,
-                hash,
-                current
-              );
-            if (!claimed) {
-              const latest =
-                await this.checkoutSessionModule.GetCheckoutSession(session.id);
-              throw PaymentPending(
-                latest?.payment_details?.transaction_hash ?? null,
-                'Another confirmation is relaying this payment. Confirm again with this transaction_hash.',
-                'another_confirmation'
-              );
-            }
-            current = hash;
-            recordedHere = hash;
-          },
+          onSigned: recorder.onSigned,
         }
       );
       // A payment the rail found instead of relaying is recorded too, so
       // retries by hash and prepare see it.
-      if (hash && hash !== current) {
+      if (hash && hash !== recorder.Current()) {
         await this.checkoutSessionModule.SetPaymentTransactionHash(
           session.id,
           hash,
-          current
+          recorder.Current()
         );
       }
       return hash;
     } catch (error) {
+      const recordedHere = recorder.RecordedHere();
       if (recordedHere) await this.RevertRelay(session, recordedHere, error);
       throw error;
     }
@@ -989,37 +1135,97 @@ export class CheckoutPaymentModule {
     }
   }
 
+  /**
+   * Relay the signed subscribe (or follow its transaction), verify the
+   * on-chain subscription, then complete the session. The relay's hash is
+   * recorded before it is sent, so a retry or a crash never loses it; a
+   * subscribe still confirming is a 409 `payment_pending`.
+   */
   private async ConfirmSubscription(
     session: CheckoutSession,
-    transactionHash: string
+    input: SubscribeConfirmation
   ): Promise<CheckoutSession> {
-    const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_id) {
-      throw new AppError(
-        'This subscription price has no on-chain plan',
-        ERRORS.INVALID_REQUEST.status,
-        ERRORS.INVALID_REQUEST.type
-      );
-    }
-
+    const planKey = this.RequirePlanKey(session);
     const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
       session
     );
+    const recorded = session.payment_details?.transaction_hash ?? null;
+    // The whole confirm, the first-period collect included, stays within
+    // CHECKOUT_CONFIRM_TIMEOUT_MS.
+    const confirmDeadline = Date.now() + GetCheckoutConfirmTimeoutMs();
+
+    let transactionHash: string | null;
+    if (input.transactionHash) {
+      if (recorded && recorded !== input.transactionHash) {
+        throw new AppError(
+          'transaction_hash is not the subscription relayed for this Checkout Session',
+          ERRORS.INVALID_REQUEST.status,
+          ERRORS.INVALID_REQUEST.type
+        );
+      }
+      // Only a relay this session recorded may finish after `expires_at`.
+      if (!recorded) this.AssertSessionNotExpired(session);
+      transactionHash = input.transactionHash;
+    } else if (input.subscribeSignature) {
+      if (!recorded) this.AssertSessionNotExpired(session);
+      transactionHash = await this.RelaySubscription(session, {
+        planKey,
+        subscriberWallet,
+        recorded,
+        permitSignature: input.permitSignature ?? null,
+        subscribeSignature: input.subscribeSignature,
+        deadline: input.deadline ?? 0,
+        firstChargeAt: session.payment_details?.first_charge_at ?? 0,
+      });
+    } else {
+      throw new AppError(
+        'subscribe_signature or transaction_hash is required',
+        ERRORS.VALIDATION_ERROR.status,
+        ERRORS.VALIDATION_ERROR.type
+      );
+    }
+    if (transactionHash) {
+      await this.AssertTransactionUnused(session, transactionHash);
+    }
 
     Logger.info('Verifying checkout subscribe transaction', {
       checkoutSessionId: session.id,
       transactionHash,
     });
-
     const verification = await this.settlement.VerifySubscribeTransaction(
       transactionHash,
-      {
-        planId: price.subscription_plan_id,
-        subscriberWallet,
-      }
+      { planKey, subscriberWallet },
+      { timeoutMs: GetCheckoutConfirmTimeoutMs() }
     );
 
-    if (!verification.verified || !verification.subscription_onchain_id) {
+    if (verification.status === 'not_found' && !input.subscribeSignature) {
+      // Fail fast: the network has never seen this transaction.
+      if (recorded) throw ResubmitRequired(recorded);
+      throw new AppError(
+        'transaction_hash is not a transaction the network knows',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    if (
+      verification.status === 'pending' ||
+      verification.status === 'not_found'
+    ) {
+      throw PaymentPending(transactionHash);
+    }
+    if (
+      verification.status === 'failed' ||
+      !verification.subscription_onchain_id
+    ) {
+      // Only clears a relay this session recorded, so the subscriber can
+      // sign again.
+      if (transactionHash) {
+        await this.checkoutSessionModule.SetPaymentTransactionHash(
+          session.id,
+          null,
+          transactionHash
+        );
+      }
       throw new AppError(
         verification.failure_reason || 'Subscription verification failed',
         ERRORS.INVALID_REQUEST.status,
@@ -1027,43 +1233,132 @@ export class CheckoutPaymentModule {
       );
     }
 
-    return this.FinalizeSubscriptionCheckout(session, {
+    return this.SettleSubscription(session, {
       subscriberWallet,
       subscriptionOnchainId: verification.subscription_onchain_id,
-      transactionHash,
+      subscribeHash: verification.transaction_hash,
+      confirmDeadline,
     });
   }
 
   /**
-   * Complete checkout when the on-chain subscribe already exists (e.g. a prior
-   * broadcast succeeded but its confirm failed).
+   * Relay the signed subscribe. Its hash is recorded on the session before
+   * the network sees it, and cleared again when the network refuses it.
+   * Returns null when the subscriber is already subscribed on-chain (then
+   * verification looks for the subscription).
+   */
+  private async RelaySubscription(
+    session: CheckoutSession,
+    relay: {
+      planKey: string;
+      subscriberWallet: string;
+      recorded: string | null;
+      permitSignature: string | null;
+      subscribeSignature: string;
+      deadline: number;
+      firstChargeAt: number;
+    }
+  ): Promise<string | null> {
+    const recorder = this.RelayRecorder(
+      session,
+      relay.recorded,
+      'subscription'
+    );
+    try {
+      return await this.settlement.RelaySubscribe(
+        {
+          planKey: relay.planKey,
+          subscriber: relay.subscriberWallet,
+          permitSignature: relay.permitSignature,
+          subscribeSignature: relay.subscribeSignature,
+          deadline: relay.deadline,
+          firstChargeAt: relay.firstChargeAt,
+        },
+        { pendingHash: relay.recorded, onSigned: recorder.onSigned }
+      );
+    } catch (error) {
+      const recordedHere = recorder.RecordedHere();
+      if (recordedHere) await this.RevertRelay(session, recordedHere, error);
+      throw error;
+    }
+  }
+
+  /**
+   * The `onSigned` of a relay: records each signed hash on the session
+   * (compare-and-set against the hash it holds) before the network sees it,
+   * after `beforeRecord`. A confirm that lost the race to another one gets
+   * the 409 with that one's hash.
+   */
+  private RelayRecorder(
+    session: CheckoutSession,
+    recorded: string | null,
+    noun: 'payment' | 'subscription',
+    beforeRecord: () => Promise<void> = async () => undefined
+  ): {
+    onSigned(hash: string): Promise<void>;
+    Current(): string | null;
+    RecordedHere(): string | null;
+  } {
+    let current = recorded;
+    let recordedHere: string | null = null;
+    return {
+      onSigned: async (hash) => {
+        await beforeRecord();
+        const claimed =
+          await this.checkoutSessionModule.SetPaymentTransactionHash(
+            session.id,
+            hash,
+            current
+          );
+        if (!claimed) {
+          const latest = await this.checkoutSessionModule.GetCheckoutSession(
+            session.id
+          );
+          throw PaymentPending(
+            latest?.payment_details?.transaction_hash ?? null,
+            `Another confirmation is relaying this ${noun}. Confirm again with this transaction_hash.`,
+            'another_confirmation'
+          );
+        }
+        current = hash;
+        recordedHere = hash;
+      },
+      Current: () => current,
+      RecordedHere: () => recordedHere,
+    };
+  }
+
+  /**
+   * Complete checkout when the wallet is already subscribed on-chain (e.g.
+   * a prior relay landed but its confirm failed). The subscription is read
+   * from the chain; a client-sent id must be that one.
    */
   private async ConfirmSubscriptionFromExistingOnChain(
     session: CheckoutSession,
     subscriptionOnchainId?: string
   ): Promise<CheckoutSession> {
-    const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_id) {
+    const planKey = this.RequirePlanKey(session);
+    const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
+      session
+    );
+    const onchainId = await this.settlement.FindExistingSubscription(
+      planKey,
+      subscriberWallet
+    );
+
+    if (!onchainId) {
       throw new AppError(
-        'This subscription price has no on-chain plan',
+        'No on-chain subscription found for this wallet and plan',
         ERRORS.INVALID_REQUEST.status,
         ERRORS.INVALID_REQUEST.type
       );
     }
-
-    const subscriberWallet = await this.ResolvePreparedSubscriberWallet(
-      session
-    );
-    const resolvedOnchainId =
-      subscriptionOnchainId ||
-      (await this.settlement.FindExistingSubscription(
-        price.subscription_plan_id,
-        subscriberWallet
-      ));
-
-    if (!resolvedOnchainId) {
+    if (
+      subscriptionOnchainId &&
+      subscriptionOnchainId.toLowerCase() !== onchainId.toLowerCase()
+    ) {
       throw new AppError(
-        'No on-chain subscription found for this wallet and plan',
+        "subscription_onchain_id is not this wallet's subscription to the plan",
         ERRORS.INVALID_REQUEST.status,
         ERRORS.INVALID_REQUEST.type
       );
@@ -1071,22 +1366,83 @@ export class CheckoutPaymentModule {
 
     Logger.info('Completing checkout from existing on-chain subscription', {
       checkoutSessionId: session.id,
-      subscriptionOnchainId: resolvedOnchainId,
+      subscriptionOnchainId: onchainId,
     });
 
-    return this.FinalizeSubscriptionCheckout(session, {
+    return this.SettleSubscription(session, {
       subscriberWallet,
-      subscriptionOnchainId: resolvedOnchainId,
-      transactionHash: `onchain:${resolvedOnchainId}`,
+      subscriptionOnchainId: onchainId,
+      subscribeHash: null,
+      confirmDeadline: Date.now() + GetCheckoutConfirmTimeoutMs(),
     });
   }
 
+  /**
+   * Record a verified subscription exactly once: every confirm that
+   * verified it races for the session's settlement claim before any side
+   * effect (the first-period collect included), as payments do.
+   */
+  private async SettleSubscription(
+    session: CheckoutSession,
+    details: {
+      subscriberWallet: string;
+      subscriptionOnchainId: string;
+      /** The subscribe transaction; null when another one created it */
+      subscribeHash: string | null;
+      /** When the confirm's time budget runs out (ms since the epoch) */
+      confirmDeadline: number;
+    }
+  ): Promise<CheckoutSession> {
+    // A claim token, not a settlement reference: a client never sees a
+    // subscription id as `transaction_hash`.
+    const token = details.subscribeHash ?? details.subscriptionOnchainId;
+    const finished = await this.ClaimSettlement(
+      session,
+      token,
+      details.subscribeHash
+    );
+    if (finished) return finished;
+    try {
+      // Read again: a confirm that crashed after the claim may have created
+      // the customer already.
+      const latest =
+        (await this.checkoutSessionModule.GetCheckoutSession(session.id)) ??
+        session;
+      return await this.FinalizeSubscriptionCheckout(latest, details);
+    } catch (error) {
+      try {
+        await this.checkoutSessionModule.ReleasePaymentSettlement(
+          session.id,
+          token
+        );
+      } catch (releaseError) {
+        Logger.error(
+          'Could not release a checkout settlement claim',
+          releaseError,
+          { checkoutSessionId: session.id }
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Creates the Subscription for a verified on-chain subscription. Without a
+   * trial the first period is collected first, and the period follows the
+   * charge's `Charged` event. With a trial (Q11a) nothing is collected: the
+   * chain's first charge time is the trial end (the contract refuses any
+   * charge before it), so the trial is `[now, nextChargeAt]` and the first
+   * cycle invoice will start at `nextChargeAt`. A subscription whose first
+   * charge is later than this checkout's trial allows is refused; one
+   * already due has no trial left and is collected at once.
+   */
   private async FinalizeSubscriptionCheckout(
     session: CheckoutSession,
     details: {
       subscriberWallet: string;
       subscriptionOnchainId: string;
-      transactionHash: string;
+      subscribeHash: string | null;
+      confirmDeadline: number;
     }
   ): Promise<CheckoutSession> {
     if (!this.subscriptionModule || !this.customerModule) {
@@ -1098,51 +1454,68 @@ export class CheckoutPaymentModule {
     }
 
     const price = this.RequireRecurringCheckoutPrice(session);
-    if (!price.subscription_plan_id) {
+    const planKey = this.RequirePlanKey(session);
+    AssertSingleQuantity(session);
+    const { subscriberWallet, subscriptionOnchainId, subscribeHash } = details;
+    await this.AssertOnchainSubscriptionUnbilled(subscriptionOnchainId);
+
+    const state = await this.settlement.GetSubscriptionState(
+      subscriptionOnchainId
+    );
+    if (state.status === 'paused') {
       throw new AppError(
-        'This subscription price has no on-chain plan',
+        'The subscription is paused on-chain',
+        409,
+        PAUSED_ON_CHAIN
+      );
+    }
+    if (state.status !== 'active') {
+      throw new AppError(
+        'The on-chain subscription is canceled',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    const now = state.chain_time ?? Now();
+    const nextChargeAt = state.next_charge_at ?? now;
+    const periodSeconds =
+      state.period_seconds ??
+      RecurringIntervalToSeconds(
+        price.recurring?.interval ?? 'month',
+        price.recurring?.interval_count ?? 1
+      );
+
+    const trialSeconds = TrialSeconds(price);
+    const trialEnd =
+      trialSeconds === 0
+        ? null
+        : state.next_charge_at === null
+        ? now + trialSeconds
+        : state.next_charge_at > now
+        ? state.next_charge_at
+        : null;
+    if (trialEnd !== null && trialEnd > now + trialSeconds) {
+      throw new AppError(
+        "The on-chain subscription's first charge is later than this checkout's trial allows",
         ERRORS.INVALID_REQUEST.status,
         ERRORS.INVALID_REQUEST.type
       );
     }
 
-    const merchantWallet = await this.ResolveMerchantWallet(
-      session.platform_account
-    );
-    const { subscriberWallet, subscriptionOnchainId, transactionHash } =
-      details;
-
-    const trialPeriodDays = price.recurring?.trial_period_days ?? null;
-    const hasTrial = !!trialPeriodDays && trialPeriodDays > 0;
-    let collectionTransactionHash = transactionHash;
-
-    if (!hasTrial) {
-      try {
-        const collection = await this.settlement.CollectSubscriptionPayment({
-          subscriberWallet,
-          planId: price.subscription_plan_id,
-          subscriptionId: subscriptionOnchainId,
-          destinationWallet: merchantWallet.wallet_address,
-          amountCents: price.unit_amount ?? session.amount_total!,
-        });
-        collectionTransactionHash = collection.transaction_hash;
-      } catch (error) {
-        // Subscribe already landed — surface the collect error instead of
-        // pretending checkout collected USDC (collection hash === subscribe hash).
-        const message = error instanceof Error ? error.message : String(error);
-        Logger.error('First-period subscription collect failed', {
-          checkoutSessionId: session.id,
-          error: message,
-        });
-        // Typed errors (e.g. 501 not_supported) keep their status and type.
-        if (error instanceof AppError) throw error;
-        throw new AppError(
-          `Subscription authorized on-chain, but the first payment could not be collected: ${message}`,
-          ERRORS.INVALID_REQUEST.status,
-          ERRORS.INVALID_REQUEST.type
-        );
-      }
+    let first: FirstCharge | null = null;
+    if (trialEnd === null) {
+      first = await this.CollectFirstPeriod(session, {
+        subscriptionOnchainId,
+        planKey,
+        subscriberWallet,
+        amountCents: price.unit_amount ?? session.amount_total!,
+        now,
+        nextChargeAt,
+        periodSeconds,
+        confirmDeadline: details.confirmDeadline,
+      });
     }
+    const chargeHash = first?.transactionHash ?? null;
 
     const customerId = await this.EnsureCheckoutCustomer(
       session,
@@ -1153,13 +1526,8 @@ export class CheckoutPaymentModule {
       session.platform_account,
       {
         customer: customerId,
-        items: [
-          {
-            price: price.id,
-            quantity: session.line_items?.data?.[0]?.quantity ?? 1,
-          },
-        ],
-        ...(hasTrial ? { trial_period_days: trialPeriodDays! } : {}),
+        items: [{ price: price.id, quantity: 1 }],
+        ...(trialEnd !== null ? { trial_end: trialEnd } : {}),
         default_payment_method: subscriberWallet,
         metadata: {
           checkout_session: session.id,
@@ -1167,23 +1535,22 @@ export class CheckoutPaymentModule {
         },
       },
       {
-        settlementTransactionHash: !hasTrial
-          ? collectionTransactionHash
-          : undefined,
+        settlementTransactionHash: chargeHash ?? undefined,
+        subscriptionOnchainId,
+        periodStart: first ? first.period.start : now,
+        periodEnd: first
+          ? first.period.end ?? undefined
+          : trialEnd ?? undefined,
       }
-    );
-
-    await this.subscriptionModule.SetSubscriptionOnchainId(
-      subscription.id,
-      subscriptionOnchainId
     );
 
     const completedSession =
       await this.checkoutSessionModule.CompleteCheckoutSession(
         session.id,
         {
-          transaction_hash: transactionHash,
+          transaction_hash: subscribeHash ?? chargeHash,
           payer_wallet: subscriberWallet,
+          relayed: session.payment_details?.relayed ?? false,
         },
         { subscription: subscription.id }
       );
@@ -1197,11 +1564,298 @@ export class CheckoutPaymentModule {
     Logger.info('Checkout session completed via subscription', {
       checkoutSessionId: completedSession.id,
       subscriptionId: subscription.id,
-      transactionHash,
-      collectionTransactionHash,
+      subscribeHash,
+      chargeHash,
     });
 
     return this.SanitizeCheckoutSession(completedSession);
+  }
+
+  /**
+   * Collects the first period. The cycle is claimed for this session before
+   * anything is sent, so no other session can collect it, and every charge
+   * hash is recorded on the claim (and the session) first.
+   * - Charges an earlier attempt recorded are reconciled, all their hashes
+   *   together: paid counts; pending answers `payment_pending`.
+   * - When a claim of this session ever sent a charge, the chain's
+   *   `Charged` logs since its period started decide before anything is
+   *   refused or sent again, so this session's own landed charge always
+   *   completes it.
+   * - `NotDueYet` with no charge of this session behind it is a 409
+   *   `period_already_collected`: nothing is created, since this session
+   *   did not pay.
+   * The charge waits only for what is left of the confirm's budget; past it,
+   * it is `payment_pending` and the client confirms again.
+   */
+  private async CollectFirstPeriod(
+    session: CheckoutSession,
+    cycle: {
+      subscriptionOnchainId: string;
+      planKey: string;
+      subscriberWallet: string;
+      amountCents: number;
+      now: number;
+      nextChargeAt: number;
+      periodSeconds: number;
+      confirmDeadline: number;
+    }
+  ): Promise<FirstCharge> {
+    const { subscriptionOnchainId, amountCents, periodSeconds } = cycle;
+    const Pending = () =>
+      PaymentPending(
+        session.payment_details?.transaction_hash ?? null,
+        'The first subscription payment is waiting for network confirmations. Confirm again shortly.'
+      );
+    const Paid = async (
+      transactionHash: string,
+      start: number,
+      nextChargeAt: number | null
+    ) => {
+      await this.SetSessionPendingCharge(session, null);
+      return {
+        transactionHash,
+        period:
+          nextChargeAt === null
+            ? { start, end: null }
+            : { start: nextChargeAt - periodSeconds, end: nextChargeAt },
+      };
+    };
+
+    const owned = await this.cycleClaims.FindOwned(
+      subscriptionOnchainId,
+      session.id
+    );
+    for (const claim of owned) {
+      if (!claim.charge_hash) continue;
+      let current = claim.charge_hash;
+      const result = await this.settlement.ReconcileSubscriptionCharge(
+        ClaimHashes(claim),
+        {
+          subscriptionOnchainId,
+          amountCents,
+          sentAt: claim.charge_sent_at,
+          nonce: claim.charge_nonce ?? null,
+          onReplaced: async (hash, signed) => {
+            await this.RecordFirstCharge(
+              session,
+              claim.id,
+              hash,
+              current,
+              signed
+            );
+            current = hash;
+          },
+        }
+      );
+      if (result.status === 'paid') {
+        return Paid(
+          result.transaction_hash,
+          claim.due_at,
+          result.next_charge_at
+        );
+      }
+      if (result.status === 'pending') throw Pending();
+      await this.cycleClaims.SetChargeHash(claim.id, null, current);
+      await this.SetSessionPendingCharge(session, null);
+      if (
+        result.status === 'failed' &&
+        COLLECTION_DECLINE_CODES.has(result.error.type)
+      ) {
+        throw result.error;
+      }
+    }
+    // A charge of this session may have landed without a receipt to show.
+    for (const claim of owned) {
+      if (ClaimHashes(claim).length === 0) continue;
+      const found = await this.FindClaimCharge(
+        subscriptionOnchainId,
+        claim.id,
+        amountCents,
+        claim.due_at
+      );
+      if (found) {
+        return Paid(found.transaction_hash, claim.due_at, found.next_charge_at);
+      }
+    }
+
+    if (cycle.now < cycle.nextChargeAt) throw PeriodAlreadyCollected();
+    const dueAt = CurrentDueAt(cycle.nextChargeAt, cycle.now, periodSeconds);
+    const { claim, owned: claimed } = await this.cycleClaims.Claim(
+      subscriptionOnchainId,
+      dueAt,
+      session.id
+    );
+    if (!claimed) throw PeriodAlreadyCollected();
+
+    let recorded = claim.charge_hash;
+    let recordedHere: string | null = null;
+    try {
+      const collection = await this.settlement.CollectSubscriptionPayment({
+        subscriptionOnchainId,
+        planKey: cycle.planKey,
+        subscriberWallet: cycle.subscriberWallet,
+        amountCents,
+        onSigned: async (hash, signed) => {
+          await this.RecordFirstCharge(
+            session,
+            claim.id,
+            hash,
+            recorded,
+            signed
+          );
+          recorded = hash;
+          recordedHere = hash;
+        },
+        timeoutMs: Math.max(1, cycle.confirmDeadline - Date.now()),
+      });
+      if (collection.status === 'collected') {
+        return await Paid(
+          collection.transaction_hash,
+          dueAt,
+          collection.next_charge_at
+        );
+      }
+      if (collection.status === 'pending') throw Pending();
+      // NotDueYet: only a charge of this session's own counts.
+      const found = await this.FindClaimCharge(
+        subscriptionOnchainId,
+        claim.id,
+        amountCents,
+        dueAt,
+        { ownOnly: true }
+      );
+      if (found) {
+        return await Paid(found.transaction_hash, dueAt, found.next_charge_at);
+      }
+      throw PeriodAlreadyCollected();
+    } catch (error) {
+      const pending =
+        error instanceof AppError && error.type === 'payment_pending';
+      if (recordedHere && !pending) {
+        await this.cycleClaims.SetChargeHash(claim.id, null, recordedHere);
+        await this.SetSessionPendingCharge(session, null);
+      }
+      // The subscribe landed: surface the failure rather than record a
+      // first payment that was not collected. Typed errors keep their
+      // status and type; anything else may carry provider text, which stays
+      // in the log.
+      Logger.error('First-period subscription collect failed', error, {
+        checkoutSessionId: session.id,
+      });
+      if (error instanceof AppError) throw error;
+      throw new AppError(
+        'Subscription authorized on-chain, but the first payment could not be collected. Confirm again to retry.',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+  }
+
+  /**
+   * A `Charged` log since `since` that pays this claim: not recorded by any
+   * other cycle, and with `ownOnly` one of this claim's own hashes.
+   */
+  private async FindClaimCharge(
+    subscriptionOnchainId: string,
+    claimId: string,
+    amountCents: number,
+    since: number,
+    options: { ownOnly?: boolean } = {}
+  ): Promise<{ transaction_hash: string; next_charge_at: number } | null> {
+    return this.settlement.FindSubscriptionCharge(subscriptionOnchainId, {
+      amountCents,
+      since,
+      accept: async (hash) => {
+        const claims = await this.cycleClaims.FindByChargeHash(hash);
+        if (options.ownOnly && !claims.some((c) => c.id === claimId)) {
+          return false;
+        }
+        return claims.every((c) => c.id === claimId);
+      },
+    });
+  }
+
+  /**
+   * Records the first-period charge's hash on its cycle claim (with its
+   * nonce), and on the session for visibility, before it is sent. A claim
+   * that moved meanwhile cancels the send.
+   */
+  private async RecordFirstCharge(
+    session: CheckoutSession,
+    claimId: string,
+    hash: string,
+    expected: string | null,
+    signed?: SignedTransaction
+  ): Promise<void> {
+    if (
+      !(await this.cycleClaims.SetChargeHash(claimId, hash, expected, signed))
+    ) {
+      throw PaymentPending(
+        session.payment_details?.transaction_hash ?? null,
+        'Another confirmation is collecting the first subscription payment. Confirm again shortly.',
+        'another_confirmation'
+      );
+    }
+    await this.SetSessionPendingCharge(session, hash);
+  }
+
+  /** The session's `payment_details.pending_charge_hash`, while it is open. */
+  private async SetSessionPendingCharge(
+    session: CheckoutSession,
+    hash: string | null
+  ): Promise<void> {
+    await this.db.FindOneAndUpdateByFilter<CheckoutSession>(
+      'CheckoutSessions',
+      { id: session.id, status: 'open' },
+      { 'payment_details.pending_charge_hash': hash }
+    );
+  }
+
+  /**
+   * One on-chain subscription is billed by one live Subscription: the
+   * contract charges it once per period, so a second would only ever see
+   * its periods already collected. A subscription canceled here whose
+   * on-chain cancel has not landed still counts. The simulated rail has no
+   * such limit (and every simulated checkout uses the same test wallet).
+   */
+  private async AssertOnchainSubscriptionUnbilled(
+    subscriptionOnchainId: string
+  ): Promise<void> {
+    if (this.settlement.Describe().rail !== 'onchain') return;
+    const existing = await this.db.FindCustom<Subscription>(
+      'Subscriptions',
+      'subscription_onchain_id',
+      '==',
+      subscriptionOnchainId
+    );
+    const live = (existing ?? []).find(
+      (subscription) =>
+        subscription.cancel_pending_on_chain === true ||
+        (subscription.status !== 'canceled' &&
+          subscription.status !== 'incomplete_expired')
+    );
+    if (live) {
+      throw new AppError(
+        live.status === 'canceled'
+          ? 'The previous subscription to this price is still being canceled on-chain; try again shortly'
+          : 'This wallet already has a subscription to this price',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+  }
+
+  /** The recurring price's on-chain plan key. */
+  private RequirePlanKey(session: CheckoutSession): string {
+    const price = this.RequireRecurringCheckoutPrice(session);
+    if (!price.subscription_plan_id) {
+      throw new AppError(
+        'This subscription price has no on-chain plan. Recreate the price and try again.',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    return price.subscription_plan_id;
   }
 
   private async ResolvePreparedSubscriberWallet(
@@ -1633,7 +2287,12 @@ export class CheckoutPaymentModule {
 
   private async MarkPaymentIntentRequiresConfirmation(
     session: CheckoutSession,
-    details: { payer_wallet: string; relayed: boolean; merchant_wallet: string }
+    details: {
+      payer_wallet: string;
+      relayed: boolean;
+      merchant_wallet: string;
+      first_charge_at?: number | null;
+    }
   ): Promise<void> {
     // Persist the payer and merchant wallets on the open session: confirm
     // rebuilds the signed authorization from them, and subscription confirm

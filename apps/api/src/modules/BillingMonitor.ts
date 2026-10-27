@@ -1,9 +1,12 @@
 /**
  * @fileOverview Billing Monitor - Polls for due subscription invoices
  *
- * Runs at regular intervals to create cycle invoices and collect on-chain
- * subscription payments. DISABLED by default for multi-instance deployments
- * (e.g. Cloud Run). Prefer POST /v1/billing/run via Cloud Scheduler.
+ * Runs at regular intervals to create cycle invoices and collect each
+ * period with a `charge` on the Subscriptions contract. The contract skips
+ * periods nobody charged, so a monitor that was down voids the invoices of
+ * the cycles it missed instead of collecting them. DISABLED by default for
+ * multi-instance deployments (e.g. Cloud Run). Prefer POST /v1/billing/run
+ * via Cloud Scheduler.
  *
  * To enable the in-process monitor (single-instance Docker / local):
  *   BILLING_MONITOR_ENABLED=true

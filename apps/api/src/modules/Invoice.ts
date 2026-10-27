@@ -21,6 +21,26 @@ import type { PriceModule } from './Price';
 import { BalanceModule } from './Balance';
 import { BalanceTransactionModule } from './BalanceTransaction';
 import { GetSettlement, type Settlement } from './chains/Settlement';
+import {
+  CANCELED_ON_CHAIN,
+  CHARGE_PENDING,
+  COLLECTION_DECLINE_CODES,
+  COLLECTION_FAILED_ALLOWANCE,
+  CYCLE_MISSED,
+  ONCHAIN_PLAN_AMOUNT_EXCEEDED,
+  ONCHAIN_PLAN_MISMATCH,
+  PAUSED_ON_CHAIN,
+  PERIOD_ALREADY_COLLECTED,
+  type SignedTransaction,
+} from './chains/types';
+import { CurrentDueAt } from './chains/SubscriptionAuthorization';
+import {
+  ClaimHashes,
+  CycleClaimId,
+  SubscriptionCycleClaims,
+  type SubscriptionCycleClaim,
+} from './SubscriptionCycleClaims';
+import { RecurringIntervalToSeconds } from '../utils/RecurringInterval';
 import { GenerateId } from '../utils/IdGenerator';
 import {
   BalanceTransaction as BalanceTransactionType,
@@ -82,16 +102,71 @@ const RETRY_DELAYS_SECONDS = [
   5 * SECONDS_PER_DAY,
 ];
 
-/**
- * When the chain rejects because this period's allowance is already used, the
- * next billing run should be allowed to retry immediately (period may have
- * rolled). A multi-minute backoff made manual catch-up look permanently stuck
- * on `skipped`.
- */
-const PERIOD_ALLOWANCE_RETRY_SECONDS = 0;
+/** How long a collection waits after the node could not answer. */
+const CHAIN_RETRY_SECONDS = 5 * 60;
+/** How long a collection waits after a refusal that is not a decline. */
+const REFUSAL_RETRY_SECONDS = SECONDS_PER_DAY;
+/** Code of a collection the node could not answer for. */
+const CHAIN_UNAVAILABLE = 'chain_unavailable';
+/** Code of a charge the chain refused for a reason that is not a decline. */
+const CHARGE_REFUSED = 'charge_refused';
 
-const PERIOD_ALLOWANCE_ALREADY_COLLECTED =
-  /period allowance already collected|exceeds period limit/i;
+/** States the billing runner resolves; they never retry on their own. */
+const UNSCHEDULED_CODES: ReadonlySet<string> = new Set([
+  PAUSED_ON_CHAIN,
+  CANCELED_ON_CHAIN,
+  CYCLE_MISSED,
+  ONCHAIN_PLAN_MISMATCH,
+  ONCHAIN_PLAN_AMOUNT_EXCEEDED,
+]);
+
+/**
+ * What a failed collection means. A decline (allowance, balance, blacklist)
+ * uses up a retry and fails the PaymentIntent. A wait does neither: it
+ * records `code`, no `invoice.payment_failed`, and retries at
+ * `nextPaymentAttempt` (null: when the billing runner says so). An error
+ * without a collection code keeps the plain retry schedule.
+ */
+function ClassifyCollectionError(
+  error: unknown,
+  now: number
+):
+  | { kind: 'decline'; code: string }
+  | { kind: 'wait'; code: string; nextPaymentAttempt: number | null }
+  | { kind: 'error'; code: null } {
+  if (!(error instanceof AppError)) return { kind: 'error', code: null };
+  const code = error.type;
+  if (COLLECTION_DECLINE_CODES.has(code)) return { kind: 'decline', code };
+  if (code === PERIOD_ALREADY_COLLECTED) {
+    const next = error.details?.['next_charge_at'];
+    return {
+      kind: 'wait',
+      code,
+      nextPaymentAttempt: typeof next === 'number' ? next : now,
+    };
+  }
+  if (code === CHARGE_PENDING) {
+    return { kind: 'wait', code, nextPaymentAttempt: now };
+  }
+  if (UNSCHEDULED_CODES.has(code)) {
+    return { kind: 'wait', code, nextPaymentAttempt: null };
+  }
+  if (error.statusCode >= 500) {
+    return {
+      kind: 'wait',
+      code: CHAIN_UNAVAILABLE,
+      nextPaymentAttempt: now + CHAIN_RETRY_SECONDS,
+    };
+  }
+  if (code === 'blockchain_error') {
+    return {
+      kind: 'wait',
+      code: CHARGE_REFUSED,
+      nextPaymentAttempt: now + REFUSAL_RETRY_SECONDS,
+    };
+  }
+  return { kind: 'error', code: null };
+}
 
 export class InvoiceModule {
   private readonly db: Database;
@@ -105,6 +180,7 @@ export class InvoiceModule {
   private readonly balanceModule: BalanceModule;
   private readonly balanceTransactionModule: BalanceTransactionModule;
   private readonly settlement: Settlement;
+  private readonly cycleClaims: SubscriptionCycleClaims;
 
   constructor(
     db: Database,
@@ -133,6 +209,7 @@ export class InvoiceModule {
     this.balanceModule = new BalanceModule(db);
     this.balanceTransactionModule = new BalanceTransactionModule(db);
     this.settlement = settlement || GetSettlement();
+    this.cycleClaims = new SubscriptionCycleClaims(db);
   }
 
   /**
@@ -577,8 +654,12 @@ export class InvoiceModule {
     try {
       const settlement = await this.SettleInvoicePayment(
         previous,
+        paymentIntentId,
         validatedInput.settlement_transaction_hash
       );
+      if (settlement.chargeHash && this.paymentIntentModule) {
+        await this.paymentIntentModule.ClearPendingChargeHash(paymentIntentId);
+      }
 
       if (this.chargeModule && this.paymentIntentModule) {
         const charge = await this.chargeModule.CreateFromPaymentAttempt(
@@ -631,18 +712,22 @@ export class InvoiceModule {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const outcome = ClassifyCollectionError(error, Now());
       Logger.warn('Invoice payment failed', {
         invoiceId: previous.id,
         error: message,
+        code: outcome.code,
       });
 
-      if (this.paymentIntentModule) {
+      // Only an attempt the customer failed fails the PaymentIntent; a wait
+      // (a pending charge, a pause, a collected period) leaves it as it is.
+      if (this.paymentIntentModule && outcome.kind !== 'wait') {
         try {
           await this.paymentIntentModule.MarkPaymentFailed(paymentIntentId, {
             advice_code: null,
             charge: null,
-            code: 'payment_intent_payment_attempt_failed',
-            decline_code: null,
+            code: outcome.code ?? 'payment_intent_payment_attempt_failed',
+            decline_code: outcome.code,
             doc_url: null,
             message,
             network_advice_code: null,
@@ -658,8 +743,97 @@ export class InvoiceModule {
         }
       }
 
-      return this.RecordInvoicePaymentFailure(previous, message);
+      return this.RecordInvoicePaymentFailure(previous, message, outcome);
     }
+  }
+
+  /**
+   * Set when the subscription's open invoices are next attempted. Null
+   * pauses them (retries skip them); an attempt already scheduled is kept on
+   * the invoice's cycle claim meanwhile. A time re-arms them, but never
+   * before their own schedule, kept or current, so a decline's dunning
+   * delay survives a pause.
+   */
+  async ScheduleOpenSubscriptionInvoices(
+    subscriptionId: string,
+    nextPaymentAttempt: number | null
+  ): Promise<void> {
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    const onchainId = subscription?.subscription_onchain_id ?? null;
+    for (const invoice of await this.ListOpenSubscriptionInvoices(
+      subscriptionId
+    )) {
+      const claim = onchainId
+        ? await this.cycleClaims.Get(
+            CycleClaimId(onchainId, invoice.period_start)
+          )
+        : null;
+      const own = claim?.owner === invoice.id ? claim : null;
+      let next = nextPaymentAttempt;
+      if (next === null) {
+        if (own && invoice.next_payment_attempt !== null) {
+          await this.cycleClaims.SetPausedRetryAt(
+            own.id,
+            Math.max(invoice.next_payment_attempt, own.paused_retry_at ?? 0)
+          );
+        }
+      } else {
+        next = Math.max(
+          next,
+          own?.paused_retry_at ?? next,
+          invoice.next_payment_attempt ?? next
+        );
+        if (own?.paused_retry_at != null) {
+          await this.cycleClaims.SetPausedRetryAt(own.id, null);
+        }
+      }
+      await this.db.Update<InvoiceType>('Invoices', invoice.id, {
+        next_payment_attempt: next,
+      });
+    }
+  }
+
+  /** The subscription's open invoices, oldest period first. */
+  async ListOpenSubscriptionInvoices(
+    subscriptionId: string
+  ): Promise<InvoiceType[]> {
+    const invoices = await this.db.Query<InvoiceType>({
+      collection: 'Invoices',
+      method: 'READ',
+      parameters: [
+        {
+          key: 'parent.subscription_details.subscription',
+          operator: QueryOperators['=='],
+          value: subscriptionId,
+        },
+        { key: 'status', operator: QueryOperators['=='], value: 'open' },
+      ],
+      orderBy: [{ key: 'period_start', direction: 'asc' }],
+    });
+    return invoices ?? [];
+  }
+
+  /**
+   * The cycle claim of an open invoice still holds a charge hash: a charge
+   * was sent for it and is not settled. Paying the invoice reconciles it.
+   */
+  async HasPendingCharge(invoice: InvoiceType): Promise<boolean> {
+    const subscriptionId = ExpandableId(
+      invoice.parent?.subscription_details?.subscription
+    );
+    if (!subscriptionId) return false;
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    if (!subscription?.subscription_onchain_id) return false;
+    const claim = await this.cycleClaims.Get(
+      CycleClaimId(subscription.subscription_onchain_id, invoice.period_start)
+    );
+    return claim?.owner === invoice.id && !!claim.charge_hash;
   }
 
   /**
@@ -794,7 +968,8 @@ export class InvoiceModule {
           description: line.description,
           period: line.period,
           currency: 'usdc',
-        }
+        },
+        { subscriptionLine: true }
       );
 
       if (line.subscription_item) {
@@ -1582,41 +1757,76 @@ export class InvoiceModule {
     return invoice;
   }
 
+  /**
+   * Record a failed collection (see `ClassifyCollectionError`). A decline
+   * or a plain error uses up a retry and emits `invoice.payment_failed`; an
+   * exhausted allowance also emits
+   * `customer.subscription.allowance_exhausted`. A wait keeps the retry
+   * budget, emits nothing and retries at its own time.
+   */
   private async RecordInvoicePaymentFailure(
     previous: InvoiceType,
-    message: string
+    message: string,
+    outcome: ReturnType<typeof ClassifyCollectionError>
   ): Promise<InvoiceType> {
     const now = Now();
-    const isPeriodAllowance = PERIOD_ALLOWANCE_ALREADY_COLLECTED.test(message);
-    // Period-limit waits are not payment declines — don't burn retry budget.
-    const attemptCount = isPeriodAllowance
+    const isWait = outcome.kind === 'wait';
+    const attemptCount = isWait
       ? previous.attempt_count
       : previous.attempt_count + 1;
-    const nextPaymentAttempt = isPeriodAllowance
-      ? now + PERIOD_ALLOWANCE_RETRY_SECONDS
-      : this.ComputeNextPaymentAttempt(attemptCount, now);
+    const nextPaymentAttempt =
+      outcome.kind === 'wait'
+        ? outcome.nextPaymentAttempt
+        : this.ComputeNextPaymentAttempt(attemptCount, now);
+    const metadata: Record<string, string> = {
+      ...(previous.metadata ?? {}),
+      last_payment_error: message.slice(0, 500),
+    };
+    if (outcome.code) metadata['last_payment_error_code'] = outcome.code;
+    else delete metadata['last_payment_error_code'];
 
     await this.db.Update<InvoiceType>('Invoices', previous.id, {
       attempted: true,
       attempt_count: attemptCount,
       next_payment_attempt: nextPaymentAttempt,
-      metadata: {
-        ...(previous.metadata ?? {}),
-        last_payment_error: message.slice(0, 500),
-      },
+      metadata,
     });
 
     const invoice = await this.RequireInvoice(previous.id);
 
-    if (this.eventService) {
+    if (this.eventService && !isWait) {
       await this.eventService.Emit(
         'invoice.payment_failed',
         invoice.platform_account,
         invoice
       );
     }
+    if (outcome.code === COLLECTION_FAILED_ALLOWANCE) {
+      await this.EmitAllowanceExhausted(invoice);
+    }
 
     return invoice;
+  }
+
+  /**
+   * `customer.subscription.allowance_exhausted`: the subscriber must sign a
+   * new USDC permit before the subscription can be collected again.
+   */
+  private async EmitAllowanceExhausted(invoice: InvoiceType): Promise<void> {
+    const subscriptionId = ExpandableId(
+      invoice.parent?.subscription_details?.subscription
+    );
+    if (!this.eventService || !subscriptionId) return;
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    if (subscription?.platform_account !== invoice.platform_account) return;
+    await this.eventService.Emit(
+      'customer.subscription.allowance_exhausted',
+      subscription.platform_account,
+      subscription
+    );
   }
 
   ComputeNextPaymentAttempt(attemptCount: number, now: number): number | null {
@@ -1632,12 +1842,19 @@ export class InvoiceModule {
 
   private async SettleInvoicePayment(
     invoice: InvoiceType,
+    paymentIntentId: string,
     settlementTransactionHash?: string
-  ): Promise<{ transaction_hash: string; subscriberWallet: string | null }> {
+  ): Promise<{
+    transaction_hash: string;
+    subscriberWallet: string | null;
+    /** The charge recorded on the PaymentIntent while it was pending */
+    chargeHash: string | null;
+  }> {
     if (settlementTransactionHash) {
       return {
         transaction_hash: settlementTransactionHash,
         subscriberWallet: invoice.default_payment_method,
+        chargeHash: null,
       };
     }
 
@@ -1697,33 +1914,322 @@ export class InvoiceModule {
       throw new Error('Subscription has no subscriber wallet for collection');
     }
 
-    const amountCents = invoice.amount_due;
-    const collection = await this.settlement.CollectSubscriptionPayment({
+    const charge = await this.CollectOnchainCycle(invoice, paymentIntentId, {
+      subscriptionOnchainId: subscription.subscription_onchain_id,
+      planKey: price.subscription_plan_id,
+      price,
       subscriberWallet,
-      planId: price.subscription_plan_id,
-      subscriptionId: subscription.subscription_onchain_id,
-      amountCents,
     });
+    return {
+      transaction_hash: charge.transactionHash,
+      subscriberWallet,
+      chargeHash: charge.transactionHash,
+    };
+  }
 
-    // On-chain plans allow one pull per periodHours. Skipped Stripe cycles do
-    // not stack — if we already pulled this on-chain period, no USDC moves.
-    // Treating that as success was marking invoices paid / advancing periods
-    // with no wallet debit.
-    if (collection.alreadyCollected) {
-      Logger.warn('On-chain subscription period already collected', {
-        invoiceId: invoice.id,
-        subscriptionId,
+  /**
+   * Collects the invoice's period from the on-chain subscription. The
+   * chain's schedule decides: the invoice must bill the period due on-chain
+   * now (`CurrentDueAt`); an older one is a missed cycle the billing runner
+   * voids, a later one waits. The cycle is claimed for this invoice first,
+   * so no other invoice or checkout collects it.
+   * - Every charge hash is recorded on the claim (append-only) and on the
+   *   PaymentIntent (which turns `processing`) before it is sent, and all of
+   *   them are reconciled before anything new is sent.
+   * - Before the invoice is refused as a missed cycle or a period not due,
+   *   or after a `NotDueYet`, the chain's `Charged` logs since the period
+   *   started decide when this claim ever sent a charge (or for `NotDueYet`
+   *   with none): a charge found there, and not recorded by another cycle,
+   *   pays the invoice.
+   * The period the paid charge paid is kept on the claim (Q10 #3).
+   */
+  private async CollectOnchainCycle(
+    invoice: InvoiceType,
+    paymentIntentId: string,
+    cycle: {
+      subscriptionOnchainId: string;
+      planKey: string;
+      price: PriceType;
+      subscriberWallet: string;
+    }
+  ): Promise<{ transactionHash: string }> {
+    const { subscriptionOnchainId } = cycle;
+    const amountCents = invoice.amount_due;
+    if (
+      cycle.price.unit_amount !== null &&
+      amountCents > cycle.price.unit_amount
+    ) {
+      throw new AppError(
+        "The invoice's amount due is more than the on-chain plan collects per period",
+        400,
+        ONCHAIN_PLAN_AMOUNT_EXCEEDED
+      );
+    }
+    const claimId = CycleClaimId(subscriptionOnchainId, invoice.period_start);
+    const Paid = async (paid: {
+      transaction_hash: string;
+      next_charge_at: number | null;
+    }) => {
+      await this.cycleClaims.SetPaidPeriod(
+        claimId,
+        paid.next_charge_at === null
+          ? null
+          : {
+              start: paid.next_charge_at - IntervalSeconds(cycle.price),
+              end: paid.next_charge_at,
+            }
+      );
+      return { transactionHash: paid.transaction_hash };
+    };
+    /** The chain's logs, for a claim of this invoice that ever charged. */
+    const FromLogs = async (always = false) => {
+      const own = await this.cycleClaims.Get(claimId);
+      if (own?.owner !== invoice.id) return null;
+      if (!always && ClaimHashes(own).length === 0) return null;
+      return this.settlement.FindSubscriptionCharge(subscriptionOnchainId, {
         amountCents,
+        since: invoice.period_start,
+        accept: (hash) => this.ChargeBelongsToClaim(hash, claimId),
       });
-      throw new Error(
-        'On-chain subscription period allowance already collected; wait for the next billing period before collecting again'
+    };
+
+    const existing = await this.cycleClaims.Get(claimId);
+    if (existing?.owner === invoice.id && existing.charge_hash) {
+      const paid = await this.ReconcileRecordedCharge(existing, {
+        invoice,
+        paymentIntentId,
+        subscriptionOnchainId,
+      });
+      if (paid) return Paid(paid);
+    }
+
+    const state = await this.settlement.GetSubscriptionState(
+      subscriptionOnchainId
+    );
+    if (state.status === 'paused') {
+      throw new AppError(
+        'The subscription is paused on-chain',
+        409,
+        PAUSED_ON_CHAIN
+      );
+    }
+    if (state.status !== 'active') {
+      throw new AppError(
+        'The subscription is canceled on-chain',
+        409,
+        CANCELED_ON_CHAIN
+      );
+    }
+    const now = state.chain_time ?? Now();
+    const nextChargeAt = state.next_charge_at ?? invoice.period_start;
+    const periodSeconds = state.period_seconds ?? IntervalSeconds(cycle.price);
+    const dueAt = CurrentDueAt(nextChargeAt, now, periodSeconds);
+    if (invoice.period_start < dueAt) {
+      const found = await FromLogs();
+      if (found) return Paid(found);
+      throw new AppError(
+        'This invoice bills a period the on-chain subscription skipped',
+        409,
+        CYCLE_MISSED
+      );
+    }
+    if (now < nextChargeAt || invoice.period_start > dueAt) {
+      const found = await FromLogs();
+      if (found) return Paid(found);
+      throw new AppError(
+        'This on-chain subscription period is not due yet; wait for the next billing period before collecting again',
+        409,
+        PERIOD_ALREADY_COLLECTED,
+        { next_charge_at: Math.max(nextChargeAt, invoice.period_start) }
       );
     }
 
-    return {
-      transaction_hash: collection.transaction_hash,
-      subscriberWallet,
-    };
+    const { claim, owned } = await this.cycleClaims.Claim(
+      subscriptionOnchainId,
+      dueAt,
+      invoice.id
+    );
+    if (!owned) {
+      throw new AppError(
+        'This on-chain subscription period is already collected; wait for the next billing period before collecting again',
+        409,
+        PERIOD_ALREADY_COLLECTED,
+        { next_charge_at: dueAt + periodSeconds }
+      );
+    }
+
+    let recorded = claim.charge_hash;
+    let recordedHere: string | null = null;
+    try {
+      const collection = await this.settlement.CollectSubscriptionPayment({
+        subscriptionOnchainId,
+        planKey: cycle.planKey,
+        subscriberWallet: cycle.subscriberWallet,
+        amountCents,
+        onSigned: async (hash, signed) => {
+          await this.RecordPendingCharge(
+            claim.id,
+            paymentIntentId,
+            hash,
+            recorded,
+            signed
+          );
+          recorded = hash;
+          recordedHere = hash;
+        },
+      });
+      if (collection.status === 'collected') return Paid(collection);
+      if (collection.status === 'pending') {
+        throw ChargePending(collection.transaction_hash);
+      }
+      // NotDueYet: the chain's logs decide.
+      const found = await FromLogs(true);
+      if (found) return Paid(found);
+      throw new AppError(
+        'No charge collected this period on-chain; the invoice is voided',
+        409,
+        CYCLE_MISSED
+      );
+    } catch (error) {
+      // A charge that reverted or was never sent is not pending any more.
+      if (
+        recordedHere &&
+        !(error instanceof AppError && error.type === CHARGE_PENDING)
+      ) {
+        await this.ClearPendingCharge(claim.id, paymentIntentId, recordedHere);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * True unless another cycle's claim recorded `hash`: a charge found in the
+   * logs pays this cycle only when it is not another cycle's own charge.
+   */
+  private async ChargeBelongsToClaim(
+    hash: string,
+    claimId: string
+  ): Promise<boolean> {
+    const claims = await this.cycleClaims.FindByChargeHash(hash);
+    return claims.every((claim) => claim.id === claimId);
+  }
+
+  /**
+   * Reconciles every charge recorded on a claim, together (Q10 #7): paid →
+   * that charge; pending → a `charge_pending` wait (a stuck charge is
+   * re-priced, and the new hash recorded); dropped → cleared, so the caller
+   * goes on (the logs and a new charge decide); reverted → cleared, and its
+   * error is thrown unless it was `NotDueYet`.
+   */
+  private async ReconcileRecordedCharge(
+    claim: SubscriptionCycleClaim,
+    context: {
+      invoice: InvoiceType;
+      paymentIntentId: string;
+      subscriptionOnchainId: string;
+    }
+  ): Promise<{
+    transaction_hash: string;
+    next_charge_at: number | null;
+  } | null> {
+    let current = claim.charge_hash;
+    const result = await this.settlement.ReconcileSubscriptionCharge(
+      ClaimHashes(claim),
+      {
+        subscriptionOnchainId: context.subscriptionOnchainId,
+        amountCents: context.invoice.amount_due,
+        sentAt: claim.charge_sent_at,
+        nonce: claim.charge_nonce ?? null,
+        onReplaced: async (replacement, signed) => {
+          await this.RecordPendingCharge(
+            claim.id,
+            context.paymentIntentId,
+            replacement,
+            current,
+            signed
+          );
+          current = replacement;
+        },
+      }
+    );
+    if (result.status === 'paid') return result;
+    if (result.status === 'pending') {
+      throw ChargePending(current ?? result.transaction_hash);
+    }
+    if (current) {
+      await this.ClearPendingCharge(claim.id, context.paymentIntentId, current);
+    }
+    if (
+      result.status === 'failed' &&
+      result.error.type !== PERIOD_ALREADY_COLLECTED
+    ) {
+      throw result.error;
+    }
+    return null;
+  }
+
+  /**
+   * Records a charge's hash on its cycle claim and PaymentIntent before it
+   * is sent, and turns the PaymentIntent `processing`. A claim that moved
+   * meanwhile cancels the send. The claim decides: when the PaymentIntent
+   * holds another hash than expected, it is read again and follows the
+   * claim, so the hash is never dropped.
+   */
+  private async RecordPendingCharge(
+    claimId: string,
+    paymentIntentId: string,
+    hash: string,
+    expected: string | null,
+    signed?: SignedTransaction
+  ): Promise<void> {
+    if (
+      !(await this.cycleClaims.SetChargeHash(claimId, hash, expected, signed))
+    ) {
+      throw new AppError(
+        'Another collection is charging this subscription period',
+        409,
+        CHARGE_PENDING
+      );
+    }
+    if (!this.paymentIntentModule) return;
+    if (
+      !(await this.paymentIntentModule.SetPendingChargeHash(
+        paymentIntentId,
+        hash,
+        expected
+      ))
+    ) {
+      const stored =
+        (await this.paymentIntentModule.GetPaymentIntent(paymentIntentId))
+          ?.pending_charge_hash ?? null;
+      if (
+        !(await this.paymentIntentModule.SetPendingChargeHash(
+          paymentIntentId,
+          hash,
+          stored
+        ))
+      ) {
+        throw new AppError(
+          'Another collection is charging this subscription period',
+          409,
+          CHARGE_PENDING
+        );
+      }
+    }
+    await this.paymentIntentModule.MarkProcessing(paymentIntentId);
+  }
+
+  private async ClearPendingCharge(
+    claimId: string,
+    paymentIntentId: string,
+    hash: string
+  ): Promise<void> {
+    await this.cycleClaims.SetChargeHash(claimId, null, hash);
+    await this.paymentIntentModule?.SetPendingChargeHash(
+      paymentIntentId,
+      null,
+      hash
+    );
   }
 
   private async ResolvePrice(
@@ -1752,4 +2258,22 @@ export class InvoiceModule {
     }
     return price;
   }
+}
+
+/** A charge that was sent and recorded but is not confirmed yet. */
+function ChargePending(transactionHash: string): AppError {
+  return new AppError(
+    'The subscription payment is waiting for network confirmations',
+    409,
+    CHARGE_PENDING,
+    { transaction_hash: transactionHash }
+  );
+}
+
+/** A recurring price's billing period in seconds, as its on-chain plan has. */
+function IntervalSeconds(price: PriceType): number {
+  return RecurringIntervalToSeconds(
+    price.recurring?.interval ?? 'month',
+    price.recurring?.interval_count ?? 1
+  );
 }

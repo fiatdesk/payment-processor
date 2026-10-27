@@ -23,7 +23,7 @@ const BILLING_RUN_OBJECT_JSON = `{
   "errors": [
     {
       "subscription": "sub_z_1NGQwV2eZvKYlo2CjrVqXzAb",
-      "error": "Insufficient USDC allowance for subscription delegation"
+      "error": "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit"
     }
   ]
 }`;
@@ -142,18 +142,38 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: "These endpoints are specific to Zoneless and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Solana.",
+          text: "These endpoints are specific to Zoneless and are not available in Stripe's API. They exist so platforms can collect recurring subscription payments in USDC on Ethereum.",
         },
         {
           type: 'callout',
           variant: 'info',
           title: 'How billing works: ',
-          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>Zoneless Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects via Solana subscription delegation.',
+          text: '<strong>Self-host:</strong> call <a href="#run_for_platform"><code>run_for_platform</code></a> on a schedule with your platform API key (Cloud Scheduler, cron, or your host\'s job runner). For single-instance setups you can instead enable <code>BILLING_MONITOR_ENABLED</code>. <strong>Zoneless Cloud:</strong> the operator triggers <code>POST /v1/billing/run</code> with <code>x-operator-key</code> — you do not need to cron this yourself. Each run finds due subscriptions, creates cycle invoices, and collects each one with a <code>charge</code> on the Subscriptions contract, sent from <code>SUBSCRIPTION_OPERATOR_KEY</code>.',
           html: true,
         },
         {
           type: 'paragraph',
           text: 'Automatic collection only runs for subscriptions that have a <code>subscription_onchain_id</code>, use <code>collection_method=charge_automatically</code>, are not paused, and are in <code>active</code>, <code>past_due</code>, or (after trial end) <code>trialing</code>.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'The contract allows one charge per billing period, on a fixed schedule that starts at the first charge time (the subscribe, or the end of a trial), and the subscription’s periods follow that schedule. Before charging, a run reads when the chain has the subscription due and collects the invoice for that period, creating it when needed. A run charges each subscription at most once, and each period is claimed by one invoice (or the checkout) only. A declined invoice is attempted again only at its <code>next_payment_attempt</code> (1, 3 and 5 days after the attempts before; after the fourth, the invoice is <code>uncollectible</code> and the subscription <code>unpaid</code>); a run before then leaves it alone. Pausing and resuming keeps that schedule. When billing runs late, the charge collects the current period only: open invoices for periods that ended without a charge are voided, not collected (up to 12 per subscription per run; later runs void the rest before charging). After a charge, the subscription’s period is set from the charge’s <code>Charged</code> event: it ends at the chain’s next due time.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'Each charge’s transaction hash is recorded before it is sent, and so is every re-priced replacement (<code>charge_hashes</code> on the PaymentIntent). A charge that is not confirmed within the run stays pending (the invoice <code>open</code> with <code>charge_pending</code>, its PaymentIntent <code>processing</code>), and the next run settles it by all its hashes before anything else: paid when any of them shows the charge; still pending while their nonce is unused, even if the node does not know them; tried again only once another transaction used that nonce; re-priced at the same nonce when it has waited for more than 10 minutes. Before an invoice whose period sent a charge is voided as skipped or refused as not due, the chain’s <code>Charged</code> logs since its period started are searched: a charge found there pays it. Runs that only wait (a pending charge, a pause, a period not due yet, a retry not due yet) do not count toward <code>batch_size</code>.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'The chain decides whether a subscription can be charged. A subscription paused on-chain gets <code>pause_collection</code> and <code>paused_on_chain=true</code>, and is collected on the first run after it resumes on-chain; a period that came due during the pause is collected right away. A subscription canceled on-chain is canceled here for good: its open invoices are voided (<code>invoice.voided</code>), it gets <code>cancellation_details.comment=canceled_on_chain</code> and <code>customer.subscription.deleted</code> is emitted, with no retries or <code>past_due</code>. When the subscriber’s USDC allowance to the Subscriptions contract cannot cover a period, the invoice payment fails with <code>metadata.last_payment_error_code=collection_failed_allowance</code>, the subscription becomes <code>past_due</code>, and Zoneless emits <code>customer.subscription.allowance_exhausted</code>: the subscriber must sign a new permit. Revoking the allowance stops every pull.',
+          html: true,
+        },
+        {
+          type: 'paragraph',
+          text: 'Canceling a subscription sends its on-chain cancel without waiting for it (<code>cancel_pending_on_chain=true</code>). Each run follows every pending cancel, oldest first and page by page: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The flag clears once the chain reads the subscription canceled.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

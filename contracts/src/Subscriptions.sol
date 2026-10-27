@@ -16,10 +16,11 @@ import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 /// signature over the plan key and the plan's token, amount and period
 /// (optionally preceded by an EIP-2612 `permit`). The plan's puller may then
 /// take at most the plan amount once per billing period. Billing periods follow
-/// a fixed grid that starts at subscribe time: the first period is due at once,
-/// and a charge moves the next due time to the first grid point after it, so a
-/// period the puller missed is skipped, never collected later. Pausing never
-/// moves the grid.
+/// a fixed grid that starts at the first charge time: the subscribe time, or a
+/// later `firstChargeAt` the subscriber chose (signed, at most 365 days ahead,
+/// for example the end of a trial). A charge moves the next due time to the
+/// first grid point after it, so a period the puller missed is skipped, never
+/// collected later. Pausing never moves the grid.
 /// @dev No admin, no pause switch and non-upgradeable; it never holds tokens or
 /// ETH. Standard ERC-20 tokens only: with a fee-on-transfer token the
 /// destination would receive less than `Charged` reports.
@@ -83,8 +84,10 @@ contract Subscriptions is EIP712, Nonces {
     }
 
     uint64 public constant MAX_PERIOD_SECONDS = 10 * 365 days;
+    /// @notice How far ahead a subscription's first charge may be set.
+    uint64 public constant MAX_FIRST_CHARGE_DELAY = 365 days;
     bytes32 public constant SUBSCRIBE_TYPEHASH = keccak256(
-        "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)"
+        "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)"
     );
 
     /// @notice Plans by `keccak256(abi.encode(owner, planId))`.
@@ -132,6 +135,7 @@ contract Subscriptions is EIP712, Nonces {
     error NotPaused();
     error ZeroAddress();
     error TermsMismatch();
+    error InvalidFirstCharge();
 
     constructor() EIP712("Subscriptions", "1") {}
 
@@ -205,17 +209,29 @@ contract Subscriptions is EIP712, Nonces {
     /// Uses up the caller's nonce, retiring any `Subscribe` signature they have
     /// handed out.
     function subscribe(bytes32 planKey) external returns (bytes32 subId) {
-        subId = _subscribe(planKey, msg.sender);
+        subId = _subscribe(planKey, msg.sender, 0);
+        _useNonce(msg.sender);
+    }
+
+    /// @notice Subscribes the caller as `subscribe(planKey)` does, with the
+    /// first period due at `firstChargeAt` (for example after a trial).
+    /// @param firstChargeAt 0 for now, else a time from now to
+    /// `MAX_FIRST_CHARGE_DELAY` ahead; anything else reverts with
+    /// `InvalidFirstCharge`.
+    function subscribe(bytes32 planKey, uint64 firstChargeAt) external returns (bytes32 subId) {
+        subId = _subscribe(planKey, msg.sender, firstChargeAt);
         _useNonce(msg.sender);
     }
 
     /// @notice Subscribes `subscriber` on their EIP-712 signature over
-    /// `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)`
+    /// `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)`
     /// with `nonce = nonces(subscriber)`. Anyone may relay it.
     /// @param terms The plan's token, amount and period, exactly as signed;
     /// anything else reverts with `TermsMismatch`. They travel as one struct
     /// because `subscribeWithPermit` would otherwise have too many arguments to
     /// decode without the IR pipeline.
+    /// @param firstChargeAt When the first period is due, as signed: 0 for the
+    /// subscribe time, else a time up to `MAX_FIRST_CHARGE_DELAY` ahead.
     /// @param deadline Last block timestamp (inclusive) at which `sig` is valid.
     /// @param sig An externally owned account's 65-byte `r, s, v` signature, or
     /// whatever a contract wallet accepts through EIP-1271.
@@ -223,12 +239,13 @@ contract Subscriptions is EIP712, Nonces {
         bytes32 planKey,
         address subscriber,
         Terms calldata terms,
+        uint64 firstChargeAt,
         uint256 deadline,
         bytes calldata sig
     ) external returns (bytes32 subId) {
         _checkTerms(planKey, terms);
-        _useSubscribeAuthorization(planKey, subscriber, deadline, sig);
-        return _subscribe(planKey, subscriber);
+        _useSubscribeAuthorization(planKey, subscriber, firstChargeAt, deadline, sig);
+        return _subscribe(planKey, subscriber, firstChargeAt);
     }
 
     /// @notice Applies the subscriber's EIP-2612 permit for this contract on the
@@ -241,6 +258,7 @@ contract Subscriptions is EIP712, Nonces {
         bytes32 planKey,
         address subscriber,
         Terms calldata terms,
+        uint64 firstChargeAt,
         uint256 permitValue,
         uint256 permitDeadline,
         uint8 v,
@@ -251,8 +269,8 @@ contract Subscriptions is EIP712, Nonces {
     ) external returns (bytes32 subId) {
         _checkTerms(planKey, terms);
         _permit(terms.token, subscriber, permitValue, permitDeadline, v, r, s);
-        _useSubscribeAuthorization(planKey, subscriber, deadline, sig);
-        return _subscribe(planKey, subscriber);
+        _useSubscribeAuthorization(planKey, subscriber, firstChargeAt, deadline, sig);
+        return _subscribe(planKey, subscriber, firstChargeAt);
     }
 
     // --------------------------------------------------------------- charge
@@ -336,14 +354,19 @@ contract Subscriptions is EIP712, Nonces {
 
     // ------------------------------------------------------------- internal
 
-    function _subscribe(bytes32 planKey, address subscriber) private returns (bytes32 subId) {
+    /// @dev `firstChargeAt` 0 means now; otherwise it must be from now to
+    /// `MAX_FIRST_CHARGE_DELAY` ahead.
+    function _subscribe(bytes32 planKey, address subscriber, uint64 firstChargeAt) private returns (bytes32 subId) {
         if (!plans[planKey].active) revert PlanInactive();
         subId = keccak256(abi.encode(planKey, subscriber));
         Status status = subscriptions[subId].status;
         if (status == Status.Active || status == Status.Paused) revert AlreadySubscribed();
 
         // A uint64 of seconds lasts far beyond any block timestamp.
-        uint64 nextChargeAt = uint64(block.timestamp);
+        uint64 nextChargeAt = firstChargeAt == 0 ? uint64(block.timestamp) : firstChargeAt;
+        if (nextChargeAt < block.timestamp || nextChargeAt - block.timestamp > MAX_FIRST_CHARGE_DELAY) {
+            revert InvalidFirstCharge();
+        }
         subscriptions[subId] = Sub({
             planKey: planKey,
             subscriber: subscriber,
@@ -366,16 +389,28 @@ contract Subscriptions is EIP712, Nonces {
 
     /// @dev Checks the deadline and the signature over the plan's terms, and
     /// uses up the subscriber's nonce, so a signature subscribes at most once.
-    function _useSubscribeAuthorization(bytes32 planKey, address subscriber, uint256 deadline, bytes calldata sig)
-        private
-    {
+    function _useSubscribeAuthorization(
+        bytes32 planKey,
+        address subscriber,
+        uint64 firstChargeAt,
+        uint256 deadline,
+        bytes calldata sig
+    ) private {
         if (block.timestamp > deadline) revert ExpiredSignature();
         Plan storage plan = plans[planKey];
         uint256 nonce = _useNonce(subscriber);
         // forge-lint: disable-start(asm-keccak256)
         bytes32 structHash = keccak256(
             abi.encode(
-                SUBSCRIBE_TYPEHASH, planKey, subscriber, plan.token, plan.amount, plan.periodSeconds, nonce, deadline
+                SUBSCRIBE_TYPEHASH,
+                planKey,
+                subscriber,
+                plan.token,
+                plan.amount,
+                plan.periodSeconds,
+                firstChargeAt,
+                nonce,
+                deadline
             )
         );
         // forge-lint: disable-end(asm-keccak256)

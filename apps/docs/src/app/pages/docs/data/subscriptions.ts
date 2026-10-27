@@ -22,7 +22,7 @@ export const SUBSCRIPTIONS_SUBSECTION: DocSubSection = {
 // ============================================
 
 const HOUR_INTERVAL_NOTE =
-  "<strong>Zoneless extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short Solana subscription periods.";
+  "<strong>Zoneless extension:</strong> The <code>hour</code> interval is not present in Stripe's API. It enables short subscription periods.";
 
 const RECURRING_INTERVAL_ENUM: Attribute['enumValues'] = [
   { value: 'hour', description: 'Billed every hour.' },
@@ -215,7 +215,7 @@ const PAYMENT_SETTINGS_CHILDREN: Attribute[] = [
     description:
       'The list of payment method types to provide to every invoice created by the subscription.',
     enumValues: [
-      { value: 'crypto', description: 'USDC wallet payments on Solana.' },
+      { value: 'crypto', description: 'USDC wallet payments on Ethereum.' },
     ],
     enumNote:
       '<strong>Difference from Stripe:</strong> Zoneless only supports <code>crypto</code>. Card and other fiat payment method types are not available.',
@@ -702,7 +702,11 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   },
   "trial_start": null,
   "platform_account": "acct_z_Platform123abc",
-  "subscription_onchain_id": "7xK9Nv3F...abc123",
+  "subscription_onchain_id": "0x8e2b4d6f1a3c5e7b9d0f2a4c6e8b1d3f5a7c9e0b2d4f6a8c1e3b5d7f9a0c2e4b",
+  "paused_on_chain": false,
+  "cancel_pending_on_chain": false,
+  "cancel_pending_transaction_hash": null,
+  "cancel_pending_sent_at": null,
   "billing_lock_until": null
 }`;
 
@@ -1602,7 +1606,41 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'On-chain subscription id for this subscription. Set when the customer completes hosted checkout subscribe.',
+      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period. When their USDC allowance to the Subscriptions contract does not cover this plan and their other live plans, they also sign a USDC permit that adds this plan’s bounded amount (at least 12 periods and at least a year) to their current allowance. Zoneless relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull. Only one live subscription can have a given <code>subscription_onchain_id</code>.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'paused_on_chain',
+    type: 'boolean',
+    description:
+      'True while the subscription is paused on-chain (by the customer or the plan owner). Zoneless then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain. Setting <code>pause_collection</code> yourself makes it <code>false</code>: a pause you set is never lifted this way.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'cancel_pending_on_chain',
+    type: 'boolean',
+    description:
+      'True after the subscription was canceled while its on-chain cancel has not landed yet. Billing runs send the cancel again until the chain reads the subscription canceled, then set it to <code>false</code>. A new checkout for the same on-chain subscription is refused until then.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'cancel_pending_transaction_hash',
+    type: 'string',
+    nullable: true,
+    description:
+      'The hash of the on-chain cancel last sent while <code>cancel_pending_on_chain</code> is true.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'cancel_pending_sent_at',
+    type: 'timestamp',
+    nullable: true,
+    description:
+      'When <code>cancel_pending_transaction_hash</code> was sent. A cancel still unmined 10 minutes later is re-priced at the same nonce.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
@@ -1649,6 +1687,13 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
           variant: 'info',
           title: 'Processing renewals: ',
           text: 'Creating a subscription does not collect future cycle invoices on its own. Use the <a href="/billing">Billing Helpers</a> API (<code>runForPlatform</code>) on a schedule—or enable the in-process billing monitor—to invoice and collect due subscriptions in USDC.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: "A subscription with a <code>subscription_onchain_id</code> is collected by the Subscriptions contract, which charges at most the plan’s amount once per period. It has exactly one item, with <code>quantity=1</code>, and nothing may raise an invoice above the price’s <code>unit_amount</code>: more items, a higher quantity, and invoice items, prorations or tax on top are refused with a 400 <code>invalid_request_error</code> whose code is <code>onchain_plan_amount_exceeded</code>. A trial (the price's <code>trial_period_days</code>) is the on-chain subscription's first charge time, which the customer signs: the contract refuses any charge before it. While trialing, the period runs from the subscribe time to <code>trial_end</code>, and the first cycle invoice starts at <code>trial_end</code>. The allowance the customer signs is shared by all of their plans, and a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -2988,6 +3033,13 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
   sections: [
     {
       left: [
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs follow the cancel until the chain reads it canceled: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The cancellation stands either way, and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
+          html: true,
+        },
         { type: 'heading', level: 2, text: 'Parameters' },
         {
           type: 'attributes',

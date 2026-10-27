@@ -670,7 +670,8 @@ export class CheckoutSessionModule {
   async CompleteCheckoutSession(
     id: string,
     paymentDetails: {
-      transaction_hash: string;
+      /** Null for a subscription with a trial whose subscribe was not seen */
+      transaction_hash: string | null;
       payer_wallet: string | null;
       relayed?: boolean;
       merchant_wallet?: string | null;
@@ -892,7 +893,8 @@ export class CheckoutSessionModule {
 
   /**
    * Record who prepares the payment of an open session: the payer wallet,
-   * whether the payment is relayed and the merchant wallet it pays. Only
+   * whether the payment is relayed, the merchant wallet it pays and, for a
+   * subscription, the first charge time its `Subscribe` signs. Only
    * while no payment transaction is recorded, so a prepare can never replace
    * the payer of, or erase, a relay that is already confirming. Returns false
    * when a transaction is recorded.
@@ -903,6 +905,7 @@ export class CheckoutSessionModule {
       payer_wallet: string;
       relayed: boolean;
       merchant_wallet: string;
+      first_charge_at?: number | null;
     }
   ): Promise<boolean> {
     // A session starts without payment details; the first prepare writes
@@ -920,6 +923,9 @@ export class CheckoutSessionModule {
         'payment_details.payer_wallet': details.payer_wallet,
         'payment_details.relayed': details.relayed,
         'payment_details.merchant_wallet': details.merchant_wallet,
+        ...(details.first_charge_at !== undefined
+          ? { 'payment_details.first_charge_at': details.first_charge_at }
+          : {}),
       }
     );
     return updated !== null;

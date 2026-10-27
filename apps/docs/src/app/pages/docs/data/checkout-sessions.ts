@@ -1278,6 +1278,20 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         description:
           "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. The payment is verified against it even if the default wallet changes meanwhile.",
       },
+      {
+        name: 'first_charge_at',
+        type: 'timestamp',
+        nullable: true,
+        description:
+          "Subscription mode: when the first period is due on-chain, as the prepared <code>Subscribe</code> message signs it (the trial's end, or <code>0</code> for at once). The relay sends the same value.",
+      },
+      {
+        name: 'pending_charge_hash',
+        type: 'string',
+        nullable: true,
+        description:
+          'Subscription mode: the first-period charge sent and not settled yet, recorded before it is sent. Cleared once it is reconciled.',
+      },
     ],
   },
 ];

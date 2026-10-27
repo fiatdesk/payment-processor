@@ -65,6 +65,8 @@ export const EVENT_TYPES = [
   'customer.created',
   'customer.updated',
   'customer.deleted',
+  // Zoneless extension: the on-chain allowance cannot cover a period.
+  'customer.subscription.allowance_exhausted',
   'customer.subscription.created',
   'customer.subscription.deleted',
   'customer.subscription.paused',

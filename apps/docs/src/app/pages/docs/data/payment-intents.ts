@@ -981,7 +981,7 @@ const PAYMENT_INTENT_ATTRIBUTES: Attribute[] = [
         type: 'string',
         nullable: true,
         description:
-          'For some errors that can be handled programmatically, a short error code.',
+          'For some errors that can be handled programmatically, a short error code. A declined subscription charge has <code>collection_failed_allowance</code>, <code>insufficient_funds</code> or <code>account_frozen</code>.',
       },
       {
         name: 'decline_code',
@@ -1448,6 +1448,23 @@ const PAYMENT_INTENT_MORE_ATTRIBUTES: Attribute[] = [
       "The platform account that owns this resource. For connected account resources, this is the platform's account ID. For the platform's own resources, this equals the account field (self-referential).",
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
+  },
+  {
+    name: 'pending_charge_hash',
+    type: 'string',
+    nullable: true,
+    description:
+      'For a subscription invoice’s PaymentIntent: the hash of the on-chain charge sent for it and not settled yet, recorded before the charge is sent. The PaymentIntent is <code>processing</code> meanwhile, and the next billing run settles the charge by this hash, and every earlier one in <code>charge_hashes</code>, before sending anything else. <code>null</code> once it is settled.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'charge_hashes',
+    type: 'array of strings',
+    description:
+      "For a subscription invoice's PaymentIntent: every on-chain charge signed for it, oldest first, the original and any re-priced replacement. Each is recorded before it is sent, and the next billing run checks all of them: any one that collected pays the invoice.",
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
 ];
 

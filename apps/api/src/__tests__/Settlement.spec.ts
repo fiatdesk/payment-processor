@@ -174,17 +174,143 @@ describe('SimulatedSettlement', () => {
     });
   });
 
-  it('collects a subscription without hitting a chain', async () => {
-    await expect(
-      settlement.CollectSubscriptionPayment({
-        subscriberWallet: PAYER,
-        planId: 'sim_plan_price_z_1',
-        subscriptionId: 'sim_sub_1',
-        amountCents: 2000,
-      })
-    ).resolves.toEqual({
-      transaction_hash: `sim_collect:${PAYER}`,
-      alreadyCollected: false,
+  describe('subscriptions', () => {
+    const PLAN = 'sim_plan_price_z_1';
+
+    it('creates a plan without hitting a chain', async () => {
+      await expect(
+        settlement.CreateSubscriptionPlan(
+          'price_z_1',
+          2_592_000,
+          2000,
+          MERCHANT,
+          SIMULATED_TEST_WALLET
+        )
+      ).resolves.toBe(PLAN);
+    });
+
+    it('prepares nothing to sign', async () => {
+      await expect(
+        settlement.BuildSubscribeAuthorization(PAYER, PLAN, 1_700_086_400)
+      ).resolves.toEqual({
+        needs_permit: false,
+        permit_typed_data: null,
+        subscribe_typed_data: null,
+        deadline: null,
+        first_charge_at: 0,
+        estimated_fee: '0',
+        fee_currency: 'none',
+        chain_id: null,
+      });
+    });
+
+    it('records and returns the sim_sig reference as the subscribe', async () => {
+      const reference = SimulatedSignature('cs_z_1', PAYER);
+      const onSigned = jest.fn().mockResolvedValue(undefined);
+      const relay = {
+        planKey: PLAN,
+        subscriber: PAYER,
+        permitSignature: null,
+        subscribeSignature: reference,
+        deadline: 1_700_001_800,
+        firstChargeAt: 0,
+      };
+
+      await expect(
+        settlement.RelaySubscribe(relay, { onSigned })
+      ).resolves.toBe(reference);
+      expect(onSigned).toHaveBeenCalledWith(reference);
+      await expect(
+        settlement.RelaySubscribe(
+          { ...relay, subscribeSignature: `0x${'ab'.repeat(65)}` },
+          { onSigned }
+        )
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
+    it('verifies a simulated subscribe, one subscription id per checkout session, and nothing else', async () => {
+      const reference = SimulatedSignature('cs_z_1', PAYER);
+      const expected = { planKey: PLAN, subscriberWallet: PAYER };
+
+      await expect(
+        settlement.VerifySubscribeTransaction(reference, expected)
+      ).resolves.toEqual({
+        status: 'verified',
+        transaction_hash: reference,
+        subscriber_address: PAYER,
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_1`,
+      });
+      await expect(
+        settlement.VerifySubscribeTransaction(
+          SimulatedSignature('cs_z_2', PAYER),
+          expected
+        )
+      ).resolves.toMatchObject({
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_2`,
+      });
+      await expect(
+        settlement.VerifySubscribeTransaction(`0x${'ab'.repeat(32)}`, expected)
+      ).resolves.toMatchObject({ status: 'failed' });
+      await expect(
+        settlement.VerifySubscribeTransaction(null, expected)
+      ).resolves.toMatchObject({ status: 'pending' });
+    });
+
+    it('collects a subscription without hitting a chain, recording the reference first', async () => {
+      const onSigned = jest.fn().mockResolvedValue(undefined);
+
+      await expect(
+        settlement.CollectSubscriptionPayment({
+          subscriptionOnchainId: 'sim_sub_1',
+          planKey: PLAN,
+          subscriberWallet: PAYER,
+          amountCents: 2000,
+          onSigned,
+        })
+      ).resolves.toEqual({
+        status: 'collected',
+        transaction_hash: `sim_collect:${PAYER}`,
+        next_charge_at: null,
+      });
+      expect(onSigned).toHaveBeenCalledWith(`sim_collect:${PAYER}`, {
+        nonce: 0,
+      });
+      await expect(
+        settlement.ReconcileSubscriptionCharge([`sim_collect:${PAYER}`], {
+          subscriptionOnchainId: 'sim_sub_1',
+          amountCents: 2000,
+          sentAt: null,
+          nonce: null,
+          onReplaced: jest.fn(),
+        })
+      ).resolves.toEqual({
+        status: 'paid',
+        transaction_hash: `sim_collect:${PAYER}`,
+        next_charge_at: null,
+      });
+    });
+
+    it('is always active, keeps no schedule and has nothing to cancel on-chain', async () => {
+      await expect(
+        settlement.GetSubscriptionState('sim_sub_1')
+      ).resolves.toEqual({
+        status: 'active',
+        next_charge_at: null,
+        period_seconds: null,
+        chain_time: null,
+      });
+      await expect(
+        settlement.CancelSubscription('sim_sub_1', { onSigned: jest.fn() })
+      ).resolves.toBeNull();
+      await expect(
+        settlement.FindSubscriptionCharge('sim_sub_1', {
+          amountCents: 2000,
+          since: 0,
+        })
+      ).resolves.toBeNull();
+      await expect(
+        settlement.FindExistingSubscription(PLAN, PAYER)
+      ).resolves.toBeNull();
     });
   });
 
