@@ -343,6 +343,14 @@
   margin-top: $spacing-extra-large;
 }
 
+.payment-status {
+  margin-top: $spacing;
+  color: $checkout-label;
+  font-size: $font-size-small;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .payment-error {
   margin-top: $spacing;
   padding: $spacing-small $spacing-snug;

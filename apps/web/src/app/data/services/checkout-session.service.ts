@@ -1,29 +1,59 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
-import { ApiService } from '../../core';
-import { CheckoutSession } from '@zoneless/shared-types';
+import { ApiService, type ApiError } from '../../core';
+import {
+  CheckoutPaymentTransaction,
+  CheckoutSession,
+} from '@zoneless/shared-types';
 import {
   CreateCheckoutSessionInput,
   UpdateCheckoutSessionInput,
 } from '@zoneless/shared-schemas';
 
-/** Unsigned payment transaction returned by the public prepare endpoint. */
-export interface CheckoutPaymentTransaction {
-  object: 'checkout.payment_transaction';
-  checkout_session: string;
-  amount_total: number;
-  currency: string | null;
-  merchant_wallet_address: string;
-  unsigned_transaction: string;
-  /** Atomic units of `fee_currency`, as a decimal string */
-  estimated_fee: string;
-  fee_currency: string;
-  chain_id: number | null;
-  nonce: number | null;
-  to: string | null;
-  /** True when the API relays the payment and pays its gas. */
-  relayed?: boolean;
-  already_subscribed?: boolean;
-  subscription_onchain_id?: string;
+/**
+ * What confirm takes: the customer's signature of the prepared
+ * authorization, or, to follow a payment already relayed, its hash.
+ */
+export type CheckoutPaymentConfirmation =
+  | { signature: string }
+  | { transaction_hash: string }
+  | { already_subscribed: true; subscription_onchain_id?: string };
+
+/**
+ * Confirm waits server-side for up to `CHECKOUT_CONFIRM_TIMEOUT_MS` (90 s
+ * by default), so its request outlives that.
+ */
+export const CONFIRM_REQUEST_TIMEOUT_MS = 120_000;
+
+/** A confirm that did not finish but can be sent again. */
+export interface CheckoutConfirmRetry {
+  /**
+   * `payment_pending`: still confirming. `payment_resubmit_required`: the
+   * network does not know the recorded relay; only the signature can
+   * relay it again. `unreachable`: no answer (network error, timeout or a
+   * gateway 504), so the payment may be in flight.
+   */
+  reason: 'payment_pending' | 'payment_resubmit_required' | 'unreachable';
+  /** The payment transaction the API reported, if it has one yet */
+  transactionHash: string | null;
+}
+
+/** How to retry a failed confirm, or null when retrying cannot help. */
+export function ReadConfirmRetry(error: unknown): CheckoutConfirmRetry | null {
+  if (!(error instanceof Error)) return null;
+  const { status, type, details } = error as ApiError;
+  if (type === 'payment_pending' || type === 'payment_resubmit_required') {
+    const transactionHash = details?.['transaction_hash'];
+    return {
+      reason: type,
+      transactionHash:
+        typeof transactionHash === 'string' ? transactionHash : null,
+    };
+  }
+  if (status === undefined || status === 504) {
+    return { reason: 'unreachable', transactionHash: null };
+  }
+  return null;
 }
 
 @Injectable({
@@ -128,8 +158,9 @@ export class CheckoutSessionService {
   }
 
   /**
-   * Build an unsigned USDC payment transaction for a checkout session via
-   * the public payment pages endpoint. The customer signs it in their wallet.
+   * Prepare what the customer signs for a checkout session via the public
+   * payment pages endpoint: an EIP-3009 USDC authorization as EIP-712
+   * typed data, which the API relays and pays the gas for.
    */
   async PreparePayment(
     urlSlug: string,
@@ -172,23 +203,19 @@ export class CheckoutSessionService {
   }
 
   /**
-   * Confirm a checkout transaction. Relayed flows pass `signed_transaction`
-   * for the API to validate and broadcast; wallet-sent flows pass
-   * `transaction_hash` after the wallet has already sent the tx.
+   * Confirm a checkout payment. The API relays a `signature`, waits for
+   * confirmations and returns the completed session, or a 409
+   * `payment_pending` while it confirms (see `ReadConfirmRetry`).
    */
   async ConfirmPayment(
     urlSlug: string,
-    payload: {
-      transaction_hash?: string;
-      signed_transaction?: string;
-      already_subscribed?: boolean;
-      subscription_onchain_id?: string;
-    }
+    confirmation: CheckoutPaymentConfirmation
   ): Promise<CheckoutSession> {
     return this.api.Call<CheckoutSession>(
       'POST',
       `payment_pages/${urlSlug}/confirm`,
-      payload
+      confirmation,
+      { timeout: CONFIRM_REQUEST_TIMEOUT_MS }
     );
   }
 }

@@ -1146,3 +1146,78 @@ libs/shared-schemas/src/lib/PayoutSchema.ts
 libs/shared-types/src/lib/CheckoutSession.ts
 libs/shared-types/src/lib/index.ts
 ```
+
+## Task 12: Hosted checkout signs with browser wallets
+
+Hosted checkout now pays on Ethereum from the customer's browser wallet. The customer connects, the wallet switches to the platform's chain, and the customer signs the prepared EIP-3009 authorization with `eth_signTypedData_v4`. The API relays it and pays the gas (Task 11). The simulated rail still uses the test wallet dialog and `sim_sig:` references.
+
+- **Pay flow** (`checkout.component.ts`):
+  - `Connect` (or the already connected account), then `EnsureChain(chain_id from /v1/config)`, then prepare.
+  - The prepared payment must be an `eip3009_transfer` whose typed data is for that chain. Then `SignTypedData(prepared.typed_data)` and confirm `{ signature }`.
+  - `already_subscribed` still confirms without signing. Other subscription sessions say "This checkout cannot be paid from a wallet on this network yet." until Task 15.
+- **Confirm retries** (addendum A3):
+  - A `payment_pending` 409, a `payment_resubmit_required` 409, a network error, a request timeout or a gateway 504 sends confirm again with the same `{ signature }`, every 4 s for up to 5 minutes. The signature stays in memory until the payment completes or fails.
+  - A 409 may carry `transaction_hash: null`. A hash, once reported, is shown with an explorer link (`ConfigService.GetExplorerUrl`), or as text on a chain without an explorer.
+  - After 5 minutes the page says "Your payment is still confirming. Keep this page open, then check again." The signature and hash are kept, and the button reads "Check payment status". Pressing it confirms with the held signature, without preparing or signing again.
+  - Other errors are shown as is (400s carry generic messages) and drop the held signature. That includes 5xx answers other than a 504.
+  - A wallet rejection (4001) reads "The request was rejected in your wallet." Other viem errors show their `shortMessage`.
+  - Polling stops when the component is destroyed.
+- **Another payment is confirming** (a prepare answered by `payment_pending`, for another wallet's or tab's relay):
+  - The page shows "A payment for this checkout is already being confirmed" and follows that payment with confirm `{ transaction_hash }`. The hash comes from the 409, or from the public session when the 409 has none.
+  - A completed session ends the wait. An open session with no recorded hash ends it with "The other payment for this checkout did not go through. You can pay now."
+  - `payment_resubmit_required` there (no signature is held) stops with "The payment was not sent to the network. Press Pay to sign it again." Pay then prepares and signs.
+- **Confirm request** (`checkout-session.service.ts`):
+  - `ConfirmPayment(urlSlug, { signature } | { transaction_hash } | { already_subscribed, subscription_onchain_id })` uses a 120 s request timeout. The API waits up to `CHECKOUT_CONFIRM_TIMEOUT_MS` (90 s by default) before answering.
+  - `CheckoutPaymentTransaction` comes from `@zoneless/shared-types`; the web-local copy is deleted.
+  - `ReadConfirmRetry(error)` says whether and why a confirm can be retried.
+- **API errors** (`api.service.ts`): `ApiError.details` holds every field of the error body, so checkout can read `transaction_hash` from a 409.
+- **Wallet discovery** (addendum A1, `wallet.service.ts`):
+  - `discoveryComplete` turns true when an EIP-6963 wallet announces itself, or after the 300 ms `window.ethereum` window. Until then checkout keeps its page loader up and shows neither the mobile wallet handoff nor the wallet guide.
+  - A late EIP-6963 announcement replaces the `window.ethereum` fallback while no account is connected. The first announced wallet still wins over later ones.
+  - Announcements are validated: the provider needs `request()`, `uuid` and `name` must be non-empty strings, and `icon` and `rdns` must be strings. An icon that is not a `data:image/` URI is dropped.
+  - `EnsureChain` already re-checks the chain after adding Sepolia and detects MetaMask Mobile's wrapped 4902 (Task 9), so it is unchanged.
+- **Mobile deep links** (`mobile-wallet.ts`, sources in the file header):
+  - MetaMask moves to `https://link.metamask.io/dapp/{URL without scheme}`, the format MetaMask's docs give now. The `metamask.app.link` host in the plan no longer appears in them.
+  - Coinbase Wallet stays `https://go.cb-w.com/dapp?cb_url={percent-encoded URL}`. Its doc page now redirects to the Coinbase Wallet overview, so the format was confirmed from the indexed copy of that page.
+- **Copy:**
+  - The method label stays "Paying with USDC on Ethereum". The help text says to "sign once" and that no ETH is needed for gas.
+  - The wallet guide's checkout step is "Add USDC, then pay".
+  - The two-step subscription copy ("First-time wallets approve twice") was already removed in Task 6.
+  - The payment link quickstart describes the Ethereum wallet flow.
+- **Tests:**
+  - Checkout component, with the real `WalletService` and a fake EIP-1193 wallet announced over EIP-6963:
+    - The pay button sends `eth_signTypedData_v4` with the prepared typed data and confirms with `{ signature }`. The wallet switches chain before prepare.
+    - Typed data for another chain is not signed. A wallet rejection and a 400 are shown without a retry.
+    - Confirm retries: `payment_pending` with the same signature until success (explorer link shown), a null-hash 409, `payment_resubmit_required` re-sent automatically, a network error and a 504, and the 5-minute stop followed by a check with the held signature.
+    - Another wallet's payment: followed by hash to completion, the hash read from the session when the 409 has none, and `payment_resubmit_required` with no held signature asking to sign again.
+    - Simulated mode still opens the test wallet and confirms with a `sim_sig:` reference without touching the wallet. Wallet discovery is awaited before the handoff and setup screens.
+  - Checkout session service, through the real `ApiService` with a stubbed `fetch`: the confirm body, the request not timing out before 120 s, and a 409's code and hash reaching `ReadConfirmRetry`.
+  - Wallet discovery: EIP-6963 wins over `window.ethereum`, a late announcement replaces the fallback but not a connected one, `discoveryComplete` timing, and malformed announcements ignored.
+  - Addendum A2: the C2 address rule (lowercase accepted; all-uppercase and a bad checksum rejected with the checksum message; `NormalizeEthereumAddress`) and the external wallet form's `GetFormData()` normalisation.
+- **Simulated-rail smoke** (ruling R4): with Mongo from `docker compose up mongodb -d` and the API on `SETTLEMENT_RAIL=simulated`, a payment link opened over curl, then prepared and confirmed with the exact bodies the web sends, completes the session (`payment_status: paid`). A repeat confirm returns the same completed session.
+
+Added:
+
+```
+apps/web/src/app/data/services/checkout-session.service.spec.ts
+apps/web/src/app/shared/forms/external-wallet-form/external-wallet-form.component.spec.ts
+apps/web/src/app/utils/validation/ethereum.spec.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/docs/src/app/pages/docs/data/quickstart.ts
+apps/web/src/app/core/services/api.service.ts
+apps/web/src/app/core/services/wallet.service.spec.ts
+apps/web/src/app/core/services/wallet.service.ts
+apps/web/src/app/data/services/checkout-session.service.ts
+apps/web/src/app/features/checkout/checkout.component.html
+apps/web/src/app/features/checkout/checkout.component.scss
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/checkout/util/mobile-wallet.spec.ts
+apps/web/src/app/features/checkout/util/mobile-wallet.ts
+apps/web/src/app/shared/ui/wallet-guide/wallet-guide.component.html
+```

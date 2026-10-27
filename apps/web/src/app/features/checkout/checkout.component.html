@@ -1,4 +1,4 @@
-<app-page-loader [loading]="loading()"></app-page-loader>
+<app-page-loader [loading]="loading() || IsDetectingWallet()"></app-page-loader>
 
 @if (checkoutSession(); as session) {
 <div class="checkout-page">
@@ -494,7 +494,23 @@
         }
       </button>
 
-      @if (paymentError(); as errorMessage) {
+      @if (paymentNotice(); as notice) {
+      <div class="payment-status" role="status">{{ notice }}</div>
+      } @if (pendingTransactionHash(); as transactionHash) {
+      <div class="payment-status">
+        Transaction @if (TransactionUrl(transactionHash); as transactionUrl) {
+        <a
+          [href]="transactionUrl"
+          [title]="transactionHash"
+          target="_blank"
+          rel="noopener"
+          >{{ ShortHash(transactionHash) }}</a
+        >
+        } @else {
+        <span [title]="transactionHash">{{ ShortHash(transactionHash) }}</span>
+        }
+      </div>
+      } @if (paymentError(); as errorMessage) {
       <div class="payment-error">{{ errorMessage }}</div>
       }
 

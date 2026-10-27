@@ -157,6 +157,118 @@ describe('WalletService', () => {
 
       expect(service.WalletName()).toBe('First');
     });
+
+    it('prefers an EIP-6963 provider over window.ethereum', () => {
+      fakeWindow.ethereum = FakeProvider();
+      const announced = FakeProvider();
+      const service = new WalletService();
+      Announce(fakeWindow, announced, 'Announced');
+      jest.advanceTimersByTime(300);
+
+      expect(service.WalletName()).toBe('Announced');
+      expect(service.wallet()?.provider).toBe(announced);
+    });
+
+    it('replaces the window.ethereum fallback with a late announcement', () => {
+      fakeWindow.ethereum = FakeProvider();
+      const service = new WalletService();
+      jest.advanceTimersByTime(300);
+      expect(service.WalletName()).toBe('Browser wallet');
+
+      const late = FakeProvider();
+      Announce(fakeWindow, late, 'Late');
+
+      expect(service.wallet()?.provider).toBe(late);
+    });
+
+    it('keeps the fallback once its account is connected', async () => {
+      const injected = FakeProvider({
+        eth_requestAccounts: () => [ADDRESS.toLowerCase()],
+      });
+      fakeWindow.ethereum = injected;
+      const service = new WalletService();
+      jest.advanceTimersByTime(300);
+      await service.Connect();
+
+      Announce(fakeWindow, FakeProvider(), 'Late');
+
+      expect(service.wallet()?.provider).toBe(injected);
+    });
+
+    it('reports discovery complete when a wallet announces itself', () => {
+      const service = new WalletService();
+      expect(service.discoveryComplete()).toBe(false);
+
+      Announce(fakeWindow, FakeProvider());
+
+      expect(service.discoveryComplete()).toBe(true);
+    });
+
+    it('reports discovery complete after 300 ms without a wallet', () => {
+      const service = new WalletService();
+
+      jest.advanceTimersByTime(299);
+      expect(service.discoveryComplete()).toBe(false);
+      jest.advanceTimersByTime(1);
+
+      expect(service.discoveryComplete()).toBe(true);
+      expect(service.HasWallet()).toBe(false);
+    });
+
+    it.each([
+      ['no provider', { info: { uuid: 'a', name: 'A', icon: '', rdns: 'a' } }],
+      [
+        'a provider without request()',
+        {
+          info: { uuid: 'a', name: 'A', icon: '', rdns: 'a' },
+          provider: {},
+        },
+      ],
+      ['no info', { provider: FakeProvider() }],
+      [
+        'an empty name',
+        {
+          info: { uuid: 'a', name: '', icon: '', rdns: 'a' },
+          provider: FakeProvider(),
+        },
+      ],
+      [
+        'a non-string uuid',
+        {
+          info: { uuid: 7, name: 'A', icon: '', rdns: 'a' },
+          provider: FakeProvider(),
+        },
+      ],
+    ])('ignores an announcement with %s', (_label, detail) => {
+      const service = new WalletService();
+
+      fakeWindow.dispatchEvent(
+        Object.assign(new Event('eip6963:announceProvider'), { detail })
+      );
+
+      expect(service.HasWallet()).toBe(false);
+      expect(service.discoveryComplete()).toBe(false);
+    });
+
+    it('drops an icon that is not a data: image', () => {
+      const service = new WalletService();
+
+      fakeWindow.dispatchEvent(
+        Object.assign(new Event('eip6963:announceProvider'), {
+          detail: {
+            info: {
+              uuid: 'a',
+              name: 'A',
+              icon: 'https://tracker.example.com/icon.png',
+              rdns: 'com.example.a',
+            },
+            provider: FakeProvider(),
+          },
+        })
+      );
+
+      expect(service.wallet()?.info.icon).toBe('');
+    });
   });
 
   describe('with a connected provider', () => {

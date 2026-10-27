@@ -128,6 +128,7 @@ export class ApiService {
         );
         (error as ApiError).status = response.status;
         (error as ApiError).type = errorData?.error?.type;
+        (error as ApiError).details = errorData?.error;
         throw error;
       }
 
@@ -179,6 +180,8 @@ export interface ApiError extends Error {
   status?: number;
   /** The API error type, e.g. `payout_batch_in_progress` */
   type?: string;
+  /** Every field of the API error body, e.g. `transaction_hash` */
+  details?: Record<string, unknown>;
 }
 
 /** The API error type of a failed `ApiService.Call`, if it had one. */

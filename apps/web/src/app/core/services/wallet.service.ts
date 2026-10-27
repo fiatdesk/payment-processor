@@ -72,19 +72,28 @@ const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 export class WalletService {
   readonly wallet: WritableSignal<Eip6963ProviderDetail | null> = signal(null);
   readonly account: WritableSignal<Address | null> = signal(null);
+  /**
+   * False while `HasWallet()` may still turn true: until an EIP-6963 wallet
+   * announces itself or the `window.ethereum` fallback window has passed.
+   */
+  readonly discoveryComplete: WritableSignal<boolean> = signal(false);
+  /** The wallet is the `window.ethereum` fallback, not an announced one. */
+  private usingInjectedFallback = false;
 
   constructor() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') {
+      this.discoveryComplete.set(true);
+      return;
+    }
 
-    window.addEventListener('eip6963:announceProvider', (event) => {
-      const detail = (event as CustomEvent<Eip6963ProviderDetail>).detail;
-      if (detail?.provider && !this.wallet()) this.wallet.set(detail);
-    });
+    window.addEventListener('eip6963:announceProvider', (event) =>
+      this.OnAnnouncement((event as CustomEvent<unknown>).detail)
+    );
     window.dispatchEvent(new Event('eip6963:requestProvider'));
 
     setTimeout(() => {
-      const injected = (window as { ethereum?: Eip1193Provider }).ethereum;
-      if (injected && !this.wallet()) {
+      const injected = (window as { ethereum?: unknown }).ethereum;
+      if (!this.wallet() && IsEip1193Provider(injected)) {
         this.wallet.set({
           info: {
             uuid: 'injected',
@@ -94,7 +103,9 @@ export class WalletService {
           },
           provider: injected,
         });
+        this.usingInjectedFallback = true;
       }
+      this.discoveryComplete.set(true);
     }, INJECTED_FALLBACK_DELAY_MS);
   }
 
@@ -257,6 +268,21 @@ export class WalletService {
     return signer.signTransaction(transaction);
   }
 
+  /**
+   * The first well-formed EIP-6963 announcement wins. One that arrives after
+   * the `window.ethereum` fallback replaces it until an account connects.
+   */
+  private OnAnnouncement(detail: unknown): void {
+    const announced = ParseAnnouncement(detail);
+    if (!announced) return;
+    if (this.wallet() && !(this.usingInjectedFallback && !this.account())) {
+      return;
+    }
+    this.wallet.set(announced);
+    this.usingInjectedFallback = false;
+    this.discoveryComplete.set(true);
+  }
+
   private async Client(): Promise<WalletClient> {
     const detail = this.wallet();
     if (!detail) throw new Error('No wallet found');
@@ -271,6 +297,46 @@ export class WalletService {
     if (!address) throw new Error('Connect wallet first');
     return address;
   }
+}
+
+function IsEip1193Provider(value: unknown): value is Eip1193Provider {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as Eip1193Provider).request === 'function'
+  );
+}
+
+/**
+ * The EIP-6963 announcement, or null when its provider or info is
+ * malformed. An icon that is not a `data:` image is dropped.
+ */
+function ParseAnnouncement(detail: unknown): Eip6963ProviderDetail | null {
+  if (!detail || typeof detail !== 'object') return null;
+  const { info, provider } = detail as { info?: unknown; provider?: unknown };
+  if (!IsEip1193Provider(provider) || !info || typeof info !== 'object') {
+    return null;
+  }
+  const { uuid, name, icon, rdns } = info as Record<string, unknown>;
+  if (
+    typeof uuid !== 'string' ||
+    !uuid ||
+    typeof name !== 'string' ||
+    !name ||
+    typeof icon !== 'string' ||
+    typeof rdns !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    info: {
+      uuid,
+      name,
+      icon: icon.startsWith('data:image/') ? icon : '',
+      rdns,
+    },
+    provider,
+  };
 }
 
 function ParsePrivateKey(privateKey: string): Hex {

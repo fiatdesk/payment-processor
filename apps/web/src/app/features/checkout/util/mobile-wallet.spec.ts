@@ -37,7 +37,7 @@ describe('mobile wallet checkout helpers', () => {
       expect(BuildMobileWalletOptions(currentUrl)).toEqual([
         {
           name: 'MetaMask',
-          url: 'https://metamask.app.link/dapp/checkout.example.com/c/test-session?prefilled=true#pay',
+          url: 'https://link.metamask.io/dapp/checkout.example.com/c/test-session?prefilled=true#pay',
         },
         {
           name: 'Coinbase Wallet',

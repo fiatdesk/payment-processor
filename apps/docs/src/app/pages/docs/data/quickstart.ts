@@ -145,7 +145,7 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'When a customer opens the link, they see your product and pay in USDC. In test mode, Checkout shows a simulated wallet you can approve without connecting a real wallet. In live mode, the customer pays with their Solana wallet.',
+          text: 'When a customer opens the link, they see your product and pay in USDC. In test mode, Checkout shows a simulated wallet you can approve without connecting a real wallet. In live mode, the customer connects an Ethereum wallet such as MetaMask and signs one USDC authorization. The API relays it and pays the network gas, so the customer needs USDC but no ETH.',
         },
       ],
       right: [
