@@ -1,8 +1,9 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
  * Anvil harness for `*.anvil.spec.ts`. StartAnvil() starts a throwaway local
- * chain, deploys MockUSDC and PayoutBatch with account #0, mints USDC to the
- * platform and buyer wallets and points the API's chain env at the chain.
+ * chain, deploys MockUSDC, PayoutBatch and Subscriptions with account #0,
+ * mints USDC to the platform and buyer wallets and points the API's chain env
+ * at the chain.
  * Call it in `beforeAll` and `Stop()` in `afterAll`. Importing this module
  * also sets a 120 s timeout for every test and hook in the spec file and adds
  * a file-level `afterAll` that stops any anvil still running.
@@ -43,7 +44,7 @@ export interface AnvilContext {
   addresses: {
     usdc: Address;
     payoutBatch: Address;
-    subscriptions: Address | null;
+    subscriptions: Address;
   };
   publicClient: PublicClient;
   Stop(): Promise<void>;
@@ -118,6 +119,7 @@ export async function StartAnvil(): Promise<AnvilContext> {
 
     const usdc = await Deploy('MockUSDC');
     const payoutBatch = await Deploy('PayoutBatch');
+    const subscriptions = await Deploy('Subscriptions');
     for (const key of [ANVIL_ACCOUNTS.platform, ANVIL_ACCOUNTS.buyer]) {
       await WaitForSuccess(
         await deployer.writeContract({
@@ -136,12 +138,12 @@ export async function StartAnvil(): Promise<AnvilContext> {
       ETH_RPC_URL: rpcUrl,
       USDC_ADDRESS: usdc,
       PAYOUT_BATCH_ADDRESS: payoutBatch,
+      SUBSCRIPTIONS_ADDRESS: subscriptions,
       ETH_CONFIRMATIONS: '1',
       CHECKOUT_RELAYER_KEY: ANVIL_ACCOUNTS.relayer,
       SUBSCRIPTION_OPERATOR_KEY: ANVIL_ACCOUNTS.operator,
     });
-    // Nothing else is deployed here, so no shell value may point elsewhere.
-    delete process.env.SUBSCRIPTIONS_ADDRESS;
+    // No sanctions oracle is deployed here, so no shell value may point elsewhere.
     delete process.env.SANCTIONS_ORACLE_ADDRESS;
     ResetChainClientsForTests();
     if (IsSimulatedSettlement()) {
@@ -160,7 +162,7 @@ export async function StartAnvil(): Promise<AnvilContext> {
       rpcUrl,
       chainId: ANVIL_CHAIN_ID,
       accounts: { ...ANVIL_ACCOUNTS },
-      addresses: { usdc, payoutBatch, subscriptions: null },
+      addresses: { usdc, payoutBatch, subscriptions },
       publicClient,
       Stop,
       Mine: (blocks) => testClient.mine({ blocks }),

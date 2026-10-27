@@ -1221,3 +1221,125 @@ apps/web/src/app/features/checkout/util/mobile-wallet.spec.ts
 apps/web/src/app/features/checkout/util/mobile-wallet.ts
 apps/web/src/app/shared/ui/wallet-guide/wallet-guide.component.html
 ```
+
+## Task 13: `Subscriptions` contract for allowance-based recurring pulls
+
+`contracts/src/Subscriptions.sol` replaces the `@solana/subscriptions` program. It is a plan registry plus pulls from each subscriber's bounded USDC allowance, at most the plan amount once per billing period. The API does not use it yet; Task 14 wires plans, subscribes and charges to it. These notes describe the contract after fix round 1.
+
+- **Plans:**
+  - `createPlan(planId, token, amount, periodSeconds, destination, puller)` stores a plan under `planKey = keccak256(abi.encode(msg.sender, planId))`.
+  - The period must be greater than 0 and at most 10 years (`MAX_PERIOD_SECONDS`), else `InvalidPeriod`. A zero amount is `InvalidAmount`.
+  - A plan's token, amount and period never change, and a plan key cannot be registered twice (`PlanExists`).
+  - The owner can call `setPlanDestination`, `setPlanPuller` and `deactivatePlan`. Deactivation is permanent and only blocks new subscribes; existing subscriptions keep billing.
+  - Zero token, destination or puller addresses are refused (`ZeroAddress`).
+  - Only standard ERC-20 tokens are supported, not fee-on-transfer ones.
+- **Subscribing:**
+  - `subscribe(planKey)`: the caller subscribes itself, pays the gas and uses up its own nonce.
+  - `subscribeWithAuthorization(planKey, subscriber, terms, deadline, sig)` is relayed:
+    - `sig` signs the EIP-712 type `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)`, so the wallet shows the terms.
+    - The domain is name `Subscriptions`, version `1`.
+    - `terms` is the struct `(token, amount, periodSeconds)` and must equal the plan's (`TermsMismatch`).
+    - The nonce is `nonces(subscriber)` and is used up by the call, and the deadline is inclusive.
+    - Signatures go through OpenZeppelin `SignatureChecker`: ECDSA for externally owned accounts, EIP-1271 for contract wallets.
+  - `subscribeWithPermit(…)` applies the subscriber's EIP-2612 `permit` on the plan's token, then subscribes the same way. If that permit fails but the allowance it grants is already in place (someone submitted it first), the subscribe goes on; otherwise the token's revert reason is re-thrown.
+  - `subId = keccak256(abi.encode(planKey, subscriber))`.
+  - The first period is due at subscribe time. An `Active` or `Paused` subscription cannot subscribe again (`AlreadySubscribed`). A `Canceled` one can, which starts a fresh schedule.
+- **Charging:**
+  - Only the plan's puller may call `charge(subId, amount)`.
+  - Checks run in this order:
+    1. `Unauthorized`;
+    2. `NotActive`;
+    3. `InvalidAmount` / `AmountExceedsPlan` (`0 < amount <= plan.amount`);
+    4. `NotDueYet` (`block.timestamp >= nextChargeAt`).
+  - Only `NotDueYet` means the current period was already collected.
+  - Billing periods follow a fixed grid from the subscribe time. A charge moves `nextChargeAt` to the first grid point after it, then calls `safeTransferFrom(subscriber, destination, amount)`. A period the puller missed is skipped, never collected later.
+- **Pause, resume, cancel:**
+  - The subscriber or the plan owner can pause and cancel. `pause` needs `Active` and records who paused (`PausedBy`).
+  - `resume` needs `Paused` (`NotPaused`). It is open to the owner for any pause, but to the subscriber only for their own (`Unauthorized`).
+  - Neither pause nor resume moves `nextChargeAt`. An unpaid current period is due at once on resume, and periods that passed entirely while paused are skipped.
+  - `cancel` needs `Active` or `Paused`, clears `PausedBy` and uses up the subscriber's nonce, so no `Subscribe` signature handed out earlier can bring the subscription back.
+- **Events and errors:**
+  - Events: `PlanCreated`, `Subscribed`, `Charged`, `Canceled`, `Paused` and `Resumed` as in plan §4.6, plus `PlanDestinationSet`, `PlanPullerSet` and `PlanDeactivated`, so destination and puller changes can be monitored.
+  - Errors: those of §4.6 plus `PlanExists`, `NotPaused`, `ZeroAddress` and `TermsMismatch`.
+- **Governance:** no owner, no pause switch, non-upgradeable, never holds tokens or ETH. It is built on OpenZeppelin `EIP712`, `Nonces`, `SignatureChecker`, `SafeERC20` and `IERC20Permit` (used directly, so there is no local interface file).
+- **README:** `contracts/README.md` documents:
+
+  - the ids, the signing domain and type, and the check order;
+  - the billing grid and the pause rules;
+  - the expected bounded allowance (`amount × max(12, ceil(365 days / period))`) and its exposure limit;
+  - how revoking the allowance stops pulls;
+  - what a USDC blacklisting does.
+
+  An external audit is required before any mainnet deployment.
+
+- `script/DeploySubscriptions.s.sol` deploys it with the signer given on the command line, like `DeployPayoutBatch.s.sol`.
+- `SUBSCRIPTIONS_ABI` (`apps/api/src/modules/chains/abi/Subscriptions.ts`) is the contract ABI. A harness test fails if it drifts from the forge artifact.
+- **Anvil harness:** `StartAnvil()` now also deploys `Subscriptions` with account #0. It sets `SUBSCRIPTIONS_ADDRESS`, and `AnvilContext.addresses.subscriptions` is always an address. `Harness.anvil.spec.ts` checks the deployment, its EIP-712 domain and `SUBSCRIBE_TYPEHASH`, the ABI sync and the chain config's `subscriptions` address.
+- **Tests:** `contracts/test/Subscriptions.t.sol` has 71 unit and fuzz tests and 4 invariants. They cover:
+  - plan creation, key derivation, validation and owner-only changes;
+  - subscribe and nonce retirement on subscribe and cancel;
+  - the relayed authorization: deadline, wrong signer, malformed and high-s signatures, terms binding, plan and deadline binding, EIP-1271 wallets, and the allowance bound on a phished signature;
+  - the permit path: relayed, front-run permit, bad permit, rollback on a bad `Subscribe` signature, mismatched terms, a zero-value permit;
+  - the charge schedule: due at once, `NotDueYet`, grid steps for on-time and late charges, skipped periods, check order, amount limits, puller only, revoked allowance, blacklisted subscriber and destination;
+  - cancel, and pause/resume with `PausedBy`;
+  - `testFuzzChargeSchedule(uint64 period, uint8 cycles)`;
+  - a handler-based invariant suite. Its handler covers charges, pauses and resumes by either party, cancels, all three subscribe paths, destination rotation and time jumps. The invariants:
+    - charges stay within the billing periods that elapsed while active;
+    - every call matches an independent model of the subscription;
+    - the destinations receive exactly what was charged;
+    - only the puller charges.
+
+Added:
+
+```
+apps/api/src/modules/chains/abi/Subscriptions.ts
+contracts/script/DeploySubscriptions.s.sol
+contracts/src/Subscriptions.sol
+contracts/test/Subscriptions.t.sol
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/anvil/Anvil.ts
+apps/api/src/__tests__/anvil/Harness.anvil.spec.ts
+contracts/README.md
+```
+
+### Task 13 fix round 1: signing, schedule and pause rules
+
+Review and planner rulings (Q8, Q9) applied to `Subscriptions.sol`:
+
+- **Nonces.** `subscribe()` uses up the caller's nonce and `cancel` the subscriber's. A cancelled subscription can no longer be brought back by an unused `Subscribe` signature, whether it was handed out before a direct subscribe or published by a reverted relay.
+- **Charge schedule.** A late charge moves `nextChargeAt` to the first point after now on the original grid (`dueAt + ((now - dueAt) / period + 1) * period`), not one period on. A puller can collect at most one charge per billing period, so `NotDueYet` reliably means "this period was already collected".
+- **Resume.** It no longer moves `nextChargeAt` (it used to set `now + period`), so pausing and resuming cannot defer or skip a charge.
+- **Terms in the signature.**
+  - `SUBSCRIBE_TYPEHASH` is now over `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)`.
+  - `subscribeWithAuthorization` and `subscribeWithPermit` take the terms as a `Terms` calldata struct, checked against the plan (`TermsMismatch`). Twelve separate `subscribeWithPermit` arguments exceed what legacy codegen can decode, and switching the whole project to `via_ir` was not wanted.
+- **Pause ownership.** `Sub` gains `pausedBy` (`PausedBy { None, Subscriber, Owner }`), returned by `subscriptions(subId)`. Only the owner can lift an owner pause.
+- **Contract wallets.** Signature checks use `SignatureChecker.isValidSignatureNow` (EIP-1271).
+- **Docs.** README and NatSpec now cover:
+  - the charge check order;
+  - the pause rules;
+  - the bounded-allowance expectation and the phishing exposure bound;
+  - that fee-on-transfer tokens are unsupported;
+  - a USDC blacklist runbook.
+- **Tests.** The reviewer's proofs of concept are now regression tests, along with the planner's Q8/Q9 tests and EIP-1271 accept/reject cases. The invariant handler now models the whole subscription.
+
+Added in fix round 1:
+
+```
+contracts/test/mocks/Mock1271Wallet.sol
+```
+
+Modified in fix round 1:
+
+```
+CHANGES.md
+apps/api/src/__tests__/anvil/Harness.anvil.spec.ts
+apps/api/src/modules/chains/abi/Subscriptions.ts
+contracts/README.md
+contracts/src/Subscriptions.sol
+contracts/test/Subscriptions.t.sol
+```
