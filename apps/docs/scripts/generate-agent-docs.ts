@@ -32,7 +32,7 @@ export function BuildLlmsTxt(
   let contents = [
     '# Zoneless',
     '',
-    '> Open-source payments, checkout, subscriptions, and marketplace payouts using USDC on Solana.',
+    '> Open-source payments, checkout, subscriptions, and marketplace payouts using USDC on Ethereum.',
     '',
     'Use these canonical Markdown documents when integrating with Zoneless.',
     '',

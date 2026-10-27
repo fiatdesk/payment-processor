@@ -153,7 +153,7 @@ console.log(account.id); // acct_z_1234...`,
         },
         {
           type: 'paragraph',
-          text: 'Create an <a href="/account-links">Account Link</a> and redirect the seller to its <code>url</code>. They will add their details and connect the Solana wallet where they want to receive payouts.',
+          text: 'Create an <a href="/account-links">Account Link</a> and redirect the seller to its <code>url</code>. They will add their details and connect the Ethereum wallet where they want to receive payouts.',
           html: true,
         },
         {
@@ -367,7 +367,7 @@ console.log(payout.id); // po_z_1234...`,
         },
         {
           type: 'paragraph',
-          text: "Creating a payout does not submit a Solana transaction. Call <code>processAll()</code> to build, sign, and broadcast your pending payouts. Once the transaction confirms, the USDC is sent from your platform wallet to each seller's wallet.",
+          text: "Creating a payout does not submit an Ethereum transaction. Call <code>processAll()</code> to build, sign, and broadcast your pending payouts. Once the transaction confirms, the USDC is sent from your platform wallet to each seller's wallet.",
           html: true,
         },
         {
@@ -390,13 +390,13 @@ console.log(payout.id); // po_z_1234...`,
             {
               id: 'node',
               label: 'Node.js',
-              code: `const solanaSecretKey = process.env.SOLANA_SECRET_KEY;
+              code: `const walletPrivateKey = process.env.WALLET_PRIVATE_KEY;
 
-if (!solanaSecretKey) {
-  throw new Error('Missing Solana secret key');
+if (!walletPrivateKey) {
+  throw new Error('Missing WALLET_PRIVATE_KEY');
 }
 
-await zoneless.payouts.processAll(solanaSecretKey);`,
+await zoneless.payouts.processAll(walletPrivateKey as \`0x\${string}\`);`,
             },
             {
               id: 'curl',
@@ -408,18 +408,18 @@ curl "$ZONELESS_API_URL/v1/payouts/build" \\
   -d '{
     "payouts": ["po_z_1234..."]
   }'
-# Returns an unsigned_transaction to sign locally
+# Returns an unsigned_transaction (EIP-1559, hex) and estimated_fee to sign locally
 
 # Step 2: Sign the unsigned_transaction locally
-# using your Solana wallet secret key (e.g. with
-# @solana/web3.js, solana CLI, or any Ed25519 signer)
+# using your Ethereum wallet private key (e.g. with viem,
+# ethers, cast, or any signer that handles EIP-1559 transactions)
 
 # Step 3: Broadcast the signed transaction
 curl "$ZONELESS_API_URL/v1/payouts/broadcast" \\
   -H "x-api-key: $ZONELESS_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "signed_transaction": "<base64-signed-tx>",
+    "signed_transaction": "<0x-signed-tx>",
     "payouts": ["po_z_1234..."]
   }'`,
             },

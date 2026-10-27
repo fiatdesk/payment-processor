@@ -1896,3 +1896,16 @@ Modified:
 CHANGES.md
 apps/web/src/app/features/checkout/checkout.component.spec.ts
 ```
+
+### Task 16: docs, copy and agent-skill sweep
+
+- Removed every remaining Solana mention (network names, wallet and address samples, explorer links, gas currency, signer instructions, secret-key variables) from the docs pages, the docs agent-doc generator and its test, the README, the setup page and the two agent skills. Sample addresses are EIP-55 (`0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, `last4` `79C8`); sample transaction hashes are `0x` plus 64 hex; payout `metadata.network` is `ethereum` and `gas_fee_currency` is `eth`.
+- Product copy now says what is true: no platform fee or percentage cut, and the operator pays Ethereum gas. The "No middlemen and no fees" tagline is gone. Checkout buyers sign and pay no gas; the relayer pays.
+- Agent skills use `WALLET_PRIVATE_KEY` (`0x` plus 64 hex) and describe batches of up to 100 payouts, with the gas note.
+- New docs page "Gas and fees" (`gas-and-fees.ts`, linked from the Marketplaces guides): who pays for each operation, estimates at 1, 5 and 20 gwei with ETH at a $3,000 placeholder, how to read `estimated_fee`, batching and minimum-payout guidance. Every figure is labelled an estimate. Contract gas was measured with `forge test --gas-report` against MockUSDC and rounded up for the real USDC proxy. `createPlan` measured about 180 k gas, higher than the earlier 120 k estimate, so the page uses the measured figure.
+- Subscription docs: a trial shows a total due today of 0 and anchors the first charge at `trial_end` (the signed `firstChargeAt`); reloading checkout resumes a recorded relay; an on-chain cancel is terminal; there is no hosted page for renewing the authorization (the subscriber raises the allowance from their own wallet or subscribes again).
+- `contracts/README.md`: EIP-7702-delegated accounts are checked only via EIP-1271, and the allowance-exhausted, cancel and trial behaviour matches what the API does.
+- The dashboard payout dialog shows the fee in ETH only. A dollar estimate and a warning when the fee exceeds 10 percent of the payout wait for a verified ETH/USD feed, so the docs do not promise them.
+- The chain id stays configurable (`ETH_CHAIN_ID`), so the design does not rule out other EVM networks.
+
+Modified: the docs data pages under `apps/docs/src/app/pages/docs/data/` (accounts, account-links, agent-marketplace-quickstart, agent-payments-quickstart, api-quickstart, authentication, billing, build-a-marketplace, customers, deployment, event-types, external-wallets, guides, index, local-development, marketplace-quickstart, migrate-from-stripe, payouts, platform-dashboard, subscriptions, transfers, webhook-endpoints), `docs-catalog.ts`, `apps/docs/scripts/generate-agent-docs.ts` and its test, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `contracts/README.md`, `apps/web/src/app/features/setup/setup.component.html` and the two `.agents/skills` files. Added: `apps/docs/src/app/pages/docs/data/gas-and-fees.ts`.

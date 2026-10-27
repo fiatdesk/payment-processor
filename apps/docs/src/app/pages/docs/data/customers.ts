@@ -135,7 +135,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     description:
       'ID of the default payment source for the customer. If you use payment methods created through the PaymentMethods API, see the <code>invoice_settings.default_payment_method</code> field instead.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Stripe's default source is a bank account or card ID. Zoneless's default source is a linked Solana wallet ID (<code>src_z_</code> prefix).",
+      "<strong>Difference from Stripe:</strong> Stripe's default source is a bank account or card ID. Zoneless's default source is a linked Ethereum wallet ID (<code>src_z_</code> prefix).",
   },
   {
     name: 'delinquent',
@@ -449,7 +449,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
     description: "The customer's payment sources, if any.",
     expandable: true,
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless customers pay from linked Solana wallets rather than bank accounts, so each item in <code>sources.data</code> represents a wallet rather than a bank account. See <a href="/external-wallets">External Wallets</a> for the equivalent object sellers use to receive USDC payouts.',
+      '<strong>Difference from Stripe:</strong> Zoneless customers pay from linked Ethereum wallets rather than bank accounts, so each item in <code>sources.data</code> represents a wallet rather than a bank account. See <a href="/external-wallets">External Wallets</a> for the equivalent object sellers use to receive USDC payouts.',
     children: [
       {
         name: 'object',
@@ -508,7 +508,8 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             name: 'account_type',
             type: 'string',
             nullable: true,
-            description: 'The Solana account type.',
+            description:
+              'Not used for Ethereum wallets; retained for Stripe API parity.',
             enumNote:
               "<strong>Zoneless extension:</strong> Equivalent to Stripe's bank account <code>account_type</code>.",
           },
@@ -531,7 +532,7 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             type: 'string',
             nullable: true,
             description:
-              'Name of the wallet provider associated with the address (e.g., <code>PHANTOM</code>).',
+              'Name of the wallet provider associated with the address (e.g., <code>METAMASK</code>).',
             enumNote:
               "<strong>Zoneless extension:</strong> Equivalent to Stripe's <code>bank_name</code>.",
           },
@@ -581,9 +582,9 @@ const CUSTOMER_ATTRIBUTES: Attribute[] = [
             type: 'string',
             nullable: true,
             description:
-              'Not applicable to Solana wallets; retained for Stripe API parity.',
+              'Not applicable to Ethereum wallets; retained for Stripe API parity.',
             enumNote:
-              '<strong>Zoneless extension:</strong> Always <code>null</code>. Solana wallets have no equivalent of a routing number.',
+              '<strong>Zoneless extension:</strong> Always <code>null</code>. Ethereum wallets have no equivalent of a routing number.',
           },
           {
             name: 'status',
@@ -1071,7 +1072,7 @@ export const CUSTOMERS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'A customer\'s <code>sources</code> are linked Solana wallets used to pay your platform, not bank accounts. This is distinct from <a href="/external-wallets">External Wallets</a>, which sellers use to receive USDC payouts.',
+          text: 'A customer\'s <code>sources</code> are linked Ethereum wallets used to pay your platform, not bank accounts. This is distinct from <a href="/external-wallets">External Wallets</a>, which sellers use to receive USDC payouts.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

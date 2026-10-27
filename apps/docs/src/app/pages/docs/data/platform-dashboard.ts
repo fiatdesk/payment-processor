@@ -84,7 +84,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<strong><a href="/payouts">Create a payout</a>:</strong> Send USDC from that balance to the seller\'s Solana wallet.',
+              text: '<strong><a href="/payouts">Create a payout</a>:</strong> Send USDC from that balance to the seller\'s Ethereum wallet.',
               html: true,
             },
           ],
@@ -162,7 +162,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Zoneless Cloud has separate live and test environments. Live mode uses Solana mainnet and real USDC. Test mode uses simulated USDC, so you can test checkout, payouts, and subscriptions without a wallet or faucet.',
+          text: 'Zoneless Cloud has separate live and test environments. Live mode uses Ethereum mainnet and real USDC. Test mode uses simulated USDC, so you can test checkout, payouts, and subscriptions without a wallet or faucet.',
         },
       ],
       right: [

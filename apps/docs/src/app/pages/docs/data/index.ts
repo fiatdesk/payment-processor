@@ -3,6 +3,7 @@ export * from './types';
 export * from './guides';
 export * from './marketplace-quickstart';
 export * from './fund-platform-wallet';
+export * from './gas-and-fees';
 export * from './quickstart';
 export * from './agent-payments-quickstart';
 export * from './agent-marketplace-quickstart';

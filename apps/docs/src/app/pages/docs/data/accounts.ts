@@ -260,7 +260,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     description:
       'A hash containing the set of capabilities that was requested for this account and their associated states. Keys are names of capabilities. Values may be <code>active</code>, <code>inactive</code>, or <code>pending</code>.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Zoneless has two capabilities: <code>transfers</code> and <code>usdc_payouts</code>. Stripe's payment method capabilities (card_payments, etc.) are not applicable since Zoneless uses USDC on Solana.",
+      "<strong>Difference from Stripe:</strong> Zoneless has two capabilities: <code>transfers</code> and <code>usdc_payouts</code>. Stripe's payment method capabilities (card_payments, etc.) are not applicable since Zoneless uses USDC on Ethereum.",
     expandable: true,
     children: [
       {
@@ -276,7 +276,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
         type: 'enum',
         nullable: true,
         description:
-          'The status of the USDC payouts capability, or whether the account can receive USDC payouts to their Solana wallet.',
+          'The status of the USDC payouts capability, or whether the account can receive USDC payouts to their Ethereum wallet.',
         enumValues: ['active', 'inactive', 'pending'],
       },
     ],
@@ -395,9 +395,9 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
     name: 'external_accounts',
     type: 'object',
     description:
-      'External accounts (Solana wallets) currently attached to this account. External accounts are only returned for requests where <code>controller[is_controller]</code> is true.',
+      'External accounts (Ethereum wallets) currently attached to this account. External accounts are only returned for requests where <code>controller[is_controller]</code> is true.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Contains Solana wallet addresses instead of bank accounts and debit cards. These wallets receive USDC payouts.',
+      '<strong>Difference from Stripe:</strong> Contains Ethereum wallet addresses instead of bank accounts and debit cards. These wallets receive USDC payouts.',
     expandable: true,
     children: [
       {
@@ -410,7 +410,7 @@ const ACCOUNT_ATTRIBUTES: Attribute[] = [
         name: 'data',
         type: 'array of objects',
         description:
-          'The list contains all external wallets that have been attached to the Zoneless account. These are Solana wallet addresses that can receive USDC payouts.',
+          'The list contains all external wallets that have been attached to the Zoneless account. These are Ethereum wallet addresses that can receive USDC payouts.',
       },
       {
         name: 'has_more',
@@ -864,7 +864,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
             description:
               'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Solana wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -924,7 +924,7 @@ const ACCOUNT_MORE_ATTRIBUTES: Attribute[] = [
             description:
               'An internal label for payouts from this account. This is stored for reference purposes but does not appear on blockchain transactions.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Solana USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
+              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Ethereum USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
           },
         ],
       },
@@ -1021,7 +1021,7 @@ export const ACCOUNTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Account object',
   description:
-    'This is an object representing a Zoneless account. You can retrieve it to see properties on the account like its current requirements or if the account is enabled to receive transfers and USDC payouts to their Solana wallet.',
+    'This is an object representing a Zoneless account. You can retrieve it to see properties on the account like its current requirements or if the account is enabled to receive transfers and USDC payouts to their Ethereum wallet.',
   stripeDocsUrl: 'https://docs.stripe.com/api/accounts',
   endpoints: BuildEndpointSummaries(ACCOUNTS_SUBSECTION, [
     { method: 'POST', path: '/v1/accounts', pageId: 'create' },
@@ -1039,7 +1039,7 @@ export const ACCOUNTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Zoneless accounts receive USDC payouts to their Solana wallet. Create an account for each seller/recipient on your platform, then send them payouts.',
+          text: 'Zoneless accounts receive USDC payouts to their Ethereum wallet. Create an account for each seller/recipient on your platform, then send them payouts.',
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -1149,7 +1149,7 @@ const CREATE_ACCOUNT_PARAMETERS: Attribute[] = [
         name: 'usdc_payouts',
         type: 'object',
         description:
-          'The USDC payouts capability allows the account to receive USDC payouts to their Solana wallet.',
+          'The USDC payouts capability allows the account to receive USDC payouts to their Ethereum wallet.',
         enumNote:
           "<strong>Zoneless-specific:</strong> This replaces Stripe's various payment method capabilities.",
         children: [
@@ -1314,7 +1314,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             description:
               'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Solana wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -1354,7 +1354,7 @@ const CREATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             description:
               'An internal label for payouts from this account. This is stored for reference purposes but does not appear on blockchain transactions.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Solana USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
+              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Ethereum USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
           },
         ],
       },
@@ -1638,7 +1638,7 @@ const UPDATE_ACCOUNT_PARAMETERS: Attribute[] = [
         name: 'usdc_payouts',
         type: 'object',
         description:
-          'The USDC payouts capability allows the account to receive USDC payouts to their Solana wallet.',
+          'The USDC payouts capability allows the account to receive USDC payouts to their Ethereum wallet.',
         enumNote:
           "<strong>Zoneless-specific:</strong> This replaces Stripe's various payment method capabilities.",
         children: [
@@ -1753,7 +1753,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             description:
               'A Boolean indicating whether Zoneless should deduct future payouts to recover negative balances. The default value is <code>false</code> when <code>controller.requirement_collection</code> is <code>application</code>, which includes Custom accounts, otherwise <code>true</code>.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Solana wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
+              '<strong>Difference from Stripe:</strong> Unlike bank accounts, Zoneless cannot directly debit a connected Ethereum wallet. Instead, negative balances are recovered by deducting from future payout amounts.',
           },
           {
             name: 'schedule',
@@ -1806,7 +1806,7 @@ const UPDATE_ACCOUNT_MORE_PARAMETERS: Attribute[] = [
             description:
               'An internal label for payouts from this account. This is stored for reference purposes but does not appear on blockchain transactions.',
             enumNote:
-              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Solana USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
+              '<strong>Difference from Stripe:</strong> Unlike bank transfers, Ethereum USDC transactions do not display statement descriptors. This field is retained for API compatibility and internal record-keeping.',
           },
         ],
       },

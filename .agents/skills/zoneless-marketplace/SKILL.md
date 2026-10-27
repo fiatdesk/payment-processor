@@ -28,12 +28,16 @@ the human explicitly asks for that additional work.
 ## Assume no crypto knowledge
 
 Use plain language whenever the human must act. Briefly explain that USDC is a
-digital dollar, Solana is the network carrying it, SOL pays the small network
-fee, a wallet address is safe to share, and a wallet secret key authorizes
+digital dollar, Ethereum is the network carrying it, ETH in the platform wallet
+pays the network fee (gas) for each payout transaction, a wallet address (it
+starts with `0x`) is safe to share, and a wallet private key authorizes
 spending and must remain private. Explain that test mode uses fake USDC so they
 can onboard sellers and run payouts without a wallet, a faucet, or the live
-Solana network. Live mode is when real USDC moves on Solana. Do not use terms
-such as gas, mint, token account, cluster, or airdrop without explaining them.
+Ethereum network. Live mode is when real USDC moves on Ethereum. Zoneless takes
+no platform fee or percentage cut; the only cost is Ethereum gas, typically a
+few cents to a few dollars per transaction depending on network load (see
+`https://docs.yourdomain.com/gas-and-fees.md`). Do not use terms such as
+token approval, permit, or testnet without explaining them.
 
 Give concrete instructions: distinguish test funds from real funds. Never
 assume prior wallet or blockchain experience.
@@ -178,7 +182,8 @@ server-side Zoneless client in the existing payments/integrations layer using:
 
 - `ZONELESS_API_KEY`
 - `ZONELESS_API_URL`, using `https://api.yourdomain.com` during integration
-- `SOLANA_SECRET_KEY` only in the server-side payout processor
+- `WALLET_PRIVATE_KEY` (`0x` plus 64 hex characters) only in the server-side
+  payout processor
 - `ZONELESS_WEBHOOK_SECRET` only when the app implements a webhook route
 
 Use the SDK for accounts, account links, transfers, payouts, and webhook
@@ -186,18 +191,18 @@ verification.
 
 Use the payout helper that matches the existing worker:
 
-- `payouts.processAll(SOLANA_SECRET_KEY)` when the worker intentionally
+- `payouts.processAll(WALLET_PRIVATE_KEY)` when the worker intentionally
   processes every pending platform payout;
-- `payouts.processBatch(SOLANA_SECRET_KEY)` for one platform-wide batch of up
-  to 10 pending payouts;
+- `payouts.processBatch(WALLET_PRIVATE_KEY)` for one platform-wide batch of up
+  to 100 pending payouts, which is one Ethereum transaction;
 - `payouts.build({ payouts: [payoutId] })`, `payouts.sign(...)`, then
   `payouts.broadcast(...)` when the marketplace must process an explicitly
   claimed payout ID.
 
-The SDK already builds and signs Solana transactions. In simulated test mode
-it passes dummy `sim_tx` payloads through without signing. Do not install
-`@solana/web3.js`, `@solana/spl-token`, `bs58`, or add mint, cluster, RPC, token
-account, or platform-account configuration to a Node application. Those are
+The SDK already builds and signs Ethereum transactions. In simulated test mode
+it passes dummy `sim_tx` payloads through without signing. Do not install a
+chain library, or add USDC address, RPC, or platform-account configuration to a
+Node application. Those are
 Zoneless implementation details. The marketplace app needs only the relevant
 environment variables listed above.
 
@@ -219,10 +224,11 @@ The adapter must:
 - never retry a mutating request with a new idempotency key.
 
 For payouts, call `/v1/payouts/build`, sign the returned transaction with a
-maintained Solana signer for that backend language, then call
+maintained Ethereum signer for that backend language (it must sign EIP-1559
+transactions), then call
 `/v1/payouts/broadcast`. Confirm the build response contains the payout IDs and
-total expected by the claimed marketplace operation. Do not invent mint,
-cluster, token-account, or RPC configuration; Zoneless builds the transaction.
+total expected by the claimed marketplace operation. Do not invent USDC
+address or RPC configuration; Zoneless builds the transaction.
 If the runtime cannot sign it, stop and ask before adding a sidecar or changing
 runtimes.
 
@@ -235,7 +241,9 @@ trigger and choose the matching Zoneless processor:
   create pending payouts in the existing daily/weekly worker, then use
   `processAll()` when that worker owns every pending Zoneless payout.
 - **Bounded worker batch:** use `processBatch()` when the existing worker
-  deliberately processes one platform-wide batch of up to 10.
+  deliberately processes one platform-wide batch of up to 100. Batching shares
+  the per-transaction cost, saving roughly 15 to 25 percent per payout, so
+  prefer fewer, larger batches and avoid paying very small amounts one by one.
 - **Seller claim or admin-selected payout:** reserve the claimed earnings,
   create one transfer and payout, then process that payout ID with
   `build`/`sign`/`broadcast`.
@@ -353,7 +361,7 @@ Report:
 - the test-mode onboarding path;
 - that a test payout still uses the live two-step flow: create stays
   pending, then `processAll` / build and broadcast marks it paid with
-  simulated USDC. No wallet, faucet, or Devnet is required — broadcast
+  simulated USDC. No wallet, faucet, or test network is required — broadcast
   the unsigned dummy transaction. Use **Add test USDC**
   on the dashboard Balance page (or
   `POST /v1/test_helpers/treasury/topups`) if the platform ledger needs a
@@ -367,12 +375,11 @@ Report:
   `npx @zoneless/cli@latest wallet backup --profile <live-profile> --output <private-path>`
   in an interactive terminal and keep the resulting file somewhere private;
   when the deployed payout worker needs wallet signing, they should use its
-  `secretKeyBase58` value as `SOLANA_SECRET_KEY` in the deployment secret
+  `privateKey` value as `WALLET_PRIVATE_KEY` in the deployment secret
   manager;
 - that the human must follow
   `https://docs.yourdomain.com/fund-platform-wallet.md` to fund the platform
-  wallet with enough USDC for seller payouts and a small amount of SOL for
-  Solana network fees;
+  wallet with enough USDC for seller payouts and some ETH for gas;
 - that the human must explicitly approve any live rollout.
 
 Do not claim the integration is production-ready until the human completes

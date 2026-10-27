@@ -160,7 +160,7 @@ const ENABLED_EVENTS_ENUM_VALUES = [
   {
     value: 'external_account.created',
     description:
-      'Occurs whenever an external wallet is created (a Solana wallet address added to receive USDC payouts).',
+      'Occurs whenever an external wallet is created (an Ethereum wallet address added to receive USDC payouts).',
   },
   {
     value: 'external_account.updated',
@@ -181,7 +181,7 @@ const ENABLED_EVENTS_ENUM_VALUES = [
   {
     value: 'payout.paid',
     description:
-      "Occurs whenever a payout is expected to be available in the destination wallet. The USDC has been sent on-chain to the connected account's Solana wallet.",
+      "Occurs whenever a payout is expected to be available in the destination wallet. The USDC has been sent on-chain to the connected account's Ethereum wallet.",
   },
   {
     value: 'payout.failed',

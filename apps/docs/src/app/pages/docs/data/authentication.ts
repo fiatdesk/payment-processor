@@ -31,7 +31,7 @@ export const AUTHENTICATION_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: '<strong>Live:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_live_z_</code> key. Live mode uses Solana mainnet and real USDC.',
+              text: '<strong>Live:</strong> <code>https://api.yourdomain.com</code> with an <code>sk_live_z_</code> key. Live mode uses Ethereum mainnet and real USDC.',
               html: true,
             },
             {

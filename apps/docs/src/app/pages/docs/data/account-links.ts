@@ -110,7 +110,7 @@ export const ACCOUNT_LINKS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'Account links are single-use URLs that expire after 1 hour. When the user visits the URL, they are taken through the Connect Onboarding flow to complete their account setup and connect their Solana wallet.',
+          text: 'Account links are single-use URLs that expire after 1 hour. When the user visits the URL, they are taken through the Connect Onboarding flow to complete their account setup and connect their Ethereum wallet.',
         },
         {
           type: 'paragraph',

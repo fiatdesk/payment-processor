@@ -155,7 +155,7 @@ console.log(session.url);`,
         },
         {
           type: 'paragraph',
-          text: 'Redirect your customer to <code>session.url</code>. They complete Checkout with their Solana wallet and pay in USDC. Settlement typically confirms in seconds. See <a href="/checkout-sessions">Checkout Sessions</a> for the full API.',
+          text: 'Redirect your customer to <code>session.url</code>. They complete Checkout with their Ethereum wallet and pay in USDC. Settlement typically confirms within about a minute. See <a href="/checkout-sessions">Checkout Sessions</a> for the full API.',
           html: true,
         },
       ],

@@ -78,6 +78,7 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
     - The deadline is inclusive, and short deadlines are expected.
   - `subscribeWithPermit` first applies the subscriber's EIP-2612 `permit` for this contract on the plan's token, so a first-time subscriber needs no ETH. If someone submits that permit first, the subscribe still goes through.
   - Signatures are checked with OpenZeppelin `SignatureChecker`: ECDSA for externally owned accounts, EIP-1271 for contract wallets. A contract wallet whose token has no EIP-1271 `permit` calls `approve` and then `subscribe` itself.
+  - Any address with code, including EIP-7702-delegated EOAs, is checked only via EIP-1271 (OpenZeppelin `SignatureChecker`). Such accounts can `approve` and then `subscribe()` directly.
   - `subscribe` and `cancel` both use up the subscriber's nonce. Once a subscription is cancelled, no `Subscribe` signature handed out earlier can bring it back.
   - A subscriber who cancels may subscribe again, which starts a new schedule.
 - **Charging.**
@@ -101,6 +102,9 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
   - The contract expects a bounded allowance. One allowance to this contract serves all of a wallet's plans, so the API's permit adds `amount × max(12, ceil(365 days / periodSeconds))` (at least 12 periods and at least a year of service) to the wallet's current allowance. It asks for a permit when the allowance is below that value for the new plan plus the same value for each of the wallet's other live plans.
   - The per-period cap is enforced by `charge`, and the allowance caps the total. So a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).
   - A subscriber stops all pulls by cancelling, or by revoking the allowance (`approve(subscriptions, 0)`), after which every `charge` reverts.
+  - When an allowance runs out, `charge` reverts and the API marks the invoice `collection_failed_allowance` and the subscription `past_due`. Zoneless has no hosted page for renewing the authorization: the subscriber raises the allowance from their own wallet (`approve`), or subscribes again through a new Checkout Session. Collection resumes on the invoice's retry schedule once the allowance covers it.
+  - Cancelling on-chain is terminal for that subscription. The API follows it by cancelling the Zoneless subscription for good.
+  - A trial anchors the first charge at `trial_end`: checkout signs `firstChargeAt` as the trial's end, so the customer pays nothing at checkout and `charge` reverts with `NotDueYet` until then.
 - **USDC blacklist.**
   - If Circle blacklists a subscriber, `charge` reverts for that subscription, and the schedule is left as it was.
   - If it blacklists the destination, every `charge` on the plan reverts until the operator rotates the destination with `setPlanDestination`.

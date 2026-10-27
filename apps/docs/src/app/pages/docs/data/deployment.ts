@@ -139,7 +139,7 @@ cd REPO`,
         { type: 'heading', level: 2, text: '5. Configure environment' },
         {
           type: 'paragraph',
-          text: 'Copy the production example and set your public dashboard URL, app secret, network, and tenancy mode. The example below uses mainnet. Set <code>LIVEMODE=false</code> for test mode (simulated funds by default). To test real Devnet transactions instead, also set <code>SETTLEMENT_RAIL=onchain</code>. See <a href="/environment-variables">Environment variables</a> for optional settings.',
+          text: 'Copy the production example and set your public dashboard URL, app secret, network, and tenancy mode. The example below uses mainnet. Set <code>LIVEMODE=false</code> for test mode (simulated funds by default). To test real transactions on the Sepolia test network instead, also set <code>SETTLEMENT_RAIL=onchain</code> and <code>ETH_RPC_URL</code>. See <a href="/environment-variables">Environment variables</a> for optional settings.',
           html: true,
         },
         {

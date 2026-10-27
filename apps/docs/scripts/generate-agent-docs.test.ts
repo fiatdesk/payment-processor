@@ -165,13 +165,13 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   assert.match(markdown, /`zoneless env sync --include-wallet --json`/);
   assert.match(markdown, /`payouts\.processAll\(\)`/);
   assert.match(markdown, /broadcast response is lost/);
-  assert.match(markdown, /do not add Solana packages/);
+  assert.match(markdown, /do not add chain libraries/);
   assert.match(markdown, /separate charges and transfers/);
   assert.match(markdown, /destination charges/);
   assert.match(markdown, /Add test USDC/);
   assert.match(markdown, /test_helpers\/treasury\/topups/);
   assert.match(markdown, /\[Local Development\]\(\/local-development\)/);
-  assert.match(markdown, /does not need a wallet, faucet, or Devnet/);
+  assert.match(markdown, /does not need a wallet, faucet, or test network/);
   assert.match(markdown, /Do not assume create returns/);
   assert.match(
     markdown,
@@ -179,7 +179,7 @@ test('GenerateAgentDocs emits the marketplace agent bootstrap document', async (
   );
   assert.match(
     markdown,
-    /enough USDC for seller payouts and a small amount of SOL/
+    /enough USDC for seller payouts and some ETH for Ethereum network gas/
   );
   assert.match(
     llmsTxt,

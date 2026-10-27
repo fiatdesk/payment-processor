@@ -61,11 +61,11 @@ const PAYOUT_PAID_OBJECT_JSON = `{
   "failure_message": null,
   "livemode": true,
   "metadata": {
-    "network": "solana-mainnet",
-    "blockchain_tx": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
-    "viewer_url": "https://solscan.io/tx/5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
-    "gas_fee": 5000,
-    "gas_fee_currency": "SOL"
+    "network": "ethereum",
+    "blockchain_tx": "0x5e9c3a1f7b2d84e60a1c93d5f7e2b4086a1d3c5e7f9b2a4c6e8d0f1a3b5c7d9e",
+    "viewer_url": "https://etherscan.io/tx/0x5e9c3a1f7b2d84e60a1c93d5f7e2b4086a1d3c5e7f9b2a4c6e8d0f1a3b5c7d9e",
+    "gas_fee": 0,
+    "gas_fee_currency": "eth"
   },
   "method": "instant",
   "platform_account": "acct_z_Platform123abc",
@@ -129,9 +129,9 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     name: 'arrival_date',
     type: 'timestamp',
     description:
-      "Date when the payout arrived at the destination wallet. Due to Solana's speed, this is typically seconds after creation.",
+      'Date when the payout arrived at the destination wallet. Once the transaction has the required confirmations this is typically within a minute of the payout being broadcast.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe payouts can take days to arrive at a bank account. Zoneless payouts on Solana typically complete within seconds.',
+      '<strong>Difference from Stripe:</strong> Stripe payouts can take days to arrive at a bank account. Zoneless payouts on Ethereum typically complete within about a minute of being broadcast.',
   },
   {
     name: 'automatic',
@@ -172,7 +172,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'ID of the external wallet the payout is sent to.',
     enumNote:
-      "<strong>Difference from Stripe:</strong> Stripe's destination is a bank account or card ID. Zoneless uses an external wallet ID (<code>wa_z_</code> prefix) representing a Solana wallet address.",
+      "<strong>Difference from Stripe:</strong> Stripe's destination is a bank account or card ID. Zoneless uses an external wallet ID (<code>wa_z_</code> prefix) representing an Ethereum wallet address.",
   },
   {
     name: 'failure_code',
@@ -196,7 +196,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
       },
       {
         value: 'blockchain_error',
-        description: 'The Solana blockchain returned an error during transfer.',
+        description: 'The Ethereum network returned an error during transfer.',
       },
       {
         value: 'could_not_process',
@@ -243,7 +243,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
       { value: 'standard', description: 'Standard transfer timing.' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Zoneless defaults to <code>instant</code> since Solana transactions settle in seconds. Stripe defaults to <code>standard</code> for bank transfers.',
+      '<strong>Difference from Stripe:</strong> Zoneless defaults to <code>instant</code> since Ethereum transactions settle within about a minute. Stripe defaults to <code>standard</code> for bank transfers.',
   },
   {
     name: 'source_type',
@@ -278,7 +278,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
       {
         value: 'in_transit',
         description:
-          'The payout has been submitted to the Solana blockchain and is awaiting confirmation.',
+          'The payout has been submitted to the Ethereum network and is awaiting confirmation.',
       },
       {
         value: 'paid',
@@ -301,7 +301,7 @@ const PAYOUT_ATTRIBUTES: Attribute[] = [
     description:
       'The destination type. Always <code>wallet</code> for Zoneless USDC payouts.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe uses <code>bank_account</code> or <code>card</code>. Zoneless uses <code>wallet</code> for Solana wallets.',
+      '<strong>Difference from Stripe:</strong> Stripe uses <code>bank_account</code> or <code>card</code>. Zoneless uses <code>wallet</code> for Ethereum wallets.',
   },
 ];
 
@@ -332,7 +332,7 @@ export const PAYOUTS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The Payout object',
   description:
-    "A Payout object is created when you send funds from a connected account's Zoneless balance to their external Solana wallet. Payouts transfer USDC when you process them with .processAll() or .processBatch(), and typically complete within seconds due to Solana's fast finality.",
+    "A Payout object is created when you send funds from a connected account's Zoneless balance to their external Ethereum wallet. Payouts transfer USDC when you process them with .processAll() or .processBatch(), and typically complete within about a minute once the transaction has the required confirmations.",
   stripeDocsUrl: 'https://docs.stripe.com/api/payouts',
   endpoints: BuildEndpointSummaries(PAYOUTS_SUBSECTION, [
     { method: 'POST', path: '/v1/payouts', pageId: 'create' },
@@ -352,7 +352,7 @@ export const PAYOUTS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: "Payouts track sending USDC from a connected account's balance to their Solana wallet. Create a payout first; it stays <code>pending</code> until you process it. In live mode, processing signs and broadcasts a Solana transaction from the platform wallet, which needs enough USDC and SOL for network fees. In simulated test mode, use the same build and broadcast (or <code>processAll</code>) steps; settlement is fake and does not need a wallet signature.",
+          text: "Payouts track sending USDC from a connected account's balance to their Ethereum wallet. Create a payout first; it stays <code>pending</code> until you process it. In live mode, processing signs and broadcasts an Ethereum transaction from the platform wallet, which needs enough USDC, plus ETH for gas (see <a href='/gas-and-fees'>Gas and fees</a>). In simulated test mode, use the same build and broadcast (or <code>processAll</code>) steps; settlement is fake and does not need a wallet signature.",
           html: true,
         },
         {
@@ -447,7 +447,7 @@ export const PAYOUTS_CREATE_PAGE: DocPage = {
   id: 'create',
   title: 'Create a payout',
   description:
-    "To send funds from a connected account's balance to their Solana wallet, create a new payout object. The connected account's balance must cover the payout amount. If it doesn't, you receive an \"Insufficient Funds\" error.",
+    "To send funds from a connected account's balance to their Ethereum wallet, create a new payout object. The connected account's balance must cover the payout amount. If it doesn't, you receive an \"Insufficient Funds\" error.",
   endpoints: [{ method: 'POST', path: '/v1/payouts' }],
   sections: [
     {
@@ -456,7 +456,7 @@ export const PAYOUTS_CREATE_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Platform requirements: ',
-          text: "Your platform's wallet must have sufficient USDC to cover the payout amount, plus SOL for transaction gas fees. Zoneless transfers USDC from the platform wallet to the connected account's wallet.",
+          text: "Your platform's wallet must have sufficient USDC to cover the payout amount, plus ETH for Ethereum network gas (see <a href='/gas-and-fees'>Gas and fees</a>). Zoneless transfers USDC from the platform wallet to the connected account's wallet.",
         },
         { type: 'heading', level: 2, text: 'Parameters' },
         {

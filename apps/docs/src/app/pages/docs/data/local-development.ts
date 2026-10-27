@@ -41,7 +41,7 @@ export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Test funds' },
         {
           type: 'paragraph',
-          text: 'Test mode (<code>LIVEMODE=false</code>, the default) uses simulated USDC. Checkout shows a test wallet you can approve or decline. Payouts stay pending until processed; the dashboard runs build and broadcast for you without a signer. No Solana wallet, faucet, or network is required.',
+          text: 'Test mode (<code>LIVEMODE=false</code>, the default) uses simulated USDC. Checkout shows a test wallet you can approve or decline. Payouts stay pending until processed; the dashboard runs build and broadcast for you without a signer. No Ethereum wallet, faucet, or network is required.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'Adding test USDC' },

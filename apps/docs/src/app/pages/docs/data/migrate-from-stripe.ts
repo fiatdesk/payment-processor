@@ -5,13 +5,13 @@ export const MIGRATE_FROM_STRIPE_PAGE: DocPage = {
   id: 'migrate-from-stripe',
   title: 'Migrate from Stripe',
   description:
-    'Move a Stripe Connect integration to Zoneless and pay sellers in USDC on Solana.',
+    'Move a Stripe Connect integration to Zoneless and pay sellers in USDC on Ethereum.',
   sections: [
     {
       left: [
         {
           type: 'paragraph',
-          text: 'Zoneless is a drop-in replacement for the Connect side of a Stripe integration. Account creation, Express onboarding, transfers, payouts, and webhooks follow the same API structure, with USDC and Solana wallets in place of fiat and bank accounts.',
+          text: 'Zoneless is a drop-in replacement for the Connect side of a Stripe integration. Account creation, Express onboarding, transfers, payouts, and webhooks follow the same API structure, with USDC and Ethereum wallets in place of fiat and bank accounts.',
           html: true,
         },
         {
@@ -98,7 +98,7 @@ const account = await zoneless.accounts.create({
         },
         {
           type: 'paragraph',
-          text: '<a href="/account-links">Account Links</a> still send sellers through Express onboarding. Instead of adding a bank account or debit card, the seller connects the Solana wallet where they want to receive USDC.',
+          text: '<a href="/account-links">Account Links</a> still send sellers through Express onboarding. Instead of adding a bank account or debit card, the seller connects the Ethereum wallet where they want to receive USDC.',
           html: true,
         },
       ],
@@ -147,7 +147,7 @@ const account = await zoneless.accounts.create({
         },
         {
           type: 'paragraph',
-          text: 'Creating a payout does not submit a Solana transaction. The payout stays <code>pending</code> until you call <code>payouts.processAll()</code> or <code>payouts.processBatch()</code> (or <code>build</code> and <code>broadcast</code>). That two-step flow is the same in test and live. Simulated test mode does not need a wallet signature; pass the unsigned transaction through to broadcast. The <a href="/payouts">Payouts API reference</a> covers the endpoints.',
+          text: 'Creating a payout does not submit an Ethereum transaction. The payout stays <code>pending</code> until you call <code>payouts.processAll()</code> or <code>payouts.processBatch()</code> (or <code>build</code> and <code>broadcast</code>). That two-step flow is the same in test and live. Simulated test mode does not need a wallet signature; pass the unsigned transaction through to broadcast. The <a href="/payouts">Payouts API reference</a> covers the endpoints.',
           html: true,
         },
         {
@@ -174,19 +174,19 @@ const account = await zoneless.accounts.create({
         { type: 'heading', level: 3, text: 'Wallets instead of bank accounts' },
         {
           type: 'paragraph',
-          text: 'The <code>external_accounts</code> collection contains Solana wallets. Wallet objects use the <code>wa_z_</code> prefix and expose a <code>wallet_address</code> instead of bank routing and account numbers. See <a href="/external-wallets">External Wallets</a>.',
+          text: 'The <code>external_accounts</code> collection contains Ethereum wallets. Wallet objects use the <code>wa_z_</code> prefix and expose a <code>wallet_address</code> instead of bank routing and account numbers. See <a href="/external-wallets">External Wallets</a>.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'On-chain payout processing' },
         {
           type: 'paragraph',
-          text: 'Your platform signs payout transactions and submits them to Solana. A payout remains pending until you process it. See <a href="/payouts">Payouts</a> for the SDK helpers and custom signing endpoints.',
+          text: 'Your platform signs payout transactions and submits them to Ethereum. A payout remains pending until you process it. See <a href="/payouts">Payouts</a> for the SDK helpers and custom signing endpoints.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'Payout timing' },
         {
           type: 'paragraph',
-          text: 'Zoneless payouts default to <code>instant</code>. Once submitted, Solana transactions usually confirm within seconds. Payout statuses and failure fields are documented in the <a href="/payouts">Payout object</a>.',
+          text: 'Zoneless payouts default to <code>instant</code>. Once submitted, Ethereum transactions usually confirm within about a minute. Payout statuses and failure fields are documented in the <a href="/payouts">Payout object</a>.',
           html: true,
         },
         { type: 'heading', level: 3, text: 'Webhook signatures' },
@@ -239,7 +239,7 @@ const event = zoneless.webhooks.constructEvent(
           type: 'list',
           items: [
             { text: 'Create a connected account and Account Link.' },
-            { text: 'Complete onboarding and connect a Solana wallet.' },
+            { text: 'Complete onboarding and connect an Ethereum wallet.' },
             { text: 'Transfer USDC to the connected account balance.' },
             { text: 'Create and process a payout.' },
             {

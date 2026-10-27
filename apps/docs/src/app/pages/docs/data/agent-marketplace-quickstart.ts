@@ -23,7 +23,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Assume no crypto knowledge',
-          text: 'Explain every human action in plain language. USDC is a digital dollar; Solana is the network carrying it; SOL pays the small network fee in live mode; a public wallet address is safe to share, while its secret key authorizes spending and must remain private. Test mode uses fake USDC, so they can send a test payout without a wallet, a faucet, or the live Solana network. Always distinguish test funds from real funds.',
+          text: 'Explain every human action in plain language. USDC is a digital dollar; Ethereum is the network carrying it; ETH pays the network gas fee in live mode, and the platform wallet pays it, not the sellers; a public wallet address is safe to share, while its secret key authorizes spending and must remain private. Test mode uses fake USDC, so they can send a test payout without a wallet, a faucet, or the live Ethereum network. Always distinguish test funds from real funds.',
           html: true,
         },
         {
@@ -145,7 +145,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Keep API keys and transaction signing server-side and use <code>https://api.yourdomain.com</code> during integration. The Node SDK already handles Solana transaction building and signing: do not add Solana packages or application configuration for mint, cluster, RPC, token accounts, or platform account IDs. Non-Node runtimes use the documented build and broadcast endpoints with a maintained signer for that language.',
+          text: 'Keep API keys and transaction signing server-side and use <code>https://api.yourdomain.com</code> during integration. The Node SDK already handles Ethereum transaction building and signing: do not add chain libraries or application configuration for the USDC address, RPC, or platform account IDs. Non-Node runtimes use the documented build and broadcast endpoints with a maintained signer for that language.',
           html: true,
         },
         {
@@ -227,7 +227,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Before an end-to-end test payout, tell the human to add test USDC from the dashboard <strong>Balance</strong> page (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>. Create the payout, then process it with the same <code>processAll</code> / build and broadcast path as live. Simulated settlement does not need a wallet, faucet, or Devnet: broadcast the unsigned dummy transaction. Do not assume create returns <code>paid</code>. Self-hosters who set <code>SETTLEMENT_RAIL=onchain</code> should follow <a href="/local-development">Local Development</a> instead.',
+          text: 'Before an end-to-end test payout, tell the human to add test USDC from the dashboard <strong>Balance</strong> page (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>. Create the payout, then process it with the same <code>processAll</code> / build and broadcast path as live. Simulated settlement does not need a wallet, faucet, or test network: broadcast the unsigned dummy transaction. Do not assume create returns <code>paid</code>. Self-hosters who set <code>SETTLEMENT_RAIL=onchain</code> should follow <a href="/local-development">Local Development</a> instead.',
           html: true,
         },
         {
@@ -237,7 +237,7 @@ export const AGENT_MARKETPLACE_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The human must run the wallet backup command themselves in an interactive terminal, place the backup\'s <code>secretKeyBase58</code> value directly in the production secret manager as <code>SOLANA_SECRET_KEY</code>, and securely delete the temporary export. They must then follow <a href="/fund-platform-wallet">Fund your platform wallet</a> to add enough USDC for seller payouts and a small amount of SOL for Solana network fees, configure live webhooks, and approve a supervised end-to-end payout.',
+          text: 'The human must run the wallet backup command themselves in an interactive terminal, place the backup\'s <code>privateKey</code> value (<code>0x</code> plus 64 hex characters) directly in the production secret manager as <code>WALLET_PRIVATE_KEY</code>, and securely delete the temporary export. They must then follow <a href="/fund-platform-wallet">Fund your platform wallet</a> to add enough USDC for seller payouts and some ETH for Ethereum network gas (see <a href="/gas-and-fees">Gas and fees</a>), configure live webhooks, and approve a supervised end-to-end payout.',
           html: true,
         },
         {

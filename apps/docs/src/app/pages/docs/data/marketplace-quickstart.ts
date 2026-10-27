@@ -103,7 +103,7 @@ export const QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The seller opens the link, adds their details, and connects the Solana wallet where they want to receive payouts. If you want to test this yourself, open the link in an incognito window.',
+          text: 'The seller opens the link, adds their details, and connects the Ethereum wallet where they want to receive payouts. If you want to test this yourself, open the link in an incognito window.',
         },
       ],
       right: [

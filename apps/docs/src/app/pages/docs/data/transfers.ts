@@ -221,7 +221,7 @@ export const TRANSFERS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: "Transfers move USDC from your platform's balance to a connected account's balance. The connected account can then receive payouts to their Solana wallet.",
+          text: "Transfers move USDC from your platform's balance to a connected account's balance. The connected account can then receive payouts to their Ethereum wallet.",
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {

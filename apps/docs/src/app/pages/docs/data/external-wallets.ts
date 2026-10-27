@@ -35,13 +35,13 @@ const EXTERNAL_WALLET_OBJECT_JSON = `{
   "default_for_currency": true,
   "fingerprint": null,
   "future_requirements": null,
-  "last4": "9dKq",
+  "last4": "79C8",
   "metadata": {},
-  "network": "solana",
+  "network": "ethereum",
   "platform_account": "acct_z_Platform123abc",
   "requirements": null,
   "status": "new",
-  "wallet_address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD"
+  "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 }`;
 
 const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
@@ -57,7 +57,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     description:
       "String representing the object's type. Objects of the same type share the same value. Always <code>wallet</code>.",
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe returns <code>bank_account</code>. Zoneless returns <code>wallet</code> for Solana wallets.',
+      '<strong>Difference from Stripe:</strong> Stripe returns <code>bank_account</code>. Zoneless returns <code>wallet</code> for Ethereum wallets.',
   },
   {
     name: 'account',
@@ -93,12 +93,12 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     enumValues: [
       {
         value: 'instant',
-        description: 'Immediate transfer to the wallet. Default for Solana.',
+        description: 'Immediate transfer to the wallet. Default for Ethereum.',
       },
       { value: 'standard', description: 'Standard transfer timing.' },
     ],
     enumNote:
-      '<strong>Difference from Stripe:</strong> Solana transactions are inherently fast, so <code>instant</code> is always available.',
+      '<strong>Difference from Stripe:</strong> Ethereum transactions confirm within about a minute, so <code>instant</code> is always available.',
   },
   {
     name: 'country',
@@ -180,7 +180,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     type: 'string',
     description: 'The last four characters of the wallet address.',
     enumNote:
-      '<strong>Difference from Stripe:</strong> Stripe shows last 4 digits of bank account. Zoneless shows last 4 characters of the Solana wallet address.',
+      '<strong>Difference from Stripe:</strong> Stripe shows last 4 digits of bank account. Zoneless shows the last 4 hex characters of the Ethereum wallet address.',
   },
   {
     name: 'metadata',
@@ -193,7 +193,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     name: 'network',
     type: 'string',
     description:
-      'The blockchain network this wallet is on. Currently always <code>solana</code>.',
+      'The blockchain network this wallet is on. Currently always <code>ethereum</code>.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API. It identifies the blockchain network.",
   },
@@ -258,7 +258,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
       {
         value: 'validated',
         description:
-          'The wallet address has been validated as a valid Solana address.',
+          'The wallet address has been validated as a valid Ethereum address.',
       },
       { value: 'verified', description: 'The wallet has been fully verified.' },
       {
@@ -283,9 +283,10 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
   {
     name: 'wallet_address',
     type: 'string',
-    description: 'The full Solana wallet address where USDC payouts are sent.',
+    description:
+      'The full Ethereum wallet address where USDC payouts are sent.',
     enumNote:
-      "<strong>Zoneless extension:</strong> This replaces Stripe's <code>account_number</code> and <code>routing_number</code>. Solana addresses are typically 32-44 characters.",
+      "<strong>Zoneless extension:</strong> This replaces Stripe's <code>account_number</code> and <code>routing_number</code>. Ethereum addresses are always 42 characters (<code>0x</code> plus 40 hex characters).",
   },
 ];
 
@@ -307,7 +308,7 @@ export const EXTERNAL_WALLETS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The External Wallet object',
   description:
-    'External wallets are Solana wallet addresses associated with a connected account for receiving USDC payouts. They are the crypto equivalent of bank accounts in traditional payment systems.',
+    'External wallets are Ethereum wallet addresses associated with a connected account for receiving USDC payouts. They are the crypto equivalent of bank accounts in traditional payment systems.',
   stripeDocsUrl: 'https://docs.stripe.com/api/external_accounts',
   endpoints: BuildEndpointSummaries(EXTERNAL_WALLETS_SUBSECTION, [
     {
@@ -344,7 +345,7 @@ export const EXTERNAL_WALLETS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Key concept: ',
-          text: 'External wallets in Zoneless replace bank accounts in Stripe. Instead of routing numbers and account numbers, you provide a Solana wallet address to receive USDC payouts.',
+          text: 'External wallets in Zoneless replace bank accounts in Stripe. Instead of routing numbers and account numbers, you provide an Ethereum wallet address to receive USDC payouts.',
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -373,7 +374,7 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     type: 'string',
     required: true,
     description:
-      'The Solana wallet address where USDC payouts will be sent. This must be a valid Solana address (typically 32-44 characters).',
+      'The Ethereum wallet address where USDC payouts will be sent. This must be a valid Ethereum address (42 characters, <code>0x</code> plus 40 hex characters). All-lowercase or correctly checksummed (EIP-55) input is accepted, a wrong checksum is rejected, and the address is stored and returned in EIP-55 form.',
     enumNote:
       "<strong>Difference from Stripe:</strong> Replaces Stripe's <code>external_account</code> object with bank account details. Zoneless only requires the wallet address.",
   },
@@ -414,7 +415,7 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
   {
     name: 'network',
     type: 'string',
-    description: 'The blockchain network. Defaults to <code>solana</code>.',
+    description: 'The blockchain network. Defaults to <code>ethereum</code>.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
@@ -437,13 +438,13 @@ const CREATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
   "default_for_currency": true,
   "fingerprint": null,
   "future_requirements": null,
-  "last4": "9dKq",
+  "last4": "79C8",
   "metadata": {},
-  "network": "solana",
+  "network": "ethereum",
   "platform_account": "acct_z_Platform123abc",
   "requirements": null,
   "status": "new",
-  "wallet_address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD"
+  "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 }`;
 
 export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
@@ -487,7 +488,7 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/accounts/acct_z_1Nv0FGQ9RKHgCVdK/external_accounts \\
   -H "x-api-key: sk_live_z_YOUR_API_KEY" \\
-  -d wallet_address=7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD`,
+  -d wallet_address=0x70997970C51812dc3A010C7d01b50e0d17dc79C8`,
             },
             {
               id: 'node',
@@ -497,7 +498,7 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
 const externalWallet = await zoneless.accounts.createExternalAccount(
   'acct_z_1Nv0FGQ9RKHgCVdK',
   {
-    wallet_address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD',
+    wallet_address: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   }
 );`,
             },
@@ -565,15 +566,15 @@ const UPDATE_EXTERNAL_WALLET_RESPONSE_JSON = `{
   "default_for_currency": true,
   "fingerprint": null,
   "future_requirements": null,
-  "last4": "9dKq",
+  "last4": "79C8",
   "metadata": {
     "order_id": "6735"
   },
-  "network": "solana",
+  "network": "ethereum",
   "platform_account": "acct_z_Platform123abc",
   "requirements": null,
   "status": "new",
-  "wallet_address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD"
+  "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 }`;
 
 export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
@@ -748,13 +749,13 @@ const LIST_EXTERNAL_WALLETS_RESPONSE_JSON = `{
       "default_for_currency": true,
       "fingerprint": null,
       "future_requirements": null,
-      "last4": "9dKq",
+      "last4": "79C8",
       "metadata": {},
-      "network": "solana",
+      "network": "ethereum",
       "platform_account": "acct_z_Platform123abc",
       "requirements": null,
       "status": "new",
-      "wallet_address": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsD"
+      "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
     }
   ]
 }`;

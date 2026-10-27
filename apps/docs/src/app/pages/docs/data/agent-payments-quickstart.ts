@@ -23,7 +23,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Assume no crypto knowledge',
-          text: 'Explain every human action in plain language. USDC is a digital dollar; Solana is the network carrying it; a public wallet address is safe to share, while its secret key authorizes spending and must remain private. Test mode uses fake USDC, so they can try checkout without a wallet, a faucet, or the live Solana network. Live mode is when real USDC moves on Solana. Never assume prior wallet experience.',
+          text: 'Explain every human action in plain language. USDC is a digital dollar; Ethereum is the network carrying it; a public wallet address is safe to share, while its secret key authorizes spending and must remain private. Test mode uses fake USDC, so they can try checkout without a wallet, a faucet, or the live Ethereum network. Live mode is when real USDC moves on Ethereum. Never assume prior wallet experience.',
           html: true,
         },
       ],
@@ -366,7 +366,7 @@ export const AGENT_PAYMENTS_QUICKSTART_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'To test a subscription end to end, the human opens hosted checkout in test mode and approves the simulated wallet. They can also complete a session with <code>POST /v1/test_helpers/checkout/sessions/:id/complete</code>. No Phantom, faucet, or Devnet switch is required.',
+          text: 'To test a subscription end to end, the human opens hosted checkout in test mode and approves the simulated wallet. They can also complete a session with <code>POST /v1/test_helpers/checkout/sessions/:id/complete</code>. No browser wallet, faucet, or test network is required.',
           html: true,
         },
         {

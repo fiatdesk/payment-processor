@@ -47,6 +47,7 @@ export const CONNECT_GUIDES_SECTION: DocSection = {
       title: 'Fund your platform wallet',
       children: [],
     },
+    { id: 'gas-and-fees', title: 'Gas and fees', children: [] },
     {
       id: 'identity-verification',
       title: 'Identity Verification (KYC)',

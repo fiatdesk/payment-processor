@@ -28,12 +28,14 @@ explicitly asks for that additional work.
 ## Assume no crypto knowledge
 
 Use plain language whenever the human must act. Briefly explain that USDC is a
-digital dollar and Solana is the network carrying it, that a wallet address is
-safe to share, and that a wallet secret key authorizes spending and must remain
-private. Explain that test mode uses fake USDC so they can try checkout
-without a wallet, a faucet, or the live Solana network. Live mode is when
-real USDC moves on Solana. Do not use terms such as gas, mint, token account,
-cluster, or airdrop without explaining them.
+digital dollar and Ethereum is the network carrying it, that a wallet address
+(it starts with `0x`) is safe to share, and that a wallet private key
+authorizes spending and must remain private. Explain that test mode uses fake
+USDC so they can try checkout without a wallet, a faucet, or the live Ethereum
+network. Live mode is when real USDC moves on Ethereum. Do not use terms such
+as gas, token approval, permit, or testnet without explaining them. Gas is the
+network fee paid in ETH for each transaction: customers paying at checkout
+sign a message and pay no gas, and the operator's relayer pays it.
 
 The merchant does not need to hold, fund, or manage any crypto to receive
 subscription payments. Money moves from the customer's wallet to the platform
@@ -382,7 +384,7 @@ Report:
 - checks run, distinguishing static checks, unit tests, hosted-checkout
   verification, and completed end-to-end payments;
 - that to test a subscription end to end, the human opens hosted checkout in
-  test mode and approves the simulated wallet (no Phantom, faucet, or Devnet
+  test mode and approves the simulated wallet (no browser wallet, faucet, or test network
   switch). They can also complete a session with
   `POST /v1/test_helpers/checkout/sessions/:id/complete`;
 - that the customer approves the plan once at checkout and every later cycle is
