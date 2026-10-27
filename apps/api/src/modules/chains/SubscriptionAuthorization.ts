@@ -71,6 +71,7 @@ const SUBSCRIBE_TYPES = {
     { name: 'token', type: 'address' },
     { name: 'amount', type: 'uint256' },
     { name: 'periodSeconds', type: 'uint64' },
+    { name: 'firstChargeAt', type: 'uint64' },
     { name: 'nonce', type: 'uint256' },
     { name: 'deadline', type: 'uint256' },
   ],
@@ -171,7 +172,8 @@ export function BuildPermitTypedData(
 
 /**
  * The `Subscribe` typed data: the plan key and its terms, so the wallet
- * shows the token, amount and period being agreed to.
+ * shows the token, amount and period being agreed to, and when the first
+ * period is due (`firstChargeAt`, Unix seconds; 0 is the subscribe time).
  */
 export function BuildSubscribeTypedData(
   domain: SubscriptionsDomain,
@@ -179,6 +181,7 @@ export function BuildSubscribeTypedData(
     planKey: Hex;
     subscriber: Address;
     terms: PlanTerms;
+    firstChargeAt: number;
     nonce: bigint;
     deadline: number;
   }
@@ -194,6 +197,7 @@ export function BuildSubscribeTypedData(
       token: terms.token,
       amount: terms.amount.toString(),
       periodSeconds: terms.periodSeconds.toString(),
+      firstChargeAt: String(subscribe.firstChargeAt),
       nonce: subscribe.nonce.toString(),
       deadline: subscribe.deadline,
     },

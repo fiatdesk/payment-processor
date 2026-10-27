@@ -60,6 +60,8 @@ export const MOCK_SUBSCRIPTION_ID = `0x${'5b'.repeat(32)}`;
 export const MOCK_SUBSCRIBE_HASH = `0x${'5c'.repeat(32)}`;
 /** Hash of the mock's `charge` transaction. */
 export const MOCK_CHARGE_HASH = `0x${'c4'.repeat(32)}`;
+/** The operator nonce the mock charge is signed with. */
+export const MOCK_CHARGE_NONCE = 7;
 export const MOCK_CANCEL_HASH = `0x${'ca'.repeat(32)}`;
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
@@ -122,12 +124,16 @@ export function MockPayoutBatch(
   };
 }
 
-/** A prepared subscribe for 20 USDC every 30 days, valid until `deadline`. */
+/**
+ * A prepared subscribe for 20 USDC every 30 days, valid until `deadline`,
+ * first charged at `firstChargeAt` (0: at subscribe).
+ */
 export function MockPreparedSubscribe(
   subscriber: string,
   planKey: string,
   deadline: number,
-  needsPermit = true
+  needsPermit = true,
+  firstChargeAt = 0
 ): PreparedSubscribe {
   const terms = {
     token: MOCK_USDC,
@@ -151,11 +157,13 @@ export function MockPreparedSubscribe(
         planKey: planKey as `0x${string}`,
         subscriber: subscriber as `0x${string}`,
         terms,
+        firstChargeAt,
         nonce: 0n,
         deadline,
       }
     ),
     deadline,
+    first_charge_at: firstChargeAt,
     estimated_fee: '600000000000000',
     fee_currency: 'eth',
     chain_id: 11155111,
@@ -322,7 +330,7 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
       Promise<SubscriptionCollection>,
       Parameters<Settlement['CollectSubscriptionPayment']>
     >(async (params) => {
-      await params.onSigned(MOCK_CHARGE_HASH);
+      await params.onSigned(MOCK_CHARGE_HASH, { nonce: MOCK_CHARGE_NONCE });
       return {
         status: 'collected',
         transaction_hash: MOCK_CHARGE_HASH,
@@ -332,9 +340,9 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     ReconcileSubscriptionCharge: jest.fn<
       Promise<ChargeReconciliation>,
       Parameters<Settlement['ReconcileSubscriptionCharge']>
-    >(async (transactionHash) => ({
+    >(async (transactionHashes) => ({
       status: 'paid',
-      transaction_hash: transactionHash,
+      transaction_hash: transactionHashes[transactionHashes.length - 1],
       next_charge_at: null,
     })),
     FindSubscriptionCharge: jest.fn().mockResolvedValue(null),

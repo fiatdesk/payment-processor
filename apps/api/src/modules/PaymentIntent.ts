@@ -605,7 +605,8 @@ export class PaymentIntentModule {
   /**
    * Compare-and-set of the on-chain charge recorded for this PaymentIntent:
    * changes `pending_charge_hash` only while it still equals `expected`
-   * (null for none). Returns false when another write came first.
+   * (null for none). A new hash is also appended to `charge_hashes`.
+   * Returns false when another write came first.
    */
   async SetPendingChargeHash(
     id: string,
@@ -615,9 +616,21 @@ export class PaymentIntentModule {
     const updated = await this.db.FindOneAndUpdateByFilter<PaymentIntentType>(
       'PaymentIntents',
       { id, pending_charge_hash: expected },
-      { pending_charge_hash: hash }
+      hash
+        ? {
+            $set: { pending_charge_hash: hash },
+            $addToSet: { charge_hashes: hash },
+          }
+        : { $set: { pending_charge_hash: null } }
     );
     return updated !== null;
+  }
+
+  /** Clears `pending_charge_hash` once the charge is settled. */
+  async ClearPendingChargeHash(id: string): Promise<void> {
+    await this.db.Update<PaymentIntentType>('PaymentIntents', id, {
+      pending_charge_hash: null,
+    });
   }
 
   /**

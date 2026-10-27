@@ -236,4 +236,11 @@ export interface PaymentIntent {
    * @zoneless_extension
    */
   pending_charge_hash?: string | null;
+  /**
+   * Every on-chain subscription charge signed for this PaymentIntent,
+   * oldest first: the original and any re-priced replacement. Recorded
+   * before each is sent; reconcile checks them all.
+   * @zoneless_extension
+   */
+  charge_hashes?: string[];
 }

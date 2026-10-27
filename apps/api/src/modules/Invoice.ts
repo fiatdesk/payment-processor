@@ -31,11 +31,14 @@ import {
   ONCHAIN_PLAN_MISMATCH,
   PAUSED_ON_CHAIN,
   PERIOD_ALREADY_COLLECTED,
+  type SignedTransaction,
 } from './chains/types';
 import { CurrentDueAt } from './chains/SubscriptionAuthorization';
 import {
+  ClaimHashes,
   CycleClaimId,
   SubscriptionCycleClaims,
+  type SubscriptionCycleClaim,
 } from './SubscriptionCycleClaims';
 import { RecurringIntervalToSeconds } from '../utils/RecurringInterval';
 import { GenerateId } from '../utils/IdGenerator';
@@ -655,11 +658,7 @@ export class InvoiceModule {
         validatedInput.settlement_transaction_hash
       );
       if (settlement.chargeHash && this.paymentIntentModule) {
-        await this.paymentIntentModule.SetPendingChargeHash(
-          paymentIntentId,
-          null,
-          settlement.chargeHash
-        );
+        await this.paymentIntentModule.ClearPendingChargeHash(paymentIntentId);
       }
 
       if (this.chargeModule && this.paymentIntentModule) {
@@ -749,19 +748,50 @@ export class InvoiceModule {
   }
 
   /**
-   * Set when the subscription's open invoices are next attempted: null
-   * while collection is paused (so retries skip them), a time to re-arm
-   * them on resume.
+   * Set when the subscription's open invoices are next attempted. Null
+   * pauses them (retries skip them); an attempt already scheduled is kept on
+   * the invoice's cycle claim meanwhile. A time re-arms them, but never
+   * before their own schedule, kept or current, so a decline's dunning
+   * delay survives a pause.
    */
   async ScheduleOpenSubscriptionInvoices(
     subscriptionId: string,
     nextPaymentAttempt: number | null
   ): Promise<void> {
+    const subscription = await this.db.Get<SubscriptionType>(
+      'Subscriptions',
+      subscriptionId
+    );
+    const onchainId = subscription?.subscription_onchain_id ?? null;
     for (const invoice of await this.ListOpenSubscriptionInvoices(
       subscriptionId
     )) {
+      const claim = onchainId
+        ? await this.cycleClaims.Get(
+            CycleClaimId(onchainId, invoice.period_start)
+          )
+        : null;
+      const own = claim?.owner === invoice.id ? claim : null;
+      let next = nextPaymentAttempt;
+      if (next === null) {
+        if (own && invoice.next_payment_attempt !== null) {
+          await this.cycleClaims.SetPausedRetryAt(
+            own.id,
+            Math.max(invoice.next_payment_attempt, own.paused_retry_at ?? 0)
+          );
+        }
+      } else {
+        next = Math.max(
+          next,
+          own?.paused_retry_at ?? next,
+          invoice.next_payment_attempt ?? next
+        );
+        if (own?.paused_retry_at != null) {
+          await this.cycleClaims.SetPausedRetryAt(own.id, null);
+        }
+      }
       await this.db.Update<InvoiceType>('Invoices', invoice.id, {
-        next_payment_attempt: nextPaymentAttempt,
+        next_payment_attempt: next,
       });
     }
   }
@@ -1902,12 +1932,16 @@ export class InvoiceModule {
    * chain's schedule decides: the invoice must bill the period due on-chain
    * now (`CurrentDueAt`); an older one is a missed cycle the billing runner
    * voids, a later one waits. The cycle is claimed for this invoice first,
-   * so no other invoice or checkout collects it. A charge recorded on the
-   * claim earlier is reconciled by its hash before anything is sent, and a
-   * new charge's hash is recorded on the claim and on the PaymentIntent
-   * (which turns `processing`) before it is sent. `NotDueYet` without a
-   * recorded charge is settled from the chain's `Charged` logs: paid when
-   * one is found since the period started, else a missed cycle.
+   * so no other invoice or checkout collects it.
+   * - Every charge hash is recorded on the claim (append-only) and on the
+   *   PaymentIntent (which turns `processing`) before it is sent, and all of
+   *   them are reconciled before anything new is sent.
+   * - Before the invoice is refused as a missed cycle or a period not due,
+   *   or after a `NotDueYet`, the chain's `Charged` logs since the period
+   *   started decide when this claim ever sent a charge (or for `NotDueYet`
+   *   with none): a charge found there, and not recorded by another cycle,
+   *   pays the invoice.
+   * The period the paid charge paid is kept on the claim (Q10 #3).
    */
   private async CollectOnchainCycle(
     invoice: InvoiceType,
@@ -1932,16 +1966,41 @@ export class InvoiceModule {
       );
     }
     const claimId = CycleClaimId(subscriptionOnchainId, invoice.period_start);
+    const Paid = async (paid: {
+      transaction_hash: string;
+      next_charge_at: number | null;
+    }) => {
+      await this.cycleClaims.SetPaidPeriod(
+        claimId,
+        paid.next_charge_at === null
+          ? null
+          : {
+              start: paid.next_charge_at - IntervalSeconds(cycle.price),
+              end: paid.next_charge_at,
+            }
+      );
+      return { transactionHash: paid.transaction_hash };
+    };
+    /** The chain's logs, for a claim of this invoice that ever charged. */
+    const FromLogs = async (always = false) => {
+      const own = await this.cycleClaims.Get(claimId);
+      if (own?.owner !== invoice.id) return null;
+      if (!always && ClaimHashes(own).length === 0) return null;
+      return this.settlement.FindSubscriptionCharge(subscriptionOnchainId, {
+        amountCents,
+        since: invoice.period_start,
+        accept: (hash) => this.ChargeBelongsToClaim(hash, claimId),
+      });
+    };
 
     const existing = await this.cycleClaims.Get(claimId);
     if (existing?.owner === invoice.id && existing.charge_hash) {
-      const paid = await this.ReconcileRecordedCharge(
-        existing.id,
-        existing.charge_hash,
-        existing.charge_sent_at,
-        { invoice, paymentIntentId, subscriptionOnchainId }
-      );
-      if (paid) return paid;
+      const paid = await this.ReconcileRecordedCharge(existing, {
+        invoice,
+        paymentIntentId,
+        subscriptionOnchainId,
+      });
+      if (paid) return Paid(paid);
     }
 
     const state = await this.settlement.GetSubscriptionState(
@@ -1966,6 +2025,8 @@ export class InvoiceModule {
     const periodSeconds = state.period_seconds ?? IntervalSeconds(cycle.price);
     const dueAt = CurrentDueAt(nextChargeAt, now, periodSeconds);
     if (invoice.period_start < dueAt) {
+      const found = await FromLogs();
+      if (found) return Paid(found);
       throw new AppError(
         'This invoice bills a period the on-chain subscription skipped',
         409,
@@ -1973,6 +2034,8 @@ export class InvoiceModule {
       );
     }
     if (now < nextChargeAt || invoice.period_start > dueAt) {
+      const found = await FromLogs();
+      if (found) return Paid(found);
       throw new AppError(
         'This on-chain subscription period is not due yet; wait for the next billing period before collecting again',
         409,
@@ -2003,29 +2066,25 @@ export class InvoiceModule {
         planKey: cycle.planKey,
         subscriberWallet: cycle.subscriberWallet,
         amountCents,
-        onSigned: async (hash) => {
+        onSigned: async (hash, signed) => {
           await this.RecordPendingCharge(
             claim.id,
             paymentIntentId,
             hash,
-            recorded
+            recorded,
+            signed
           );
           recorded = hash;
           recordedHere = hash;
         },
       });
-      if (collection.status === 'collected') {
-        return { transactionHash: collection.transaction_hash };
-      }
+      if (collection.status === 'collected') return Paid(collection);
       if (collection.status === 'pending') {
         throw ChargePending(collection.transaction_hash);
       }
-      // NotDueYet with no charge of ours: the chain's logs decide.
-      const found = await this.settlement.FindSubscriptionCharge(
-        subscriptionOnchainId,
-        { amountCents, since: invoice.period_start }
-      );
-      if (found) return { transactionHash: found.transaction_hash };
+      // NotDueYet: the chain's logs decide.
+      const found = await FromLogs(true);
+      if (found) return Paid(found);
       throw new AppError(
         'No charge collected this period on-chain; the invoice is voided',
         409,
@@ -2044,42 +2103,62 @@ export class InvoiceModule {
   }
 
   /**
-   * Reconciles the charge recorded on a claim (Q10 #7): paid → the hash;
-   * pending → a `charge_pending` wait (a stuck charge is re-priced and the
-   * new hash recorded); dropped → cleared, so a new charge may be sent;
-   * reverted → cleared, and its error is thrown unless it was `NotDueYet`
-   * (then the caller goes on, and the logs decide).
+   * True unless another cycle's claim recorded `hash`: a charge found in the
+   * logs pays this cycle only when it is not another cycle's own charge.
+   */
+  private async ChargeBelongsToClaim(
+    hash: string,
+    claimId: string
+  ): Promise<boolean> {
+    const claims = await this.cycleClaims.FindByChargeHash(hash);
+    return claims.every((claim) => claim.id === claimId);
+  }
+
+  /**
+   * Reconciles every charge recorded on a claim, together (Q10 #7): paid →
+   * that charge; pending → a `charge_pending` wait (a stuck charge is
+   * re-priced, and the new hash recorded); dropped → cleared, so the caller
+   * goes on (the logs and a new charge decide); reverted → cleared, and its
+   * error is thrown unless it was `NotDueYet`.
    */
   private async ReconcileRecordedCharge(
-    claimId: string,
-    hash: string,
-    sentAt: number | null,
+    claim: SubscriptionCycleClaim,
     context: {
       invoice: InvoiceType;
       paymentIntentId: string;
       subscriptionOnchainId: string;
     }
-  ): Promise<{ transactionHash: string } | null> {
-    let current = hash;
-    const result = await this.settlement.ReconcileSubscriptionCharge(hash, {
-      subscriptionOnchainId: context.subscriptionOnchainId,
-      amountCents: context.invoice.amount_due,
-      sentAt,
-      onReplaced: async (replacement) => {
-        await this.RecordPendingCharge(
-          claimId,
-          context.paymentIntentId,
-          replacement,
-          current
-        );
-        current = replacement;
-      },
-    });
-    if (result.status === 'paid') {
-      return { transactionHash: result.transaction_hash };
+  ): Promise<{
+    transaction_hash: string;
+    next_charge_at: number | null;
+  } | null> {
+    let current = claim.charge_hash;
+    const result = await this.settlement.ReconcileSubscriptionCharge(
+      ClaimHashes(claim),
+      {
+        subscriptionOnchainId: context.subscriptionOnchainId,
+        amountCents: context.invoice.amount_due,
+        sentAt: claim.charge_sent_at,
+        nonce: claim.charge_nonce ?? null,
+        onReplaced: async (replacement, signed) => {
+          await this.RecordPendingCharge(
+            claim.id,
+            context.paymentIntentId,
+            replacement,
+            current,
+            signed
+          );
+          current = replacement;
+        },
+      }
+    );
+    if (result.status === 'paid') return result;
+    if (result.status === 'pending') {
+      throw ChargePending(current ?? result.transaction_hash);
     }
-    if (result.status === 'pending') throw ChargePending(current);
-    await this.ClearPendingCharge(claimId, context.paymentIntentId, current);
+    if (current) {
+      await this.ClearPendingCharge(claim.id, context.paymentIntentId, current);
+    }
     if (
       result.status === 'failed' &&
       result.error.type !== PERIOD_ALREADY_COLLECTED
@@ -2092,15 +2171,20 @@ export class InvoiceModule {
   /**
    * Records a charge's hash on its cycle claim and PaymentIntent before it
    * is sent, and turns the PaymentIntent `processing`. A claim that moved
-   * meanwhile cancels the send.
+   * meanwhile cancels the send. The claim decides: when the PaymentIntent
+   * holds another hash than expected, it is read again and follows the
+   * claim, so the hash is never dropped.
    */
   private async RecordPendingCharge(
     claimId: string,
     paymentIntentId: string,
     hash: string,
-    expected: string | null
+    expected: string | null,
+    signed?: SignedTransaction
   ): Promise<void> {
-    if (!(await this.cycleClaims.SetChargeHash(claimId, hash, expected))) {
+    if (
+      !(await this.cycleClaims.SetChargeHash(claimId, hash, expected, signed))
+    ) {
       throw new AppError(
         'Another collection is charging this subscription period',
         409,
@@ -2108,11 +2192,30 @@ export class InvoiceModule {
       );
     }
     if (!this.paymentIntentModule) return;
-    await this.paymentIntentModule.SetPendingChargeHash(
-      paymentIntentId,
-      hash,
-      expected
-    );
+    if (
+      !(await this.paymentIntentModule.SetPendingChargeHash(
+        paymentIntentId,
+        hash,
+        expected
+      ))
+    ) {
+      const stored =
+        (await this.paymentIntentModule.GetPaymentIntent(paymentIntentId))
+          ?.pending_charge_hash ?? null;
+      if (
+        !(await this.paymentIntentModule.SetPendingChargeHash(
+          paymentIntentId,
+          hash,
+          stored
+        ))
+      ) {
+        throw new AppError(
+          'Another collection is charging this subscription period',
+          409,
+          CHARGE_PENDING
+        );
+      }
+    }
     await this.paymentIntentModule.MarkProcessing(paymentIntentId);
   }
 

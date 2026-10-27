@@ -16,6 +16,19 @@ export const SUBSCRIPTIONS_ABI = [
   },
   {
     type: 'function',
+    name: 'MAX_FIRST_CHARGE_DELAY',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'uint64',
+        internalType: 'uint64',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     name: 'MAX_PERIOD_SECONDS',
     inputs: [],
     outputs: [
@@ -322,6 +335,30 @@ export const SUBSCRIPTIONS_ABI = [
   },
   {
     type: 'function',
+    name: 'subscribe',
+    inputs: [
+      {
+        name: 'planKey',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+      {
+        name: 'firstChargeAt',
+        type: 'uint64',
+        internalType: 'uint64',
+      },
+    ],
+    outputs: [
+      {
+        name: 'subId',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'subscribeWithAuthorization',
     inputs: [
       {
@@ -355,6 +392,11 @@ export const SUBSCRIPTIONS_ABI = [
             internalType: 'uint64',
           },
         ],
+      },
+      {
+        name: 'firstChargeAt',
+        type: 'uint64',
+        internalType: 'uint64',
       },
       {
         name: 'deadline',
@@ -411,6 +453,11 @@ export const SUBSCRIPTIONS_ABI = [
             internalType: 'uint64',
           },
         ],
+      },
+      {
+        name: 'firstChargeAt',
+        type: 'uint64',
+        internalType: 'uint64',
       },
       {
         name: 'permitValue',
@@ -779,6 +826,11 @@ export const SUBSCRIPTIONS_ABI = [
   {
     type: 'error',
     name: 'InvalidAmount',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidFirstCharge',
     inputs: [],
   },
   {

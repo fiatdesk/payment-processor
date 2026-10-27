@@ -734,7 +734,23 @@ describe('SubscriptionModule', () => {
       expect(Stored(created.id)).toMatchObject({
         cancel_pending_on_chain: true,
         cancel_pending_transaction_hash: MOCK_CANCEL_HASH,
+        cancel_pending_sent_at: GetFixedTimestamp(),
       });
+    });
+
+    it('follows the recorded cancel with its send time, for re-pricing', async () => {
+      const created = await CreateOnchain();
+      await module.CancelSubscription(created.id, {});
+
+      await module.SendOnchainCancel(created.id);
+
+      expect(settlement.CancelSubscription).toHaveBeenLastCalledWith(
+        MOCK_SUBSCRIPTION_ID,
+        expect.objectContaining({
+          pendingHash: MOCK_CANCEL_HASH,
+          sentAt: GetFixedTimestamp(),
+        })
+      );
     });
 
     it('keeps the cancel pending when the on-chain cancel fails, for the runner to retry', async () => {
@@ -761,8 +777,10 @@ describe('SubscriptionModule', () => {
         expect.objectContaining({ pendingHash: MOCK_CANCEL_HASH })
       );
       expect(Stored(created.id)).toMatchObject({
+        status: 'canceled',
         cancel_pending_on_chain: false,
         cancel_pending_transaction_hash: null,
+        cancel_pending_sent_at: null,
       });
     });
 
@@ -814,6 +832,10 @@ describe('SubscriptionModule', () => {
         PLATFORM,
         expect.objectContaining({ id: created.id })
       );
+      // Like the API cancel: no `updated` before the `deleted`.
+      expect(
+        jest.mocked(eventService.Emit).mock.calls.map(([type]) => type)
+      ).not.toContain('customer.subscription.updated');
       expect(settlement.CancelSubscription).not.toHaveBeenCalled();
 
       // Again: nothing more happens.

@@ -158,12 +158,12 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'The contract allows one charge per billing period, on a fixed schedule that starts when the customer subscribes, and the subscription’s periods follow that schedule. Before charging, a run reads when the chain has the subscription due and collects the invoice for that period, creating it when needed. A run charges each subscription at most once, and each period is claimed by one invoice (or the checkout) only. When billing runs late, the charge collects the current period only: open invoices for periods that ended without a charge are voided, not collected (up to 12 per subscription per run; later runs void the rest before charging). After a charge, the subscription’s period is set from the chain’s next due time.',
+          text: 'The contract allows one charge per billing period, on a fixed schedule that starts at the first charge time (the subscribe, or the end of a trial), and the subscription’s periods follow that schedule. Before charging, a run reads when the chain has the subscription due and collects the invoice for that period, creating it when needed. A run charges each subscription at most once, and each period is claimed by one invoice (or the checkout) only. A declined invoice is attempted again only at its <code>next_payment_attempt</code> (1, 3 and 5 days after the attempts before; after the fourth, the invoice is <code>uncollectible</code> and the subscription <code>unpaid</code>); a run before then leaves it alone. Pausing and resuming keeps that schedule. When billing runs late, the charge collects the current period only: open invoices for periods that ended without a charge are voided, not collected (up to 12 per subscription per run; later runs void the rest before charging). After a charge, the subscription’s period is set from the charge’s <code>Charged</code> event: it ends at the chain’s next due time.',
           html: true,
         },
         {
           type: 'paragraph',
-          text: 'Each charge’s transaction hash is recorded before it is sent. A charge that is not confirmed within the run stays pending (the invoice <code>open</code> with <code>charge_pending</code>, its PaymentIntent <code>processing</code>), and the next run settles it by that hash before anything else: paid when the receipt shows the charge; tried again when the transaction was dropped; re-priced at the same nonce when it has waited for more than 10 minutes. Runs that only wait (a pending charge, a pause, a period not due yet) do not count toward <code>batch_size</code>.',
+          text: 'Each charge’s transaction hash is recorded before it is sent, and so is every re-priced replacement (<code>charge_hashes</code> on the PaymentIntent). A charge that is not confirmed within the run stays pending (the invoice <code>open</code> with <code>charge_pending</code>, its PaymentIntent <code>processing</code>), and the next run settles it by all its hashes before anything else: paid when any of them shows the charge; still pending while their nonce is unused, even if the node does not know them; tried again only once another transaction used that nonce; re-priced at the same nonce when it has waited for more than 10 minutes. Before an invoice whose period sent a charge is voided as skipped or refused as not due, the chain’s <code>Charged</code> logs since its period started are searched: a charge found there pays it. Runs that only wait (a pending charge, a pause, a period not due yet, a retry not due yet) do not count toward <code>batch_size</code>.',
           html: true,
         },
         {
@@ -173,7 +173,7 @@ export const BILLING_OVERVIEW_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Canceling a subscription sends its on-chain cancel without waiting for it (<code>cancel_pending_on_chain=true</code>). Each run sends again the cancels that have not landed, and clears the flag once the chain reads the subscription canceled.',
+          text: 'Canceling a subscription sends its on-chain cancel without waiting for it (<code>cancel_pending_on_chain=true</code>). Each run follows every pending cancel, oldest first and page by page: one still unmined after 10 minutes is re-priced, and one that reverted or lost its nonce is sent again. The flag clears once the chain reads the subscription canceled.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },

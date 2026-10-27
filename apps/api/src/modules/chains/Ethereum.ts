@@ -96,7 +96,9 @@ import {
 import type { Settlement } from './Settlement';
 import type {
   BroadcastResult,
+  ChargeReconcileExpectation,
   ChargeReconciliation,
+  ChargeSearch,
   CheckoutPaymentExpectation,
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
@@ -111,7 +113,9 @@ import type {
   RailDescription,
   RelayCheckoutOptions,
   RelaySubscribeOptions,
+  SubscribeAuthorizationOptions,
   SubscribeRelay,
+  SubscriptionCancelOptions,
   SubscriptionCollectParams,
   SubscriptionCollection,
   TransferRecipient,
@@ -919,7 +923,7 @@ export class Ethereum implements Settlement {
     subscriber: string,
     planKey: string,
     expiresAt: number,
-    options?: { otherPlansAllowance?: bigint }
+    options?: SubscribeAuthorizationOptions
   ): Promise<PreparedSubscribe> {
     return this.subscriptions.BuildSubscribeAuthorization(
       subscriber,
@@ -968,23 +972,18 @@ export class Ethereum implements Settlement {
   }
 
   ReconcileSubscriptionCharge(
-    transactionHash: string,
-    expected: {
-      subscriptionOnchainId: string;
-      amountCents: number;
-      sentAt: number | null;
-      onReplaced(transactionHash: string): Promise<void>;
-    }
+    transactionHashes: string[],
+    expected: ChargeReconcileExpectation
   ): Promise<ChargeReconciliation> {
     return this.subscriptions.ReconcileSubscriptionCharge(
-      transactionHash,
+      transactionHashes,
       expected
     );
   }
 
   FindSubscriptionCharge(
     subscriptionOnchainId: string,
-    expected: { amountCents: number; since: number }
+    expected: ChargeSearch
   ): Promise<{ transaction_hash: string; next_charge_at: number } | null> {
     return this.subscriptions.FindSubscriptionCharge(
       subscriptionOnchainId,
@@ -994,10 +993,7 @@ export class Ethereum implements Settlement {
 
   CancelSubscription(
     subscriptionOnchainId: string,
-    options: {
-      pendingHash?: string | null;
-      onSigned(transactionHash: string): Promise<void>;
-    }
+    options: SubscriptionCancelOptions
   ): Promise<string | null> {
     return this.subscriptions.CancelSubscription(
       subscriptionOnchainId,

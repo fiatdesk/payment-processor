@@ -204,6 +204,11 @@ export interface PreparedSubscribe {
   /** Unix time after which both signatures are refused; null if simulated */
   deadline: number | null;
   /**
+   * When the first period is due (Unix seconds), as signed: the trial end,
+   * or 0 for the subscribe time
+   */
+  first_charge_at: number;
+  /**
    * Upper bound of the gas the relayer pays, in atomic units of
    * `fee_currency`
    */
@@ -221,6 +226,8 @@ export interface SubscribeRelay {
   subscribeSignature: string;
   /** The `deadline` both signatures were made with */
   deadline: number;
+  /** The signed first charge time (0: the subscribe time) */
+  firstChargeAt: number;
 }
 
 /** Hooks around relaying a subscribe. */
@@ -248,6 +255,11 @@ export interface CheckoutSubscribeVerification {
   failure_reason?: string;
 }
 
+/** What a signed operator transaction used, for reconciling it later. */
+export interface SignedTransaction {
+  nonce: number;
+}
+
 /** One period's collection from a subscriber. */
 export interface SubscriptionCollectParams {
   subscriptionOnchainId: string;
@@ -255,10 +267,10 @@ export interface SubscriptionCollectParams {
   planKey: string;
   amountCents: number;
   /**
-   * Persists the charge's hash before the network sees it. A throw cancels
-   * the send.
+   * Persists the charge's hash (and its nonce) before the network sees it.
+   * A throw cancels the send.
    */
-  onSigned(transactionHash: string): Promise<void>;
+  onSigned(transactionHash: string, signed: SignedTransaction): Promise<void>;
   /** How long to wait for confirmations before answering `pending` (ms) */
   timeoutMs?: number;
 }
@@ -279,17 +291,58 @@ export type SubscriptionCollection =
   | { status: 'pending'; transaction_hash: string };
 
 /**
- * What a recorded charge hash says. `paid`: confirmed with its `Charged`
- * log. `failed`: it reverted; `error` says whether that is a decline.
- * `dropped`: it will never be mined (another transaction took its nonce, or
- * the node forgot it). `pending`: not mined yet; `transaction_hash` is a
- * re-priced replacement when the charge was stuck.
+ * What the hashes recorded for a charge say, all of them together (the
+ * original and every re-priced replacement). `paid`: one of them is
+ * confirmed with its `Charged` log. `failed`: it reverted; `error` says
+ * whether that is a decline. `dropped`: none has a receipt and another
+ * transaction took their nonce, so none will be mined. `pending`: not mined
+ * yet; `transaction_hash` is the newest, a re-priced replacement when the
+ * charge was stuck.
  */
 export type ChargeReconciliation =
   | { status: 'paid'; transaction_hash: string; next_charge_at: number | null }
   | { status: 'failed'; error: AppError }
   | { status: 'dropped' }
   | { status: 'pending'; transaction_hash: string };
+
+/** What reconciling a recorded charge needs besides its hashes. */
+export interface ChargeReconcileExpectation {
+  subscriptionOnchainId: string;
+  amountCents: number;
+  /** When the newest hash was recorded, for re-pricing a stuck charge */
+  sentAt: number | null;
+  /** The charge's nonce, as recorded when it was signed */
+  nonce: number | null;
+  /** Records a re-priced replacement's hash before it is sent */
+  onReplaced(transactionHash: string, signed: SignedTransaction): Promise<void>;
+}
+
+/** A search of the `Charged` logs of one subscription. */
+export interface ChargeSearch {
+  amountCents: number;
+  /** Only charges in blocks at or after this time (Unix seconds) */
+  since: number;
+  /** Whether a found charge counts; every one does by default */
+  accept?(transactionHash: string): Promise<boolean>;
+}
+
+/** Options of a subscribe authorization. */
+export interface SubscribeAuthorizationOptions {
+  /** The permit values of the wallet's other live plans */
+  otherPlansAllowance?: bigint;
+  /** The trial before the first charge, in seconds */
+  trialSeconds?: number;
+}
+
+/** Hooks around sending the plan owner's cancel. */
+export interface SubscriptionCancelOptions {
+  /** The cancel recorded earlier, followed instead of sending another */
+  pendingHash?: string | null;
+  /** When `pendingHash` was recorded, for re-pricing a stuck cancel */
+  sentAt?: number | null;
+  /** Records each signed cancel before it is sent */
+  onSigned(transactionHash: string): Promise<void>;
+}
 
 /** On-chain state of a subscription. */
 export type OnchainSubscriptionStatus =

@@ -197,6 +197,7 @@ describe('SimulatedSettlement', () => {
         permit_typed_data: null,
         subscribe_typed_data: null,
         deadline: null,
+        first_charge_at: 0,
         estimated_fee: '0',
         fee_currency: 'none',
         chain_id: null,
@@ -212,6 +213,7 @@ describe('SimulatedSettlement', () => {
         permitSignature: null,
         subscribeSignature: reference,
         deadline: 1_700_001_800,
+        firstChargeAt: 0,
       };
 
       await expect(
@@ -226,7 +228,7 @@ describe('SimulatedSettlement', () => {
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
-    it('verifies a simulated subscribe and nothing else', async () => {
+    it('verifies a simulated subscribe, one subscription id per checkout session, and nothing else', async () => {
       const reference = SimulatedSignature('cs_z_1', PAYER);
       const expected = { planKey: PLAN, subscriberWallet: PAYER };
 
@@ -236,7 +238,15 @@ describe('SimulatedSettlement', () => {
         status: 'verified',
         transaction_hash: reference,
         subscriber_address: PAYER,
-        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}`,
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_1`,
+      });
+      await expect(
+        settlement.VerifySubscribeTransaction(
+          SimulatedSignature('cs_z_2', PAYER),
+          expected
+        )
+      ).resolves.toMatchObject({
+        subscription_onchain_id: `sim_sub_${PLAN}_${PAYER}_cs_z_2`,
       });
       await expect(
         settlement.VerifySubscribeTransaction(`0x${'ab'.repeat(32)}`, expected)
@@ -262,12 +272,15 @@ describe('SimulatedSettlement', () => {
         transaction_hash: `sim_collect:${PAYER}`,
         next_charge_at: null,
       });
-      expect(onSigned).toHaveBeenCalledWith(`sim_collect:${PAYER}`);
+      expect(onSigned).toHaveBeenCalledWith(`sim_collect:${PAYER}`, {
+        nonce: 0,
+      });
       await expect(
-        settlement.ReconcileSubscriptionCharge(`sim_collect:${PAYER}`, {
+        settlement.ReconcileSubscriptionCharge([`sim_collect:${PAYER}`], {
           subscriptionOnchainId: 'sim_sub_1',
           amountCents: 2000,
           sentAt: null,
+          nonce: null,
           onReplaced: jest.fn(),
         })
       ).resolves.toEqual({

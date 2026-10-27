@@ -1618,6 +1618,129 @@ libs/shared-types/src/lib/PaymentIntent.ts
 libs/shared-types/src/lib/Subscription.ts
 ```
 
+### Task 14 fix round 2: dunning, every charge hash, simulated ids, claims on real MongoDB, trial-anchored grid
+
+The re-review of fix round 1 and planner ruling Q11a, in two commits: the contract first, then the API.
+
+- **Trials anchor the on-chain grid (Q11a, contract commit).**
+  - `Subscriptions.sol` takes a signed `firstChargeAt`:
+    - `subscribe(planKey, firstChargeAt)`;
+    - `subscribeWithAuthorization(…, terms, firstChargeAt, deadline, sig)`;
+    - `subscribeWithPermit(…, terms, firstChargeAt, permitValue, …)`.
+  - `0` means now; anything else must be from now to `MAX_FIRST_CHARGE_DELAY` (365 days) ahead, else `InvalidFirstCharge`. `nextChargeAt` starts there, so the contract refuses a charge during a trial (`NotDueYet`).
+  - `SUBSCRIBE_TYPEHASH` is over `Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)`.
+  - No stack-too-deep in the contract, so `via_ir` stays off. Tests call `subscribeWithPermit` through a `PermitSubscribe` struct helper.
+  - 8 new forge tests, covering before, at, past, over a year, `0`, an altered value, the permit and direct paths, and a fuzz. `SUBSCRIPTIONS_ABI`, the harness typehash check and the README follow.
+- **Trials in the API (Q11a).**
+  - Prepare: `BuildSubscribeAuthorization(…, { trialSeconds })` signs `firstChargeAt = chainNow + trial`, or `0` without a trial. It appears in the typed data and as `subscription.first_charge_at`, and is kept on the session (`payment_details.first_charge_at`) for the relay.
+  - Finalize with a trial collects nothing and sets `trial_end` to the chain's first charge time. The period runs from now to `trial_end`, and no cycle invoice is created yet. A chain start later than the trial allows is a 400.
+  - At the trial end, the runner pays the invoice with `period_start == trial_end`, and the period follows the `Charged` event.
+  - A trial can last at most 365 days.
+- **N1: the dunning schedule is back.**
+  - On the due path, an invoice whose `next_payment_attempt` is in the future is a wait: left alone, and not counted.
+  - The pending-charge reconcile is exempt. `chain_unavailable` and `charge_refused` waits follow the same rule.
+  - Declines retry at 1, 3 and 5 days, then the invoice is `uncollectible` and the subscription `unpaid`.
+- **N2: simulated subscriptions get one id per checkout session** (`sim_sub_${planKey}_${wallet}_${sessionId}`), so the unique index holds on every rail.
+  - If `EnsureCollections` cannot build that index because of duplicates, startup stops with a fixed message (`DUPLICATE_ONCHAIN_SUBSCRIPTIONS_MESSAGE`) that names the collection and field and says to dedupe. The driver error is only logged.
+- **N3 and item 1: every charge hash is reconciled, by Q10 #7's table.**
+  - A cycle claim keeps `charge_hashes` (append-only, with `charge_nonce`). The PaymentIntent mirrors them in `charge_hashes`. All are written compare-and-set before each send, the original and every re-priced replacement.
+  - Reconcile checks all of them:
+    - any confirmed `Charged` among them is paid;
+    - one mined without collecting is the attempt's outcome;
+    - no receipt and the nonce unused is pending, even when the node does not know them;
+    - `dropped` only once the nonce is consumed.
+  - A re-price the network refuses stays pending.
+  - Before an invoice whose claim ever sent a charge is voided (`cycle_missed`) or refused (`period_already_collected`), the bounded `Charged`-log search since its period start runs. A match that no other cycle recorded pays and credits it.
+  - The checkout's first-period collect follows the same rules, so its own landed charge completes it.
+- **Item 6: cycle claims on real MongoDB.**
+  - With mongoose 9, `new model({ id }).save()` (`Database.AddID`) drops `id`, because the flexible schema's `id` virtual shadows it. Claims lost their key, the unique index never applied, and the claim's compare-and-set never matched, so paid checkout answered `another_confirmation` forever.
+  - Claims are now written as every collection's writes are, through `Database.Set`: an upsert by `id` with `$setOnInsert`, which inserts once and returns the stored claim.
+  - `AddID` was dead upstream code and broken under mongoose 9, so it is removed. `MemoryDatabase` gained `$setOnInsert`.
+  - The other new fields (`charge_hashes`, `pending_charge_hash`, `cancel_pending_*`) and the partial unique index were checked on a real MongoDB 7.
+- **Minor fixes:**
+  - m2: pending on-chain cancels are read oldest first and page by page, not capped at the batch size.
+    - A cancel still unmined after 10 minutes is re-priced (`cancel_pending_sent_at`).
+    - One that reverted, or lost its nonce, is sent again while the chain reads the subscription active.
+    - `Canceled`/`None` goes through `CancelFromChain`.
+  - m3: `CancelFromChain` emits only `customer.subscription.deleted`.
+  - m4: the paid period comes from the `Charged` event's `nextChargeAt`, kept on the cycle claim (`paid_period`), with no re-read.
+  - m5: a merchant or on-chain un-pause re-arms open invoices at `max(now, their schedule)`. The schedule is kept on the cycle claim over the pause.
+  - m6: the session's `payment_details.pending_charge_hash` is cleared once reconciled, and documented.
+  - m7: a lost PaymentIntent compare-and-set re-reads it and follows the claim.
+  - m8: a subscription id is never reported as `transaction_hash`.
+  - OOS2: the first-period collect waits only for what is left of `CHECKOUT_CONFIRM_TIMEOUT_MS`.
+- **Docs:**
+  - billing: the dunning rule, every hash, the log search, cancels and the trial grid;
+  - subscriptions: trials, `cancel_pending_sent_at` and cancel follow-up;
+  - checkout sessions: `payment_details.first_charge_at` and `pending_charge_hash`;
+  - PaymentIntents: `charge_hashes`;
+  - prices: trials on-chain.
+- **Tests:**
+  - Unit:
+    - two runs inside a dunning window, then 1/3/5-day retries to `unpaid`, on the real modules;
+    - two simulated checkouts to one price on the real index;
+    - the startup message;
+    - all hashes, the nonce rule and the log search;
+    - the trial typed data, prepare, relay and finalize;
+    - the trial-end runner path from the real post-subscribe state;
+    - cancels paging and re-pricing;
+    - the PaymentIntent compare-and-set;
+    - the claim spec, with an opt-in real-MongoDB case (`MONGODB_TEST_URI`).
+  - Anvil:
+    - a 7-day trial on a 30-day plan;
+    - a re-priced charge whose original is the one mined, paid once and credited.
+
+Added in fix round 2:
+
+```
+apps/api/src/__tests__/Database.spec.ts
+apps/api/src/__tests__/SubscriptionCycleClaims.spec.ts
+```
+
+Modified in fix round 2:
+
+```
+CHANGES.md
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/Invoice.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/Subscription.spec.ts
+apps/api/src/__tests__/SubscriptionAuthorization.spec.ts
+apps/api/src/__tests__/SubscriptionBilling.spec.ts
+apps/api/src/__tests__/anvil/Harness.anvil.spec.ts
+apps/api/src/__tests__/anvil/Subscriptions.anvil.spec.ts
+apps/api/src/__tests__/mocks/MemoryDatabase.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/main.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/CheckoutSession.ts
+apps/api/src/modules/Database.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/PaymentIntent.ts
+apps/api/src/modules/Subscription.ts
+apps/api/src/modules/SubscriptionBilling.ts
+apps/api/src/modules/SubscriptionCycleClaims.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/EthereumSubscriptions.ts
+apps/api/src/modules/chains/EthereumTransactions.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/SubscriptionAuthorization.ts
+apps/api/src/modules/chains/abi/Subscriptions.ts
+apps/api/src/modules/chains/types.ts
+apps/docs/src/app/pages/docs/data/billing.ts
+apps/docs/src/app/pages/docs/data/checkout-sessions.ts
+apps/docs/src/app/pages/docs/data/payment-intents.ts
+apps/docs/src/app/pages/docs/data/prices.ts
+apps/docs/src/app/pages/docs/data/subscriptions.ts
+contracts/README.md
+contracts/src/Subscriptions.sol
+contracts/test/Subscriptions.t.sol
+libs/shared-types/src/lib/CheckoutSession.ts
+libs/shared-types/src/lib/PaymentIntent.ts
+libs/shared-types/src/lib/Subscription.ts
+```
+
 ## Task 15: Subscription checkout and dashboard (web)
 
 Hosted checkout now starts on-chain subscriptions from the customer's browser wallet. A first-time wallet signs the USDC permit and then the `Subscribe` message; a wallet whose allowance already covers the plan signs only the `Subscribe`. One confirm carries both signatures and the prepared `deadline`, and the API relays them in one transaction (Task 14). The dashboard shows the on-chain subscription and its on-chain states.

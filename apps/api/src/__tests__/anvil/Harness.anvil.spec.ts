@@ -116,7 +116,7 @@ describe('Anvil harness', () => {
     ).resolves.toBe(
       keccak256(
         toHex(
-          'Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)'
+          'Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)'
         )
       )
     );

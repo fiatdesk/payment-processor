@@ -14,9 +14,11 @@
  *   paid (created when missing); open invoices for earlier periods, which
  *   the contract skipped, are voided; after the charge the period follows
  *   the charge's `Charged` event.
- * A charge sent earlier is reconciled by its recorded hash before anything
- * else. Waits (a pending charge, a collected period, a pause) neither fail
- * the subscription nor count toward the batch.
+ * A charge sent earlier is reconciled by its recorded hashes before anything
+ * else. An invoice is attempted again only once its `next_payment_attempt`
+ * has come (the dunning schedule and every wait's own time). Waits (a
+ * pending charge, a collected period, a pause, a retry not due yet) neither
+ * fail the subscription nor count toward the batch.
  *
  * Safe for multi-instance deployments (Cloud Run) via billing_lock_until claims.
  *
@@ -35,6 +37,10 @@ import { PaymentIntentModule } from './PaymentIntent';
 import { ChargeModule } from './Charge';
 import { GetSettlement, type Settlement } from './chains/Settlement';
 import { CurrentDueAt } from './chains/SubscriptionAuthorization';
+import {
+  CycleClaimId,
+  SubscriptionCycleClaims,
+} from './SubscriptionCycleClaims';
 import {
   CANCELED_ON_CHAIN,
   COLLECTION_DECLINE_CODES,
@@ -56,7 +62,10 @@ const DEFAULT_BATCH_SIZE = 25;
 const BILLING_LOCK_SECONDS = 5 * 60;
 /** Invoices of skipped periods voided per subscription per run. */
 const MAX_MISSED_CYCLES_PER_RUN = 12;
-/** Due subscription items read per page, and pages read per run. */
+/**
+ * Due subscription items (and pending on-chain cancels) read per page, and
+ * pages read per run.
+ */
 const DUE_PAGE_SIZE = 100;
 const MAX_DUE_PAGES = 20;
 
@@ -123,6 +132,7 @@ export class SubscriptionBillingModule {
   private readonly subscriptionModule: SubscriptionModule;
   private readonly invoiceModule: InvoiceModule;
   private readonly settlement: Settlement;
+  private readonly cycleClaims: SubscriptionCycleClaims;
 
   constructor(
     db: Database,
@@ -134,6 +144,7 @@ export class SubscriptionBillingModule {
     this.subscriptionModule = subscriptionModule;
     this.invoiceModule = invoiceModule;
     this.settlement = settlement || GetSettlement();
+    this.cycleClaims = new SubscriptionCycleClaims(db);
   }
 
   /**
@@ -190,7 +201,7 @@ export class SubscriptionBillingModule {
       );
     }
 
-    await this.SendPendingOnchainCancels(options.platformAccountId, batchSize);
+    await this.SendPendingOnchainCancels(options.platformAccountId);
 
     return this.Finish(result);
   }
@@ -343,8 +354,17 @@ export class SubscriptionBillingModule {
         { start: dueAt - periodSeconds, end: dueAt }
       );
     }
+    const due = open.find((candidate) => candidate.period_start === dueAt);
+    // A declined invoice, or one that waits, is attempted again only at
+    // its own time: the dunning schedule decides, not every run.
+    if (
+      due?.next_payment_attempt != null &&
+      due.next_payment_attempt > wallClock
+    ) {
+      return this.Skip(subscription);
+    }
     let invoice =
-      open.find((candidate) => candidate.period_start === dueAt) ??
+      due ??
       (await this.subscriptionModule.CreateCycleInvoice(
         subscription.platform_account,
         subscription.id,
@@ -412,7 +432,7 @@ export class SubscriptionBillingModule {
       await this.subscriptionModule.AdvanceSubscriptionPeriod(
         subscription.id,
         invoice.id,
-        await this.PaidPeriod(subscription)
+        await this.PaidPeriod(subscription, invoice)
       );
       result.succeeded += 1;
       return 'processed';
@@ -467,50 +487,62 @@ export class SubscriptionBillingModule {
   }
 
   /**
-   * The period a confirmed charge paid, from the chain's schedule after it:
-   * `[nextChargeAt - period, nextChargeAt]`. Undefined on a rail with no
-   * schedule, or when the chain cannot be read (the period then moves one
-   * interval on).
+   * The period the invoice's charge paid, from its `Charged` event
+   * (`[nextChargeAt - period, nextChargeAt]`, kept on the cycle claim).
+   * Undefined only on a rail with no schedule, where the period moves one
+   * interval on.
    */
   private async PaidPeriod(
-    subscription: SubscriptionType
+    subscription: SubscriptionType,
+    invoice: InvoiceType
   ): Promise<{ start: number; end: number } | undefined> {
-    const state = await this.ReadState(subscription);
-    if (state?.next_charge_at == null || state.period_seconds == null) {
-      return undefined;
-    }
-    return {
-      start: state.next_charge_at - state.period_seconds,
-      end: state.next_charge_at,
-    };
+    const onchainId = subscription.subscription_onchain_id;
+    if (!onchainId) return undefined;
+    const claim = await this.cycleClaims.Get(
+      CycleClaimId(onchainId, invoice.period_start)
+    );
+    return claim?.paid_period ?? undefined;
   }
 
   /**
-   * Sends again the on-chain cancels of subscriptions canceled here whose
-   * cancel has not landed (`cancel_pending_on_chain`).
+   * Follows the on-chain cancels of subscriptions canceled here whose
+   * cancel has not landed (`cancel_pending_on_chain`), oldest cancel first
+   * and page by page, so they are not capped at the batch size.
    */
   private async SendPendingOnchainCancels(
-    platformAccountId: string | undefined,
-    limit: number
+    platformAccountId: string | undefined
   ): Promise<void> {
-    const pending =
-      (await this.db.Query<SubscriptionType>({
-        collection: 'Subscriptions',
-        method: 'READ',
-        parameters: this.WithPlatformFilter(
-          [
-            {
-              key: 'cancel_pending_on_chain',
-              operator: QueryOperators['=='],
-              value: true,
-            },
-          ],
-          platformAccountId
-        ),
-        limit,
-      })) ?? [];
-    for (const subscription of pending) {
-      await this.subscriptionModule.SendOnchainCancel(subscription.id);
+    let cursor: number | undefined;
+    const seen = new Set<string>();
+    for (let page = 0; page < MAX_DUE_PAGES; page++) {
+      const pending =
+        (await this.db.Query<SubscriptionType>({
+          collection: 'Subscriptions',
+          method: 'READ',
+          parameters: this.WithPlatformFilter(
+            [
+              {
+                key: 'cancel_pending_on_chain',
+                operator: QueryOperators['=='],
+                value: true,
+              },
+            ],
+            platformAccountId
+          ),
+          orderBy: [{ key: 'canceled_at', direction: 'asc' }],
+          limit: DUE_PAGE_SIZE,
+          ...(cursor === undefined ? {} : { startAt: cursor }),
+        })) ?? [];
+      let fresh = false;
+      for (const subscription of pending) {
+        if (seen.has(subscription.id)) continue;
+        seen.add(subscription.id);
+        fresh = true;
+        await this.subscriptionModule.SendOnchainCancel(subscription.id);
+      }
+      if (pending.length < DUE_PAGE_SIZE || !fresh) return;
+      cursor = pending[pending.length - 1].canceled_at ?? undefined;
+      if (cursor === undefined) return;
     }
   }
 
