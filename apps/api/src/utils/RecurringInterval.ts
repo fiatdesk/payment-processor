@@ -37,6 +37,17 @@ export function RecurringIntervalToHours(
 }
 
 /**
+ * A recurring interval (+ count) in seconds: the period of its on-chain
+ * subscription plan.
+ */
+export function RecurringIntervalToSeconds(
+  interval: RecurringInterval,
+  intervalCount = 1
+): number {
+  return RecurringIntervalToHours(interval, intervalCount) * SECONDS_PER_HOUR;
+}
+
+/**
  * Advances a Unix timestamp by a recurring interval (+ count).
  */
 export function AddRecurringInterval(

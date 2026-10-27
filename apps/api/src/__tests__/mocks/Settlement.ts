@@ -21,8 +21,11 @@ import {
 } from '../../modules/chains/SubscriptionAuthorization';
 import type {
   BroadcastResult,
+  ChargeReconciliation,
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
+  OnchainSubscriptionState,
+  SubscriptionCollection,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
@@ -304,11 +307,45 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
       Promise<CheckoutSubscribeVerification>,
       Parameters<Settlement['VerifySubscribeTransaction']>
     >(async (transactionHash) => MockSubscribeVerified(transactionHash)),
-    CollectSubscriptionPayment: jest.fn().mockResolvedValue({
-      transaction_hash: MOCK_CHARGE_HASH,
-      alreadyCollected: false,
+    // Active, with no on-chain schedule unless a test sets one.
+    GetSubscriptionState: jest.fn<
+      Promise<OnchainSubscriptionState>,
+      Parameters<Settlement['GetSubscriptionState']>
+    >(async () => ({
+      status: 'active',
+      next_charge_at: null,
+      period_seconds: null,
+      chain_time: null,
+    })),
+    // Records the charge before "sending" it, as the Ethereum rail does.
+    CollectSubscriptionPayment: jest.fn<
+      Promise<SubscriptionCollection>,
+      Parameters<Settlement['CollectSubscriptionPayment']>
+    >(async (params) => {
+      await params.onSigned(MOCK_CHARGE_HASH);
+      return {
+        status: 'collected',
+        transaction_hash: MOCK_CHARGE_HASH,
+        next_charge_at: null,
+      };
     }),
-    GetSubscriptionStatus: jest.fn().mockResolvedValue('active'),
-    CancelSubscription: jest.fn().mockResolvedValue(MOCK_CANCEL_HASH),
+    ReconcileSubscriptionCharge: jest.fn<
+      Promise<ChargeReconciliation>,
+      Parameters<Settlement['ReconcileSubscriptionCharge']>
+    >(async (transactionHash) => ({
+      status: 'paid',
+      transaction_hash: transactionHash,
+      next_charge_at: null,
+    })),
+    FindSubscriptionCharge: jest.fn().mockResolvedValue(null),
+    CancelSubscription: jest.fn(
+      async (
+        _subscriptionOnchainId: string,
+        options: { onSigned(hash: string): Promise<void> }
+      ) => {
+        await options.onSigned(MOCK_CANCEL_HASH);
+        return MOCK_CANCEL_HASH;
+      }
+    ),
   };
 }

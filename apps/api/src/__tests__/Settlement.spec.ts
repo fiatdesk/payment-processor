@@ -246,27 +246,55 @@ describe('SimulatedSettlement', () => {
       ).resolves.toMatchObject({ status: 'pending' });
     });
 
-    it('collects a subscription without hitting a chain', async () => {
+    it('collects a subscription without hitting a chain, recording the reference first', async () => {
+      const onSigned = jest.fn().mockResolvedValue(undefined);
+
       await expect(
         settlement.CollectSubscriptionPayment({
           subscriptionOnchainId: 'sim_sub_1',
           planKey: PLAN,
           subscriberWallet: PAYER,
           amountCents: 2000,
+          onSigned,
         })
       ).resolves.toEqual({
+        status: 'collected',
         transaction_hash: `sim_collect:${PAYER}`,
-        alreadyCollected: false,
+        next_charge_at: null,
+      });
+      expect(onSigned).toHaveBeenCalledWith(`sim_collect:${PAYER}`);
+      await expect(
+        settlement.ReconcileSubscriptionCharge(`sim_collect:${PAYER}`, {
+          subscriptionOnchainId: 'sim_sub_1',
+          amountCents: 2000,
+          sentAt: null,
+          onReplaced: jest.fn(),
+        })
+      ).resolves.toEqual({
+        status: 'paid',
+        transaction_hash: `sim_collect:${PAYER}`,
+        next_charge_at: null,
       });
     });
 
-    it('is always active and has nothing to cancel on-chain', async () => {
-      await expect(settlement.GetSubscriptionStatus('sim_sub_1')).resolves.toBe(
-        'active'
-      );
-      await expect(settlement.CancelSubscription('sim_sub_1')).resolves.toBe(
-        null
-      );
+    it('is always active, keeps no schedule and has nothing to cancel on-chain', async () => {
+      await expect(
+        settlement.GetSubscriptionState('sim_sub_1')
+      ).resolves.toEqual({
+        status: 'active',
+        next_charge_at: null,
+        period_seconds: null,
+        chain_time: null,
+      });
+      await expect(
+        settlement.CancelSubscription('sim_sub_1', { onSigned: jest.fn() })
+      ).resolves.toBeNull();
+      await expect(
+        settlement.FindSubscriptionCharge('sim_sub_1', {
+          amountCents: 2000,
+          since: 0,
+        })
+      ).resolves.toBeNull();
       await expect(
         settlement.FindExistingSubscription(PLAN, PAYER)
       ).resolves.toBeNull();

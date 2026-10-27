@@ -5,6 +5,7 @@
 
 import mongoose, { ClientSession } from 'mongoose';
 import { QueryParameters, QueryOperators } from '@zoneless/shared-types';
+import { LIVE_SUBSCRIPTION_STATUSES } from './SubscriptionCycleClaims';
 
 export class Database {
   /**
@@ -454,6 +455,8 @@ export class Database {
       'PayoutBatches',
       'Payouts',
       'Persons',
+      'SubscriptionCycleClaims',
+      'Subscriptions',
       'TopUps',
       'Transfers',
       'UsageCounters',
@@ -503,6 +506,27 @@ export class Database {
           partialFilterExpression: { status: { $in: ['built', 'broadcast'] } },
         }
       );
+    }
+
+    if (collectionName === 'Subscriptions') {
+      // One live Subscription bills each on-chain subscription: the contract
+      // charges it once per period.
+      flexibleSchema.index(
+        { subscription_onchain_id: 1 },
+        {
+          unique: true,
+          partialFilterExpression: {
+            subscription_onchain_id: { $type: 'string' },
+            status: { $in: LIVE_SUBSCRIPTION_STATUSES },
+          },
+        }
+      );
+    }
+
+    if (collectionName === 'SubscriptionCycleClaims') {
+      // Claims are inserted under `id = ${subId}:${dueAt}` (unique above);
+      // this finds an owner's claims for one subscription.
+      flexibleSchema.index({ subscription_onchain_id: 1, owner: 1 });
     }
 
     if (collectionName === 'TopUps') {

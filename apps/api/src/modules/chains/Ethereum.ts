@@ -2,19 +2,16 @@
 /**
  * The on-chain Ethereum rail (mainnet, Sepolia or Anvil): rail description,
  * explorer links, address checks, balance reads, deposit detection from USDC
- * `Transfer` logs, batch payouts through the PayoutBatch contract, hosted
- * checkout through relayed EIP-3009 authorizations, and subscriptions on the
- * Subscriptions contract (plans and charges from SUBSCRIPTION_OPERATOR_KEY,
- * relayed subscribes from CHECKOUT_RELAYER_KEY).
+ * `Transfer` logs, batch payouts through the PayoutBatch contract and hosted
+ * checkout through relayed EIP-3009 authorizations. Subscriptions on the
+ * Subscriptions contract live in `EthereumSubscriptions`, which this class
+ * delegates to.
  *
  * @module chains/Ethereum
  */
 
 import {
   BaseError,
-  decodeErrorResult,
-  ExecutionRevertedError,
-  RawContractError,
   encodeFunctionData,
   formatEther,
   formatUnits,
@@ -30,8 +27,6 @@ import {
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
   WaitForTransactionReceiptTimeoutError,
-  zeroAddress,
-  type Abi,
   type Address,
   type Block,
   type Hex,
@@ -39,7 +34,7 @@ import {
   type TransactionReceipt,
   type TransactionSerialized,
 } from 'viem';
-import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import {
   IsTransactionHash,
   SameAddress,
@@ -50,13 +45,10 @@ import { WithKeyedLock } from '../../utils/KeyedLock';
 import { Logger } from '../../utils/Logger';
 import {
   GetCheckoutConfirmTimeoutMs,
-  GetCheckoutRelayerKey,
   GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
-  RequireSubscriptionOperatorKey,
 } from '../AppConfig';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
-import { SUBSCRIPTIONS_ABI } from './abi/Subscriptions';
 import { USDC_ABI } from './abi/Usdc';
 import {
   GetChainConfig,
@@ -72,54 +64,63 @@ import {
   type UsdcDomain,
 } from './CheckoutAuthorization';
 import {
+  BLOCK_TIME_SECONDS,
+  CeilDiv,
+  CurrentFees,
+  DecodeRevert,
+  ErrorText,
+  GetReceiptOrNull,
+  IsExecutionRevert,
+  IsKnownTransaction,
+  LatestBlock,
+  NodeCall,
+  NodeUnavailable,
+  RelayerRequired,
+  ReplacementFees,
+  RequireRelayer,
+  RevertReason,
+  SenderLock,
+  SendSigned,
+  ToAddress,
+  WAIT_TIMEOUT_MS,
+  WaitForReceiptDepth,
+  WasAccepted,
+} from './EthereumTransactions';
+import { EthereumSubscriptions } from './EthereumSubscriptions';
+import {
   CentsToTokenUnits,
   EncodeDisperseCall,
   MapRevertToFailureCode,
   ParsePayoutReceipt,
 } from './PayoutEncoding';
 import type { Settlement } from './Settlement';
-import {
-  BuildPermitTypedData,
-  BuildSubscribeTypedData,
-  BuildSubscriptionsDomain,
-  FindSubscribedEvent,
-  PermitValue,
-  PlanIdFromPriceId,
-  PlanKeyFor,
-  SubscribeDeadline,
-  SubscriptionIdFor,
-  type PlanTerms,
-} from './SubscriptionAuthorization';
-import {
-  COLLECTION_FAILED_ALLOWANCE,
-  PAUSED_ON_CHAIN,
-  type BroadcastResult,
-  type CheckoutPaymentExpectation,
-  type CheckoutPaymentVerification,
-  type CheckoutSubscribeVerification,
-  type ConfirmedBlock,
-  type IncomingDeposit,
-  type OnchainSubscriptionStatus,
-  type PayoutBuildOptions,
-  type PayoutTransactionExpectation,
-  type PayoutTransactionMatch,
-  type PreparedAuthorization,
-  type PreparedSubscribe,
-  type RailDescription,
-  type RelayCheckoutOptions,
-  type RelaySubscribeOptions,
-  type SubscribeRelay,
-  type SubscriptionCollectParams,
-  type SubscriptionCollection,
-  type TransferRecipient,
-  type UnsignedPayoutBatch,
+import type {
+  BroadcastResult,
+  ChargeReconciliation,
+  CheckoutPaymentExpectation,
+  CheckoutPaymentVerification,
+  CheckoutSubscribeVerification,
+  ConfirmedBlock,
+  IncomingDeposit,
+  OnchainSubscriptionState,
+  PayoutBuildOptions,
+  PayoutTransactionExpectation,
+  PayoutTransactionMatch,
+  PreparedAuthorization,
+  PreparedSubscribe,
+  RailDescription,
+  RelayCheckoutOptions,
+  RelaySubscribeOptions,
+  SubscribeRelay,
+  SubscriptionCollectParams,
+  SubscriptionCollection,
+  TransferRecipient,
+  UnsignedPayoutBatch,
 } from './types';
 
+export { ReplacementFees };
+
 const USDC_DECIMALS = 6;
-/** Ethereum's slot time; only used for the informational `release_after`. */
-const BLOCK_TIME_SECONDS = 12;
-/** How long broadcast waits for a receipt, or for a wallet's hash to appear. */
-const WAIT_TIMEOUT_MS = 60_000;
 const BATCH_PAID_EVENT = getAbiItem({
   abi: PAYOUT_BATCH_ABI,
   name: 'BatchPaid',
@@ -133,44 +134,11 @@ const AUTHORIZATION_USED_EVENT = getAbiItem({
 const BLOCK_TIMESTAMP_CACHE_SIZE = 256;
 /** Gas of one USDC `transferWithAuthorization`, for the quoted relay fee. */
 const RELAY_GAS_ESTIMATE = 100_000n;
-/** Gas of one relayed `subscribeWithPermit`, for the quoted relay fee. */
-const SUBSCRIBE_GAS_ESTIMATE = 200_000n;
-/** The contract's `Status` enum, by value. */
-const SUBSCRIPTION_STATUSES: readonly OnchainSubscriptionStatus[] = [
-  'none',
-  'active',
-  'paused',
-  'canceled',
-];
-/** Sends of one relay, re-signed when another sender took the nonce. */
-const RELAY_SEND_ATTEMPTS = 3;
 /** Blocks per `getLogs` call when looking for a used authorization. */
 const AUTHORIZATION_LOG_CHUNK = 2_000n;
 const AUTHORIZATION_LOG_MAX_CHUNKS = 50;
 /** Blocks searched before the session's creation, on top of the estimate. */
 const AUTHORIZATION_LOG_MARGIN = 256n;
-
-interface Fees {
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-}
-
-/** `plans(planKey)` of the Subscriptions contract. */
-interface OnchainPlan {
-  owner: Address;
-  puller: Address;
-  destination: Address;
-  terms: PlanTerms;
-  active: boolean;
-}
-
-/** `subscriptions(subId)` of the Subscriptions contract. */
-interface OnchainSubscription {
-  planKey: Hex;
-  subscriber: Address;
-  nextChargeAt: bigint;
-  status: OnchainSubscriptionStatus;
-}
 
 /** 501 error for a rail capability that does not exist yet. */
 export function NotSupported(method: string): AppError {
@@ -185,6 +153,10 @@ export class Ethereum implements Settlement {
   private usdcDecimalsVerified = false;
   private usdcDomain: UsdcDomain | null = null;
   private readonly blockTimestamps = new Map<bigint, number>();
+  private readonly subscriptions = new EthereumSubscriptions({
+    VerifyDecimals: (usdc) => this.VerifyUsdcDecimals(usdc),
+    Domain: () => this.GetUsdcDomain(),
+  });
 
   Describe(): RailDescription {
     const { chainId, usdc } = GetChainConfig();
@@ -228,7 +200,7 @@ export class Ethereum implements Settlement {
 
   /** SUBSCRIPTION_OPERATOR_KEY's address: owner and puller of every plan. */
   GetPlanOwnerAddress(): string {
-    return RequireOperator().address;
+    return this.subscriptions.GetPlanOwnerAddress();
   }
 
   async GetLatestBlockNumber(): Promise<bigint> {
@@ -514,7 +486,7 @@ export class Ethereum implements Settlement {
         serializedTransaction: serialized,
       });
     } catch (error) {
-      if (!(await this.WasAccepted(error, hash))) {
+      if (!(await WasAccepted(error, hash))) {
         Logger.warn('The network refused a payout transaction', {
           transactionHash: hash,
           error: ErrorText(error),
@@ -726,7 +698,7 @@ export class Ethereum implements Settlement {
     });
     const [domain, fees] = await Promise.all([
       this.GetUsdcDomain(),
-      this.CurrentFees(),
+      CurrentFees(),
     ]);
     return {
       method: 'eip3009_transfer',
@@ -785,7 +757,7 @@ export class Ethereum implements Settlement {
     );
     if (options.pendingHash) {
       if (used) return options.pendingHash;
-      if ((await this.IsKnownTransaction(options.pendingHash)) !== false) {
+      if ((await IsKnownTransaction(options.pendingHash)) !== false) {
         return options.pendingHash;
       }
     }
@@ -799,7 +771,7 @@ export class Ethereum implements Settlement {
     const earlier = await NodeCall('authorization log search', async () =>
       this.FindAuthorizationUse(
         { nonce },
-        { createdAt: options.createdAt, head: await this.GetLatestBlock() },
+        { createdAt: options.createdAt, head: await LatestBlock() },
         (hash) => this.PaysMerchant(hash, paid)
       )
     );
@@ -808,7 +780,10 @@ export class Ethereum implements Settlement {
 
     const gas = await this.EstimateRelayGas(relayer.address, usdc, data);
     return WithKeyedLock(SenderLock(relayer.address), () =>
-      this.SendRelay(relayer, usdc, data, gas, options.onSigned)
+      SendSigned(relayer, usdc, data, gas, {
+        onSigned: options.onSigned,
+        refused: 'The network did not accept the payment',
+      })
     );
   }
 
@@ -855,21 +830,21 @@ export class Ethereum implements Settlement {
 
     try {
       // A transaction the node has never seen will not confirm by waiting.
-      const known = hash === null ? null : await this.IsKnownTransaction(hash);
+      const known = hash === null ? null : await IsKnownTransaction(hash);
       if (hash && known === false && !(await AuthorizationUsed())) {
         return { ...CheckoutPending(hash), status: 'not_found' };
       }
       const mined =
         hash !== null &&
         known !== false &&
-        (await this.WaitForCheckoutReceipt(
+        (await WaitForReceiptDepth(
           hash,
           options.timeoutMs ?? GetCheckoutConfirmTimeoutMs()
         ));
       const confirmed = await this.GetConfirmedBlock();
       let checked: CheckoutPaymentVerification | null = null;
       if (hash && mined) {
-        const receipt = await this.GetReceiptOrNull(hash);
+        const receipt = await GetReceiptOrNull(hash);
         if (receipt && receipt.blockNumber > BigInt(confirmed.number)) {
           return CheckoutPending(hash);
         }
@@ -924,661 +899,110 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /**
-   * `createPlan` from SUBSCRIPTION_OPERATOR_KEY, which owns the plan and is
-   * the plan's puller here. The plan id is keccak256 of the price id, so a
-   * plan already on-chain with the same terms (a retry) is returned as it
-   * is; one with other terms is refused.
-   */
-  async CreateSubscriptionPlan(
+  CreateSubscriptionPlan(
     priceId: string,
     periodSeconds: number,
     amountCents: number,
     destination: string,
     puller: string
   ): Promise<string> {
-    const operator = RequireOperator();
-    const { usdc } = GetChainConfig();
-    const subscriptions = SubscriptionsAddress();
-    if (!Number.isInteger(periodSeconds) || periodSeconds <= 0) {
-      throw new AppError(
-        'A subscription period must be a positive whole number of seconds',
-        400,
-        'invalid_request_error'
-      );
-    }
-    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
-    const planId = PlanIdFromPriceId(priceId);
-    const planKey = PlanKeyFor(operator.address, planId);
-    const terms: PlanTerms = {
-      token: usdc,
-      amount: PositiveTokenUnits(amountCents),
-      periodSeconds: BigInt(periodSeconds),
-    };
-
-    const existing = await NodeCall('plan read', () => this.ReadPlan(planKey));
-    if (existing) {
-      if (!SameTerms(existing.terms, terms)) {
-        throw new AppError(
-          `On-chain plan ${planKey} for price ${priceId} has other terms`,
-          409,
-          'invalid_request_error'
-        );
-      }
-      return planKey;
-    }
-
-    const data = encodeFunctionData({
-      abi: SUBSCRIPTIONS_ABI,
-      functionName: 'createPlan',
-      args: [
-        planId,
-        usdc,
-        terms.amount,
-        terms.periodSeconds,
-        ToAddress(destination),
-        ToAddress(puller),
-      ],
-    });
-    const simulated = await this.SimulateSubscriptionsCall(
-      operator.address,
-      data
-    );
-    if ('revert' in simulated) {
-      throw SubscriptionsCallRefused('plan', simulated.revert);
-    }
-    const { hash, receipt } = await this.SendAndConfirm(
-      operator,
-      subscriptions,
-      data,
-      simulated.gas,
-      'subscription plan'
-    );
-    if (receipt.status !== 'success') {
-      throw SubscriptionsCallRefused(
-        'plan',
-        await this.ReplayRevert(hash, receipt.blockNumber)
-      );
-    }
-    Logger.info('Created an on-chain subscription plan', {
+    return this.subscriptions.CreateSubscriptionPlan(
       priceId,
-      planKey,
-      transactionHash: hash,
-    });
-    return planKey;
+      periodSeconds,
+      amountCents,
+      destination,
+      puller
+    );
   }
 
-  /**
-   * The `Subscribe` to sign (the subscriber's nonce is read just before it
-   * is built) and, when the subscriber's USDC allowance to the
-   * Subscriptions contract is below the bounded permit value, the USDC
-   * permit for that value. Both are valid for 30 minutes of chain time and
-   * never after `expiresAt`. The relayer pays the gas.
-   */
-  async BuildSubscribeAuthorization(
+  BuildSubscribeAuthorization(
     subscriber: string,
     planKey: string,
-    expiresAt: number
+    expiresAt: number,
+    options?: { otherPlansAllowance?: bigint }
   ): Promise<PreparedSubscribe> {
-    if (!IsCheckoutRelayed()) throw RelayerRequired();
-    const { chainId, usdc } = GetChainConfig();
-    const subscriptions = SubscriptionsAddress();
-    const owner = ToAddress(subscriber);
-    const key = Bytes32(planKey, 'subscription_plan_id');
-    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
-
-    const client = GetPublicClient();
-    const [plan, block, allowance, permitNonce, subscribeNonce] =
-      await NodeCall('subscribe reads', () =>
-        Promise.all([
-          this.ReadPlan(key),
-          client.getBlock({ blockTag: 'latest' }),
-          client.readContract({
-            address: usdc,
-            abi: USDC_ABI,
-            functionName: 'allowance',
-            args: [owner, subscriptions],
-          }),
-          client.readContract({
-            address: usdc,
-            abi: USDC_ABI,
-            functionName: 'nonces',
-            args: [owner],
-          }),
-          client.readContract({
-            address: subscriptions,
-            abi: SUBSCRIPTIONS_ABI,
-            functionName: 'nonces',
-            args: [owner],
-          }),
-        ])
-      );
-    const terms = OpenPlanTerms(plan, usdc);
-    const deadline = SubscribeDeadline(expiresAt, Number(block.timestamp));
-    const permitValue = PermitValue(terms);
-    const needsPermit = allowance < permitValue;
-    const [usdcDomain, fees] = await NodeCall('USDC domain and fees', () =>
-      Promise.all([this.GetUsdcDomain(), this.CurrentFees()])
+    return this.subscriptions.BuildSubscribeAuthorization(
+      subscriber,
+      planKey,
+      expiresAt,
+      options
     );
-    return {
-      needs_permit: needsPermit,
-      permit_typed_data: needsPermit
-        ? BuildPermitTypedData(usdcDomain, {
-            owner,
-            spender: subscriptions,
-            value: permitValue,
-            nonce: permitNonce,
-            deadline,
-          })
-        : null,
-      subscribe_typed_data: BuildSubscribeTypedData(
-        BuildSubscriptionsDomain(chainId, subscriptions),
-        {
-          planKey: key,
-          subscriber: owner,
-          terms,
-          nonce: subscribeNonce,
-          deadline,
-        }
-      ),
-      deadline,
-      estimated_fee: (SUBSCRIBE_GAS_ESTIMATE * fees.maxFeePerGas).toString(),
-      fee_currency: 'eth',
-      chain_id: chainId,
-    };
   }
 
-  /**
-   * `subscribeWithPermit` (with a permit signature) or
-   * `subscribeWithAuthorization` from CHECKOUT_RELAYER_KEY, with the plan's
-   * terms read from the chain. Nothing is sent when the subscriber is
-   * already subscribed or the recorded relay is still known to the node.
-   * The call is simulated first: a stale or expired signature is a 409
-   * `subscription_authorization_stale` (prepare again and sign the new
-   * request); other reverts are a 400. Sends share the relayer's lock and
-   * nonce handling with checkout relays.
-   */
-  async RelaySubscribe(
+  RelaySubscribe(
     relay: SubscribeRelay,
     options: RelaySubscribeOptions
   ): Promise<string | null> {
-    const relayer = privateKeyToAccount(RequireRelayer());
-    const { usdc } = GetChainConfig();
-    const subscriptions = SubscriptionsAddress();
-    const subscriber = ToAddress(relay.subscriber);
-    const planKey = Bytes32(relay.planKey, 'subscription_plan_id');
-    const signature = SignatureBytes(relay.subscribeSignature);
-    const permit = relay.permitSignature
-      ? SplitSignature(relay.permitSignature)
-      : null;
-    const subId = SubscriptionIdFor(planKey, subscriber);
-
-    const client = GetPublicClient();
-    const [plan, subscription, allowance] = await NodeCall(
-      'subscribe relay reads',
-      () =>
-        Promise.all([
-          this.ReadPlan(planKey),
-          this.ReadSubscription(subId),
-          client.readContract({
-            address: usdc,
-            abi: USDC_ABI,
-            functionName: 'allowance',
-            args: [subscriber, subscriptions],
-          }),
-        ])
-    );
-    const subscribed = IsSubscribed(subscription);
-    if (options.pendingHash) {
-      if (subscribed) return options.pendingHash;
-      if ((await this.IsKnownTransaction(options.pendingHash)) !== false) {
-        return options.pendingHash;
-      }
-    }
-    if (subscribed) return null;
-
-    const terms = OpenPlanTerms(plan, usdc);
-    if (!permit && allowance < terms.amount) {
-      throw new AppError(
-        "permit_signature is required: the wallet's USDC allowance does not cover the first payment",
-        400,
-        'invalid_request_error'
-      );
-    }
-    const deadline = BigInt(relay.deadline);
-    const data = permit
-      ? encodeFunctionData({
-          abi: SUBSCRIPTIONS_ABI,
-          functionName: 'subscribeWithPermit',
-          args: [
-            planKey,
-            subscriber,
-            terms,
-            PermitValue(terms),
-            deadline,
-            permit.v,
-            permit.r,
-            permit.s,
-            deadline,
-            signature,
-          ],
-        })
-      : encodeFunctionData({
-          abi: SUBSCRIPTIONS_ABI,
-          functionName: 'subscribeWithAuthorization',
-          args: [planKey, subscriber, terms, deadline, signature],
-        });
-
-    const simulated = await this.SimulateSubscriptionsCall(
-      relayer.address,
-      data
-    );
-    if ('revert' in simulated) {
-      // Someone else submitted it first; verification finds the result.
-      if (simulated.revert.errorName === 'AlreadySubscribed') return null;
-      throw SubscribeRefused(simulated.revert, !!permit);
-    }
-    return WithKeyedLock(SenderLock(relayer.address), () =>
-      this.SendRelay(
-        relayer,
-        subscriptions,
-        data,
-        simulated.gas,
-        options.onSigned,
-        'The network did not accept the subscription'
-      )
-    );
+    return this.subscriptions.RelaySubscribe(relay, options);
   }
 
-  async FindExistingSubscription(
+  FindExistingSubscription(
     planKey: string,
     subscriber: string
   ): Promise<string | null> {
-    const subId = SubscriptionIdFor(
-      Bytes32(planKey, 'subscription_plan_id'),
-      ToAddress(subscriber)
-    );
-    const subscription = await NodeCall('subscription read', () =>
-      this.ReadSubscription(subId)
-    );
-    return IsSubscribed(subscription) ? subId : null;
+    return this.subscriptions.FindExistingSubscription(planKey, subscriber);
   }
 
-  /**
-   * Waits up to `timeoutMs` until the transaction is ETH_CONFIRMATIONS deep,
-   * then reads at that confirmed block. Verified when the receipt has the
-   * `Subscribed` log, or when the subscription exists anyway (another
-   * transaction, such as a copy of the relay, subscribed first). An RPC
-   * error leaves the result `pending`.
-   */
-  async VerifySubscribeTransaction(
+  VerifySubscribeTransaction(
     transactionHash: string | null,
     expected: { planKey: string; subscriberWallet: string },
-    options: { timeoutMs?: number } = {}
+    options?: { timeoutMs?: number }
   ): Promise<CheckoutSubscribeVerification> {
-    if (transactionHash !== null && !IsTransactionHash(transactionHash)) {
-      throw new AppError(
-        'transaction_hash must be 0x followed by 64 hex characters',
-        400,
-        'invalid_request_error'
-      );
-    }
-    const hash = transactionHash
-      ? (transactionHash.toLowerCase() as Hex)
-      : null;
-    const subscriptions = SubscriptionsAddress();
-    const subscriber = ToAddress(expected.subscriberWallet);
-    const planKey = Bytes32(expected.planKey, 'subscription_plan_id');
-    const subId = SubscriptionIdFor(planKey, subscriber);
-    const Result = (
-      status: CheckoutSubscribeVerification['status'],
-      transaction: string | null,
-      failureReason?: string
-    ): CheckoutSubscribeVerification => ({
-      status,
-      transaction_hash: transaction,
-      subscriber_address: status === 'verified' ? subscriber : null,
-      subscription_onchain_id: status === 'verified' ? subId : null,
-      ...(failureReason ? { failure_reason: failureReason } : {}),
-    });
-    const Exists = async (blockNumber?: bigint) =>
-      IsSubscribed(await this.ReadSubscription(subId, blockNumber));
-
-    try {
-      // A transaction the node has never seen will not confirm by waiting.
-      const known = hash === null ? null : await this.IsKnownTransaction(hash);
-      if (hash && known === false && !(await Exists())) {
-        return Result('not_found', hash);
-      }
-      const mined =
-        hash !== null &&
-        known !== false &&
-        (await this.WaitForCheckoutReceipt(
-          hash,
-          options.timeoutMs ?? GetCheckoutConfirmTimeoutMs()
-        ));
-      const confirmed = await this.GetConfirmedBlock();
-      const receipt = hash && mined ? await this.GetReceiptOrNull(hash) : null;
-      if (receipt && receipt.blockNumber > BigInt(confirmed.number)) {
-        return Result('pending', hash);
-      }
-      if (
-        receipt &&
-        FindSubscribedEvent(receipt, { subscriptions, planKey, subscriber }) ===
-          subId
-      ) {
-        return Result('verified', hash);
-      }
-      if (await Exists(BigInt(confirmed.number))) {
-        return Result('verified', null);
-      }
-      return receipt
-        ? Result(
-            'failed',
-            hash,
-            'The subscribe transaction did not create the subscription'
-          )
-        : Result('pending', hash);
-    } catch (error) {
-      // Only a node or transport error means "try again later".
-      if (!(error instanceof BaseError)) {
-        Logger.error('Subscribe verification failed', error, {
-          transactionHash: hash,
-        });
-        throw error;
-      }
-      Logger.warn('Subscribe verification could not read the chain', {
-        transactionHash: hash,
-        error: ErrorText(error),
-      });
-      return Result('pending', hash);
-    }
+    return this.subscriptions.VerifySubscribeTransaction(
+      transactionHash,
+      expected,
+      options
+    );
   }
 
-  /**
-   * `charge(subId, amount)` from SUBSCRIPTION_OPERATOR_KEY, after reading
-   * the subscription's on-chain status (the chain decides whether it is
-   * paused). `NotDueYet` means this period was already collected; a
-   * `NotActive` revert means it was paused meanwhile. A transfer the token
-   * refuses is `collection_failed_allowance` when the allowance to the
-   * Subscriptions contract is below the amount.
-   */
-  async CollectSubscriptionPayment(
+  GetSubscriptionState(
+    subscriptionOnchainId: string
+  ): Promise<OnchainSubscriptionState> {
+    return this.subscriptions.GetSubscriptionState(subscriptionOnchainId);
+  }
+
+  CollectSubscriptionPayment(
     params: SubscriptionCollectParams
   ): Promise<SubscriptionCollection> {
-    const operator = RequireOperator();
-    const { usdc } = GetChainConfig();
-    const subscriptions = SubscriptionsAddress();
-    await NodeCall('USDC decimals', () => this.VerifyUsdcDecimals(usdc));
-    const subId = Bytes32(
-      params.subscriptionOnchainId,
-      'subscription_onchain_id'
-    );
-    const amount = PositiveTokenUnits(params.amountCents);
-
-    const subscription = await NodeCall('subscription read', () =>
-      this.ReadSubscription(subId)
-    );
-    if (subscription.status === 'paused') throw PausedOnChain();
-    if (subscription.status !== 'active') {
-      throw new AppError(
-        subscription.status === 'canceled'
-          ? 'The subscriber canceled this subscription on-chain'
-          : 'This subscription does not exist on-chain',
-        400,
-        'invalid_request_error'
-      );
-    }
-    if (subscription.planKey.toLowerCase() !== params.planKey.toLowerCase()) {
-      throw new Error(
-        `On-chain subscription ${subId} belongs to plan ${subscription.planKey}, not ${params.planKey}`
-      );
-    }
-
-    const data = encodeFunctionData({
-      abi: SUBSCRIPTIONS_ABI,
-      functionName: 'charge',
-      args: [subId, amount],
-    });
-    const simulated = await this.SimulateSubscriptionsCall(
-      operator.address,
-      data
-    );
-    if ('revert' in simulated) {
-      return this.ChargeRefused(simulated.revert, subscription, amount);
-    }
-    const { hash, receipt } = await this.SendAndConfirm(
-      operator,
-      subscriptions,
-      data,
-      simulated.gas,
-      'subscription payment'
-    );
-    if (receipt.status !== 'success') {
-      return this.ChargeRefused(
-        await this.ReplayRevert(hash, receipt.blockNumber),
-        subscription,
-        amount
-      );
-    }
-    return { transaction_hash: hash, alreadyCollected: false };
+    return this.subscriptions.CollectSubscriptionPayment(params);
   }
 
-  async GetSubscriptionStatus(
-    subscriptionOnchainId: string
-  ): Promise<OnchainSubscriptionStatus> {
-    const subId = Bytes32(subscriptionOnchainId, 'subscription_onchain_id');
-    const subscription = await NodeCall('subscription read', () =>
-      this.ReadSubscription(subId)
+  ReconcileSubscriptionCharge(
+    transactionHash: string,
+    expected: {
+      subscriptionOnchainId: string;
+      amountCents: number;
+      sentAt: number | null;
+      onReplaced(transactionHash: string): Promise<void>;
+    }
+  ): Promise<ChargeReconciliation> {
+    return this.subscriptions.ReconcileSubscriptionCharge(
+      transactionHash,
+      expected
     );
-    return subscription.status;
   }
 
-  /** `cancel(subId)` from SUBSCRIPTION_OPERATOR_KEY, the plan owner. */
-  async CancelSubscription(
-    subscriptionOnchainId: string
+  FindSubscriptionCharge(
+    subscriptionOnchainId: string,
+    expected: { amountCents: number; since: number }
+  ): Promise<{ transaction_hash: string; next_charge_at: number } | null> {
+    return this.subscriptions.FindSubscriptionCharge(
+      subscriptionOnchainId,
+      expected
+    );
+  }
+
+  CancelSubscription(
+    subscriptionOnchainId: string,
+    options: {
+      pendingHash?: string | null;
+      onSigned(transactionHash: string): Promise<void>;
+    }
   ): Promise<string | null> {
-    const operator = RequireOperator();
-    const subscriptions = SubscriptionsAddress();
-    const subId = Bytes32(subscriptionOnchainId, 'subscription_onchain_id');
-    const subscription = await NodeCall('subscription read', () =>
-      this.ReadSubscription(subId)
+    return this.subscriptions.CancelSubscription(
+      subscriptionOnchainId,
+      options
     );
-    if (!IsSubscribed(subscription)) return null;
-
-    const data = encodeFunctionData({
-      abi: SUBSCRIPTIONS_ABI,
-      functionName: 'cancel',
-      args: [subId],
-    });
-    const simulated = await this.SimulateSubscriptionsCall(
-      operator.address,
-      data
-    );
-    if ('revert' in simulated) {
-      throw SubscriptionsCallRefused('cancel', simulated.revert);
-    }
-    const { hash, receipt } = await this.SendAndConfirm(
-      operator,
-      subscriptions,
-      data,
-      simulated.gas,
-      'subscription cancel'
-    );
-    if (receipt.status !== 'success') {
-      throw SubscriptionsCallRefused(
-        'cancel',
-        await this.ReplayRevert(hash, receipt.blockNumber)
-      );
-    }
-    return hash;
-  }
-
-  private async ReadPlan(planKey: Hex): Promise<OnchainPlan | null> {
-    const [owner, puller, destination, token, amount, periodSeconds, active] =
-      await GetPublicClient().readContract({
-        address: SubscriptionsAddress(),
-        abi: SUBSCRIPTIONS_ABI,
-        functionName: 'plans',
-        args: [planKey],
-      });
-    if (owner === zeroAddress) return null;
-    return {
-      owner,
-      puller,
-      destination,
-      terms: { token, amount, periodSeconds },
-      active,
-    };
-  }
-
-  private async ReadSubscription(
-    subId: Hex,
-    blockNumber?: bigint
-  ): Promise<OnchainSubscription> {
-    const [planKey, subscriber, nextChargeAt, status] =
-      await GetPublicClient().readContract({
-        address: SubscriptionsAddress(),
-        abi: SUBSCRIPTIONS_ABI,
-        functionName: 'subscriptions',
-        args: [subId],
-        blockNumber,
-      });
-    return {
-      planKey,
-      subscriber,
-      nextChargeAt,
-      status: SUBSCRIPTION_STATUSES[status] ?? 'none',
-    };
-  }
-
-  /**
-   * Estimates a Subscriptions call: the gas (with a 20 % margin), or the
-   * decoded revert. Any other failure is a 502 with the node's text logged.
-   */
-  private async SimulateSubscriptionsCall(
-    from: Address,
-    data: Hex
-  ): Promise<{ gas: bigint } | { revert: RevertDetails }> {
-    try {
-      const estimate = await GetPublicClient().estimateGas({
-        account: from,
-        to: SubscriptionsAddress(),
-        data,
-      });
-      return { gas: CeilDiv(estimate * 6n, 5n) };
-    } catch (error) {
-      if (!IsExecutionRevert(error)) {
-        throw NodeUnavailable('estimateGas', error);
-      }
-      return { revert: DecodeRevert(error, SUBSCRIPTIONS_ABI) };
-    }
-  }
-
-  /**
-   * Signs and sends from `account` under its lock, then waits up to 60 s
-   * for ETH_CONFIRMATIONS. A transaction still unconfirmed is a 502.
-   */
-  private async SendAndConfirm(
-    account: PrivateKeyAccount,
-    to: Address,
-    data: Hex,
-    gas: bigint,
-    label: string
-  ): Promise<{ hash: Hex; receipt: TransactionReceipt }> {
-    const hash = (await WithKeyedLock(SenderLock(account.address), () =>
-      this.SendRelay(
-        account,
-        to,
-        data,
-        gas,
-        async () => undefined,
-        `The network did not accept the ${label}`
-      )
-    )) as Hex;
-    try {
-      const receipt = await GetPublicClient().waitForTransactionReceipt({
-        hash,
-        confirmations: GetChainConfig().confirmations,
-        timeout: WAIT_TIMEOUT_MS,
-      });
-      return { hash, receipt };
-    } catch (error) {
-      Logger.warn('A sent transaction did not confirm in time', {
-        label,
-        transactionHash: hash,
-        error: ErrorText(error),
-      });
-      throw new AppError(
-        `The ${label} transaction ${hash} is not confirmed yet`,
-        502,
-        'blockchain_error'
-      );
-    }
-  }
-
-  /** Why a mined Subscriptions call reverted, replayed at its block. */
-  private async ReplayRevert(
-    hash: Hex,
-    blockNumber: bigint
-  ): Promise<RevertDetails> {
-    const transaction = await NodeCall('transaction read', () =>
-      GetPublicClient().getTransaction({ hash })
-    );
-    return NodeCall('revert replay', () =>
-      this.RevertReason(transaction, blockNumber, SUBSCRIPTIONS_ABI)
-    );
-  }
-
-  /**
-   * Maps a refused `charge`: `NotDueYet` is this period already collected,
-   * `NotActive` a pause, and a transfer the token refused is classified
-   * from the subscriber's allowance and balance.
-   */
-  private async ChargeRefused(
-    revert: RevertDetails,
-    subscription: OnchainSubscription,
-    amount: bigint
-  ): Promise<SubscriptionCollection> {
-    if (revert.errorName === 'NotDueYet') {
-      return { transaction_hash: null, alreadyCollected: true };
-    }
-    if (revert.errorName === 'NotActive') throw PausedOnChain();
-    if (!IsSubscriptionsError(revert.errorName)) {
-      const { usdc } = GetChainConfig();
-      const client = GetPublicClient();
-      const [allowance, balance] = await NodeCall('subscriber USDC reads', () =>
-        Promise.all([
-          client.readContract({
-            address: usdc,
-            abi: USDC_ABI,
-            functionName: 'allowance',
-            args: [subscription.subscriber, SubscriptionsAddress()],
-          }),
-          client.readContract({
-            address: usdc,
-            abi: USDC_ABI,
-            functionName: 'balanceOf',
-            args: [subscription.subscriber],
-          }),
-        ])
-      );
-      if (allowance < amount) {
-        throw new AppError(
-          "The subscriber's USDC allowance to the Subscriptions contract does not cover this payment; the subscriber must sign a new permit",
-          402,
-          COLLECTION_FAILED_ALLOWANCE
-        );
-      }
-      if (balance < amount) {
-        throw new AppError(
-          "The subscriber's wallet does not hold enough USDC for this payment",
-          402,
-          'insufficient_funds'
-        );
-      }
-    }
-    throw SubscriptionsCallRefused('payment', revert);
   }
 
   private async BuildUnsignedTransaction(
@@ -1639,18 +1063,6 @@ export class Ethereum implements Settlement {
     };
   }
 
-  private async CurrentFees(): Promise<Fees> {
-    const client = GetPublicClient();
-    const [block, priorityFee] = await Promise.all([
-      client.getBlock({ blockTag: 'latest' }),
-      client.estimateMaxPriorityFeePerGas(),
-    ]);
-    return {
-      maxFeePerGas: 2n * (block.baseFeePerGas ?? 0n) + priorityFee,
-      maxPriorityFeePerGas: priorityFee,
-    };
-  }
-
   /** Simulates the relay; a revert is the authorization's fault (400). */
   private async EstimateRelayGas(
     relayer: Address,
@@ -1680,131 +1092,12 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /**
-   * Signs, hands the hash to `onSigned`, then sends. Accepted when the node
-   * takes it, already holds it, or knows the hash after an error; a nonce
-   * conflict re-signs at the next pending nonce; anything else throws
-   * `refused`. Callers hold the sender's lock.
-   */
-  private async SendRelay(
-    relayer: PrivateKeyAccount,
-    to: Address,
-    data: Hex,
-    gas: bigint,
-    onSigned: RelayCheckoutOptions['onSigned'],
-    refused = 'The network did not accept the payment'
-  ): Promise<string> {
-    const client = GetPublicClient();
-    const { chainId } = GetChainConfig();
-    for (let attempt = 1; ; attempt++) {
-      const [fees, nonce] = await NodeCall('relay nonce and fees', () =>
-        Promise.all([
-          this.CurrentFees(),
-          client.getTransactionCount({
-            address: relayer.address,
-            blockTag: 'pending',
-          }),
-        ])
-      );
-      const serialized = await relayer.signTransaction({
-        type: 'eip1559',
-        chainId,
-        nonce,
-        to,
-        data,
-        value: 0n,
-        gas,
-        ...fees,
-      });
-      const hash = keccak256(serialized);
-      await onSigned(hash);
-      try {
-        await client.sendRawTransaction({ serializedTransaction: serialized });
-        return hash;
-      } catch (error) {
-        if (
-          (await this.WasAccepted(error, hash)) ||
-          (await this.IsKnownTransaction(hash)) === true
-        ) {
-          return hash;
-        }
-        if (attempt < RELAY_SEND_ATTEMPTS && IsNonceConflict(error)) {
-          Logger.warn('The relayer nonce was taken; signing the relay again', {
-            transactionHash: hash,
-            nonce,
-            error: ErrorText(error),
-          });
-          continue;
-        }
-        Logger.warn('The network refused a relayed transaction', {
-          transactionHash: hash,
-          error: ErrorText(error),
-        });
-        throw new AppError(refused, 400, 'blockchain_error');
-      }
-    }
-  }
-
-  /** Whether the node has the transaction; null when it cannot say. */
-  private async IsKnownTransaction(hash: string): Promise<boolean | null> {
-    try {
-      await GetPublicClient().getTransaction({ hash: hash as Hex });
-      return true;
-    } catch (error) {
-      return error instanceof TransactionNotFoundError ? false : null;
-    }
-  }
-
-  /**
-   * Polls until the receipt is ETH_CONFIRMATIONS blocks below the head (at
-   * or below the confirmed block); false when `timeoutMs` passes first.
-   */
-  private async WaitForCheckoutReceipt(
-    hash: Hex,
-    timeoutMs: number
-  ): Promise<boolean> {
-    const client = GetPublicClient();
-    const depth = BigInt(GetChainConfig().confirmations);
-    const deadline = Date.now() + timeoutMs;
-    for (;;) {
-      const receipt = await this.GetReceiptOrNull(hash);
-      if (
-        receipt &&
-        (await this.GetLatestBlockNumber()) - receipt.blockNumber >= depth
-      ) {
-        return true;
-      }
-      const left = deadline - Date.now();
-      if (left <= 0) return false;
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(client.pollingInterval, left))
-      );
-    }
-  }
-
-  private async GetReceiptOrNull(
-    hash: Hex
-  ): Promise<TransactionReceipt | null> {
-    try {
-      return await GetPublicClient().getTransactionReceipt({ hash });
-    } catch (error) {
-      if (error instanceof TransactionReceiptNotFoundError) return null;
-      throw error;
-    }
-  }
-
-  /** The latest block's number and time. */
-  private async GetLatestBlock(): Promise<ConfirmedBlock> {
-    const block = await GetPublicClient().getBlock({ blockTag: 'latest' });
-    return { number: Number(block.number), timestamp: Number(block.timestamp) };
-  }
-
   /** True when the transaction's receipt shows it paid the merchant. */
   private async PaysMerchant(
     hash: Hex,
     expected: Parameters<typeof VerifyCheckoutReceipt>[1]
   ): Promise<boolean> {
-    const receipt = await this.GetReceiptOrNull(hash);
+    const receipt = await GetReceiptOrNull(hash);
     return (
       !!receipt &&
       VerifyCheckoutReceipt(receipt, expected).status === 'verified'
@@ -1901,21 +1194,6 @@ export class Ethereum implements Settlement {
     }
   }
 
-  /** "Already known", or "nonce too low" because this very hash was mined. */
-  private async WasAccepted(error: unknown, hash: Hex): Promise<boolean> {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/already known|known transaction|already imported/i.test(message)) {
-      return true;
-    }
-    if (!/nonce too low/i.test(message)) return false;
-    try {
-      await GetPublicClient().getTransactionReceipt({ hash });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   /**
    * Paid when the batch's own transaction succeeded with its BatchPaid log
    * (or, for an approval, succeeded); failed when it reverted. Anything that
@@ -1970,7 +1248,7 @@ export class Ethereum implements Settlement {
     ) {
       return Unsettled('the reverted transaction carries other calldata');
     }
-    const revert = await this.RevertReason(transaction, receipt.blockNumber);
+    const revert = await RevertReason(transaction, receipt.blockNumber);
     if (revert.errorName === 'BatchAlreadyPaid') {
       // Another transaction paid this batch first: never a failure. The
       // verdict is paid() at the confirmed block, not at the receipt's block
@@ -1994,34 +1272,6 @@ export class Ethereum implements Settlement {
       ),
       failure_message: revert.message,
     };
-  }
-
-  /** Replays a reverted call at its block to read the revert reason. */
-  private async RevertReason(
-    transaction: Transaction,
-    blockNumber: bigint,
-    abi: Abi = PAYOUT_BATCH_ABI
-  ): Promise<RevertDetails> {
-    try {
-      await GetPublicClient().call({
-        account: transaction.from,
-        to: transaction.to ?? undefined,
-        data: transaction.input,
-        gas: transaction.gas,
-        value: transaction.value,
-        blockNumber,
-      });
-      return {
-        errorName: null,
-        message: 'The transaction reverted',
-        detail: '',
-      };
-    } catch (error) {
-      // Only an execution revert says why; an RPC or transport error says
-      // nothing about the transaction, so the caller leaves it unsettled.
-      if (!IsExecutionRevert(error)) throw error;
-      return DecodeRevert(error, abi);
-    }
   }
 
   private Pending(transactionHash: string): BroadcastResult {
@@ -2049,13 +1299,6 @@ export class Ethereum implements Settlement {
   }
 }
 
-function ToAddress(value: string): Address {
-  if (!isAddress(value)) {
-    throw new Error(`Invalid Ethereum address: ${value}`);
-  }
-  return getAddress(value);
-}
-
 function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
   const { chainId, usdc, payoutBatch } = GetChainConfig();
   if (!payoutBatch) {
@@ -2066,214 +1309,6 @@ function PayoutContracts(): { usdc: Address; payoutBatch: Address } {
     );
   }
   return { usdc, payoutBatch };
-}
-
-function SubscriptionsAddress(): Address {
-  const { chainId, subscriptions } = GetChainConfig();
-  if (!subscriptions) {
-    throw new AppError(
-      `Subscriptions need SUBSCRIPTIONS_ADDRESS on chain ${chainId}`,
-      501,
-      'not_supported'
-    );
-  }
-  return subscriptions;
-}
-
-function RelayerRequired(): AppError {
-  return new AppError(
-    'On-chain checkout needs CHECKOUT_RELAYER_KEY to relay payments',
-    501,
-    'not_supported'
-  );
-}
-
-function RequireRelayer(): Hex {
-  const key = GetCheckoutRelayerKey();
-  if (!key) throw RelayerRequired();
-  return key;
-}
-
-/** The SUBSCRIPTION_OPERATOR_KEY account; a 501 when it is not set. */
-function RequireOperator(): PrivateKeyAccount {
-  let key: Hex;
-  try {
-    key = RequireSubscriptionOperatorKey();
-  } catch {
-    throw new AppError(
-      'Recurring prices need SUBSCRIPTION_OPERATOR_KEY to own their on-chain plans',
-      501,
-      'not_supported'
-    );
-  }
-  return privateKeyToAccount(key);
-}
-
-/** One lock per sending address, so one key never races itself. */
-function SenderLock(address: Address): string {
-  return `sender:${address}`;
-}
-
-/** A plan key or subscription id: `0x` and 64 hex characters. */
-function Bytes32(value: string, field: string): Hex {
-  if (!isHex(value) || value.length !== 66) {
-    throw new AppError(
-      `${field} must be 0x followed by 64 hex characters`,
-      400,
-      'invalid_request_error'
-    );
-  }
-  return value.toLowerCase() as Hex;
-}
-
-/** A subscribe signature: any non-empty bytes (contract wallets vary). */
-function SignatureBytes(signature: string): Hex {
-  if (!isHex(signature) || signature.length < 4 || signature.length % 2) {
-    throw new AppError(
-      'subscribe_signature must be 0x followed by hex bytes',
-      400,
-      'invalid_request_error'
-    );
-  }
-  return signature;
-}
-
-function PositiveTokenUnits(amountCents: number): bigint {
-  if (!Number.isInteger(amountCents) || amountCents <= 0) {
-    throw new AppError(
-      'A subscription amount must be a positive whole number of cents',
-      400,
-      'invalid_request_error'
-    );
-  }
-  return CentsToTokenUnits(amountCents);
-}
-
-function SameTerms(a: PlanTerms, b: PlanTerms): boolean {
-  return (
-    SameAddress(a.token, b.token) &&
-    a.amount === b.amount &&
-    a.periodSeconds === b.periodSeconds
-  );
-}
-
-/** The terms of a plan that takes subscribers in USDC; else a 400. */
-function OpenPlanTerms(plan: OnchainPlan | null, usdc: Address): PlanTerms {
-  if (!plan?.active) {
-    throw new AppError(
-      'This subscription plan does not accept new subscribers on-chain',
-      400,
-      'invalid_request_error'
-    );
-  }
-  if (!SameAddress(plan.terms.token, usdc)) {
-    throw new AppError(
-      'This subscription plan does not charge USDC',
-      400,
-      'invalid_request_error'
-    );
-  }
-  return { ...plan.terms, token: getAddress(plan.terms.token) };
-}
-
-function IsSubscribed(subscription: OnchainSubscription): boolean {
-  return subscription.status === 'active' || subscription.status === 'paused';
-}
-
-function PausedOnChain(): AppError {
-  return new AppError(
-    'The subscription is paused on-chain',
-    409,
-    PAUSED_ON_CHAIN
-  );
-}
-
-/**
- * The Subscriptions contract's own errors. The ABI's other errors
- * (SafeERC20FailedOperation, Nonces and EIP-712 errors) come from the
- * libraries it uses.
- */
-const SUBSCRIPTIONS_ERRORS: ReadonlySet<string> = new Set([
-  'AlreadySubscribed',
-  'AmountExceedsPlan',
-  'ExpiredSignature',
-  'InvalidAmount',
-  'InvalidPeriod',
-  'InvalidSignature',
-  'NotActive',
-  'NotDueYet',
-  'NotPaused',
-  'PlanExists',
-  'PlanInactive',
-  'TermsMismatch',
-  'Unauthorized',
-  'ZeroAddress',
-]);
-
-/** True for a custom error of the Subscriptions contract itself. */
-function IsSubscriptionsError(errorName: string | null): boolean {
-  return errorName !== null && SUBSCRIPTIONS_ERRORS.has(errorName);
-}
-
-/**
- * Why a relayed subscribe would revert. A used nonce (another subscribe or
- * a cancel by the subscriber or any plan owner), an expired deadline or a
- * permit the token refuses all mean the signatures are stale: a 409 that
- * asks for a new prepare and new signatures. Only decoded reasons from our
- * ABI reach the client; the node's text is logged.
- */
-function SubscribeRefused(
-  revert: RevertDetails,
-  withPermit: boolean
-): AppError {
-  Logger.warn('A relayed subscribe would revert', { error: revert.detail });
-  const permitRefused = withPermit && !IsSubscriptionsError(revert.errorName);
-  if (
-    permitRefused ||
-    revert.errorName === 'InvalidSignature' ||
-    revert.errorName === 'ExpiredSignature'
-  ) {
-    return new AppError(
-      permitRefused
-        ? 'The USDC permit can no longer be used. Prepare the subscription again and sign the new request.'
-        : 'The subscription signature can no longer be used. Prepare the subscription again and sign the new request.',
-      409,
-      'subscription_authorization_stale',
-      { code: 'subscription_authorization_stale' }
-    );
-  }
-  if (revert.errorName === 'PlanInactive') {
-    return new AppError(
-      'This subscription plan does not accept new subscribers on-chain',
-      400,
-      'invalid_request_error'
-    );
-  }
-  return new AppError(
-    revert.errorName
-      ? `The subscription cannot be relayed: ${revert.message}`
-      : 'The subscription cannot be relayed',
-    400,
-    'invalid_request_error'
-  );
-}
-
-/** A refused operator call to the Subscriptions contract. */
-function SubscriptionsCallRefused(
-  label: string,
-  revert: RevertDetails
-): AppError {
-  Logger.warn('A Subscriptions call was refused', {
-    label,
-    error: revert.detail,
-  });
-  return new AppError(
-    revert.errorName
-      ? `The subscription ${label} was refused on-chain: ${revert.message}`
-      : `The subscription ${label} was refused on-chain`,
-    400,
-    'blockchain_error'
-  );
 }
 
 function AuthorizationNonce(nonce: string): Hex {
@@ -2290,40 +1325,6 @@ function CheckoutPending(hash: string | null): CheckoutPaymentVerification {
     amount_cents: 0,
     payer_address: null,
   };
-}
-
-/** Another transaction from the relayer took the nonce this one used. */
-function IsNonceConflict(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /nonce too low|replacement transaction underpriced/i.test(message);
-}
-
-/**
- * 502 for a node that could not answer; nothing was sent. What the node
- * said goes to the log only: provider text never reaches a client.
- */
-function NodeUnavailable(operation: string, error: unknown): AppError {
-  Logger.warn('An Ethereum node call failed', {
-    operation,
-    error: ErrorText(error),
-  });
-  return new AppError(
-    'The payment network is unavailable; try again',
-    502,
-    'blockchain_error'
-  );
-}
-
-async function NodeCall<T>(
-  operation: string,
-  call: () => Promise<T>
-): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw NodeUnavailable(operation, error);
-  }
 }
 
 /** Why a submitted transaction is not the built one, or null when it is. */
@@ -2357,104 +1358,4 @@ function DescribeMismatch(
     return `nonce ${actual.nonce} does not match the built nonce ${built.nonce}`;
   }
   return null;
-}
-
-function CeilDiv(value: bigint, divisor: bigint): bigint {
-  return (value + divisor - 1n) / divisor;
-}
-
-/**
- * Fees for a replacement at the same nonce: at least 1.125x the replaced
- * transaction's fees (nodes require a bump of 10 %) or the current fees,
- * whichever is higher.
- */
-export function ReplacementFees(
-  fees: Fees,
-  replacing?: PayoutBuildOptions['replacing']
-): Fees {
-  if (!replacing) return fees;
-  const Bump = (current: bigint, previous: string | null) => {
-    if (!previous) return current;
-    const floor = CeilDiv(BigInt(previous) * 9n, 8n);
-    return current > floor ? current : floor;
-  };
-  const maxPriorityFeePerGas = Bump(
-    fees.maxPriorityFeePerGas,
-    replacing.maxPriorityFeePerGas
-  );
-  const maxFeePerGas = Bump(fees.maxFeePerGas, replacing.maxFeePerGas);
-  return {
-    maxFeePerGas:
-      maxFeePerGas > maxPriorityFeePerGas ? maxFeePerGas : maxPriorityFeePerGas,
-    maxPriorityFeePerGas,
-  };
-}
-
-function ErrorText(error: unknown): string {
-  if (error instanceof BaseError) {
-    return [error.shortMessage, error.details].filter(Boolean).join(': ');
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
-function IsExecutionRevert(error: unknown): boolean {
-  return (
-    error instanceof BaseError &&
-    !!error.walk(
-      (cause) =>
-        cause instanceof ExecutionRevertedError ||
-        cause instanceof RawContractError
-    )
-  );
-}
-
-interface RevertDetails {
-  /** Custom error or `Error`/`Panic` name, when the revert data decodes */
-  errorName: string | null;
-  /**
-   * The reason decoded from the revert data with our ABIs, or a generic
-   * text; safe to show to clients
-   */
-  message: string;
-  /** What the node said, for logs and failure-code mapping only */
-  detail: string;
-}
-
-/**
- * The decoded revert: Error(string) reason or an error name from `abi`
- * (PayoutBatch's by default).
- */
-function DecodeRevert(
-  error: unknown,
-  abi: Abi = PAYOUT_BATCH_ABI
-): RevertDetails {
-  if (error instanceof BaseError) {
-    const cause = error.walk() as { data?: Hex | { data?: Hex } } | null;
-    const data =
-      typeof cause?.data === 'object' ? cause.data?.data : cause?.data;
-    if (data && isHex(data) && data.length > 2) {
-      try {
-        // viem also decodes the built-in Error(string) and Panic(uint256).
-        const decoded = decodeErrorResult({ abi, data }) as {
-          errorName: string;
-          args?: readonly unknown[];
-        };
-        return {
-          errorName: decoded.errorName,
-          message:
-            decoded.errorName === 'Error'
-              ? String(decoded.args?.[0])
-              : decoded.errorName,
-          detail: ErrorText(error),
-        };
-      } catch {
-        // Not an error this ABI knows; only the node's text is left.
-      }
-    }
-  }
-  return {
-    errorName: null,
-    message: 'The transaction reverted',
-    detail: ErrorText(error),
-  };
 }

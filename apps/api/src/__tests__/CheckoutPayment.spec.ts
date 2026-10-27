@@ -492,7 +492,8 @@ describe('CheckoutPaymentModule', () => {
         expect(mockSettlement.BuildSubscribeAuthorization).toHaveBeenCalledWith(
           PAYER_WALLET,
           MOCK_PLAN_KEY,
-          session.expires_at
+          session.expires_at,
+          { otherPlansAllowance: 0n }
         );
         expect(
           mockSettlement.BuildCheckoutPaymentAuthorization
@@ -1548,12 +1549,10 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       subscribe_signature: SUBSCRIBE_SIGNATURE,
       deadline: DEADLINE,
     };
+    const NOW = GetFixedTimestamp();
     let customers: jest.Mocked<Pick<CustomerModule, 'CreateCustomer'>>;
     let subscriptions: jest.Mocked<
-      Pick<
-        SubscriptionModule,
-        'CreateSubscription' | 'SetSubscriptionOnchainId'
-      >
+      Pick<SubscriptionModule, 'CreateSubscription'>
     >;
 
     beforeEach(() => {
@@ -1562,13 +1561,30 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       } as unknown as typeof customers;
       subscriptions = {
         CreateSubscription: jest.fn().mockResolvedValue({ id: 'sub_z_1' }),
-        SetSubscriptionOnchainId: jest.fn().mockResolvedValue({}),
       } as unknown as typeof subscriptions;
       module = Module(settlement, {
         customerModule: customers as unknown as CustomerModule,
         subscriptionModule: subscriptions as unknown as SubscriptionModule,
       });
     });
+
+    function Claims(): Array<Record<string, unknown>> {
+      return memory.All('SubscriptionCycleClaims');
+    }
+
+    function SeedClaim(overrides: Record<string, unknown> = {}): void {
+      memory.Seed('SubscriptionCycleClaims', {
+        id: `${MOCK_SUBSCRIPTION_ID}:${NOW}`,
+        object: 'subscription_cycle_claim',
+        subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+        due_at: NOW,
+        owner: 'cs_z_pay',
+        charge_hash: MOCK_CHARGE_HASH,
+        charge_sent_at: NOW - 30,
+        created: NOW - 30,
+        ...overrides,
+      });
+    }
 
     function SubscribePending(
       transactionHash: string | null
@@ -1615,20 +1631,33 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         { planKey: MOCK_PLAN_KEY, subscriberWallet: PAYER_WALLET },
         { timeoutMs: 90_000 }
       );
-      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith({
-        subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
-        planKey: MOCK_PLAN_KEY,
-        subscriberWallet: PAYER_WALLET,
-        amountCents: 1000,
-      });
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          planKey: MOCK_PLAN_KEY,
+          subscriberWallet: PAYER_WALLET,
+          amountCents: 1000,
+        })
+      );
+      // The cycle was claimed for this session and the charge recorded.
+      expect(Claims()).toEqual([
+        expect.objectContaining({
+          owner: 'cs_z_pay',
+          due_at: NOW,
+          charge_hash: MOCK_CHARGE_HASH,
+        }),
+      ]);
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
         'acct_z_platform',
-        expect.objectContaining({ default_payment_method: PAYER_WALLET }),
-        { settlementTransactionHash: MOCK_CHARGE_HASH }
-      );
-      expect(subscriptions.SetSubscriptionOnchainId).toHaveBeenCalledWith(
-        'sub_z_1',
-        MOCK_SUBSCRIPTION_ID
+        expect.objectContaining({
+          default_payment_method: PAYER_WALLET,
+          items: [{ price: 'price_z_1', quantity: 1 }],
+        }),
+        {
+          settlementTransactionHash: MOCK_CHARGE_HASH,
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          periodStart: NOW,
+        }
       );
       expect(result).toMatchObject({
         status: 'complete',
@@ -1791,11 +1820,10 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         expect.anything(),
         expect.anything()
       );
+      // No made-up reference: the first period's charge stands for it.
       expect(result).toMatchObject({
         status: 'complete',
-        payment_details: {
-          transaction_hash: `onchain:${MOCK_SUBSCRIPTION_ID}`,
-        },
+        payment_details: { transaction_hash: MOCK_CHARGE_HASH },
       });
     });
 
@@ -1839,34 +1867,160 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       expect(Session().status).toBe('open');
     });
 
-    it('records the first period as paid when an earlier attempt already collected it', async () => {
+    it('refuses a first period collected without this session’s charge: 409, nothing created', async () => {
       settlement.CollectSubscriptionPayment.mockResolvedValue({
+        status: 'already_collected',
         transaction_hash: null,
-        alreadyCollected: true,
       });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'period_already_collected',
+      });
+      ExpectNoSubscription();
+    });
+
+    it('answers payment_pending for a first-period charge not confirmed yet, keeping its hash', async () => {
+      settlement.CollectSubscriptionPayment.mockImplementation(
+        async (params) => {
+          await params.onSigned(MOCK_CHARGE_HASH);
+          return { status: 'pending', transaction_hash: MOCK_CHARGE_HASH };
+        }
+      );
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+        details: { transaction_hash: MOCK_SUBSCRIBE_HASH },
+      });
+      expect(Claims()).toEqual([
+        expect.objectContaining({ charge_hash: MOCK_CHARGE_HASH }),
+      ]);
+      expect(Session().payment_details).toMatchObject({
+        pending_charge_hash: MOCK_CHARGE_HASH,
+      });
+      ExpectNoSubscription();
+    });
+
+    it('completes a retry by reconciling this session’s recorded charge, sending nothing new', async () => {
+      SeedClaim();
 
       const result = await module.ConfirmPayment(SLUG, SIGNED);
 
+      expect(settlement.ReconcileSubscriptionCharge).toHaveBeenCalledWith(
+        MOCK_CHARGE_HASH,
+        expect.objectContaining({
+          subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          amountCents: 1000,
+        })
+      );
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
       expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
         'acct_z_platform',
         expect.anything(),
-        { settlementTransactionHash: MOCK_SUBSCRIBE_HASH }
+        expect.objectContaining({ settlementTransactionHash: MOCK_CHARGE_HASH })
       );
       expect(result.status).toBe('complete');
     });
 
-    it('refuses an on-chain subscription that another subscription already bills', async () => {
-      memory.Seed('Subscriptions', {
-        id: 'sub_z_other',
-        status: 'active',
-        subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
-      });
+    it('refuses the cycle another session holds', async () => {
+      SeedClaim({ owner: 'cs_z_other', charge_hash: null });
 
       await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
-        statusCode: 400,
+        statusCode: 409,
+        type: 'period_already_collected',
       });
       expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
       ExpectNoSubscription();
+    });
+
+    it.each([
+      ['another live subscription bills it', { status: 'active' }],
+      [
+        'its earlier subscription’s on-chain cancel is still pending',
+        { status: 'canceled', cancel_pending_on_chain: true },
+      ],
+    ])(
+      'refuses an on-chain subscription when %s',
+      async (_label, overrides) => {
+        memory.Seed('Subscriptions', {
+          id: 'sub_z_other',
+          subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+          ...overrides,
+        });
+
+        await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject(
+          { statusCode: 400 }
+        );
+        expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+        ExpectNoSubscription();
+      }
+    );
+
+    it('asks for a permit covering the wallet’s other live on-chain plans too', async () => {
+      Seed({ payment_details: null });
+      memory.Seed('Subscriptions', {
+        id: 'sub_z_b',
+        status: 'active',
+        subscription_onchain_id: `0x${'bb'.repeat(32)}`,
+        default_payment_method: PAYER_WALLET,
+      });
+      memory.Seed('SubscriptionItems', {
+        id: 'si_z_b',
+        subscription: 'sub_z_b',
+        price: 'price_z_b',
+      });
+      memory.Seed('Prices', {
+        id: 'price_z_b',
+        subscription_plan_id: `0x${'b0'.repeat(32)}`,
+        unit_amount: 2000,
+        recurring: { interval: 'month', interval_count: 1 },
+      });
+
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+
+      // 20 USDC every 30 days: 13 periods.
+      expect(settlement.BuildSubscribeAuthorization).toHaveBeenCalledWith(
+        PAYER_WALLET,
+        MOCK_PLAN_KEY,
+        expect.any(Number),
+        { otherPlansAllowance: 20_000_000n * 13n }
+      );
+    });
+
+    it('refuses a quantity above 1, which the plan cannot collect', async () => {
+      Seed({
+        payment_details: null,
+        line_items: {
+          object: 'list',
+          data: [BuildLineItem({ price: RecurringPrice(), quantity: 2 })],
+          has_more: false,
+          url: '/v1/checkout/sessions/cs_z_pay/line_items',
+        },
+      });
+
+      await expect(
+        module.PreparePayment(SLUG, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        details: { code: 'onchain_plan_amount_exceeded' },
+      });
+    });
+
+    it('refuses a client transaction_hash after the session expired when no relay was recorded', async () => {
+      Seed({ expires_at: NOW - 1 });
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_SUBSCRIBE_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'This Checkout Session has expired',
+      });
+      expect(settlement.VerifySubscribeTransaction).not.toHaveBeenCalled();
     });
 
     it('completes a simulated subscription by its sim_sig reference, without the one-subscription limit', async () => {
@@ -1905,9 +2059,10 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
         status: 'complete',
         payment_details: { transaction_hash: reference },
       });
-      expect(subscriptions.SetSubscriptionOnchainId).toHaveBeenCalledWith(
-        'sub_z_1',
-        simulatedId
+      expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+        'acct_z_platform',
+        expect.anything(),
+        expect.objectContaining({ subscriptionOnchainId: simulatedId })
       );
     });
 
@@ -1926,9 +2081,12 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           MOCK_PLAN_KEY,
           PAYER_WALLET
         );
-        expect(subscriptions.SetSubscriptionOnchainId).toHaveBeenCalledWith(
-          'sub_z_1',
-          MOCK_SUBSCRIPTION_ID
+        expect(subscriptions.CreateSubscription).toHaveBeenCalledWith(
+          'acct_z_platform',
+          expect.anything(),
+          expect.objectContaining({
+            subscriptionOnchainId: MOCK_SUBSCRIPTION_ID,
+          })
         );
         expect(result.status).toBe('complete');
       });

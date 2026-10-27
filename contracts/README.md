@@ -97,8 +97,8 @@ Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addres
     - if the current period has not been charged when the subscription resumes, it is due at once;
     - periods that passed entirely while paused are skipped.
 - **Allowances.**
-  - The contract expects a bounded allowance. The API permits `amount × max(12, ceil(365 days / periodSeconds))`, at least 12 periods and at least a year of service, and asks for a new permit when it runs out.
-  - The per-period cap is enforced by `charge`, and the allowance caps the total. So a `Subscribe` signature obtained by phishing can spend at most the victim's remaining allowance to this contract.
+  - The contract expects a bounded allowance. One allowance to this contract serves all of a wallet's plans, so the API's permit adds `amount × max(12, ceil(365 days / periodSeconds))` (at least 12 periods and at least a year of service) to the wallet's current allowance. It asks for a permit when the allowance is below that value for the new plan plus the same value for each of the wallet's other live plans.
+  - The per-period cap is enforced by `charge`, and the allowance caps the total. So a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).
   - A subscriber stops all pulls by cancelling, or by revoking the allowance (`approve(subscriptions, 0)`), after which every `charge` reverts.
 - **USDC blacklist.**
   - If Circle blacklists a subscriber, `charge` reverts for that subscription, and the schedule is left as it was.

@@ -670,7 +670,8 @@ export class CheckoutSessionModule {
   async CompleteCheckoutSession(
     id: string,
     paymentDetails: {
-      transaction_hash: string;
+      /** Null for a subscription with a trial whose subscribe was not seen */
+      transaction_hash: string | null;
       payer_wallet: string | null;
       relayed?: boolean;
       merchant_wallet?: string | null;

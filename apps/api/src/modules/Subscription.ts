@@ -21,6 +21,8 @@ import { ListHelper, ListOptions, ListResult } from '../utils/ListHelper';
 import { Now } from '../utils/Timestamp';
 import { GetAppConfig } from './AppConfig';
 import { GetSettlement, type Settlement } from './chains/Settlement';
+import { ONCHAIN_PLAN_AMOUNT_EXCEEDED } from './chains/types';
+import { IsDuplicateKey } from './SubscriptionCycleClaims';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
@@ -29,7 +31,6 @@ import {
   Invoice as InvoiceType,
   Price as PriceType,
   QueryOperators,
-  RecurringInterval,
   Subscription as SubscriptionType,
   SubscriptionItem as SubscriptionItemType,
   SubscriptionItemList,
@@ -116,12 +117,24 @@ export class SubscriptionModule {
   async CreateSubscription(
     platformAccountId: string,
     input: CreateSubscriptionInput,
-    options?: { settlementTransactionHash?: string }
+    options?: {
+      settlementTransactionHash?: string;
+      /**
+       * The on-chain subscription this one bills. It is stored with the
+       * subscription, so a second live subscription for it fails.
+       */
+      subscriptionOnchainId?: string;
+      /** Start of the first period: the on-chain grid point it collects */
+      periodStart?: number;
+    }
   ): Promise<SubscriptionType> {
     const validatedInput = ValidateUpdate(CreateSubscriptionSchema, input);
 
     if (validatedInput.currency) {
       this.AssertSupportedCurrency(validatedInput.currency);
+    }
+    if (options?.subscriptionOnchainId) {
+      AssertOnchainItems(validatedInput.items);
     }
 
     const customer = await this.RequireCustomer(
@@ -130,7 +143,8 @@ export class SubscriptionModule {
     );
 
     const now = Now();
-    const startDate = validatedInput.backdate_start_date ?? now;
+    const startDate =
+      validatedInput.backdate_start_date ?? options?.periodStart ?? now;
     const billingCycleAnchor = validatedInput.billing_cycle_anchor ?? startDate;
 
     const trial = this.ResolveTrial(validatedInput, now, billingCycleAnchor);
@@ -170,8 +184,20 @@ export class SubscriptionModule {
         trialEnd: trial.trial_end,
       }
     );
+    subscription.subscription_onchain_id =
+      options?.subscriptionOnchainId ?? null;
 
-    await this.db.Set('Subscriptions', subscription.id, subscription);
+    try {
+      await this.db.Set('Subscriptions', subscription.id, subscription);
+    } catch (error) {
+      if (!IsDuplicateKey(error)) throw error;
+      await this.DeleteItems(items.map((item) => item.id));
+      throw new AppError(
+        'Another subscription already bills this on-chain subscription',
+        409,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
 
     let latestInvoiceId: string | null = null;
 
@@ -270,7 +296,7 @@ export class SubscriptionModule {
       return null;
     }
     subscription.items = await this.LoadItemsList(id);
-    return subscription;
+    return WithDefaults(subscription);
   }
 
   /**
@@ -297,7 +323,7 @@ export class SubscriptionModule {
     const result = new Map<string, SubscriptionType>();
     for (const subscription of subscriptions) {
       subscription.items = await this.LoadItemsList(subscription.id);
-      result.set(subscription.id, subscription);
+      result.set(subscription.id, WithDefaults(subscription));
     }
     return result;
   }
@@ -312,6 +338,9 @@ export class SubscriptionModule {
   ): Promise<SubscriptionType> {
     const validatedInput = ValidateUpdate(UpdateSubscriptionSchema, input);
     const previous = await this.RequireSubscription(id);
+    if (validatedInput.items) {
+      AssertOnchainItemChanges(previous, validatedInput.items);
+    }
 
     if (validatedInput.items) {
       await this.ApplyItemUpdates(
@@ -356,6 +385,13 @@ export class SubscriptionModule {
     }
 
     await this.db.Update<SubscriptionType>('Subscriptions', id, updatePayload);
+    // Paused invoices are left out of retries until collection resumes.
+    if (validatedInput.pause_collection !== undefined && this.invoiceModule) {
+      await this.invoiceModule.ScheduleOpenSubscriptionInvoices(
+        id,
+        validatedInput.pause_collection === '' ? now : null
+      );
+    }
 
     const subscription = await this.GetSubscription(id);
     if (!subscription) {
@@ -478,7 +514,7 @@ export class SubscriptionModule {
           return itemPrice === price;
         });
         if (hasPrice) {
-          filtered.push(subscription);
+          filtered.push(WithDefaults(subscription));
         }
       }
       return {
@@ -491,13 +527,15 @@ export class SubscriptionModule {
       subscription.items = await this.LoadItemsList(subscription.id);
     }
 
-    return result;
+    return { ...result, data: result.data.map(WithDefaults) };
   }
 
   /**
-   * Cancel a subscription immediately. Billing stops pulling at once; an
-   * on-chain subscription is also canceled from the plan owner's key, best
-   * effort (a failure is logged and the cancel stands).
+   * Cancel a subscription immediately. Billing stops pulling at once. An
+   * on-chain subscription is canceled from the plan owner's key too: the
+   * cancel is sent without waiting for it, `cancel_pending_on_chain` stays
+   * true until the chain reads canceled, and the billing runner sends it
+   * again when it did not land.
    * Emits `customer.subscription.deleted`.
    */
   async CancelSubscription(
@@ -551,10 +589,11 @@ export class SubscriptionModule {
         feedback: validatedInput.cancellation_details?.feedback ?? null,
         reason: 'cancellation_requested',
       },
+      cancel_pending_on_chain: !!previous.subscription_onchain_id,
     };
 
     await this.db.Update<SubscriptionType>('Subscriptions', id, updatePayload);
-    await this.CancelOnChain(previous);
+    await this.SendOnchainCancel(id);
 
     const subscription = await this.GetSubscription(id);
     if (!subscription) {
@@ -607,10 +646,11 @@ export class SubscriptionModule {
           previous.cancellation_details?.reason ?? 'cancellation_requested',
       },
       billing_lock_until: null,
+      cancel_pending_on_chain: !!previous.subscription_onchain_id,
     };
 
     await this.db.Update<SubscriptionType>('Subscriptions', id, updatePayload);
-    await this.CancelOnChain(previous);
+    await this.SendOnchainCancel(id);
 
     const subscription = await this.GetSubscription(id);
     if (!subscription) {
@@ -795,6 +835,7 @@ export class SubscriptionModule {
       validatedInput.subscription,
       platformAccountId
     );
+    if (subscription.subscription_onchain_id) throw OnchainAmountExceeded();
 
     const item = await this.InsertSubscriptionItem(
       platformAccountId,
@@ -848,6 +889,7 @@ export class SubscriptionModule {
       existing.subscription,
       platformAccountId
     );
+    AssertOnchainItemChanges(subscription, [{ id, ...validatedInput }]);
 
     await this.ApplyItemUpdates(
       platformAccountId,
@@ -888,6 +930,7 @@ export class SubscriptionModule {
       existing.subscription,
       platformAccountId
     );
+    if (subscription.subscription_onchain_id) throw OnchainAmountExceeded();
     void input.clear_usage;
 
     await this.db.Delete('SubscriptionItems', id);
@@ -1076,6 +1119,8 @@ export class SubscriptionModule {
       platform_account: platformAccountId,
       subscription_onchain_id: null,
       paused_on_chain: false,
+      cancel_pending_on_chain: false,
+      cancel_pending_transaction_hash: null,
       billing_lock_until: null,
     };
   }
@@ -1231,6 +1276,8 @@ export class SubscriptionModule {
               behavior: input.pause_collection.behavior,
               resumes_at: input.pause_collection.resumes_at ?? null,
             };
+      // The merchant's choice now owns the pause: the chain never lifts it.
+      payload.paused_on_chain = false;
     }
     if (input.payment_settings !== undefined) {
       payload.payment_settings = {
@@ -1693,65 +1740,56 @@ export class SubscriptionModule {
   }
 
   /**
-   * Advance each subscription item into the next billing period after a
-   * successful cycle payment. Clears the billing lock and sets status active.
-   * Advances one interval at a time so a merchant who was offline can keep
-   * collecting once per on-chain period until the Stripe-side ledger catches up.
+   * Move the subscription into its next billing period after a successful
+   * cycle payment, clear the billing lock and set it active. `period` is the
+   * period the on-chain charge paid (from its `Charged` event), so the
+   * off-chain cycles follow the chain's grid; without one (a rail with no
+   * schedule) each item moves one interval on.
    */
   async AdvanceSubscriptionPeriod(
     subscriptionId: string,
-    latestInvoiceId?: string
+    latestInvoiceId?: string,
+    period?: { start: number; end: number }
   ): Promise<SubscriptionType> {
     const subscription = await this.RequireSubscription(subscriptionId);
     return this.UpdateSubscriptionBillingState(subscription, {
       status: 'active',
       latestInvoiceId,
-      items: await this.AdvanceItems(subscription),
+      items: period
+        ? await this.SetItemsPeriod(subscription, period)
+        : await this.AdvanceItems(subscription),
     });
   }
 
   /**
-   * When the next cycle invoice's period would end: the soonest item's
-   * current period end plus its interval. A billing runner that sees this
-   * in the past missed that cycle.
+   * Put the subscription's current period at `period` without paying it,
+   * keeping its status and billing lock: periods the chain skipped are
+   * passed over, so the next cycle invoice bills the period due on-chain.
    */
-  async NextCycleEnd(subscription: SubscriptionType): Promise<number> {
-    const ends = await Promise.all(
-      subscription.items.data.map(async (item) =>
-        AddRecurringInterval(
-          item.current_period_end,
-          ...(await this.ItemInterval(subscription.platform_account, item))
-        )
-      )
-    );
-    return Math.min(...ends);
-  }
-
-  /**
-   * Move past a cycle the billing runner missed, whose invoice was voided:
-   * one period on, with the status and the billing lock unchanged. The
-   * contract skips missed periods too, so nothing is collected for it.
-   */
-  async SkipMissedCycle(
+  async AlignToCycle(
     subscriptionId: string,
-    voidedInvoiceId: string
+    period: { start: number; end: number }
   ): Promise<SubscriptionType> {
     const previous = await this.RequireSubscription(subscriptionId);
     return this.PatchSubscription(previous, {
-      items: await this.AdvanceItems(previous),
-      latest_invoice: voidedInvoiceId,
+      items: await this.SetItemsPeriod(previous, period),
     });
   }
 
   /**
    * The subscription is paused on-chain, where collection is decided: set
-   * `pause_collection` and release the billing lock. Only a pause set here
-   * is lifted when the chain resumes.
+   * `pause_collection`, take its open invoices out of retries and release
+   * the billing lock. Only a pause set here is lifted when the chain
+   * resumes.
    */
   async PauseCollectionOnChain(
     subscriptionId: string
   ): Promise<SubscriptionType> {
     const previous = await this.RequireSubscription(subscriptionId);
+    await this.invoiceModule?.ScheduleOpenSubscriptionInvoices(
+      subscriptionId,
+      null
+    );
     return this.PatchSubscription(previous, {
       pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
       paused_on_chain: true,
@@ -1759,15 +1797,132 @@ export class SubscriptionModule {
     });
   }
 
-  /** Lifts the pause the chain set; the billing lock is kept. */
+  /**
+   * Lifts the pause the chain set and re-arms its open invoices at once (a
+   * period due during the pause is collectible right away). The billing
+   * lock is kept.
+   */
   async ResumeCollectionFromChain(
     subscriptionId: string
   ): Promise<SubscriptionType> {
     const previous = await this.RequireSubscription(subscriptionId);
+    await this.invoiceModule?.ScheduleOpenSubscriptionInvoices(
+      subscriptionId,
+      Now()
+    );
     return this.PatchSubscription(previous, {
       pause_collection: null,
       paused_on_chain: false,
     });
+  }
+
+  /**
+   * The chain says the subscription is canceled (or gone): that is final.
+   * Its open invoices are voided (`invoice.voided`), the subscription is
+   * canceled with `comment: 'canceled_on_chain'` and its billing lock
+   * released, with no dunning. Repeating it changes nothing.
+   */
+  async CancelFromChain(subscriptionId: string): Promise<SubscriptionType> {
+    const previous = await this.RequireSubscription(subscriptionId);
+    if (previous.status === 'canceled') {
+      await this.db.Update<SubscriptionType>('Subscriptions', subscriptionId, {
+        billing_lock_until: null,
+        cancel_pending_on_chain: false,
+      });
+      return this.RequireSubscription(subscriptionId);
+    }
+    for (const invoice of (await this.invoiceModule?.ListOpenSubscriptionInvoices(
+      subscriptionId
+    )) ?? []) {
+      await this.invoiceModule?.VoidInvoice(invoice.id);
+    }
+    const now = Now();
+    const subscription = await this.PatchSubscription(previous, {
+      status: 'canceled',
+      canceled_at: now,
+      ended_at: now,
+      cancel_at: null,
+      cancel_at_period_end: false,
+      cancellation_details: {
+        comment: 'canceled_on_chain',
+        feedback: null,
+        reason: 'cancellation_requested',
+      },
+      pause_collection: null,
+      paused_on_chain: false,
+      cancel_pending_on_chain: false,
+      billing_lock_until: null,
+    });
+    if (this.eventService) {
+      await this.eventService.Emit(
+        'customer.subscription.deleted',
+        subscription.platform_account,
+        subscription
+      );
+    }
+    return subscription;
+  }
+
+  /**
+   * Sends the plan owner's on-chain cancel of a subscription canceled here,
+   * without waiting for it. Its hash is recorded first, a cancel the node
+   * still holds is not sent again, and `cancel_pending_on_chain` is cleared
+   * once nothing is left to cancel on-chain. A failure is logged and the
+   * billing runner calls this again.
+   */
+  async SendOnchainCancel(subscriptionId: string): Promise<void> {
+    const subscription = await this.RequireSubscription(subscriptionId);
+    const onchainId = subscription.subscription_onchain_id;
+    if (!subscription.cancel_pending_on_chain || !onchainId) return;
+    try {
+      const transactionHash = await this.settlement.CancelSubscription(
+        onchainId,
+        {
+          pendingHash: subscription.cancel_pending_transaction_hash,
+          onSigned: async (hash) => {
+            await this.db.Update<SubscriptionType>(
+              'Subscriptions',
+              subscriptionId,
+              { cancel_pending_transaction_hash: hash }
+            );
+          },
+        }
+      );
+      if (transactionHash === null) {
+        await this.db.Update<SubscriptionType>(
+          'Subscriptions',
+          subscriptionId,
+          {
+            cancel_pending_on_chain: false,
+            cancel_pending_transaction_hash: null,
+          }
+        );
+        return;
+      }
+      Logger.info('Sent the on-chain cancel of a subscription', {
+        subscriptionId,
+        transactionHash,
+      });
+    } catch (error) {
+      Logger.error('Could not send the on-chain cancel', error, {
+        subscriptionId,
+        subscriptionOnchainId: onchainId,
+      });
+    }
+  }
+
+  /** Puts every item's current period at `period`; returns the list. */
+  private async SetItemsPeriod(
+    subscription: SubscriptionType,
+    period: { start: number; end: number }
+  ): Promise<SubscriptionType['items']> {
+    for (const item of subscription.items.data) {
+      await this.db.Update<SubscriptionItemType>('SubscriptionItems', item.id, {
+        current_period_start: period.start,
+        current_period_end: period.end,
+      });
+    }
+    return this.LoadItemsList(subscription.id);
   }
 
   /**
@@ -1780,9 +1935,13 @@ export class SubscriptionModule {
   ): Promise<SubscriptionType['items']> {
     for (const item of subscription.items.data) {
       const periodStart = item.current_period_end;
+      const price = await this.ResolvePrice(subscription.platform_account, {
+        price: typeof item.price === 'string' ? item.price : item.price.id,
+      } as CreateItemInput);
       const periodEnd = AddRecurringInterval(
         periodStart,
-        ...(await this.ItemInterval(subscription.platform_account, item))
+        price.recurring?.interval ?? 'month',
+        price.recurring?.interval_count ?? 1
       );
       await this.db.Update<SubscriptionItemType>('SubscriptionItems', item.id, {
         current_period_start: periodStart,
@@ -1790,41 +1949,6 @@ export class SubscriptionModule {
       });
     }
     return this.LoadItemsList(subscription.id);
-  }
-
-  private async ItemInterval(
-    platformAccountId: string,
-    item: SubscriptionItemType
-  ): Promise<[RecurringInterval, number]> {
-    const price = await this.ResolvePrice(platformAccountId, {
-      price: typeof item.price === 'string' ? item.price : item.price.id,
-    } as CreateItemInput);
-    return [
-      price.recurring?.interval ?? 'month',
-      price.recurring?.interval_count ?? 1,
-    ];
-  }
-
-  /**
-   * Cancels the on-chain subscription from the plan owner, best effort: a
-   * failure is logged, and billing has already stopped off-chain.
-   */
-  private async CancelOnChain(subscription: SubscriptionType): Promise<void> {
-    if (!subscription.subscription_onchain_id) return;
-    try {
-      const transactionHash = await this.settlement.CancelSubscription(
-        subscription.subscription_onchain_id
-      );
-      Logger.info('Canceled the on-chain subscription', {
-        subscriptionId: subscription.id,
-        transactionHash,
-      });
-    } catch (error) {
-      Logger.error('Could not cancel the on-chain subscription', error, {
-        subscriptionId: subscription.id,
-        subscriptionOnchainId: subscription.subscription_onchain_id,
-      });
-    }
   }
 
   /**
@@ -2038,5 +2162,63 @@ export class SubscriptionModule {
       );
     }
     return customer;
+  }
+}
+
+/** Defaults for fields that documents written before they existed lack. */
+function WithDefaults(subscription: SubscriptionType): SubscriptionType {
+  return {
+    ...subscription,
+    paused_on_chain: subscription.paused_on_chain ?? false,
+    cancel_pending_on_chain: subscription.cancel_pending_on_chain ?? false,
+    cancel_pending_transaction_hash:
+      subscription.cancel_pending_transaction_hash ?? null,
+  };
+}
+
+/**
+ * 400 `onchain_plan_amount_exceeded`: an on-chain plan collects at most
+ * its amount per period, so an on-chain subscription bills one price at
+ * quantity 1.
+ */
+function OnchainAmountExceeded(): AppError {
+  return new AppError(
+    'An on-chain subscription bills exactly one price at quantity 1: its plan cannot collect more per period',
+    400,
+    ERRORS.INVALID_REQUEST.type,
+    { code: ONCHAIN_PLAN_AMOUNT_EXCEEDED }
+  );
+}
+
+function AssertOnchainItems(items: Array<{ quantity?: number }>): void {
+  if (items.length !== 1 || (items[0].quantity ?? 1) !== 1) {
+    throw OnchainAmountExceeded();
+  }
+}
+
+/**
+ * On an on-chain subscription, items may change only their metadata and
+ * the like: no new or deleted items, no other price, no quantity above 1.
+ */
+function AssertOnchainItemChanges(
+  subscription: SubscriptionType,
+  changes: UpdateItemInput[]
+): void {
+  if (!subscription.subscription_onchain_id) return;
+  for (const change of changes) {
+    const existing = subscription.items.data.find(
+      (item) => item.id === change.id
+    );
+    const existingPrice =
+      typeof existing?.price === 'string' ? existing.price : existing?.price.id;
+    if (
+      !existing ||
+      change.deleted ||
+      change.price_data !== undefined ||
+      (change.price !== undefined && change.price !== existingPrice) ||
+      (change.quantity !== undefined && change.quantity !== 1)
+    ) {
+      throw OnchainAmountExceeded();
+    }
   }
 }

@@ -11,7 +11,11 @@ import {
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
-import { CreateMockSettlement, MOCK_SUBSCRIPTION_ID } from './mocks/Settlement';
+import {
+  CreateMockSettlement,
+  MOCK_CANCEL_HASH,
+  MOCK_SUBSCRIPTION_ID,
+} from './mocks/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -600,6 +604,12 @@ describe('SubscriptionModule', () => {
 
     beforeEach(() => {
       settlement = CreateMockSettlement();
+      Object.assign(invoiceModule, {
+        ListOpenSubscriptionInvoices: jest.fn().mockResolvedValue([]),
+        ScheduleOpenSubscriptionInvoices: jest
+          .fn()
+          .mockResolvedValue(undefined),
+      });
       module = new SubscriptionModule(
         mockDb,
         eventService,
@@ -610,32 +620,150 @@ describe('SubscriptionModule', () => {
       );
     });
 
-    async function CreateOnchain() {
-      const created = await module.CreateSubscription(PLATFORM, {
-        customer: CUSTOMER_ID,
-        items: [{ price: PRICE_ID }],
-      });
-      return module.SetSubscriptionOnchainId(created.id, MOCK_SUBSCRIPTION_ID);
+    function CreateOnchain(periodStart?: number) {
+      return module.CreateSubscription(
+        PLATFORM,
+        { customer: CUSTOMER_ID, items: [{ price: PRICE_ID }] },
+        { subscriptionOnchainId: MOCK_SUBSCRIPTION_ID, periodStart }
+      );
     }
 
-    it('cancels the on-chain subscription as the plan owner on cancel', async () => {
+    function Stored(id: string) {
+      return store.get(`Subscriptions:${id}`) as Record<string, unknown>;
+    }
+
+    it('stores the on-chain id at create and anchors the first period on the chain grid', async () => {
+      const periodStart = GetFixedTimestamp() - 12;
+
+      const created = await CreateOnchain(periodStart);
+
+      expect(created.subscription_onchain_id).toBe(MOCK_SUBSCRIPTION_ID);
+      expect(created.items.data[0]).toMatchObject({
+        current_period_start: periodStart,
+        current_period_end: periodStart + MONTH,
+      });
+      expect(Stored(created.id)).toMatchObject({
+        subscription_onchain_id: MOCK_SUBSCRIPTION_ID,
+        paused_on_chain: false,
+        cancel_pending_on_chain: false,
+      });
+    });
+
+    it('fails a second live subscription for the same on-chain subscription and leaves no items behind', async () => {
+      mockDb.Set = jest.fn(async (collection, id, doc) => {
+        if (collection === 'Subscriptions') {
+          throw Object.assign(new Error('E11000 duplicate key'), {
+            code: 11000,
+          });
+        }
+        store.set(`${collection}:${id}`, { ...(doc as object) });
+        return doc;
+      }) as typeof mockDb.Set;
+
+      await expect(CreateOnchain()).rejects.toMatchObject({ statusCode: 409 });
+      expect(
+        [...store.keys()].filter((key) => key.startsWith('SubscriptionItems:'))
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['two items', [{ price: PRICE_ID }, { price: PRICE_ID }]],
+      ['quantity 2', [{ price: PRICE_ID, quantity: 2 }]],
+    ])(
+      'refuses %s on an on-chain subscription with onchain_plan_amount_exceeded',
+      async (_label, items) => {
+        await expect(
+          module.CreateSubscription(
+            PLATFORM,
+            { customer: CUSTOMER_ID, items },
+            { subscriptionOnchainId: MOCK_SUBSCRIPTION_ID }
+          )
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          type: 'invalid_request_error',
+          details: { code: 'onchain_plan_amount_exceeded' },
+        });
+      }
+    );
+
+    it('refuses item changes that would raise what the plan collects', async () => {
+      const created = await CreateOnchain();
+      const itemId = created.items.data[0].id;
+      const refused = {
+        statusCode: 400,
+        details: { code: 'onchain_plan_amount_exceeded' },
+      };
+
+      await expect(
+        module.UpdateSubscription(created.id, {
+          items: [{ id: itemId, quantity: 3 }],
+        })
+      ).rejects.toMatchObject(refused);
+      await expect(
+        module.UpdateSubscription(created.id, {
+          items: [{ price: PRICE_ID }],
+        })
+      ).rejects.toMatchObject(refused);
+      await expect(
+        module.CreateSubscriptionItem(PLATFORM, {
+          subscription: created.id,
+          price: PRICE_ID,
+        })
+      ).rejects.toMatchObject(refused);
+      await expect(
+        module.DeleteSubscriptionItem(itemId, {}, PLATFORM)
+      ).rejects.toMatchObject(refused);
+      // Quantity 1 is still fine.
+      await expect(
+        module.UpdateSubscription(created.id, {
+          items: [{ id: itemId, quantity: 1 }],
+        })
+      ).resolves.toMatchObject({ id: created.id });
+    });
+
+    it('on cancel, sends the on-chain cancel without waiting and records its hash', async () => {
       const created = await CreateOnchain();
 
       const canceled = await module.CancelSubscription(created.id, {});
 
       expect(settlement.CancelSubscription).toHaveBeenCalledWith(
-        MOCK_SUBSCRIPTION_ID
+        MOCK_SUBSCRIPTION_ID,
+        expect.objectContaining({ pendingHash: null })
       );
       expect(canceled.status).toBe('canceled');
+      expect(Stored(created.id)).toMatchObject({
+        cancel_pending_on_chain: true,
+        cancel_pending_transaction_hash: MOCK_CANCEL_HASH,
+      });
     });
 
-    it('still cancels when the on-chain cancel fails', async () => {
+    it('keeps the cancel pending when the on-chain cancel fails, for the runner to retry', async () => {
       const created = await CreateOnchain();
       settlement.CancelSubscription.mockRejectedValue(new Error('node down'));
 
       await expect(
         module.CancelSubscription(created.id, {})
       ).resolves.toMatchObject({ status: 'canceled' });
+      expect(Stored(created.id)).toMatchObject({
+        cancel_pending_on_chain: true,
+      });
+    });
+
+    it('clears the pending cancel once nothing is left to cancel on-chain', async () => {
+      const created = await CreateOnchain();
+      await module.CancelSubscription(created.id, {});
+      settlement.CancelSubscription.mockResolvedValue(null);
+
+      await module.SendOnchainCancel(created.id);
+
+      expect(settlement.CancelSubscription).toHaveBeenLastCalledWith(
+        MOCK_SUBSCRIPTION_ID,
+        expect.objectContaining({ pendingHash: MOCK_CANCEL_HASH })
+      );
+      expect(Stored(created.id)).toMatchObject({
+        cancel_pending_on_chain: false,
+        cancel_pending_transaction_hash: null,
+      });
     });
 
     it('leaves the chain alone for a subscription without an on-chain id', async () => {
@@ -647,49 +775,99 @@ describe('SubscriptionModule', () => {
       await module.CancelSubscription(created.id, {});
 
       expect(settlement.CancelSubscription).not.toHaveBeenCalled();
+      expect(Stored(created.id)).toMatchObject({
+        cancel_pending_on_chain: false,
+      });
     });
 
-    it('cancels on-chain when a scheduled cancel takes effect', async () => {
+    it('sends the on-chain cancel when a scheduled cancel takes effect', async () => {
       const created = await CreateOnchain();
 
       await module.FinalizeCancelAtPeriodEnd(created.id);
 
       expect(settlement.CancelSubscription).toHaveBeenCalledWith(
-        MOCK_SUBSCRIPTION_ID
+        MOCK_SUBSCRIPTION_ID,
+        expect.anything()
       );
     });
 
-    it('reports when the next cycle would end', async () => {
+    it('cancels for good when the chain says canceled: voids open invoices, no dunning', async () => {
       const created = await CreateOnchain();
-      const periodEnd = created.items.data[0].current_period_end;
+      jest
+        .mocked(invoiceModule.ListOpenSubscriptionInvoices)
+        .mockResolvedValue([{ id: 'in_z_open' }] as never);
 
-      await expect(module.NextCycleEnd(created)).resolves.toBe(
-        periodEnd + MONTH
+      const canceled = await module.CancelFromChain(created.id);
+
+      expect(invoiceModule.VoidInvoice).toHaveBeenCalledWith('in_z_open');
+      expect(canceled).toMatchObject({
+        status: 'canceled',
+        canceled_at: GetFixedTimestamp(),
+        cancellation_details: {
+          reason: 'cancellation_requested',
+          comment: 'canceled_on_chain',
+        },
+        billing_lock_until: null,
+      });
+      expect(eventService.Emit).toHaveBeenCalledWith(
+        'customer.subscription.deleted',
+        PLATFORM,
+        expect.objectContaining({ id: created.id })
       );
+      expect(settlement.CancelSubscription).not.toHaveBeenCalled();
+
+      // Again: nothing more happens.
+      jest.mocked(eventService.Emit).mockClear();
+      jest.mocked(invoiceModule.VoidInvoice).mockClear();
+      await module.CancelFromChain(created.id);
+      expect(invoiceModule.VoidInvoice).not.toHaveBeenCalled();
+      expect(eventService.Emit).not.toHaveBeenCalled();
     });
 
-    it('skips a missed cycle by one period, keeping its status and billing lock', async () => {
+    it('aligns to an on-chain cycle without paying it, keeping status and billing lock', async () => {
       const created = await CreateOnchain();
-      const { current_period_end: periodEnd } = created.items.data[0];
       await mockDb.Update('Subscriptions', created.id, {
         billing_lock_until: GetFixedTimestamp() + 300,
         status: 'past_due',
       });
+      const period = {
+        start: GetFixedTimestamp() + 2 * MONTH,
+        end: GetFixedTimestamp() + 3 * MONTH,
+      };
 
-      const skipped = await module.SkipMissedCycle(created.id, 'in_z_missed');
+      const aligned = await module.AlignToCycle(created.id, period);
 
-      expect(skipped.items.data[0]).toMatchObject({
-        current_period_start: periodEnd,
-        current_period_end: periodEnd + MONTH,
+      expect(aligned.items.data[0]).toMatchObject({
+        current_period_start: period.start,
+        current_period_end: period.end,
       });
-      expect(skipped).toMatchObject({
+      expect(aligned).toMatchObject({
         status: 'past_due',
-        latest_invoice: 'in_z_missed',
         billing_lock_until: GetFixedTimestamp() + 300,
       });
     });
 
-    it('pauses collection for a pause on-chain and lifts only that pause', async () => {
+    it('advances to the period the on-chain charge paid', async () => {
+      const created = await CreateOnchain();
+      const period = { start: 1_700_100_000, end: 1_700_100_000 + MONTH };
+
+      const advanced = await module.AdvanceSubscriptionPeriod(
+        created.id,
+        'in_z_paid',
+        period
+      );
+
+      expect(advanced.items.data[0]).toMatchObject({
+        current_period_start: period.start,
+        current_period_end: period.end,
+      });
+      expect(advanced).toMatchObject({
+        status: 'active',
+        latest_invoice: 'in_z_paid',
+      });
+    });
+
+    it('pauses collection for a pause on-chain, unschedules its invoices, and lifts only that pause', async () => {
       const created = await CreateOnchain();
 
       const paused = await module.PauseCollectionOnChain(created.id);
@@ -699,12 +877,9 @@ describe('SubscriptionModule', () => {
         paused_on_chain: true,
         billing_lock_until: null,
       });
-      expect(eventService.Emit).toHaveBeenCalledWith(
-        'customer.subscription.updated',
-        PLATFORM,
-        expect.objectContaining({ paused_on_chain: true }),
-        expect.anything()
-      );
+      expect(
+        invoiceModule.ScheduleOpenSubscriptionInvoices
+      ).toHaveBeenCalledWith(created.id, null);
 
       await mockDb.Update('Subscriptions', created.id, {
         billing_lock_until: GetFixedTimestamp() + 300,
@@ -715,6 +890,37 @@ describe('SubscriptionModule', () => {
         pause_collection: null,
         paused_on_chain: false,
         billing_lock_until: GetFixedTimestamp() + 300,
+      });
+      expect(
+        invoiceModule.ScheduleOpenSubscriptionInvoices
+      ).toHaveBeenLastCalledWith(created.id, GetFixedTimestamp());
+    });
+
+    it('hands the pause to the merchant when the merchant sets pause_collection', async () => {
+      const created = await CreateOnchain();
+      await module.PauseCollectionOnChain(created.id);
+
+      const updated = await module.UpdateSubscription(created.id, {
+        pause_collection: { behavior: 'void' },
+      });
+
+      expect(updated).toMatchObject({
+        pause_collection: { behavior: 'void' },
+        paused_on_chain: false,
+      });
+    });
+
+    it('reads older documents with the new flags defaulted', async () => {
+      const created = await CreateOnchain();
+      const stored = Stored(created.id);
+      delete stored.paused_on_chain;
+      delete stored.cancel_pending_on_chain;
+      delete stored.cancel_pending_transaction_hash;
+
+      await expect(module.GetSubscription(created.id)).resolves.toMatchObject({
+        paused_on_chain: false,
+        cancel_pending_on_chain: false,
+        cancel_pending_transaction_hash: null,
       });
     });
   });

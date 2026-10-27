@@ -241,6 +241,22 @@ export interface Subscription {
   paused_on_chain: boolean;
 
   /**
+   * True from a cancel until the on-chain subscription reads canceled. The
+   * plan owner's cancel is sent without waiting; the billing runner sends it
+   * again when it did not land. No new checkout may subscribe the same
+   * wallet to the same price meanwhile.
+   * @zoneless_extension
+   */
+  cancel_pending_on_chain: boolean;
+
+  /**
+   * The on-chain cancel sent for `cancel_pending_on_chain`, recorded before
+   * it is sent.
+   * @zoneless_extension
+   */
+  cancel_pending_transaction_hash: string | null;
+
+  /**
    * Unix timestamp until which this subscription is claimed by a billing runner.
    * Used to prevent duplicate cycle invoices across multiple API instances.
    * @zoneless_extension

@@ -474,7 +474,7 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'The plan key of this recurring price on the Subscriptions contract (32 bytes as <code>0x</code> hex). Creating a recurring price registers the plan from <code>SUBSCRIPTION_OPERATOR_KEY</code>, which owns it and collects each period: the price’s amount at most once per billing period of <code>interval</code> × <code>interval_count</code>, paid to the platform wallet. The plan’s amount and period never change. <code>null</code> for one-time prices.',
+      'The plan key of this recurring price on the Subscriptions contract (32 bytes as <code>0x</code> hex). Creating a recurring price registers the plan from <code>SUBSCRIPTION_OPERATOR_KEY</code>, which owns it and collects each period: the price’s amount at most once per billing period of <code>interval</code> × <code>interval_count</code>, paid to the platform wallet. The plan’s amount and period never change, so a subscription on this price bills one unit of it per period: quantities above 1, more items, and invoice items, prorations or tax that would make an invoice larger than <code>unit_amount</code> are refused with <code>onchain_plan_amount_exceeded</code>. <code>null</code> for one-time prices.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },

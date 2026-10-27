@@ -122,6 +122,21 @@ export function SubscribeDeadline(expiresAt: number, now: number): number {
   return Math.min(expiresAt, now + SUBSCRIBE_DEADLINE_SECONDS);
 }
 
+/**
+ * The grid point a charge made at `now` collects: `nextChargeAt`, moved on
+ * by the whole periods that passed since (the contract skips them). Before
+ * `nextChargeAt` nothing is due, and `nextChargeAt` is returned.
+ */
+export function CurrentDueAt(
+  nextChargeAt: number,
+  now: number,
+  periodSeconds: number
+): number {
+  if (now < nextChargeAt) return nextChargeAt;
+  const missed = Math.floor((now - nextChargeAt) / periodSeconds);
+  return nextChargeAt + missed * periodSeconds;
+}
+
 export function BuildSubscriptionsDomain(
   chainId: number,
   verifyingContract: Address
@@ -208,4 +223,30 @@ export function FindSubscribedEvent(
       SameAddress(candidate.args.subscriber, expected.subscriber)
   );
   return log ? log.args.subId : null;
+}
+
+/**
+ * The next due time a successful receipt's `Charged(subId, …, amount,
+ * nextChargeAt)` log from the Subscriptions contract reports, or null when
+ * the receipt has no such log.
+ */
+export function FindChargedEvent(
+  receipt: TransactionReceipt,
+  expected: { subscriptions: string; subId: Hex; amount: bigint }
+): number | null {
+  if (receipt.status !== 'success') return null;
+  const logs = parseEventLogs({
+    abi: SUBSCRIPTIONS_ABI,
+    eventName: 'Charged',
+    logs: receipt.logs.filter(
+      (log) => !log.removed && SameAddress(log.address, expected.subscriptions)
+    ),
+    strict: true,
+  });
+  const log = logs.find(
+    (candidate) =>
+      candidate.args.subId.toLowerCase() === expected.subId.toLowerCase() &&
+      candidate.args.amount === expected.amount
+  );
+  return log ? Number(log.args.nextChargeAt) : null;
 }

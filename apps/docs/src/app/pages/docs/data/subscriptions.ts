@@ -704,6 +704,8 @@ export const SUBSCRIPTION_OBJECT_JSON = `{
   "platform_account": "acct_z_Platform123abc",
   "subscription_onchain_id": "0x8e2b4d6f1a3c5e7b9d0f2a4c6e8b1d3f5a7c9e0b2d4f6a8c1e3b5d7f9a0c2e4b",
   "paused_on_chain": false,
+  "cancel_pending_on_chain": false,
+  "cancel_pending_transaction_hash": null,
   "billing_lock_until": null
 }`;
 
@@ -1603,7 +1605,7 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     type: 'string',
     nullable: true,
     description:
-      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period, plus a USDC permit for a bounded allowance (at least 12 periods and at least a year) when theirs is lower; Zoneless relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull.',
+      'The subscription id on the Subscriptions contract (32 bytes as <code>0x</code> hex), set when the customer subscribes through hosted checkout. The customer signs a <code>Subscribe</code> message naming the plan’s token, amount and period. When their USDC allowance to the Subscriptions contract does not cover this plan and their other live plans, they also sign a USDC permit that adds this plan’s bounded amount (at least 12 periods and at least a year) to their current allowance. Zoneless relays both and pays the gas. Each billing period is then charged from that allowance. Revoking the allowance, or canceling on-chain, stops every pull. Only one live subscription can have a given <code>subscription_onchain_id</code>.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
@@ -1611,7 +1613,24 @@ export const SUBSCRIPTION_MORE_ATTRIBUTES: Attribute[] = [
     name: 'paused_on_chain',
     type: 'boolean',
     description:
-      'True while the subscription is paused on-chain (by the customer or the plan owner). Zoneless then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain; a <code>pause_collection</code> you set is never lifted this way.',
+      'True while the subscription is paused on-chain (by the customer or the plan owner). Zoneless then sets <code>pause_collection</code> itself and lifts it when the subscription resumes on-chain. Setting <code>pause_collection</code> yourself makes it <code>false</code>: a pause you set is never lifted this way.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'cancel_pending_on_chain',
+    type: 'boolean',
+    description:
+      'True after the subscription was canceled while its on-chain cancel has not landed yet. Billing runs send the cancel again until the chain reads the subscription canceled, then set it to <code>false</code>. A new checkout for the same on-chain subscription is refused until then.',
+    enumNote:
+      "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'cancel_pending_transaction_hash',
+    type: 'string',
+    nullable: true,
+    description:
+      'The hash of the on-chain cancel last sent while <code>cancel_pending_on_chain</code> is true.',
     enumNote:
       "<strong>Zoneless extension:</strong> This field is not present in Stripe's API.",
   },
@@ -1658,6 +1677,13 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
           variant: 'info',
           title: 'Processing renewals: ',
           text: 'Creating a subscription does not collect future cycle invoices on its own. Use the <a href="/billing">Billing Helpers</a> API (<code>runForPlatform</code>) on a schedule—or enable the in-process billing monitor—to invoice and collect due subscriptions in USDC.',
+          html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'info',
+          title: 'Zoneless extension: ',
+          text: "A subscription with a <code>subscription_onchain_id</code> is collected by the Subscriptions contract, which charges at most the plan’s amount once per period. It has exactly one item, with <code>quantity=1</code>, and nothing may raise an invoice above the price’s <code>unit_amount</code>: more items, a higher quantity, and invoice items, prorations or tax on top are refused with a 400 <code>invalid_request_error</code> whose code is <code>onchain_plan_amount_exceeded</code>. The allowance the customer signs is shared by all of their plans, and a phished Subscribe signature can spend at most the wallet's remaining allowance to the Subscriptions contract, which equals the consents the wallet has granted (≈ one year per plan).",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -3001,7 +3027,7 @@ export const SUBSCRIPTIONS_CANCEL_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also cancels it on the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. This is best effort: if the transaction fails, the cancellation still stands and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull.',
+          text: 'When the subscription has a <code>subscription_onchain_id</code>, Zoneless also sends its cancel to the Subscriptions contract from <code>SUBSCRIPTION_OPERATOR_KEY</code>, the plan owner. The request does not wait for that transaction: the subscription is returned canceled with <code>cancel_pending_on_chain=true</code>, and billing runs send the cancel again until the chain reads it canceled. The cancellation stands either way, and Zoneless never charges the subscription again. The customer can also cancel on-chain or revoke their USDC allowance, either of which stops every pull; a cancel on-chain cancels the subscription here too.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },

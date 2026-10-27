@@ -26,7 +26,8 @@ import type {
   ConfirmedBlock,
   CheckoutSubscribeVerification,
   IncomingDeposit,
-  OnchainSubscriptionStatus,
+  ChargeReconciliation,
+  OnchainSubscriptionState,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
@@ -175,14 +176,16 @@ export interface Settlement {
   ): Promise<string>;
   /**
    * What the subscriber signs to subscribe to the plan: the `Subscribe`
-   * message, and a USDC permit when their allowance to the Subscriptions
-   * contract is below the bounded permit value. Valid until `expiresAt` at
-   * most.
+   * message, and a USDC permit (for the current allowance plus this plan's
+   * bounded value) when the allowance is below this plan's value plus
+   * `otherPlansAllowance`, the values of the wallet's other live plans.
+   * Valid until `expiresAt` at most.
    */
   BuildSubscribeAuthorization(
     subscriber: string,
     planKey: string,
-    expiresAt: number
+    expiresAt: number,
+    options?: { otherPlansAllowance?: bigint }
   ): Promise<PreparedSubscribe>;
   /**
    * Submits the signed subscribe (with its permit, if any) and returns the
@@ -209,23 +212,47 @@ export interface Settlement {
     expected: { planKey: string; subscriberWallet: string },
     options?: { timeoutMs?: number }
   ): Promise<CheckoutSubscribeVerification>;
+  /** The subscription's on-chain status and schedule, at chain time. */
+  GetSubscriptionState(
+    subscriptionOnchainId: string
+  ): Promise<OnchainSubscriptionState>;
   /**
-   * Collects one period. `alreadyCollected` when this period was already
-   * collected. Throws `paused_on_chain` when the subscription is paused
-   * on-chain and `collection_failed_allowance` when the allowance cannot
-   * cover the amount.
+   * Collects the current period; `params.onSigned` records the charge's
+   * hash before it is sent. Throws `paused_on_chain`, `canceled_on_chain`
+   * or a decline (`collection_failed_allowance`, `insufficient_funds`,
+   * `account_frozen`).
    */
   CollectSubscriptionPayment(
     params: SubscriptionCollectParams
   ): Promise<SubscriptionCollection>;
-  GetSubscriptionStatus(
-    subscriptionOnchainId: string
-  ): Promise<OnchainSubscriptionStatus>;
+  /** What a recorded charge hash says now (see `ChargeReconciliation`). */
+  ReconcileSubscriptionCharge(
+    transactionHash: string,
+    expected: {
+      subscriptionOnchainId: string;
+      amountCents: number;
+      sentAt: number | null;
+      onReplaced(transactionHash: string): Promise<void>;
+    }
+  ): Promise<ChargeReconciliation>;
+  /** The newest charge of `amountCents` mined at or after `since`, or null. */
+  FindSubscriptionCharge(
+    subscriptionOnchainId: string,
+    expected: { amountCents: number; since: number }
+  ): Promise<{ transaction_hash: string; next_charge_at: number } | null>;
   /**
-   * Cancels the subscription on-chain as the plan owner; null when it is
-   * not active or paused there, so nothing was sent.
+   * Sends the plan owner's cancel without waiting for it; `onSigned`
+   * records the hash first. Null when the subscription is not active or
+   * paused on-chain (nothing to send); the pending hash while the node
+   * still knows it.
    */
-  CancelSubscription(subscriptionOnchainId: string): Promise<string | null>;
+  CancelSubscription(
+    subscriptionOnchainId: string,
+    options: {
+      pendingHash?: string | null;
+      onSigned(transactionHash: string): Promise<void>;
+    }
+  ): Promise<string | null>;
 }
 
 const SIM_SIG_PREFIX = 'sim_sig:';
@@ -392,17 +419,41 @@ export class SimulatedSettlement implements Settlement {
     };
   }
 
-  async CollectSubscriptionPayment(
-    params: SubscriptionCollectParams
-  ): Promise<SubscriptionCollection> {
+  /** Always active; the off-chain schedule applies (no chain to read). */
+  async GetSubscriptionState(): Promise<OnchainSubscriptionState> {
     return {
-      transaction_hash: `sim_collect:${params.subscriberWallet}`,
-      alreadyCollected: false,
+      status: 'active',
+      next_charge_at: null,
+      period_seconds: null,
+      chain_time: null,
     };
   }
 
-  async GetSubscriptionStatus(): Promise<OnchainSubscriptionStatus> {
-    return 'active';
+  /** Collects at once; the `sim_collect:` reference stands for the charge. */
+  async CollectSubscriptionPayment(
+    params: SubscriptionCollectParams
+  ): Promise<SubscriptionCollection> {
+    const reference = `sim_collect:${params.subscriberWallet}`;
+    await params.onSigned(reference);
+    return {
+      status: 'collected',
+      transaction_hash: reference,
+      next_charge_at: null,
+    };
+  }
+
+  async ReconcileSubscriptionCharge(
+    transactionHash: string
+  ): Promise<ChargeReconciliation> {
+    return {
+      status: 'paid',
+      transaction_hash: transactionHash,
+      next_charge_at: null,
+    };
+  }
+
+  async FindSubscriptionCharge(): Promise<null> {
+    return null;
   }
 
   async CancelSubscription(): Promise<string | null> {
