@@ -2,6 +2,7 @@
 import type { PayoutBatch } from '@zoneless/shared-types';
 import { Database } from '../modules/Database';
 import {
+  NONCE_LOCK_STATUSES,
   OUTSTANDING_BATCH_STATUSES,
   PayoutBatchStore,
 } from '../modules/PayoutBatchStore';
@@ -43,6 +44,7 @@ function NewBatch(store: PayoutBatchStore): PayoutBatch {
     max_priority_fee_per_gas: '1000000000',
     build_block: 12,
     replaces: null,
+    deadlines: [1_700_001_800],
   });
 }
 
@@ -65,6 +67,8 @@ describe('PayoutBatchStore', () => {
         status: 'built',
         transaction_hash: null,
         transaction_hashes: [],
+        reported_hashes: [],
+        deadlines: [1_700_001_800],
         broadcast_mode: null,
         replaced_by: null,
         livemode: false,
@@ -134,7 +138,7 @@ describe('PayoutBatchStore', () => {
             {
               key: 'status',
               operator: 'in',
-              value: [...OUTSTANDING_BATCH_STATUSES],
+              value: [...NONCE_LOCK_STATUSES],
             },
           ],
         })
@@ -152,8 +156,35 @@ describe('PayoutBatchStore', () => {
             {
               key: 'status',
               operator: 'in',
-              value: [...OUTSTANDING_BATCH_STATUSES],
+              value: [...NONCE_LOCK_STATUSES],
             },
+          ],
+        })
+      );
+    });
+
+    it('holds payouts in reverted batches too, but only locks nonces while built or broadcast', () => {
+      expect(NONCE_LOCK_STATUSES).toEqual(['built', 'broadcast']);
+      expect(OUTSTANDING_BATCH_STATUSES).toEqual([
+        'built',
+        'broadcast',
+        'reverted',
+      ]);
+    });
+
+    it('finds a platform’s replaced batches holding any of the payouts', async () => {
+      await store.FindReplacedWithPayouts('acct_z_platform', ['po_z_1']);
+
+      expect(db.Query).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: [
+            {
+              key: 'platform_account',
+              operator: '==',
+              value: 'acct_z_platform',
+            },
+            { key: 'payouts', operator: 'in', value: ['po_z_1'] },
+            { key: 'status', operator: '==', value: 'replaced' },
           ],
         })
       );
@@ -302,7 +333,7 @@ describe('Database PayoutBatches index', () => {
       expect.objectContaining({
         unique: true,
         partialFilterExpression: {
-          status: { $in: [...OUTSTANDING_BATCH_STATUSES] },
+          status: { $in: [...NONCE_LOCK_STATUSES] },
         },
       }),
     ]);

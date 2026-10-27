@@ -1,6 +1,8 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import {
+  createTestClient,
   createWalletClient,
+  decodeFunctionData,
   http,
   keccak256,
   maxUint256,
@@ -33,11 +35,11 @@ const BLACKLIST_ABI = parseAbi([
 
 /** Fresh recipients with no USDC, one per payout. */
 const RECIPIENTS: Address[] = Array.from(
-  { length: 8 },
+  { length: 9 },
   (_, i) =>
     privateKeyToAccount(keccak256(toBytes(`payout-recipient-${i + 1}`))).address
 );
-const AMOUNTS = [1050, 2000, 1, 700, 900, 1200, 300, 450];
+const AMOUNTS = [1050, 2000, 1, 700, 900, 1200, 300, 450, 820];
 const IDS = AMOUNTS.map((_, i) => `po_z_${i + 1}`);
 
 describe('Payouts on Anvil', () => {
@@ -158,8 +160,21 @@ describe('Payouts on Anvil', () => {
     return memory.Doc<Balance>('Balances', 'bal_z_seller').available[0].amount;
   }
 
-  const Build = (payouts: string[]) =>
-    module.BuildPayoutsBatch('acct_z_platform', { payouts });
+  const Build = (payouts: string[], deadlineSeconds?: number) =>
+    module.BuildPayoutsBatch('acct_z_platform', {
+      payouts,
+      deadline_seconds: deadlineSeconds,
+    });
+
+  /** Advances chain time and mines, so the confirmed block is past it. */
+  async function PassTime(seconds: number): Promise<void> {
+    await createTestClient({
+      mode: 'anvil',
+      chain: foundry,
+      transport: http(Context().rpcUrl),
+    }).increaseTime({ seconds });
+    await Context().Mine(2);
+  }
 
   it('returns the one-time approval for a wallet that never approved PayoutBatch', async () => {
     const { publicClient, addresses } = Context();
@@ -299,8 +314,8 @@ describe('Payouts on Anvil', () => {
     expect(Payout(IDS[3]).status).toBe('pending');
   });
 
-  it('fails a batch whose recipient was blacklisted after build, refunding it', async () => {
-    const built = await Build([IDS[4]]);
+  it('fails a batch whose recipient was blacklisted after build, refunding it once expired', async () => {
+    const built = await Build([IDS[4]], 120);
     await Blacklist(RECIPIENTS[4]);
 
     const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
@@ -313,6 +328,17 @@ describe('Payouts on Anvil', () => {
       failure_code: 'account_frozen',
       failure_message: expect.stringMatching(/blacklisted/),
     });
+    // Held, not refunded, until no signed copy can pay any more.
+    expect(Payout(IDS[4])).toMatchObject({
+      status: 'in_transit',
+      failure_code: 'account_frozen',
+    });
+    expect(Available()).toBe(0);
+    expect(Batch(built.payout_batch).status).toBe('reverted');
+
+    await PassTime(121);
+    await module.ReconcilePayoutBatches('acct_z_platform');
+
     expect(Payout(IDS[4])).toMatchObject({
       status: 'failed',
       failure_code: 'account_frozen',
@@ -345,8 +371,8 @@ describe('Payouts on Anvil', () => {
     });
   });
 
-  it('reconcile replaces a built batch whose nonce another transaction used', async () => {
-    const built = await Build([IDS[6]]);
+  it('releases a built batch whose nonce another transaction used only once it has expired', async () => {
+    const built = await Build([IDS[6]], 120);
     unsigned.replaced = built.unsigned_transaction as Hex;
     const hash = await platformWallet.sendTransaction({
       to: platform,
@@ -357,6 +383,10 @@ describe('Payouts on Anvil', () => {
     await Context().publicClient.waitForTransactionReceipt({ hash });
     await Context().Mine(1);
 
+    await module.ReconcilePayoutBatches('acct_z_platform');
+    expect(Batch(built.payout_batch).status).toBe('built');
+
+    await PassTime(121);
     await expect(
       module.ReconcilePayoutBatches('acct_z_platform')
     ).resolves.toMatchObject({ reconciled: 1, failed: 1 });
@@ -365,22 +395,79 @@ describe('Payouts on Anvil', () => {
     await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(0n);
   });
 
-  it('refuses to build payouts the chain already shows paid', async () => {
-    // A wallet sends the released batch anyway, at a nonce of its choosing.
+  it('cannot pay a released batch late: a wallet send reverts BatchExpired, and the payout is paid once', async () => {
+    const { publicClient } = Context();
     const { to, data } = parseTransaction(unsigned.replaced);
-    const hash = await platformWallet.sendTransaction({
+    const late = await platformWallet.sendTransaction({
       to,
       data,
+      gas: 500_000n,
       account: platformWallet.account ?? null,
       chain: foundry,
     });
-    await Context().publicClient.waitForTransactionReceipt({ hash });
-
-    await expect(Build([IDS[6]])).rejects.toMatchObject({
-      statusCode: 400,
-      type: 'payout_batch_already_paid',
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: late,
     });
+    expect(receipt.status).toBe('reverted');
+    await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(0n);
+
+    const rebuilt = await Build([IDS[6]]);
+    const result = await module.BroadcastPayoutsBatch('acct_z_platform', {
+      signed_transaction: await Sign(rebuilt.unsigned_transaction),
+      payouts: [IDS[6]],
+    });
+
+    expect(result.status).toBe('paid');
     await expect(UsdcBalance(RECIPIENTS[6])).resolves.toBe(3_000_000n);
+  });
+
+  it('reverts a disperse after its deadline with BatchExpired; the API releases the batch unpaid', async () => {
+    const { publicClient, addresses } = Context();
+    const built = await Build([IDS[8]], 120);
+    await PassTime(200);
+    const { data } = parseTransaction(built.unsigned_transaction as Hex);
+    const { args } = decodeFunctionData({
+      abi: PAYOUT_BATCH_ABI,
+      data: data as Hex,
+    });
+
+    await expect(
+      publicClient.simulateContract({
+        address: addresses.payoutBatch,
+        abi: PAYOUT_BATCH_ABI,
+        functionName: 'disperse',
+        args: args as never,
+        account: platform,
+      })
+    ).rejects.toThrow(/BatchExpired/);
+    // A signed copy mined anyway pays nothing.
+    const hash = await publicClient.sendRawTransaction({
+      serializedTransaction: await Sign(built.unsigned_transaction),
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    expect(receipt.status).toBe('reverted');
+    await expect(
+      publicClient.readContract({
+        address: addresses.payoutBatch,
+        abi: PAYOUT_BATCH_ABI,
+        functionName: 'paid',
+        args: [platform, ComputeBatchId([IDS[8]])],
+      })
+    ).resolves.toBe(false);
+
+    // Reconcile proves expiry and frees the payout; broadcast has nothing left.
+    await expect(
+      module.BroadcastPayoutsBatch('acct_z_platform', {
+        transaction_hash: hash,
+        payouts: [IDS[8]],
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(Batch(built.payout_batch).status).toBe('replaced');
+    expect(Payout(IDS[8])).toMatchObject({
+      status: 'pending',
+      payout_batch: null,
+    });
+    await expect(UsdcBalance(RECIPIENTS[8])).resolves.toBe(0n);
   });
 
   it('reconcile settles a built batch the wallet sent without broadcasting, from its BatchPaid log', async () => {

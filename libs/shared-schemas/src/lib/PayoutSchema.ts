@@ -110,6 +110,10 @@ export type ListPayoutsInput = z.infer<typeof ListPayoutsSchema>;
 /** Maximum payouts in one batch transaction (about 5.1 M gas on Ethereum). */
 export const MAX_BATCH_PAYOUTS = 100;
 
+/** Bounds of a batch's on-chain deadline window, in seconds. */
+export const MIN_PAYOUT_DEADLINE_SECONDS = 120;
+export const MAX_PAYOUT_DEADLINE_SECONDS = 86400;
+
 const PayoutIdsSchema = z
   .array(z.string().min(1, 'Payout ID cannot be empty'))
   .max(
@@ -130,6 +134,18 @@ export const BuildPayoutsBatchSchema = z.object({
    * with higher fees, or replace a batch that was built but never broadcast.
    */
   replace: z.boolean().optional(),
+
+  /**
+   * Seconds the transaction stays executable on-chain. Its payouts are held
+   * until it is paid or this deadline passes. Defaults to
+   * PAYOUT_BUILD_DEADLINE_SECONDS (1800).
+   */
+  deadline_seconds: z
+    .number()
+    .int()
+    .min(MIN_PAYOUT_DEADLINE_SECONDS)
+    .max(MAX_PAYOUT_DEADLINE_SECONDS)
+    .optional(),
 });
 
 export type BuildPayoutsBatchInput = z.infer<typeof BuildPayoutsBatchSchema>;

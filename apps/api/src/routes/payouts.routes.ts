@@ -121,10 +121,13 @@ router.post(
  * - payouts: Array of payout IDs to include in the batch (max 100)
  *
  * Optional parameters:
- * - replace: Supersede the wallet's outstanding batch. Re-prices it at the
- *   same nonce (same payouts, fees x1.125) or, while it is only built,
- *   replaces it with a different set. Without it, a second build for the
+ * - replace: Re-price the wallet's outstanding batch (same payouts, same
+ *   nonce and batch id, fees x1.125, fresh deadline). A different set waits
+ *   until the batch is paid or expired. Without it, a second build for the
  *   wallet fails with 409 payout_batch_in_progress.
+ * - deadline_seconds: Seconds (120..86400) the transaction stays executable;
+ *   the batch holds its payouts until it is paid or this deadline passes.
+ *   Defaults to PAYOUT_BUILD_DEADLINE_SECONDS (1800).
  *
  * Returns:
  * - payout_batch: Id of the batch record; replaced_payout_batch: the batch it superseded
@@ -133,6 +136,8 @@ router.post(
  * - fee_currency: Currency the network fee is paid in
  * - chain_id, nonce, to, gas_limit, max_fee_per_gas, max_priority_fee_per_gas:
  *   Transaction details (null when the rail has none)
+ * - deadline, release_after: When the transaction stops being executable, and
+ *   roughly when its payouts are released if it is never mined
  * - transaction_type: 'payout', or 'approval' when the platform wallet must first
  *   approve the payout contract (payouts is then empty; sign, broadcast, build again)
  * - batch_id: On-chain batch identifier (null for an approval)
@@ -155,7 +160,7 @@ router.post(
   ValidateRequest(BuildPayoutsBatchSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const platformAccountId = req.user.account;
-    const { payouts, replace } = req.body;
+    const { payouts, replace, deadline_seconds } = req.body;
 
     Logger.info('Building batch payout transaction', {
       platformAccountId,
@@ -166,6 +171,7 @@ router.post(
     const result = await payoutModule.BuildPayoutsBatch(platformAccountId, {
       payouts,
       replace,
+      deadline_seconds,
     });
 
     Logger.info('Batch payout transaction built successfully', {

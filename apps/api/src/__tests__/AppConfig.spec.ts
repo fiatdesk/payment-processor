@@ -2,6 +2,7 @@
 import {
   GetChainConfig,
   GetCheckoutRelayerKey,
+  GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
   RequireSubscriptionOperatorKey,
 } from '../modules/AppConfig';
@@ -20,6 +21,7 @@ const ENV_KEYS = [
   'ETH_CONFIRMATIONS',
   'CHECKOUT_RELAYER_KEY',
   'SUBSCRIPTION_OPERATOR_KEY',
+  'PAYOUT_BUILD_DEADLINE_SECONDS',
 ];
 
 describe('AppConfig', () => {
@@ -124,6 +126,37 @@ describe('AppConfig', () => {
       process.env.ETH_CONFIRMATIONS = '1';
 
       expect(BootConfig()).toMatchObject({ settlement_rail: 'onchain' });
+    });
+  });
+
+  describe('GetPayoutDeadlineSeconds', () => {
+    it('defaults to 30 minutes', () => {
+      expect(GetPayoutDeadlineSeconds()).toBe(1800);
+    });
+
+    it.each(['120', '600', '86400'])('accepts %s seconds', (value) => {
+      process.env.PAYOUT_BUILD_DEADLINE_SECONDS = value;
+
+      expect(GetPayoutDeadlineSeconds()).toBe(Number(value));
+    });
+
+    it.each(['119', '86401', '1.5', 'thirty'])('rejects %s', (value) => {
+      process.env.PAYOUT_BUILD_DEADLINE_SECONDS = value;
+
+      expect(() => GetPayoutDeadlineSeconds()).toThrow(
+        'PAYOUT_BUILD_DEADLINE_SECONDS must be an integer from 120 to 86400'
+      );
+    });
+
+    it('fails at boot on a bad window', () => {
+      process.env.PAYOUT_BUILD_DEADLINE_SECONDS = '5';
+
+      jest.isolateModules(() => {
+        const config = require('../modules/AppConfig');
+        expect(() => config.GetAppConfig()).toThrow(
+          /PAYOUT_BUILD_DEADLINE_SECONDS/
+        );
+      });
     });
   });
 

@@ -46,6 +46,11 @@ export const PAYOUT_BATCH_ABI = [
         type: 'bytes32',
         internalType: 'bytes32',
       },
+      {
+        name: 'deadline',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -114,6 +119,11 @@ export const PAYOUT_BATCH_ABI = [
   {
     type: 'error',
     name: 'BatchAlreadyPaid',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'BatchExpired',
     inputs: [],
   },
   {

@@ -30,11 +30,15 @@ export function ComputeBatchId(payoutIds: string[]): Hex {
   return keccak256(toBytes([...payoutIds].sort().join(',')));
 }
 
-/** Calldata for `PayoutBatch.disperse(token, recipients, amounts, batchId)`. */
+/**
+ * Calldata for `PayoutBatch.disperse(token, recipients, amounts, batchId,
+ * deadline)`; the call reverts `BatchExpired` after `deadline` (unix seconds).
+ */
 export function EncodeDisperseCall(
   token: Address,
   recipients: TransferRecipient[],
-  batchId: Hex
+  batchId: Hex,
+  deadline: bigint
 ): Hex {
   return encodeFunctionData({
     abi: PAYOUT_BATCH_ABI,
@@ -44,6 +48,7 @@ export function EncodeDisperseCall(
       recipients.map((r) => getAddress(r.destinationAddress)),
       recipients.map((r) => CentsToTokenUnits(r.amountInCents)),
       batchId,
+      deadline,
     ],
   });
 }

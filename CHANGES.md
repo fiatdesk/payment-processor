@@ -617,3 +617,62 @@ contracts/src/PayoutBatch.sol
 contracts/test/PayoutBatch.t.sol
 libs/shared-types/src/lib/Payout.ts
 ```
+
+### Task 8 fix round 2: on-chain batch expiry (addendum A6)
+
+- **`PayoutBatch.disperse` takes a `deadline`.** `disperse(token, recipients, amounts, batchId, deadline)` reverts `BatchExpired()` first when `block.timestamp > deadline`; a call at exactly the deadline passes, and an expired call leaves `paid` false.
+  - There are two new forge tests. Existing tests pass a far-future deadline.
+  - The ABI is regenerated, and `EncodeDisperseCall` takes `deadline`.
+- **Deadline window.** It is the new `PAYOUT_BUILD_DEADLINE_SECONDS` (integer, 120..86400, default 1800), validated at boot. It is documented in `.env.example`, `.env.production.example`, `docker-compose.yml` and the environment-variables docs page.
+  - Build accepts `deadline_seconds` (120..86400). The Ethereum rail sets the deadline from the latest block's timestamp.
+  - Build returns `deadline` and `release_after` (deadline + `ETH_CONFIRMATIONS` × 12 s, informational). The batch stores `deadlines[]`, one per signed copy; a same-set re-price appends a fresh deadline.
+- **Expiry proof.** The block at `latest - ETH_CONFIRMATIONS` has a timestamp past `max(deadlines)`, and `paid(wallet, batchId)` is false at that same block. Only the expiry proof, or `paid()` being true, ends a batch's hold on its payouts.
+  - Reconcile releases a built batch (→ `replaced`, payouts back to `pending`) and refunds a broadcast batch (→ `replaced`) only on the expiry proof. It no longer releases because a nonce was consumed.
+  - A final non-`BatchAlreadyPaid` revert sets the batch to the new `reverted` status. Its payouts stay `in_transit` with the failure recorded, and are refunded (batch → `failed`) only once expired. `reverted` batches hold payouts but not the nonce lock; the unique index is unchanged.
+  - Cancel reconciles first and refuses a payout an outstanding batch holds.
+  - Superseding with a different payout set is refused while the batch can still execute (`409 payout_batch_in_flight`).
+  - The immediate paths are `paid()` true → paid (with a null hash when no log is found), and a same-set re-price. Approvals have no deadline and reconcile as before.
+  - The simulated rail stores the deadline but never waits (`WaitsForExpiry()` is false).
+- **Rail interface.** `GetConfirmedBlock()` (number and timestamp, read once) replaces `GetConfirmedBlockNumber()`, and `WaitsForExpiry()` is new.
+- **Revert replay.** A replay that fails without an execution revert (an RPC or transport error) now throws, so the receipt is left unsettled instead of becoming a failure.
+- **Other review findings.**
+  - `transaction_not_found` keeps the reported hash in a new `reported_hashes[]`. Supersede refuses while it is set, and reconcile checks it.
+  - A reconciled receipt counts as paid only when `paid()` agrees.
+  - Settling a batch moves it from its own status, so a stale copy cannot move it.
+  - Cancel and build refuse payouts held by a `replaced` batch that has no deadline.
+  - If a batch turns out paid after one of its payouts was refunded, an error-level "Double payment detected" alert is logged.
+  - The docs give the A6 sentence, and "paid once" now says it applies to an identical payout set.
+
+Modified in fix round 2:
+
+```
+.env.example
+.env.production.example
+CHANGES.md
+apps/api/src/__tests__/AppConfig.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/PayoutBatchStore.spec.ts
+apps/api/src/__tests__/PayoutEncoding.spec.ts
+apps/api/src/__tests__/Settlement.spec.ts
+apps/api/src/__tests__/anvil/Payouts.anvil.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/AppConfig.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/PayoutBatchStore.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/PayoutEncoding.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/abi/PayoutBatch.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/payouts.routes.ts
+apps/docs/src/app/pages/docs/data/environment-variables.ts
+apps/docs/src/app/pages/docs/data/payouts.ts
+contracts/README.md
+contracts/src/PayoutBatch.sol
+contracts/test/PayoutBatch.t.sol
+docker-compose.yml
+libs/shared-schemas/src/lib/PayoutSchema.ts
+libs/shared-types/src/lib/Payout.ts
+sdks/node/src/generated/Inputs.ts
+```

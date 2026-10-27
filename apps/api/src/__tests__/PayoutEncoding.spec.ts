@@ -84,19 +84,28 @@ describe('EncodeDisperseCall', () => {
       { destinationAddress: RECIPIENT_A.toLowerCase(), amountInCents: 1050 },
       { destinationAddress: RECIPIENT_B, amountInCents: 1 },
     ],
-    batchId
+    batchId,
+    1_700_001_800n
   );
 
-  it('calls disperse(address,address[],uint256[],bytes32)', () => {
+  it('calls disperse(address,address[],uint256[],bytes32,uint256)', () => {
     expect(data.slice(0, 10)).toBe(
-      toFunctionSelector('disperse(address,address[],uint256[],bytes32)')
+      toFunctionSelector(
+        'disperse(address,address[],uint256[],bytes32,uint256)'
+      )
     );
   });
 
-  it('encodes recipients, 6-decimal amounts and the batch id', () => {
+  it('encodes recipients, 6-decimal amounts, the batch id and the deadline', () => {
     expect(decodeFunctionData({ abi: PAYOUT_BATCH_ABI, data })).toEqual({
       functionName: 'disperse',
-      args: [USDC, [RECIPIENT_A, RECIPIENT_B], [10_500_000n, 10_000n], batchId],
+      args: [
+        USDC,
+        [RECIPIENT_A, RECIPIENT_B],
+        [10_500_000n, 10_000n],
+        batchId,
+        1_700_001_800n,
+      ],
     });
   });
 });

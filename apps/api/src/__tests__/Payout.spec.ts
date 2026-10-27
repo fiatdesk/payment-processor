@@ -13,11 +13,13 @@ import {
 } from './Setup';
 import { MemoryDatabase } from './mocks/MemoryDatabase';
 import {
+  MOCK_BUILD_TIME,
   MOCK_CONFIRMED_BLOCK,
   MOCK_PAYOUT_NONCE,
   MockPayoutBatch,
   MockReceipt,
 } from './mocks/Settlement';
+import { Logger } from '../utils/Logger';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -32,6 +34,7 @@ jest.mock('../modules/AppConfig', () => ({
     livemode: false,
     appSecret: 'test-secret',
   })),
+  GetPayoutDeadlineSeconds: jest.fn(() => 1800),
 }));
 jest.mock('../modules/chains/Settlement', () => ({
   GetSettlement: () => require('./mocks/Settlement').CreateMockSettlement(),
@@ -325,6 +328,17 @@ describe('PayoutModule payout batches', () => {
     return Object.fromEntries(Payouts().map((p) => [p.id, p.status]));
   }
 
+  /** Default build deadline in the mock rail (build time + 1800 s). */
+  const DEADLINE = MOCK_BUILD_TIME + 1800;
+
+  /** Moves the confirmed block past `deadline`, proving expiry. */
+  function Expire(deadline = DEADLINE): void {
+    settlement.GetConfirmedBlock.mockResolvedValue({
+      number: MOCK_CONFIRMED_BLOCK,
+      timestamp: deadline + 1,
+    });
+  }
+
   async function Rejection(promise: Promise<unknown>): Promise<AppError> {
     const error = await promise.then(
       () => {
@@ -367,6 +381,8 @@ describe('PayoutModule payout batches', () => {
         gas_limit: '60000',
         max_fee_per_gas: '3000000000',
         max_priority_fee_per_gas: '1000000000',
+        deadline: DEADLINE,
+        release_after: DEADLINE + 24,
         total_amount: 3000,
         recipients_count: 2,
       });
@@ -377,7 +393,7 @@ describe('PayoutModule payout batches', () => {
           { destinationAddress: RECIPIENTS[0], amountInCents: 1000 },
           { destinationAddress: RECIPIENTS[1], amountInCents: 2000 },
         ],
-        { batchId: ComputeBatchId(['po_z_1', 'po_z_2']) }
+        { batchId: ComputeBatchId(['po_z_1', 'po_z_2']), deadlineSeconds: 1800 }
       );
       expect(Batches()).toEqual([
         expect.objectContaining({
@@ -389,6 +405,7 @@ describe('PayoutModule payout batches', () => {
           total_amount: 3000,
           transaction_type: 'payout',
           build_block: 100,
+          deadlines: [DEADLINE],
         }),
       ]);
       expect(Statuses()).toEqual({
@@ -495,7 +512,23 @@ describe('PayoutModule payout batches', () => {
       });
     });
 
-    it('supersedes a built batch with a different payout set when replace is true', async () => {
+    it('refuses a different payout set while the built batch can still execute', async () => {
+      const first = await Build(['po_z_1']);
+
+      const error = await Rejection(Build(['po_z_1', 'po_z_2'], true));
+
+      expect(error).toMatchObject({
+        statusCode: 409,
+        type: 'payout_batch_in_flight',
+      });
+      expect(error.message).toContain(new Date(DEADLINE * 1000).toISOString());
+      expect(Batches()).toEqual([
+        expect.objectContaining({ id: first.payout_batch, status: 'built' }),
+      ]);
+    });
+
+    it('supersedes a built batch with a different payout set where batches cannot execute later', async () => {
+      settlement.WaitsForExpiry.mockReturnValue(false);
       const first = await Build(['po_z_1']);
 
       const second = await Build(['po_z_1', 'po_z_2'], true);
@@ -506,6 +539,7 @@ describe('PayoutModule payout batches', () => {
         expect.any(Array),
         {
           batchId: ComputeBatchId(['po_z_1', 'po_z_2']),
+          deadlineSeconds: 1800,
           nonce: MOCK_PAYOUT_NONCE,
           replacing: {
             maxFeePerGas: '3000000000',
@@ -612,9 +646,9 @@ describe('PayoutModule payout batches', () => {
       });
     });
 
-    it('reconciles first, so a built batch whose nonce was consumed no longer blocks', async () => {
+    it('reconciles first, so an expired built batch no longer blocks', async () => {
       await Build(['po_z_1']);
-      settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
+      Expire();
 
       await expect(Build(['po_z_2'])).resolves.toMatchObject({
         payout_batch: 'pob_z_test002',
@@ -703,7 +737,7 @@ describe('PayoutModule payout batches', () => {
       });
     });
 
-    it('fails a reverted batch with account_frozen and refunds the balance', async () => {
+    it('records a reverted batch with account_frozen and refunds only once it has expired', async () => {
       await Build();
       settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
         MockReceipt('failed', '0xhash_of_signed_tx', {
@@ -719,6 +753,21 @@ describe('PayoutModule payout batches', () => {
         failure_code: 'account_frozen',
         failure_message: 'Blacklistable: account is blacklisted',
       });
+      // Another signed copy could still pay until the deadline: no refund.
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+        status: 'in_transit',
+        failure_code: 'account_frozen',
+        failure_message: 'Blacklistable: account is blacklisted',
+      });
+      expect(AvailableBalance()).toBe(0);
+      expect(Batches()[0].status).toBe('reverted');
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+      expect(AvailableBalance()).toBe(0);
+
+      Expire();
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
       expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
         status: 'failed',
         failure_code: 'account_frozen',
@@ -977,11 +1026,12 @@ describe('PayoutModule payout batches', () => {
       await BroadcastSigned();
     }
 
-    it('marks a batch paid once its receipt is confirmed', async () => {
+    it('marks a batch paid once its receipt is confirmed and paid() agrees', async () => {
       await BroadcastPending();
       settlement.GetTransactionStatus.mockResolvedValue(
         MockReceipt('paid', '0xhash_of_signed_tx')
       );
+      settlement.IsBatchPaid.mockResolvedValue(true);
 
       await expect(
         module.ReconcilePayoutBatches('acct_z_platform')
@@ -996,6 +1046,18 @@ describe('PayoutModule payout batches', () => {
       expect(Batches()[0].status).toBe('paid');
     });
 
+    it('does not settle paid from a receipt alone while paid() is false', async () => {
+      await BroadcastPending();
+      settlement.GetTransactionStatus.mockResolvedValue(
+        MockReceipt('paid', '0xhash_of_signed_tx')
+      );
+
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ pending: 1 });
+      expect(Statuses().po_z_1).toBe('in_transit');
+    });
+
     it('leaves a batch pending while its nonce is not consumed', async () => {
       await BroadcastPending();
 
@@ -1008,23 +1070,23 @@ describe('PayoutModule payout batches', () => {
 
     it('reads one confirmed block and passes it to every check', async () => {
       await BroadcastPending();
-      settlement.GetConfirmedBlockNumber.mockClear();
+      settlement.GetConfirmedBlock.mockClear();
       settlement.IsBatchPaid.mockResolvedValue(true);
       settlement.FindBatchPayment.mockResolvedValue(
         MockReceipt('paid', SPEED_UP_HASH)
       );
       // A later head read behind the first must not matter: there is none.
-      settlement.GetConfirmedBlockNumber.mockResolvedValueOnce(
-        MOCK_CONFIRMED_BLOCK
-      ).mockResolvedValueOnce(MOCK_CONFIRMED_BLOCK - 10);
+      settlement.GetConfirmedBlock.mockResolvedValueOnce({
+        number: MOCK_CONFIRMED_BLOCK,
+        timestamp: MOCK_BUILD_TIME + 100,
+      }).mockResolvedValueOnce({
+        number: MOCK_CONFIRMED_BLOCK - 10,
+        timestamp: DEADLINE + 1,
+      });
 
       await module.ReconcilePayoutBatches('acct_z_platform');
 
-      expect(settlement.GetConfirmedBlockNumber).toHaveBeenCalledTimes(1);
-      expect(settlement.GetAccountNonce).toHaveBeenCalledWith(
-        PLATFORM_WALLET,
-        MOCK_CONFIRMED_BLOCK
-      );
+      expect(settlement.GetConfirmedBlock).toHaveBeenCalledTimes(1);
       expect(settlement.IsBatchPaid).toHaveBeenCalledWith(
         expect.objectContaining({ batchId: Batches()[0].batch_id }),
         MOCK_CONFIRMED_BLOCK
@@ -1057,10 +1119,16 @@ describe('PayoutModule payout batches', () => {
       expect(AvailableBalance()).toBe(0);
     });
 
-    it('replaces a broadcast batch and refunds when another transaction took its nonce', async () => {
+    it('refunds a broadcast batch only once it has expired unpaid', async () => {
       await BroadcastPending();
       settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
 
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ pending: 1 });
+      expect(Statuses().po_z_1).toBe('in_transit');
+
+      Expire();
       await expect(
         module.ReconcilePayoutBatches('acct_z_platform')
       ).resolves.toMatchObject({ failed: 1 });
@@ -1072,7 +1140,7 @@ describe('PayoutModule payout batches', () => {
       expect(AvailableBalance()).toBe(3000);
     });
 
-    it('fails a batch whose own transaction reverted and refunds it', async () => {
+    it('holds a batch whose own transaction reverted until it has expired', async () => {
       await BroadcastPending();
       settlement.GetTransactionStatus.mockResolvedValue(
         MockReceipt('failed', '0xhash_of_signed_tx', {
@@ -1082,15 +1150,32 @@ describe('PayoutModule payout batches', () => {
       );
 
       await module.ReconcilePayoutBatches('acct_z_platform');
+      expect(Batches()[0].status).toBe('reverted');
+      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(AvailableBalance()).toBe(0);
 
+      Expire();
+      await module.ReconcilePayoutBatches('acct_z_platform');
       expect(Batches()[0].status).toBe('failed');
       expect(Statuses().po_z_1).toBe('failed');
       expect(AvailableBalance()).toBe(3000);
     });
 
-    it('replaces a built batch whose nonce was consumed, leaving its payouts pending', async () => {
+    it('does not release a built batch before it expires, even when its nonce was consumed', async () => {
       await Build();
       settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(Batches()[0].status).toBe('built');
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
+        Batches()[0].id
+      );
+    });
+
+    it('releases a built batch once it has expired, leaving its payouts pending', async () => {
+      await Build();
+      Expire();
 
       await module.ReconcilePayoutBatches('acct_z_platform');
 
@@ -1100,6 +1185,27 @@ describe('PayoutModule payout batches', () => {
         po_z_2: 'pending',
       });
       expect(AvailableBalance()).toBe(0);
+    });
+
+    it('waits for the latest deadline of every signed copy', async () => {
+      await BroadcastPending();
+      await module.BuildPayoutsBatch('acct_z_platform', {
+        payouts: IDS.slice(0, 2),
+        replace: true,
+        deadline_seconds: 3600,
+      });
+      expect(Batches()[0].deadlines).toEqual([
+        DEADLINE,
+        MOCK_BUILD_TIME + 3600,
+      ]);
+
+      Expire(DEADLINE);
+      await module.ReconcilePayoutBatches('acct_z_platform');
+      expect(Statuses().po_z_1).toBe('in_transit');
+
+      Expire(MOCK_BUILD_TIME + 3600);
+      await module.ReconcilePayoutBatches('acct_z_platform');
+      expect(Statuses().po_z_1).toBe('failed');
     });
 
     it('leaves every batch untouched when the chain cannot be read', async () => {
@@ -1117,20 +1223,35 @@ describe('PayoutModule payout batches', () => {
   });
 
   describe('ReconcilePayoutBatches paid() verdict', () => {
-    it('leaves a paid batch pending while its log cannot be found', async () => {
+    it('settles a batch paid() shows paid even when its log cannot be found', async () => {
       await Build();
       settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
         MockReceipt('pending', '0xhash_of_signed_tx')
       );
       await BroadcastSigned();
       settlement.IsBatchPaid.mockResolvedValue(true);
-      settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
 
       await expect(
         module.ReconcilePayoutBatches('acct_z_platform')
-      ).resolves.toMatchObject({ pending: 1 });
-      expect(Statuses().po_z_1).toBe('in_transit');
+      ).resolves.toMatchObject({ paid: 1 });
+      expect(Batches()[0].status).toBe('paid');
+      const paid = memory.Doc<Payout>('Payouts', 'po_z_1');
+      expect(paid.status).toBe('paid');
+      expect(paid.metadata.blockchain_tx).toBeUndefined();
       expect(AvailableBalance()).toBe(0);
+    });
+
+    it('settles a paid built batch before a build with other payouts, so they are never rebuilt', async () => {
+      await Build(['po_z_1']);
+      settlement.IsBatchPaid.mockResolvedValue(true);
+
+      const next = await Build(['po_z_2', 'po_z_3'], true);
+
+      expect(next.replaced_payout_batch).toBeNull();
+      expect(Statuses()).toMatchObject({ po_z_1: 'paid', po_z_2: 'pending' });
+      await expect(Build(['po_z_1'])).rejects.toMatchObject({
+        statusCode: 400,
+      });
     });
 
     it('never refunds after a reverted receipt once paid() is true', async () => {
@@ -1178,6 +1299,7 @@ describe('PayoutModule payout batches', () => {
     });
 
     it('settles a superseded batch that was mined anyway, never paying its payouts twice', async () => {
+      settlement.WaitsForExpiry.mockReturnValue(false);
       const first = await Build(['po_z_1']);
       const second = await Build(['po_z_1', 'po_z_2'], true);
       // The wallet had sent the first batch; it is mined and takes the nonce.
@@ -1196,22 +1318,24 @@ describe('PayoutModule payout batches', () => {
       expect(
         memory.Doc<PayoutBatch>('PayoutBatches', first.payout_batch)
       ).toMatchObject({ status: 'paid', transaction_hash: SPEED_UP_HASH });
+      // This rail never releases on its own; the successor keeps holding.
       expect(
         memory.Doc<PayoutBatch>('PayoutBatches', second.payout_batch).status
-      ).toBe('replaced');
+      ).toBe('built');
       expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
         status: 'paid',
         payout_batch: first.payout_batch,
         metadata: expect.objectContaining({ blockchain_tx: SPEED_UP_HASH }),
       });
-      // po_z_2 was only in the successor: free to build again, not refunded.
+      // po_z_2 was only in the successor: still held by it, not refunded.
       expect(memory.Doc<Payout>('Payouts', 'po_z_2')).toMatchObject({
         status: 'pending',
-        payout_batch: null,
+        payout_batch: second.payout_batch,
       });
       expect(AvailableBalance()).toBe(0);
+      // The successor still holds the wallet lock, so nothing is rebuilt.
       await expect(Build(['po_z_1'])).rejects.toMatchObject({
-        statusCode: 400,
+        statusCode: 409,
       });
     });
   });
@@ -1275,7 +1399,7 @@ describe('PayoutModule payout batches', () => {
       expect(memory.Doc<Payout>('Payouts', 'po_z_1').payout_batch).toBe(
         built.payout_batch
       );
-      settlement.GetAccountNonce.mockResolvedValue(MOCK_PAYOUT_NONCE + 1);
+      Expire();
 
       await module.ReconcilePayoutBatches('acct_z_platform');
 
@@ -1286,6 +1410,207 @@ describe('PayoutModule payout batches', () => {
       await expect(module.CancelPayout('po_z_1')).resolves.toMatchObject({
         status: 'canceled',
       });
+    });
+  });
+
+  describe('expiry and release (A6)', () => {
+    it('refuses to cancel a held payout, then cancels it once its batch has expired', async () => {
+      await Build();
+
+      const held = await Rejection(module.CancelPayout('po_z_1'));
+      expect(held).toMatchObject({
+        statusCode: 409,
+        type: 'payout_batch_in_progress',
+      });
+
+      Expire();
+      await expect(module.CancelPayout('po_z_1')).resolves.toMatchObject({
+        status: 'canceled',
+      });
+      expect(AvailableBalance()).toBe(1000);
+    });
+
+    it('rebuilds a mixed payout set after an expired batch released its payouts', async () => {
+      const first = await Build(['po_z_1', 'po_z_2']);
+      Expire();
+
+      const second = await Build(['po_z_2', 'po_z_3']);
+
+      expect(second.payout_batch).not.toBe(first.payout_batch);
+      expect(
+        memory.Doc<PayoutBatch>('PayoutBatches', first.payout_batch).status
+      ).toBe('replaced');
+      const released = memory.Doc<Payout>('Payouts', 'po_z_1');
+      expect(released.status).toBe('pending');
+      expect(released.payout_batch).toBeNull();
+    });
+
+    it('refuses to cancel or rebuild payouts of a released batch that has no deadline', async () => {
+      memory.Seed('PayoutBatches', {
+        id: 'pob_z_legacy',
+        object: 'payout_batch',
+        platform_account: 'acct_z_platform',
+        wallet_address: PLATFORM_WALLET,
+        chain_id: 11155111,
+        nonce: 3,
+        transaction_type: 'payout',
+        status: 'replaced',
+        payouts: ['po_z_1'],
+        transaction_hashes: [],
+        created: 1,
+      });
+
+      const cancel = await Rejection(module.CancelPayout('po_z_1'));
+      const build = await Rejection(Build(['po_z_1', 'po_z_3']));
+
+      for (const error of [cancel, build]) {
+        expect(error).toMatchObject({
+          statusCode: 409,
+          type: 'payout_batch_in_flight',
+        });
+      }
+      expect(AvailableBalance()).toBe(0);
+      expect(Statuses().po_z_1).toBe('pending');
+    });
+
+    it('never refunds from a re-sent transaction that reverted', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('pending', '0xhash_of_signed_tx')
+      );
+      await BroadcastSigned();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('failed', '0xhash_of_signed_tx')
+      );
+
+      await expect(BroadcastSigned()).resolves.toMatchObject({
+        status: 'failed',
+      });
+
+      expect(Batches()[0].status).toBe('reverted');
+      expect(Statuses().po_z_1).toBe('in_transit');
+      expect(AvailableBalance()).toBe(0);
+    });
+
+    it('remembers a wallet hash that was not visible and will not replace its batch with other payouts', async () => {
+      settlement.WaitsForExpiry.mockReturnValue(false);
+      await Build();
+      settlement.MatchPayoutTransaction.mockResolvedValueOnce({
+        status: 'not_found',
+      });
+      await Rejection(BroadcastHash());
+
+      expect(Batches()[0]).toMatchObject({
+        status: 'built',
+        reported_hashes: [WALLET_HASH],
+        transaction_hashes: [],
+      });
+      const error = await Rejection(Build(['po_z_3'], true));
+      expect(error).toMatchObject({
+        statusCode: 409,
+        type: 'payout_batch_in_flight',
+      });
+    });
+
+    it('lets a reported hash use another nonce, then reconciles it', async () => {
+      await Build();
+      settlement.MatchPayoutTransaction.mockResolvedValueOnce({
+        status: 'not_found',
+      });
+      await Rejection(BroadcastHash());
+      settlement.IsBatchPaid.mockResolvedValue(true);
+      settlement.GetTransactionStatus.mockImplementation(async (hash) =>
+        MockReceipt(hash === WALLET_HASH ? 'paid' : 'pending', hash)
+      );
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(settlement.GetTransactionStatus).toHaveBeenCalledWith(
+        WALLET_HASH,
+        expect.anything(),
+        MOCK_CONFIRMED_BLOCK
+      );
+      expect(Batches()[0]).toMatchObject({
+        status: 'paid',
+        transaction_hash: WALLET_HASH,
+      });
+    });
+
+    it('settles nothing from a stale view of a batch that was restored meanwhile', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('pending', '0xhash_of_signed_tx')
+      );
+      await BroadcastSigned();
+      const stale = Batches()[0];
+      // A concurrent restore moved the batch back to built and its payouts
+      // back to pending after reconcile read it.
+      memory.Seed('PayoutBatches', { ...stale, status: 'built' });
+      for (const id of ['po_z_1', 'po_z_2']) {
+        memory.Seed('Payouts', {
+          ...memory.Doc<Payout>('Payouts', id),
+          status: 'pending',
+        });
+      }
+      const store = (
+        module as unknown as {
+          payoutBatchStore: { ListOutstanding: () => Promise<PayoutBatch[]> };
+        }
+      ).payoutBatchStore;
+      jest.spyOn(store, 'ListOutstanding').mockResolvedValueOnce([stale]);
+      Expire();
+
+      await expect(
+        module.ReconcilePayoutBatches('acct_z_platform')
+      ).resolves.toMatchObject({ pending: 1 });
+
+      expect(Batches()[0].status).toBe('built');
+      expect(memory.Doc<Payout>('Payouts', 'po_z_1')).toMatchObject({
+        status: 'pending',
+        payout_batch: stale.id,
+      });
+      expect(AvailableBalance()).toBe(0);
+    });
+
+    it('raises an error-level alert when a batch pays a payout that was already refunded', async () => {
+      await Build();
+      settlement.BroadcastSignedTransaction.mockResolvedValueOnce(
+        MockReceipt('pending', '0xhash_of_signed_tx')
+      );
+      await BroadcastSigned();
+      memory.Seed('Payouts', {
+        ...memory.Doc<Payout>('Payouts', 'po_z_1'),
+        status: 'failed',
+      });
+      settlement.IsBatchPaid.mockResolvedValue(true);
+
+      await module.ReconcilePayoutBatches('acct_z_platform');
+
+      expect(Logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Double payment detected'),
+        expect.objectContaining({
+          payoutId: 'po_z_1',
+          payoutBatch: Batches()[0].id,
+        })
+      );
+    });
+
+    it('builds with the requested deadline window', async () => {
+      const built = await module.BuildPayoutsBatch('acct_z_platform', {
+        payouts: ['po_z_1'],
+        deadline_seconds: 600,
+      });
+
+      expect(settlement.BuildBatchPayoutTransaction).toHaveBeenCalledWith(
+        PLATFORM_WALLET,
+        expect.any(Array),
+        expect.objectContaining({ deadlineSeconds: 600 })
+      );
+      expect(built).toMatchObject({
+        deadline: MOCK_BUILD_TIME + 600,
+        release_after: MOCK_BUILD_TIME + 624,
+      });
+      expect(Batches()[0].deadlines).toEqual([MOCK_BUILD_TIME + 600]);
     });
   });
 

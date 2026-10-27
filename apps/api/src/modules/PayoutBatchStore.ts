@@ -24,11 +24,27 @@ import type { Database } from './Database';
 const COLLECTION = 'PayoutBatches';
 const DUPLICATE_KEY = 11000;
 
-/** Statuses that hold the wallet's nonce lock. */
-export const OUTSTANDING_BATCH_STATUSES: readonly PayoutBatchStatus[] = [
+/** Statuses that hold the wallet's nonce lock (the unique index covers them). */
+export const NONCE_LOCK_STATUSES: readonly PayoutBatchStatus[] = [
   'built',
   'broadcast',
 ];
+
+/**
+ * Statuses of batches that still hold their payouts and need reconciling. A
+ * `reverted` batch used its nonce, so it no longer locks the wallet, but it
+ * holds its payouts until it has expired.
+ */
+export const OUTSTANDING_BATCH_STATUSES: readonly PayoutBatchStatus[] = [
+  ...NONCE_LOCK_STATUSES,
+  'reverted',
+];
+
+const NONCE_LOCKED = {
+  key: 'status',
+  operator: QueryOperators.in,
+  value: [...NONCE_LOCK_STATUSES],
+};
 
 const OUTSTANDING = {
   key: 'status',
@@ -53,6 +69,7 @@ export type NewPayoutBatchFields = Pick<
   | 'max_priority_fee_per_gas'
   | 'build_block'
   | 'replaces'
+  | 'deadlines'
 >;
 
 export function PayoutBatchInProgress(message: string): AppError {
@@ -71,6 +88,7 @@ export class PayoutBatchStore {
       status: 'built',
       transaction_hash: null,
       transaction_hashes: [],
+      reported_hashes: [],
       broadcast_mode: null,
       replaced_by: null,
       livemode: GetAppConfig().livemode,
@@ -113,7 +131,7 @@ export class PayoutBatchStore {
         operator: QueryOperators['=='],
         value: walletAddress,
       },
-      OUTSTANDING,
+      NONCE_LOCKED,
     ]);
     return batch ?? null;
   }
@@ -136,7 +154,7 @@ export class PayoutBatchStore {
         operator: QueryOperators['=='],
         value: walletAddress,
       },
-      OUTSTANDING,
+      NONCE_LOCKED,
     ]);
     return batch ?? null;
   }
@@ -180,6 +198,26 @@ export class PayoutBatchStore {
     ]);
   }
 
+  /**
+   * The platform's `replaced` batches holding any of the payouts. A replaced
+   * batch without a deadline (built before deadlines existed) could still be
+   * mined, so its payouts must not be paid or refunded again.
+   */
+  async FindReplacedWithPayouts(
+    platformAccountId: string,
+    payoutIds: string[]
+  ): Promise<PayoutBatch[]> {
+    return this.Query([
+      {
+        key: 'platform_account',
+        operator: QueryOperators['=='],
+        value: platformAccountId,
+      },
+      { key: 'payouts', operator: QueryOperators.in, value: payoutIds },
+      { key: 'status', operator: QueryOperators['=='], value: 'replaced' },
+    ]);
+  }
+
   async FindByTransactionHash(
     platformAccountId: string,
     transactionHash: string
@@ -208,14 +246,22 @@ export class PayoutBatchStore {
     batch: Pick<PayoutBatch, 'id' | 'platform_account'>,
     from: readonly PayoutBatchStatus[],
     changes: Partial<PayoutBatch>,
-    options: { addTransactionHash?: string; session?: ClientSession } = {}
+    options: {
+      addTransactionHash?: string;
+      addReportedHash?: string;
+      session?: ClientSession;
+    } = {}
   ): Promise<PayoutBatch> {
     const update: Record<string, unknown> = {
       $set: { ...changes, updated: Now() },
     };
+    const added: Record<string, string> = {};
     if (options.addTransactionHash) {
-      update.$addToSet = { transaction_hashes: options.addTransactionHash };
+      added.transaction_hashes = options.addTransactionHash;
     }
+    if (options.addReportedHash)
+      added.reported_hashes = options.addReportedHash;
+    if (Object.keys(added).length > 0) update.$addToSet = added;
     const updated = await this.db.FindOneAndUpdateByFilter<PayoutBatch>(
       COLLECTION,
       {

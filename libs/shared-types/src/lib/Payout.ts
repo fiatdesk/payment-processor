@@ -146,6 +146,8 @@ export type PayoutBatchTransactionType = 'payout' | 'approval';
 export type PayoutBatchStatus =
   | 'built'
   | 'broadcast'
+  /** Its transaction reverted; payouts stay held until the deadline passes */
+  | 'reverted'
   | 'paid'
   | 'failed'
   | 'replaced';
@@ -176,6 +178,13 @@ export interface PayoutBatch {
   transaction_hash: string | null;
   /** Every hash submitted for this batch (re-prices and wallet speed-ups) */
   transaction_hashes: string[];
+  /** Hashes a client reported that were not visible yet when reported */
+  reported_hashes: string[];
+  /**
+   * On-chain deadline (unix seconds) of every signed copy; the batch can no
+   * longer pay once the confirmed chain is past the latest. Empty for approvals.
+   */
+  deadlines: number[];
   /** How the first broadcast arrived, or null while `built` */
   broadcast_mode: 'signed_transaction' | 'transaction_hash' | null;
   to: string | null;
@@ -222,6 +231,16 @@ export interface PayoutBatchBuildResponse {
   max_fee_per_gas: string | null;
   /** EIP-1559 priority fee per gas in wei, or null when the rail has none */
   max_priority_fee_per_gas: string | null;
+  /**
+   * Unix time after which the transaction can no longer pay (it reverts
+   * `BatchExpired`). Null for an approval.
+   */
+  deadline: number | null;
+  /**
+   * Roughly when the payouts are released if the transaction is never mined:
+   * the deadline plus the confirmation depth. Informational; null for an approval.
+   */
+  release_after: number | null;
   /** `payout` moves funds; `approval` is a one-time allowance to sign first */
   transaction_type: PayoutBatchTransactionType;
   /** Identifier of the on-chain batch, or null for an approval */

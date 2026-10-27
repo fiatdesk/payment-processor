@@ -22,8 +22,12 @@ export const MOCK_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
 export const MOCK_PAYOUT_BATCH = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
-/** What GetConfirmedBlockNumber returns: `latest - ETH_CONFIRMATIONS`. */
+/** What GetConfirmedBlock returns: the block at `latest - ETH_CONFIRMATIONS`. */
 export const MOCK_CONFIRMED_BLOCK = 150;
+/** Mock "now" for deadlines; specs pin Now() to 1700000000. */
+export const MOCK_BUILD_TIME = 1_700_000_000;
+/** Confirmed-block time by default: after the build, before any deadline. */
+export const MOCK_CONFIRMED_TIME = MOCK_BUILD_TIME + 100;
 
 /** A hash passes through (lowercased); anything else stands for a raw tx. */
 export function MockTransactionHash(signedOrHash: string): string {
@@ -64,6 +68,14 @@ export function MockPayoutBatch(
     max_fee_per_gas: options?.replacing ? '3375000000' : '3000000000',
     max_priority_fee_per_gas: options?.replacing ? '1125000000' : '1000000000',
     block_number: 100,
+    deadline:
+      transactionType === 'payout'
+        ? MOCK_BUILD_TIME + (options?.deadlineSeconds ?? 1800)
+        : null,
+    release_after:
+      transactionType === 'payout'
+        ? MOCK_BUILD_TIME + (options?.deadlineSeconds ?? 1800) + 24
+        : null,
   };
 }
 
@@ -128,7 +140,11 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
     WaitForReceipt: jest.fn<Promise<BroadcastResult>, ReceiptArgs>(
       async (hash) => MockReceipt('paid', hash)
     ),
-    GetConfirmedBlockNumber: jest.fn().mockResolvedValue(MOCK_CONFIRMED_BLOCK),
+    GetConfirmedBlock: jest.fn().mockResolvedValue({
+      number: MOCK_CONFIRMED_BLOCK,
+      timestamp: MOCK_CONFIRMED_TIME,
+    }),
+    WaitsForExpiry: jest.fn().mockReturnValue(true),
     GetTransactionStatus: jest.fn<
       Promise<BroadcastResult>,
       [string, PayoutTransactionExpectation, number]

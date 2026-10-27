@@ -22,6 +22,7 @@ import { GetSettlement, type Settlement } from './chains/Settlement';
 import { ComputeBatchId } from './chains/PayoutEncoding';
 import type {
   BroadcastResult,
+  ConfirmedBlock,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
@@ -29,14 +30,13 @@ import type {
   UnsignedPayoutBatch,
 } from './chains/types';
 import {
-  OUTSTANDING_BATCH_STATUSES,
   PayoutBatchInProgress,
   PayoutBatchStore,
   type NewPayoutBatchFields,
 } from './PayoutBatchStore';
 import { SanctionsScreeningModule } from './SanctionsScreening';
 import { GetPlatformAccountId } from './PlatformAccess';
-import { GetAppConfig } from './AppConfig';
+import { GetAppConfig, GetPayoutDeadlineSeconds } from './AppConfig';
 import { GenerateId } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';
 import { AppError } from '../utils/AppError';
@@ -540,18 +540,23 @@ export class PayoutModule {
       );
     }
 
-    // A built transaction may still be signed and broadcast; refunding the
-    // payout now could pay it twice.
+    // A batch holds its payouts until it is paid or provably expired;
+    // refunding a held payout could pay it twice. Reconcile first so an
+    // expired batch has released it.
+    await this.ReconcilePayoutBatches(payout.platform_account);
     const [holder] = await this.payoutBatchStore.FindOutstandingWithPayouts([
       payoutId,
     ]);
     if (holder) {
       throw PayoutBatchInProgress(
         holder.platform_account === payout.platform_account
-          ? `Payout ${payoutId} is in payout batch ${holder.id}, which may still be broadcast; replace or settle that batch first`
+          ? `Payout ${payoutId} is held by payout batch ${
+              holder.id
+            } until it is paid or its deadline passes${ReleaseHint(holder)}`
           : `Payout ${payoutId} is in a payout batch that may still be broadcast`
       );
     }
+    await this.EnsureNoUnexpiredRelease(payout.platform_account, [payoutId]);
 
     // Only a pending payout no batch has claimed can be canceled; the
     // conditional update makes a racing build or second cancel lose.
@@ -676,7 +681,12 @@ export class PayoutModule {
         `Wallet ${walletAddress} has a payout batch in progress; build again once it settles`
       );
     }
-    const plan = PlanBatchBuild(outstanding, payoutIds, input.replace === true);
+    const plan = PlanBatchBuild(
+      outstanding,
+      payoutIds,
+      input.replace === true,
+      this.settlement.WaitsForExpiry()
+    );
     // Re-pricing a broadcast payout batch keeps its payouts in transit; an
     // approval never moves payouts.
     const expectedStatus: PayoutStatus =
@@ -699,7 +709,10 @@ export class PayoutModule {
     await this.ScreenRecipients(payouts, recipients);
 
     const batchId = ComputeBatchId(payoutIds);
-    const options: PayoutBuildOptions = { batchId };
+    const options: PayoutBuildOptions = {
+      batchId,
+      deadlineSeconds: input.deadline_seconds ?? GetPayoutDeadlineSeconds(),
+    };
     if (outstanding) {
       if (outstanding.nonce !== null) options.nonce = outstanding.nonce;
       options.replacing = {
@@ -732,6 +745,7 @@ export class PayoutModule {
       max_priority_fee_per_gas: unsigned.max_priority_fee_per_gas,
       build_block: unsigned.block_number,
       replaces: plan === 'supersede' && outstanding ? outstanding.id : null,
+      deadlines: unsigned.deadline === null ? [] : [unsigned.deadline],
     };
 
     let batch: PayoutBatch;
@@ -761,6 +775,8 @@ export class PayoutModule {
       gas_limit: unsigned.gas_limit,
       max_fee_per_gas: unsigned.max_fee_per_gas,
       max_priority_fee_per_gas: unsigned.max_priority_fee_per_gas,
+      deadline: unsigned.deadline,
+      release_after: unsigned.release_after,
       transaction_type: batch.transaction_type,
       batch_id: batch.batch_id,
       payouts: approval ? [] : payouts,
@@ -852,6 +868,17 @@ export class PayoutModule {
       this.Expectation(batch)
     );
     if (match.status === 'not_found') {
+      // Keep the hash: the wallet may have sent it, so the batch is in
+      // flight. It does not bind the nonce (unverified), unlike tracked ones.
+      await this.payoutBatchStore.Transition(
+        batch,
+        [batch.status],
+        {},
+        {
+          addReportedHash:
+            this.settlement.GetTransactionHash(submitted) ?? submitted,
+        }
+      );
       throw new AppError(
         `Transaction ${submitted} is not visible on the network yet; broadcast again once it is, or reconcile later`,
         409,
@@ -930,56 +957,92 @@ export class PayoutModule {
   ): Promise<'paid' | 'failed' | 'pending'> {
     const expected = this.Expectation(batch);
     // One confirmed block for every read below: a node that lags behind on
-    // a later call cannot make the nonce, receipts and paid() disagree.
-    const confirmedBlock = await this.settlement.GetConfirmedBlockNumber();
-    const confirmedNonce = await this.settlement.GetAccountNonce(
-      batch.wallet_address,
-      confirmedBlock
-    );
-    await this.SettlePredecessors(batch, confirmedBlock);
+    // a later call cannot make the receipts, paid() and the expiry disagree.
+    const confirmed = await this.settlement.GetConfirmedBlock();
+    await this.SettlePredecessors(batch, confirmed.number);
+    if (batch.transaction_type === 'approval') {
+      return this.ReconcileApproval(batch, confirmed);
+    }
+
     // PayoutBatch records each batch id the wallet paid: that is the verdict.
     // Receipts and logs only locate the paying transaction.
     const paidOnChain = await this.settlement.IsBatchPaid(
       expected,
-      confirmedBlock
+      confirmed.number
     );
-
-    for (const hash of batch.transaction_hashes) {
+    let revert: BroadcastResult | null = null;
+    for (const hash of [
+      ...batch.transaction_hashes,
+      ...(batch.reported_hashes ?? []),
+    ]) {
       const status = await this.settlement.GetTransactionStatus(
         hash,
         expected,
-        confirmedBlock
+        confirmed.number
       );
-      if (status.status === 'paid') {
+      if (status.status === 'paid' && paidOnChain) {
         await this.SettleBatchPaid(batch, status);
         return 'paid';
       }
-      if (status.status === 'failed' && !paidOnChain) {
-        await this.SettleBatchFailed(
-          batch,
-          batch.status === 'broadcast' ? 'failed' : 'replaced',
-          status.failure_code ?? 'blockchain_error',
-          status.failure_message ?? 'The payout transaction reverted'
-        );
-        return 'failed';
-      }
+      if (status.status === 'failed') revert ??= status;
     }
-
     if (paidOnChain) {
       const payment = await this.settlement.FindBatchPayment(
         expected,
-        confirmedBlock
+        confirmed.number
       );
       if (!payment) {
         Logger.warn('Payout batch is paid on-chain but its log was not found', {
           payoutBatch: batch.id,
         });
-        return 'pending';
       }
       await this.SettleBatchPaid(batch, payment);
       return 'paid';
     }
 
+    let current = batch;
+    if (revert && current.status === 'broadcast') {
+      current = await this.MarkBatchReverted(current, revert);
+    }
+    // Expired: past every deadline at a confirmed block where it was not
+    // paid, so no signed copy can pay any more. Only then are payouts freed.
+    if (!this.settlement.WaitsForExpiry() || !IsExpired(current, confirmed)) {
+      return 'pending';
+    }
+    await this.ReleaseExpiredBatch(current);
+    return 'failed';
+  }
+
+  /** Approvals move no payouts and have no deadline. */
+  private async ReconcileApproval(
+    batch: PayoutBatch,
+    confirmed: ConfirmedBlock
+  ): Promise<'paid' | 'failed' | 'pending'> {
+    const expected = this.Expectation(batch);
+    const confirmedNonce = await this.settlement.GetAccountNonce(
+      batch.wallet_address,
+      confirmed.number
+    );
+    for (const hash of batch.transaction_hashes) {
+      const status = await this.settlement.GetTransactionStatus(
+        hash,
+        expected,
+        confirmed.number
+      );
+      if (status.status === 'paid') {
+        await this.SettleBatchPaid(batch, status);
+        return 'paid';
+      }
+      if (status.status === 'failed') {
+        await this.SettleBatchFailed(
+          batch,
+          'failed',
+          'blockchain_error',
+          status.failure_message ?? 'The approval reverted'
+        );
+        return 'failed';
+      }
+    }
     if (
       typeof confirmedNonce !== 'number' ||
       typeof batch.nonce !== 'number' ||
@@ -991,9 +1054,82 @@ export class PayoutModule {
       batch,
       'replaced',
       'blockchain_error',
-      'Another transaction from the platform wallet used this batch’s nonce; the payout was not sent'
+      'Another transaction from the platform wallet used this approval’s nonce'
     );
     return 'failed';
+  }
+
+  /**
+   * Frees the payouts of an expired batch: a built batch's go back to
+   * pending; a broadcast or reverted batch's are refunded.
+   */
+  private async ReleaseExpiredBatch(batch: PayoutBatch): Promise<void> {
+    if (batch.status === 'built') {
+      await this.SettleBatchFailed(
+        batch,
+        'replaced',
+        'blockchain_error',
+        'The payout batch expired before it was sent'
+      );
+      return;
+    }
+    const failure =
+      batch.status === 'reverted'
+        ? await this.StoredFailure(batch)
+        : {
+            code: 'blockchain_error' as const,
+            message: 'The payout batch expired before it was mined',
+          };
+    await this.SettleBatchFailed(
+      batch,
+      batch.status === 'reverted' ? 'failed' : 'replaced',
+      failure.code,
+      failure.message
+    );
+  }
+
+  /** The failure recorded on a reverted batch's payouts. */
+  private async StoredFailure(
+    batch: PayoutBatch
+  ): Promise<{ code: PayoutFailureCode; message: string }> {
+    const [first] = batch.payouts;
+    const payout = first ? await this.GetPayout(first) : null;
+    return {
+      code: payout?.failure_code ?? 'blockchain_error',
+      message: payout?.failure_message ?? 'The payout transaction reverted',
+    };
+  }
+
+  /**
+   * A final reverted receipt: the batch keeps holding its payouts (in
+   * transit, with the failure recorded) until it has expired, because
+   * another signed copy could still pay it.
+   */
+  private MarkBatchReverted(
+    batch: PayoutBatch,
+    revert: BroadcastResult
+  ): Promise<PayoutBatch> {
+    return this.db.RunTransaction(async (session: ClientSession) => {
+      const reverted = await this.payoutBatchStore.Transition(
+        batch,
+        [batch.status],
+        { status: 'reverted' },
+        { session }
+      );
+      for (const payoutId of batch.payouts) {
+        await this.db.FindOneAndUpdateByFilter<PayoutType>(
+          'Payouts',
+          { id: payoutId, status: 'in_transit', payout_batch: batch.id },
+          {
+            failure_code: revert.failure_code ?? 'blockchain_error',
+            failure_message:
+              revert.failure_message ?? 'The payout transaction reverted',
+          },
+          session
+        );
+      }
+      return reverted;
+    });
   }
 
   /**
@@ -1023,12 +1159,7 @@ export class PayoutModule {
           expected,
           confirmedBlock
         );
-        if (!payment) {
-          throw new Error(
-            `Payout batch ${predecessor.id} is paid on-chain but its log was not found`
-          );
-        }
-        await this.SettleBatchPaid(predecessor, payment, ['replaced']);
+        await this.SettleBatchPaid(predecessor, payment);
       }
       predecessorId = predecessor.replaces;
     }
@@ -1096,6 +1227,33 @@ export class PayoutModule {
         holder.platform_account === platformAccountId
           ? `Payouts are already in payout batch ${holder.id} (${holder.status})`
           : 'Payouts are already in a payout batch in progress'
+      );
+    }
+    await this.EnsureNoUnexpiredRelease(platformAccountId, payoutIds);
+  }
+
+  /**
+   * Batches are released only once expired, so a `replaced` batch can no
+   * longer pay. One recorded before batches had deadlines might still be
+   * mined; its payouts cannot be paid or canceled again.
+   */
+  private async EnsureNoUnexpiredRelease(
+    platformAccountId: string,
+    payoutIds: string[]
+  ): Promise<void> {
+    const released = await this.payoutBatchStore.FindReplacedWithPayouts(
+      platformAccountId,
+      payoutIds
+    );
+    const legacy = released.find(
+      (batch) =>
+        batch.transaction_type === 'payout' && !(batch.deadlines ?? []).length
+    );
+    if (legacy) {
+      throw new AppError(
+        `These payouts were in payout batch ${legacy.id}, which has no on-chain deadline and may still be mined`,
+        409,
+        'payout_batch_in_flight'
       );
     }
   }
@@ -1189,6 +1347,11 @@ export class PayoutModule {
       gas_limit: unsigned.gas_limit,
       max_fee_per_gas: unsigned.max_fee_per_gas,
       max_priority_fee_per_gas: unsigned.max_priority_fee_per_gas,
+      // Release waits for the latest deadline of every signed copy.
+      deadlines:
+        unsigned.deadline === null
+          ? batch.deadlines ?? []
+          : [...(batch.deadlines ?? []), unsigned.deadline],
     });
   }
 
@@ -1336,6 +1499,9 @@ export class PayoutModule {
     result: BroadcastResult
   ): Promise<PayoutBatch> {
     if (result.status === 'paid') return this.SettleBatchPaid(batch, result);
+    if (result.status === 'failed' && this.settlement.WaitsForExpiry()) {
+      return this.MarkBatchReverted(batch, result);
+    }
     if (result.status === 'failed') {
       return this.SettleBatchFailed(
         batch,
@@ -1347,26 +1513,33 @@ export class PayoutModule {
     return Promise.resolve(batch);
   }
 
+  /**
+   * `payment` locates the paying transaction; null when paid() says paid but
+   * no log was found, which still settles the batch (paid() is the verdict).
+   */
   private async SettleBatchPaid(
     batch: PayoutBatch,
-    result: BroadcastResult,
-    from: readonly PayoutBatch['status'][] = OUTSTANDING_BATCH_STATUSES
+    payment: BroadcastResult | null
   ): Promise<PayoutBatch> {
     const { network, native_currency } = this.settlement.Describe();
     for (const payoutId of batch.payouts) {
       await this.MarkPayoutPaid(batch, payoutId, {
         network,
-        blockchain_tx: result.transaction_hash,
+        blockchain_tx: payment?.transaction_hash ?? null,
         gas_fee: 0, // Fee was paid by platform, not deducted from payout
         gas_fee_currency: native_currency,
-        viewer_url: result.viewer_url,
+        viewer_url: payment?.viewer_url ?? null,
       });
     }
+    // From the batch's own status: a stale copy must not move a batch that
+    // changed underneath it.
     return this.payoutBatchStore.Transition(
       batch,
-      from,
-      { status: 'paid', transaction_hash: result.transaction_hash },
-      { addTransactionHash: result.transaction_hash }
+      [batch.status],
+      payment
+        ? { status: 'paid', transaction_hash: payment.transaction_hash }
+        : { status: 'paid' },
+      payment ? { addTransactionHash: payment.transaction_hash } : {}
     );
   }
 
@@ -1377,7 +1550,14 @@ export class PayoutModule {
     failureCode: PayoutFailureCode,
     failureMessage: string
   ): Promise<PayoutBatch> {
-    if (batch.status === 'broadcast') {
+    if (batch.status === 'broadcast' || batch.status === 'reverted') {
+      // The batch moves first, from its own status: a stale copy (say,
+      // during a concurrent restore) fails here and refunds nothing.
+      const settled = await this.payoutBatchStore.Transition(
+        batch,
+        [batch.status],
+        { status }
+      );
       for (const payoutId of batch.payouts) {
         await this.MarkPayoutFailed(
           batch,
@@ -1386,16 +1566,12 @@ export class PayoutModule {
           failureMessage
         );
       }
-      return this.payoutBatchStore.Transition(
-        batch,
-        OUTSTANDING_BATCH_STATUSES,
-        { status }
-      );
+      return settled;
     }
     return this.db.RunTransaction(async (session: ClientSession) => {
       const settled = await this.payoutBatchStore.Transition(
         batch,
-        OUTSTANDING_BATCH_STATUSES,
+        [batch.status],
         { status },
         { session }
       );
@@ -1417,7 +1593,9 @@ export class PayoutModule {
     const status =
       batch.status === 'paid'
         ? 'paid'
-        : batch.status === 'failed' || batch.status === 'replaced'
+        : batch.status === 'failed' ||
+          batch.status === 'replaced' ||
+          batch.status === 'reverted'
         ? 'failed'
         : 'pending';
     const failureCode = result?.failure_code ?? payouts[0]?.failure_code;
@@ -1462,10 +1640,10 @@ export class PayoutModule {
     payoutId: string,
     response: {
       network: string;
-      blockchain_tx: string;
+      blockchain_tx: string | null;
       gas_fee: number;
       gas_fee_currency: string;
-      viewer_url: string;
+      viewer_url: string | null;
     }
   ): Promise<void> {
     const payout = await this.db.RunTransaction(
@@ -1478,10 +1656,12 @@ export class PayoutModule {
             payout_batch: batch.id,
             arrival_date: Now(),
             'metadata.network': response.network,
-            'metadata.blockchain_tx': response.blockchain_tx,
             'metadata.gas_fee': response.gas_fee,
             'metadata.gas_fee_currency': response.gas_fee_currency,
-            'metadata.viewer_url': response.viewer_url,
+            ...(response.blockchain_tx && {
+              'metadata.blockchain_tx': response.blockchain_tx,
+              'metadata.viewer_url': response.viewer_url ?? '',
+            }),
           },
           session
         );
@@ -1497,7 +1677,21 @@ export class PayoutModule {
         return updated;
       }
     );
-    if (!payout) return;
+    if (!payout) {
+      const current = await this.GetPayout(payoutId);
+      if (current?.status === 'canceled' || current?.status === 'failed') {
+        Logger.error(
+          'Double payment detected: a payout batch was paid on-chain after its payout was refunded',
+          {
+            payoutId,
+            payoutBatch: batch.id,
+            batchId: batch.batch_id,
+            payoutStatus: current.status,
+          }
+        );
+      }
+      return;
+    }
 
     // Emit payout.paid event
     if (this.eventService) {
@@ -1693,7 +1887,8 @@ function AssertPayoutSet(batch: PayoutBatch, payoutIds: string[]): void {
 function PlanBatchBuild(
   outstanding: PayoutBatch | null,
   payoutIds: string[],
-  replace: boolean
+  replace: boolean,
+  waitsForExpiry: boolean
 ): 'new' | 'reprice' | 'supersede' {
   if (!outstanding) return 'new';
   if (!replace) {
@@ -1720,14 +1915,41 @@ function PlanBatchBuild(
     return 'reprice';
   }
   if (sameBatch) return 'reprice';
-  // A tracked transaction may still be mined: a successor with other
-  // payouts could pay them twice.
-  if (outstanding.transaction_hashes.length > 0) {
+  // A different set gets another batch id, so paid() cannot stop both
+  // paying: replace only a batch that can no longer execute.
+  if (
+    outstanding.transaction_hashes.length > 0 ||
+    (outstanding.reported_hashes ?? []).length > 0
+  ) {
     throw new AppError(
       `Payout batch ${outstanding.id} has a transaction that may still be mined; reconcile first (POST /v1/payouts/reconcile) or broadcast it again`,
       409,
       'payout_batch_in_flight'
     );
   }
+  if (waitsForExpiry) {
+    throw new AppError(
+      `Payout batch ${
+        outstanding.id
+      } holds its payouts until it is paid or its deadline passes${ReleaseHint(
+        outstanding
+      )}; build the same payouts with replace: true to re-price it`,
+      409,
+      'payout_batch_in_flight'
+    );
+  }
   return 'supersede';
+}
+
+/** Expired once the confirmed block is past the latest deadline. */
+function IsExpired(batch: PayoutBatch, confirmed: ConfirmedBlock): boolean {
+  const deadlines = batch.deadlines ?? [];
+  return deadlines.length > 0 && confirmed.timestamp > Math.max(...deadlines);
+}
+
+function ReleaseHint(batch: PayoutBatch): string {
+  const deadlines = batch.deadlines ?? [];
+  return deadlines.length > 0
+    ? ` (deadline ${new Date(Math.max(...deadlines) * 1000).toISOString()})`
+    : '';
 }

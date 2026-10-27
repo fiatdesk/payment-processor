@@ -17,6 +17,7 @@ export type BroadcastPayoutsBatchInput = {
 export type BuildPayoutsBatchInput = {
   payouts: string[];
   replace?: boolean | undefined;
+  deadline_seconds?: number | undefined;
 };
 
 export type CancelPaymentIntentInput = {

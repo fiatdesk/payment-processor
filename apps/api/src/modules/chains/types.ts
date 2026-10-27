@@ -38,6 +38,17 @@ export interface UnsignedPayoutBatch extends UnsignedTransaction {
   max_priority_fee_per_gas: string | null;
   /** Latest block when the transaction was built; null when the rail has none */
   block_number: number | null;
+  /** Unix time after which a payout transaction reverts; null for approvals */
+  deadline: number | null;
+  /** `deadline` plus the confirmation depth (informational) */
+  release_after: number | null;
+}
+
+/** A block at confirmed depth: what every reconcile check reads. */
+export interface ConfirmedBlock {
+  number: number;
+  /** Unix seconds */
+  timestamp: number;
 }
 
 /** Inputs for building a payout batch (or its approval) transaction. */
@@ -46,6 +57,8 @@ export interface PayoutBuildOptions {
   batchId?: string;
   /** Reuse this nonce (a replacement) instead of the next pending nonce */
   nonce?: number;
+  /** Seconds from the latest block until the payout transaction expires */
+  deadlineSeconds?: number;
   /** Fees of the transaction being replaced; the new fees are at least 1.125x */
   replacing?: {
     maxFeePerGas: string | null;

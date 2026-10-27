@@ -12,9 +12,11 @@ import { isAddress } from 'viem';
 import { GetAppConfig } from '../AppConfig';
 import { ChainClientsGeneration } from './Chain';
 import { Ethereum } from './Ethereum';
+import { Now } from '../../utils/Timestamp';
 import type {
   BroadcastResult,
   CheckoutPaymentVerification,
+  ConfirmedBlock,
   CheckoutSubscribeVerification,
   IncomingDeposit,
   PayoutBuildOptions,
@@ -75,10 +77,16 @@ export interface Settlement {
     expected: PayoutTransactionExpectation
   ): Promise<BroadcastResult>;
   /**
-   * Newest block with ETH_CONFIRMATIONS confirmations. Reconcile reads it
-   * once and passes it to every check below, so they all see one chain state.
+   * The block at depth ETH_CONFIRMATIONS (number and timestamp). Reconcile
+   * reads it once and passes it to every check below, so they all see one
+   * chain state.
    */
-  GetConfirmedBlockNumber(): Promise<number>;
+  GetConfirmedBlock(): Promise<ConfirmedBlock>;
+  /**
+   * True when a signed batch can still execute until its deadline, so
+   * releasing or refunding its payouts must wait for the expiry proof.
+   */
+  WaitsForExpiry(): boolean;
   /** Settles from a receipt mined at or before `confirmedBlock`; else `pending`. */
   GetTransactionStatus(
     transactionHash: string,
@@ -351,8 +359,13 @@ export class SimulatedSettlement implements Settlement {
     return SimulatedPaid(transactionHash);
   }
 
-  async GetConfirmedBlockNumber(): Promise<number> {
-    return 0;
+  async GetConfirmedBlock(): Promise<ConfirmedBlock> {
+    return { number: 0, timestamp: Now() };
+  }
+
+  /** Nothing can execute a simulated batch later. */
+  WaitsForExpiry(): boolean {
+    return false;
   }
 
   async GetTransactionStatus(
@@ -383,6 +396,11 @@ function SimulatedPayoutBatch(
   recipientsCount: number,
   options?: PayoutBuildOptions
 ): UnsignedPayoutBatch {
+  // Stored for the record; the simulated rail never waits on it.
+  const deadline =
+    transactionType === 'payout' && options?.deadlineSeconds
+      ? Now() + options.deadlineSeconds
+      : null;
   return {
     ...DummyUnsignedTransaction(),
     recipients_count: recipientsCount,
@@ -392,6 +410,8 @@ function SimulatedPayoutBatch(
     max_fee_per_gas: null,
     max_priority_fee_per_gas: null,
     block_number: null,
+    deadline,
+    release_after: deadline,
   };
 }
 

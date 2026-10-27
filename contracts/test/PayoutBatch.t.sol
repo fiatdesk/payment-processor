@@ -13,6 +13,8 @@ contract PayoutBatchTest is Test {
     );
 
     bytes32 internal constant BATCH_ID = keccak256("po_1,po_2,po_3");
+    /// @dev Far enough ahead for every test that does not warp time.
+    uint256 internal constant DEADLINE = 4_102_444_800;
 
     MockUSDC internal usdc;
     PayoutBatch internal batch;
@@ -39,7 +41,7 @@ contract PayoutBatchTest is Test {
         vm.expectEmit(true, true, true, true, address(batch));
         emit BatchPaid(payer, address(usdc), BATCH_ID, 3, 35_500_001);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertEq(usdc.balanceOf(recipients[0]), 10e6);
         assertEq(usdc.balanceOf(recipients[1]), 25_500_000);
@@ -57,13 +59,13 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(PayoutBatch.LengthMismatch.selector);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
     }
 
     function testRevertsOnEmpty() public {
         vm.expectRevert(PayoutBatch.EmptyBatch.selector);
         vm.prank(payer);
-        batch.disperse(usdc, new address[](0), new uint256[](0), BATCH_ID);
+        batch.disperse(usdc, new address[](0), new uint256[](0), BATCH_ID, DEADLINE);
     }
 
     function testRevertsOnTooMany() public {
@@ -73,7 +75,7 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(PayoutBatch.TooMany.selector);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
     }
 
     function testRevertsOnZeroRecipient() public {
@@ -82,7 +84,7 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(PayoutBatch.ZeroRecipient.selector);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
     }
 
     function testRevertsOnZeroAmount() public {
@@ -91,7 +93,7 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(PayoutBatch.ZeroAmount.selector);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertEq(usdc.balanceOf(recipients[0]), 0);
         assertEq(usdc.balanceOf(payer), 1_000_000e6);
@@ -106,7 +108,7 @@ contract PayoutBatchTest is Test {
             abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(batch), 5e6, 10e6)
         );
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
     }
 
     function testRevertsWhenRecipientBlacklisted() public {
@@ -115,7 +117,7 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(bytes("Blacklistable: account is blacklisted"));
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertEq(usdc.balanceOf(recipients[0]), 0);
         assertEq(usdc.balanceOf(payer), 1_000_000e6);
@@ -137,7 +139,7 @@ contract PayoutBatchTest is Test {
         usdc.approve(address(batch), total);
 
         vm.prank(funder);
-        batch.disperse(usdc, recipients, amounts, keccak256(abi.encode(seed, "batch")));
+        batch.disperse(usdc, recipients, amounts, keccak256(abi.encode(seed, "batch")), DEADLINE);
 
         uint256 received;
         for (uint256 i; i < n; ++i) {
@@ -151,10 +153,10 @@ contract PayoutBatchTest is Test {
     function testDisperseSameBatchIdTwiceReverts() public {
         (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
         vm.startPrank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         vm.expectRevert(PayoutBatch.BatchAlreadyPaid.selector);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
         vm.stopPrank();
 
         assertEq(usdc.balanceOf(recipients[0]), 1e6);
@@ -169,9 +171,9 @@ contract PayoutBatchTest is Test {
         usdc.approve(address(batch), 2e6);
 
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
         vm.prank(other);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertTrue(batch.paid(payer, BATCH_ID));
         assertTrue(batch.paid(other, BATCH_ID));
@@ -183,7 +185,7 @@ contract PayoutBatchTest is Test {
         assertFalse(batch.paid(payer, BATCH_ID));
 
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertTrue(batch.paid(payer, BATCH_ID));
         assertFalse(batch.paid(payer, keccak256("another batch")));
@@ -195,12 +197,12 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(bytes("Blacklistable: account is blacklisted"));
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
         assertFalse(batch.paid(payer, BATCH_ID));
 
         usdc.blacklist(recipients[1], false);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
 
         assertTrue(batch.paid(payer, BATCH_ID));
         assertEq(usdc.balanceOf(recipients[1]), 1e6);
@@ -211,7 +213,7 @@ contract PayoutBatchTest is Test {
 
         vm.expectRevert(PayoutBatch.ZeroBatchId.selector);
         vm.prank(payer);
-        batch.disperse(usdc, recipients, amounts, bytes32(0));
+        batch.disperse(usdc, recipients, amounts, bytes32(0), DEADLINE);
 
         assertEq(usdc.balanceOf(payer), 1_000_000e6);
     }
@@ -222,10 +224,10 @@ contract PayoutBatchTest is Test {
         (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(n, 1e6);
 
         vm.startPrank(payer);
-        batch.disperse(usdc, recipients, amounts, BATCH_ID);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
         for (uint256 i; i < attempts; ++i) {
             vm.expectRevert(PayoutBatch.BatchAlreadyPaid.selector);
-            batch.disperse(usdc, recipients, amounts, BATCH_ID);
+            batch.disperse(usdc, recipients, amounts, BATCH_ID, DEADLINE);
         }
         vm.stopPrank();
 
@@ -233,6 +235,32 @@ contract PayoutBatchTest is Test {
             assertEq(usdc.balanceOf(recipients[i]), 1e6);
         }
         assertEq(usdc.balanceOf(payer), 1_000_000e6 - n * 1e6);
+    }
+
+    function testDisperseAfterDeadlineReverts() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
+        uint256 deadline = block.timestamp + 30 minutes;
+        vm.warp(deadline + 1);
+
+        vm.expectRevert(PayoutBatch.BatchExpired.selector);
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, deadline);
+
+        assertFalse(batch.paid(payer, BATCH_ID));
+        assertEq(usdc.balanceOf(recipients[0]), 0);
+        assertEq(usdc.balanceOf(payer), 1_000_000e6);
+    }
+
+    function testDisperseAtDeadlineSucceeds() public {
+        (address[] memory recipients, uint256[] memory amounts) = _uniformBatch(2, 1e6);
+        uint256 deadline = block.timestamp + 30 minutes;
+        vm.warp(deadline);
+
+        vm.prank(payer);
+        batch.disperse(usdc, recipients, amounts, BATCH_ID, deadline);
+
+        assertTrue(batch.paid(payer, BATCH_ID));
+        assertEq(usdc.balanceOf(recipients[1]), 1e6);
     }
 
     function _uniformBatch(uint256 count, uint256 amount)

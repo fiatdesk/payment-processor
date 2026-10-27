@@ -11,6 +11,8 @@
 import {
   BaseError,
   decodeErrorResult,
+  ExecutionRevertedError,
+  RawContractError,
   encodeFunctionData,
   formatEther,
   formatUnits,
@@ -27,6 +29,7 @@ import {
   TransactionReceiptNotFoundError,
   WaitForTransactionReceiptTimeoutError,
   type Address,
+  type Block,
   type Hex,
   type Transaction,
   type TransactionReceipt,
@@ -34,6 +37,7 @@ import {
 } from 'viem';
 import { AppError } from '../../utils/AppError';
 import { Logger } from '../../utils/Logger';
+import { GetPayoutDeadlineSeconds } from '../AppConfig';
 import { PAYOUT_BATCH_ABI } from './abi/PayoutBatch';
 import { USDC_ABI } from './abi/Usdc';
 import {
@@ -52,6 +56,7 @@ import type {
   BroadcastResult,
   CheckoutPaymentVerification,
   CheckoutSubscribeVerification,
+  ConfirmedBlock,
   IncomingDeposit,
   PayoutBuildOptions,
   PayoutTransactionExpectation,
@@ -63,6 +68,8 @@ import type {
 } from './types';
 
 const USDC_DECIMALS = 6;
+/** Ethereum's slot time; only used for the informational `release_after`. */
+const BLOCK_TIME_SECONDS = 12;
 /** How long broadcast waits for a receipt, or for a wallet's hash to appear. */
 const WAIT_TIMEOUT_MS = 60_000;
 const BATCH_PAID_EVENT = getAbiItem({
@@ -210,16 +217,25 @@ export class Ethereum implements Settlement {
       return this.BuildApprovalTransaction(sender, options);
     }
 
+    // The deadline follows chain time: PayoutBatch compares block.timestamp.
+    const block = await GetPublicClient().getBlock({ blockTag: 'latest' });
+    const deadline =
+      Number(block.timestamp) +
+      (options.deadlineSeconds ?? GetPayoutDeadlineSeconds());
     return this.BuildUnsignedTransaction(
       from,
       payoutBatch,
-      EncodeDisperseCall(usdc, recipients, batchId as Hex),
+      EncodeDisperseCall(usdc, recipients, batchId as Hex, BigInt(deadline)),
       options,
       {
         transaction_type: 'payout',
         batch_id: batchId,
         recipients_count: recipients.length,
-      }
+        deadline,
+        release_after:
+          deadline + GetChainConfig().confirmations * BLOCK_TIME_SECONDS,
+      },
+      block
     );
   }
 
@@ -243,6 +259,8 @@ export class Ethereum implements Settlement {
         transaction_type: 'approval',
         batch_id: null,
         recipients_count: 0,
+        deadline: null,
+        release_after: null,
       }
     );
   }
@@ -372,10 +390,23 @@ export class Ethereum implements Settlement {
   }
 
   /** `latest - ETH_CONFIRMATIONS`, read once per reconcile. */
-  async GetConfirmedBlockNumber(): Promise<number> {
-    const latest = await GetPublicClient().getBlockNumber({ cacheTime: 0 });
+  /** The block at `latest - ETH_CONFIRMATIONS`, read once per reconcile. */
+  async GetConfirmedBlock(): Promise<ConfirmedBlock> {
+    const client = GetPublicClient();
+    const latest = await client.getBlockNumber({ cacheTime: 0 });
     const depth = BigInt(GetChainConfig().confirmations);
-    return Number(latest > depth ? latest - depth : 0n);
+    const block = await client.getBlock({
+      blockNumber: latest > depth ? latest - depth : 0n,
+    });
+    return {
+      number: Number(block.number),
+      timestamp: Number(block.timestamp),
+    };
+  }
+
+  /** A signed batch can be mined until its on-chain deadline. */
+  WaitsForExpiry(): boolean {
+    return true;
   }
 
   async GetTransactionStatus(
@@ -536,12 +567,18 @@ export class Ethereum implements Settlement {
     options: PayoutBuildOptions,
     kind: Pick<
       UnsignedPayoutBatch,
-      'transaction_type' | 'batch_id' | 'recipients_count'
-    >
+      | 'transaction_type'
+      | 'batch_id'
+      | 'recipients_count'
+      | 'deadline'
+      | 'release_after'
+    >,
+    latestBlock?: Block
   ): Promise<UnsignedPayoutBatch> {
     const client = GetPublicClient();
     const { chainId } = GetChainConfig();
-    const block = await client.getBlock({ blockTag: 'latest' });
+    const block =
+      latestBlock ?? (await client.getBlock({ blockTag: 'latest' }));
     const [estimate, priorityFee, nonce] = await Promise.all([
       this.EstimateGas(from, to, data),
       client.estimateMaxPriorityFeePerGas(),
@@ -716,6 +753,9 @@ export class Ethereum implements Settlement {
       });
       return { errorName: null, message: 'The transaction reverted' };
     } catch (error) {
+      // Only an execution revert says why; an RPC or transport error says
+      // nothing about the transaction, so the caller leaves it unsettled.
+      if (!IsExecutionRevert(error)) throw error;
       return DecodeRevert(error);
     }
   }
@@ -844,6 +884,17 @@ function ErrorText(error: unknown): string {
     return [error.shortMessage, error.details].filter(Boolean).join(': ');
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function IsExecutionRevert(error: unknown): boolean {
+  return (
+    error instanceof BaseError &&
+    !!error.walk(
+      (cause) =>
+        cause instanceof ExecutionRevertedError ||
+        cause instanceof RawContractError
+    )
+  );
 }
 
 interface RevertDetails {

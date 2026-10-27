@@ -78,6 +78,10 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               html: true,
             },
             {
+              text: '<code>PAYOUT_BUILD_DEADLINE_SECONDS</code>: Seconds a built payout batch can still be executed on-chain, from <code>120</code> to <code>86400</code>. Its payouts stay held until it is paid or this deadline passes. Defaults to <code>1800</code>.',
+              html: true,
+            },
+            {
               text: '<code>USDC_ADDRESS</code>, <code>PAYOUT_BATCH_ADDRESS</code>, <code>SUBSCRIPTIONS_ADDRESS</code>, <code>SANCTIONS_ORACLE_ADDRESS</code>: Optional contract address overrides. Defaults come from the per-chain address table.',
               html: true,
             },

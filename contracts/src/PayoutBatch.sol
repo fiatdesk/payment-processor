@@ -9,7 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @notice Pays many recipients from the caller's own token balance in one
 /// all-or-nothing transaction. The caller approves this contract once. Each
 /// payer can pay a given batch id only once, so a retried or re-signed batch
-/// can never pay twice.
+/// can never pay twice, and a batch past its deadline can never pay at all.
 /// @dev No admin and non-upgradeable; it never holds tokens or ETH. Its only
 /// state is the per-payer record of paid batch ids. It only moves
 /// `msg.sender`'s tokens, so a standing allowance to it can be exercised by the
@@ -29,6 +29,7 @@ contract PayoutBatch {
     error ZeroAmount();
     error BatchAlreadyPaid();
     error ZeroBatchId();
+    error BatchExpired();
 
     /// @param batchId Off-chain id that ties this transaction to its payouts.
     event BatchPaid(
@@ -37,9 +38,15 @@ contract PayoutBatch {
 
     /// @notice Transfers `amounts[i]` of `token` from the caller to `recipients[i]`
     /// and records `batchId` as paid by the caller.
-    function disperse(IERC20 token, address[] calldata recipients, uint256[] calldata amounts, bytes32 batchId)
-        external
-    {
+    /// @param deadline Last block timestamp (inclusive) at which the batch may pay.
+    function disperse(
+        IERC20 token,
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        bytes32 batchId,
+        uint256 deadline
+    ) external {
+        if (block.timestamp > deadline) revert BatchExpired();
         uint256 count = recipients.length;
         if (count != amounts.length) revert LengthMismatch();
         if (count == 0) revert EmptyBatch();

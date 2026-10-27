@@ -929,9 +929,15 @@ const BUILD_PAYOUTS_BATCH_PARAMETERS: Attribute[] = [
     name: 'replace',
     type: 'boolean',
     description:
-      '<strong>Zoneless extension:</strong> Supersede the platform wallet’s outstanding batch at the same nonce. A batch broadcast with <code>signed_transaction</code> is re-priced (same payouts, fees at least 1.125× the original). A batch that was built but never broadcast can be replaced with a different set of payouts; the response names it in <code>replaced_payout_batch</code>. A batch broadcast from a wallet with <code>transaction_hash</code> cannot be re-priced here (<code>400 use_wallet_speed_up</code>); speed it up in the wallet instead. A built batch with a submitted transaction that may still be mined cannot be replaced with other payouts (<code>409 payout_batch_in_flight</code>); reconcile first.',
+      '<strong>Zoneless extension:</strong> Re-price the platform wallet’s outstanding batch: the same payouts under the same batch id and nonce, with fees at least 1.125× the original and a fresh deadline. A batch broadcast from a wallet with <code>transaction_hash</code> cannot be re-priced here (<code>400 use_wallet_speed_up</code>); speed it up in the wallet instead. A different set of payouts cannot replace a batch that can still execute (<code>409 payout_batch_in_flight</code>): wait until it is paid or its deadline has passed, when reconcile releases it.',
     enumNote:
-      '<strong>Only replace a batch that was never sent.</strong> If a wallet already sent the built transaction, it can still be mined after the replacement, and a replacement with other payouts gets its own batch id, so payouts in both could be paid twice. Reconcile settles a replaced batch that was mined anyway, but cannot undo a second payment.',
+      '<strong>Why a different set has to wait:</strong> it gets its own batch id, so if the first transaction was already sent it could still be mined, and payouts in both could be paid twice. The deadline ends that risk.',
+  },
+  {
+    name: 'deadline_seconds',
+    type: 'integer',
+    description:
+      '<strong>Zoneless extension:</strong> Seconds, from <code>120</code> to <code>86400</code>, that the transaction stays executable on-chain. The batch holds its payouts until it is paid or this deadline has passed; a shorter window recovers faster from a rejected signature. Defaults to <code>PAYOUT_BUILD_DEADLINE_SECONDS</code> (1800).',
   },
 ];
 
@@ -948,6 +954,8 @@ const BUILD_PAYOUTS_BATCH_RESPONSE_JSON = `{
   "gas_limit": "120000",
   "max_fee_per_gas": "15000000000",
   "max_priority_fee_per_gas": "1500000000",
+  "deadline": 1761600600,
+  "release_after": 1761600624,
   "transaction_type": "payout",
   "batch_id": "0x970dccf67e9501c2cc95d6a962be9d77f8779bc54a1c30cf1541726095af7dbd",
   "payouts": [
@@ -1004,7 +1012,7 @@ export const PAYOUTS_BUILD_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Paid once: ',
-          text: 'PayoutBatch records each <code>batch_id</code> a wallet paid and refuses to pay it again (<code>BatchAlreadyPaid</code>). A batch id is the hash of its payout IDs, so the same payouts can be paid at most once per platform wallet. That makes wallet retries, re-signed transactions and speed-ups safe. A build whose batch id the chain already shows paid fails with <code>400 payout_batch_already_paid</code>; reconcile instead.',
+          text: 'PayoutBatch records each <code>batch_id</code> a wallet paid and refuses to pay it again (<code>BatchAlreadyPaid</code>). A batch id is the hash of its payout IDs, so an identical set of payouts can be paid at most once per platform wallet (a different set is a different batch). Every payout transaction also carries an on-chain <code>deadline</code> after which it reverts (<code>BatchExpired</code>). A built batch holds its payouts until it is paid or its on-chain deadline has passed (default 30 minutes). This is what makes wallet retries safe; choose a shorter <code>deadline_seconds</code> if you need faster recovery from a rejected signature. A build whose batch id the chain already shows paid fails with <code>400 payout_batch_already_paid</code>; reconcile instead.',
           html: true,
         },
         {
@@ -1169,7 +1177,7 @@ export const PAYOUTS_BROADCAST_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns a <code>payout_batch_broadcast</code> object with the <code>transaction_hash</code>, <code>status</code>, <code>transaction_type</code>, viewer URL and the updated payouts. The API waits up to 60 seconds for <code>ETH_CONFIRMATIONS</code> confirmations. <code>paid</code> means the batch was confirmed; <code>failed</code> means the transaction reverted, the payouts are <code>failed</code> and their amounts return to the connected accounts’ balances (<code>failure_code: "account_frozen"</code> when the USDC issuer blacklisted a recipient). A revert because the batch was already paid (<code>BatchAlreadyPaid</code>) is never a failure: the batch settles as paid by the transaction that paid it.',
+          text: 'Returns a <code>payout_batch_broadcast</code> object with the <code>transaction_hash</code>, <code>status</code>, <code>transaction_type</code>, viewer URL and the updated payouts. The API waits up to 60 seconds for <code>ETH_CONFIRMATIONS</code> confirmations. <code>paid</code> means the batch was confirmed. <code>failed</code> means the transaction reverted (<code>failure_code: "account_frozen"</code> when the USDC issuer blacklisted a recipient): the payouts stay <code>in_transit</code> with the failure recorded until the batch&rsquo;s deadline has passed, because another signed copy could still pay it; reconcile then marks them <code>failed</code> and returns their amounts to the connected accounts&rsquo; balances. A revert because the batch was already paid (<code>BatchAlreadyPaid</code>) is never a failure: the batch settles as paid by the transaction that paid it.',
           html: true,
         },
         {
@@ -1364,7 +1372,7 @@ export const PAYOUTS_RECONCILE_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Zoneless extension: ',
-          text: 'Build and broadcast also reconcile first. All checks read one block, the newest with <code>ETH_CONFIRMATIONS</code> confirmations. A batch is <strong>paid</strong> when PayoutBatch shows its <code>batch_id</code> paid by the platform wallet; its transaction is then located by receipt or <code>BatchPaid</code> log (this covers wallet speed-ups and batches a wallet sent without calling broadcast). It is <strong>failed</strong> when its own transaction reverted and the batch is not paid, and <strong>replaced</strong> when another transaction used its nonce and the batch is not paid. Batches a <code>replace: true</code> build superseded are checked the same way while their successor is outstanding. When the chain cannot be read, nothing changes.',
+          text: 'Build, broadcast and cancel also reconcile first. All checks read one block, the newest with <code>ETH_CONFIRMATIONS</code> confirmations. A batch is <strong>paid</strong> when PayoutBatch shows its <code>batch_id</code> paid by the platform wallet; its transaction is then located by receipt or <code>BatchPaid</code> log. A batch is released only once that block is past its latest deadline and the batch is not paid there, so no signed copy can pay any more: a built batch becomes <strong>replaced</strong> and its payouts are pending again; a broadcast batch is <strong>replaced</strong> and a reverted one <strong>failed</strong>, and their payouts are refunded. When the chain cannot be read, nothing changes.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },

@@ -1,10 +1,13 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import {
   BaseError,
+  decodeFunctionData,
   encodeAbiParameters,
   encodeErrorResult,
   encodeEventTopics,
   keccak256,
+  HttpRequestError,
+  parseTransaction,
   RawContractError,
   serializeTransaction,
   TransactionReceiptNotFoundError,
@@ -54,7 +57,8 @@ const built = {
   data: EncodeDisperseCall(
     ANVIL_USDC,
     [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
-    batchId
+    batchId,
+    1_700_001_800n
   ),
   value: 0n,
   gas: 90_000n,
@@ -303,6 +307,10 @@ describe('Ethereum rail', () => {
     const OTHER_HASH: Hex = `0x${'bb'.repeat(32)}`;
     const CONFIRMED = 60;
     const client = {
+      getBlock: jest.fn(),
+      multicall: jest.fn(),
+      estimateGas: jest.fn(),
+      estimateMaxPriorityFeePerGas: jest.fn(),
       getBlockNumber: jest.fn(),
       getTransactionReceipt: jest.fn(),
       getTransaction: jest.fn(),
@@ -542,16 +550,18 @@ describe('Ethereum rail', () => {
       client.getBlockNumber
         .mockResolvedValueOnce(100n)
         .mockResolvedValueOnce(90n);
+      client.getBlock.mockResolvedValue({ number: 99n, timestamp: 5_000n });
       client.getTransactionCount.mockResolvedValue(5);
       client.readContract.mockResolvedValue(false);
       client.getLogs.mockResolvedValue([]);
 
-      const confirmed = await ethereum.GetConfirmedBlockNumber();
-      await ethereum.GetAccountNonce(PLATFORM, confirmed);
-      await ethereum.IsBatchPaid(expected, confirmed);
-      await ethereum.FindBatchPayment(expected, confirmed);
+      const confirmed = await ethereum.GetConfirmedBlock();
+      await ethereum.GetAccountNonce(PLATFORM, confirmed.number);
+      await ethereum.IsBatchPaid(expected, confirmed.number);
+      await ethereum.FindBatchPayment(expected, confirmed.number);
 
-      expect(confirmed).toBe(99);
+      expect(confirmed).toEqual({ number: 99, timestamp: 5_000 });
+      expect(client.getBlock).toHaveBeenCalledWith({ blockNumber: 99n });
       expect(client.getBlockNumber).toHaveBeenCalledTimes(1);
       expect(client.getTransactionCount).toHaveBeenCalledWith({
         address: PLATFORM,
@@ -563,6 +573,77 @@ describe('Ethereum rail', () => {
       expect(client.getLogs).toHaveBeenCalledWith(
         expect.objectContaining({ toBlock: 99n })
       );
+    });
+
+    it('leaves a reverted receipt unsettled when the replay fails without a revert', async () => {
+      client.getTransaction.mockResolvedValue({ input: built.data });
+      client.call.mockRejectedValue(
+        new HttpRequestError({ url: 'http://127.0.0.1:8545' })
+      );
+
+      await expect(
+        Status(Receipt({ status: 'reverted' }))
+      ).rejects.toBeInstanceOf(HttpRequestError);
+
+      client.waitForTransactionReceipt.mockResolvedValue(
+        Receipt({ status: 'reverted' })
+      );
+      await expect(
+        ethereum.WaitForReceipt(HASH, expected)
+      ).resolves.toMatchObject({ status: 'pending' });
+    });
+
+    it('builds the batch with a deadline from chain time', async () => {
+      client.readContract.mockResolvedValue(6); // decimals
+      client.multicall.mockResolvedValue([10n ** 12n, 2n ** 255n, false]);
+      client.getBlock.mockResolvedValue({
+        number: 40n,
+        timestamp: 1_000n,
+        baseFeePerGas: 10n,
+      });
+      client.estimateGas.mockResolvedValue(50_000n);
+      client.estimateMaxPriorityFeePerGas.mockResolvedValue(2n);
+      client.getTransactionCount.mockResolvedValue(3);
+
+      const batch = await ethereum.BuildBatchPayoutTransaction(
+        PLATFORM,
+        [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
+        { batchId, deadlineSeconds: 600 }
+      );
+
+      expect(batch).toMatchObject({
+        transaction_type: 'payout',
+        deadline: 1_600,
+        release_after: 1_612,
+        nonce: 3,
+        gas_limit: '60000',
+        max_fee_per_gas: '22',
+      });
+      const { data } = parseTransaction(batch.unsigned_transaction as Hex);
+      expect(
+        decodeFunctionData({ abi: PAYOUT_BATCH_ABI, data: data as Hex }).args
+      ).toEqual([ANVIL_USDC, [RECIPIENT], [5_000_000n], batchId, 1_600n]);
+    });
+
+    it('refuses to build a batch id the wallet already paid on-chain', async () => {
+      client.readContract.mockResolvedValue(6);
+      client.multicall.mockResolvedValue([10n ** 12n, 2n ** 255n, true]);
+
+      await expect(
+        ethereum.BuildBatchPayoutTransaction(
+          PLATFORM,
+          [{ destinationAddress: RECIPIENT, amountInCents: 500 }],
+          { batchId, deadlineSeconds: 600 }
+        )
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        type: 'payout_batch_already_paid',
+      });
+      expect(client.multicall.mock.calls[0][0].contracts[2]).toMatchObject({
+        functionName: 'paid',
+        args: [PLATFORM, batchId],
+      });
+      expect(client.estimateGas).not.toHaveBeenCalled();
     });
 
     it('reads paid() only for payout batches', async () => {

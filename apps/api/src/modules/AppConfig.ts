@@ -57,6 +57,10 @@ const MAINNET_CHAIN_ID = 1;
 const SEPOLIA_CHAIN_ID = 11155111;
 const ANVIL_CHAIN_ID = 31337;
 const DEFAULT_CONFIRMATIONS = 2;
+/** Payout batch deadline window; the bounds match BuildPayoutsBatchSchema. */
+const DEFAULT_PAYOUT_DEADLINE_SECONDS = 1800;
+const MIN_PAYOUT_DEADLINE_SECONDS = 120;
+const MAX_PAYOUT_DEADLINE_SECONDS = 86400;
 
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 const PRIVATE_KEY_SETTINGS = [
@@ -137,6 +141,7 @@ function BuildConfigFromEnv(): AppConfig {
   // Fail at boot on a bad chain env (ETH_CHAIN_ID in live mode, a bad
   // ETH_CONFIRMATIONS) instead of on the first on-chain call.
   if (railSettings.settlement_rail === 'onchain') GetChainConfig();
+  GetPayoutDeadlineSeconds();
 
   return {
     mongodbUri:
@@ -237,6 +242,26 @@ function ResolveChainId(livemode: boolean): SupportedChainId {
   }
   if (override === String(ANVIL_CHAIN_ID)) return ANVIL_CHAIN_ID;
   throw new Error('ETH_CHAIN_ID must be 11155111 (Sepolia) or 31337 (Anvil)');
+}
+
+/**
+ * Seconds a built payout batch stays executable on-chain
+ * (PAYOUT_BUILD_DEADLINE_SECONDS, 120 to 86400, default 1800).
+ */
+export function GetPayoutDeadlineSeconds(): number {
+  const value = (process.env.PAYOUT_BUILD_DEADLINE_SECONDS || '').trim();
+  if (!value) return DEFAULT_PAYOUT_DEADLINE_SECONDS;
+  const seconds = Number(value);
+  if (
+    !Number.isInteger(seconds) ||
+    seconds < MIN_PAYOUT_DEADLINE_SECONDS ||
+    seconds > MAX_PAYOUT_DEADLINE_SECONDS
+  ) {
+    throw new Error(
+      `PAYOUT_BUILD_DEADLINE_SECONDS must be an integer from ${MIN_PAYOUT_DEADLINE_SECONDS} to ${MAX_PAYOUT_DEADLINE_SECONDS}`
+    );
+  }
+  return seconds;
 }
 
 function ResolveConfirmations(): number {

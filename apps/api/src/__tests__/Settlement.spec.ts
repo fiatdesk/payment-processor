@@ -122,6 +122,8 @@ describe('SimulatedSettlement', () => {
       max_fee_per_gas: null,
       max_priority_fee_per_gas: null,
       block_number: null,
+      deadline: null,
+      release_after: null,
     });
     await expect(
       settlement.BroadcastSignedTransaction('sim_tx', SIMULATED_EXPECTATION)
@@ -141,7 +143,10 @@ describe('SimulatedSettlement', () => {
       nonce: null,
     });
     expect(settlement.GetTransactionHash('sim_tx')).toBeNull();
-    await expect(settlement.GetConfirmedBlockNumber()).resolves.toBe(0);
+    await expect(settlement.GetConfirmedBlock()).resolves.toMatchObject({
+      number: 0,
+    });
+    expect(settlement.WaitsForExpiry()).toBe(false);
     await expect(settlement.GetAccountNonce(MERCHANT, 0)).resolves.toBeNull();
     await expect(settlement.IsBlacklisted([PAYER])).resolves.toEqual([]);
     await expect(
