@@ -1710,3 +1710,52 @@ apps/web/src/app/features/checkout/util/checkout-payment.spec.ts
 apps/web/src/app/features/checkout/util/checkout-payment.ts
 apps/web/src/app/shared/ui/status-chip/status-chip.component.ts
 ```
+
+### Task 15 fix round 1: resume subscription confirms on reload and show what a trial charges today
+
+- **A trial charges nothing today.** For a price with `recurring.trial_period_days` above 0, the order summary shows the trial ("7-day free trial", US$0.00), then the first charge with its amount, and "Total due today" of US$0.00.
+  - The first charge date comes from the signed `firstChargeAt` once prepared, e.g. "First charge on 3 Nov 2026". Before that it is estimated from the trial length, e.g. "First charge around 3 Nov 2026 (estimated)".
+  - Without a trial, "Total due today" is still `amount_total`. The public session carries no `subscription_data`, so the price's trial is the only input.
+- **Resume on load for subscriptions.** An open subscription session with a recorded `payment_details.transaction_hash` is confirmed by `{ transaction_hash }` on load and polled like a payment, so a reload asks for no signatures. This holds even past `expires_at`, which the API allows for a recorded relay. On `payment_resubmit_required`, the payer presses Subscribe and signs the permit and the `Subscribe` again.
+- **Plan check.** The `Subscribe`'s `planKey` and the prepare's `plan_id` must both equal the checkout price's `subscription_plan_id`.
+- **An account switch stops signing.** Before each signature (the permit, the `Subscribe`, and a payment's authorization), the connected account must still be the wallet that was prepared. Otherwise: "Your wallet switched accounts. Press Subscribe to start again." (or "Press Pay").
+- **Existing on-chain subscription:** the `{ already_subscribed, subscription_onchain_id }` confirm is held and retried until it settles, like a signed one. It may collect the first period, so it can be pending or hit a gateway timeout.
+- **Subscription wording.** The confirm and poll messages, "Check subscription status", "Confirming subscription", and the sign-again and wallet-blocked messages say "subscription" and "Subscribe" in subscription mode. Payment wording is unchanged.
+- **`firstChargeAt` is checked before signing:**
+  - without a trial, it must be absent or 0;
+  - with a trial, an integer after now and at most `trial_period_days` days plus one hour away.
+  - Anything else, including a non-numeric value, is "out of date" and is not signed.
+- **Structure:**
+  - `USDC_UNITS_PER_CENT` and `ShortHash` are shared from `checkout-payment.ts`.
+  - The button labels moved to `checkout-format.ts`.
+  - The terms box now uses the existing payment-method box classes, so `checkout.component.scss` is back to its size before Task 15.
+  - `checkout.component.ts` is 987 lines.
+- **Removed:** a leftover `console.log` of the price in `price-detail.component.ts`.
+- **Tests:**
+  - Component: the trial summary in all three cases; resume by hash with no signatures (past expiry); resubmit asking for both signatures; the plan check; an account switch on both the subscription and the payment path; the existing-subscription confirm retried after `payment_pending` and a 504; subscription wording; and the `firstChargeAt` window.
+  - New `checkout-subscription.spec.ts` for the pure functions:
+    - permit periods (weekly 53, monthly 13, yearly 12);
+    - period labels, including "2 weeks" and "3 months";
+    - 6-decimal amounts and thousands separators;
+    - the trial summary.
+
+Added in fix round 1:
+
+```
+apps/web/src/app/features/checkout/util/checkout-subscription.spec.ts
+```
+
+Modified in fix round 1:
+
+```
+CHANGES.md
+apps/web/src/app/features/account/products/views/price-detail/price-detail.component.spec.ts
+apps/web/src/app/features/account/products/views/price-detail/price-detail.component.ts
+apps/web/src/app/features/checkout/checkout.component.html
+apps/web/src/app/features/checkout/checkout.component.scss
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/checkout/util/checkout-format.ts
+apps/web/src/app/features/checkout/util/checkout-payment.ts
+apps/web/src/app/features/checkout/util/checkout-subscription.ts
+```

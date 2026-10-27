@@ -115,7 +115,6 @@ export class PriceDetailComponent {
     this.loading.set(true);
     try {
       this.price.set(await this.priceService.GetPrice(id));
-      console.log(this.price());
     } finally {
       this.loading.set(false);
     }

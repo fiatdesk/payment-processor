@@ -12,7 +12,6 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import type { TypedDataDefinition } from 'viem';
 
 import { MetaService, WalletService } from '../../core';
 import {
@@ -51,6 +50,7 @@ import {
 } from './util/checkout-completion';
 import {
   FormatUsdcAmount,
+  GetCheckoutBusyLabel,
   GetCheckoutSubmitLabel,
 } from './util/checkout-format';
 import {
@@ -59,18 +59,22 @@ import {
   MobileWalletOption,
 } from './util/mobile-wallet';
 import {
-  ALREADY_CONFIRMING_MESSAGE,
+  AlreadyConfirmingMessage,
   CheckoutErrorMessage,
   CheckoutPaymentConfirmer,
   PaymentPhase,
   ReadSignatureRequired,
   RequireAuthorizationTypedData,
   ShortAddress,
+  ShortHash,
+  SignAsPrepared,
   SignatureRequiredError,
   StillConfirmingError,
 } from './util/checkout-payment';
 import {
   CheckoutSubscriber,
+  CheckoutTrial,
+  CheckoutTrialSummary,
   SubscribeTerms,
 } from './util/checkout-subscription';
 import { TEST_WALLET_DATA } from '../../utils/constants/test-data';
@@ -222,19 +226,13 @@ export class CheckoutComponent implements OnInit {
 
   /**
    * A relay recorded before this page loaded (a reload, or another tab) is
-   * confirmed by its hash, without the wallet.
+   * confirmed by its hash, without the wallet: a payment, or a subscribe,
+   * which may finish even after the session's `expires_at`.
    */
   private async ResumeRecordedPayment(): Promise<void> {
     const session = this.checkoutSession();
     const transactionHash = session?.payment_details?.transaction_hash;
-    if (
-      !session ||
-      session.mode !== 'payment' ||
-      session.status !== 'open' ||
-      !transactionHash
-    ) {
-      return;
-    }
+    if (!session || session.status !== 'open' || !transactionHash) return;
     this.confirmer.ShowConfirming(transactionHash);
     try {
       this.CompletePayment(
@@ -644,8 +642,11 @@ export class CheckoutComponent implements OnInit {
       chainId,
       payerWallet
     );
-    const signature = await this.walletService.SignTypedData(
-      typedData as unknown as TypedDataDefinition
+    const signature = await SignAsPrepared(
+      this.walletService,
+      typedData,
+      payerWallet,
+      false
     );
     this.confirmer.Hold(session, signature);
     return this.confirmer.ConfirmUntilSettled(session);
@@ -675,13 +676,14 @@ export class CheckoutComponent implements OnInit {
       reportedTransactionHash ??
       latest.payment_details?.transaction_hash ??
       null;
+    const confirming = AlreadyConfirmingMessage(this.IsSubscription());
     this.confirmer.ShowConfirming(
       transactionHash,
       recordedPayer
-        ? `${ALREADY_CONFIRMING_MESSAGE}. It was started from ${ShortAddress(
+        ? `${confirming}. It was started from ${ShortAddress(
             recordedPayer
           )}, and only that wallet can finish it.`
-        : ALREADY_CONFIRMING_MESSAGE
+        : confirming
     );
     return this.ConfirmOrSignAgain(session, transactionHash, payerWallet);
   }
@@ -921,27 +923,25 @@ export class CheckoutComponent implements OnInit {
     return this.blockedByWallet() !== null;
   }
 
-  ShortHash(transactionHash: string): string {
-    return `${transactionHash.slice(0, 10)}…${transactionHash.slice(-8)}`;
-  }
+  readonly ShortHash = ShortHash;
 
   SubmitLabel(): string {
-    if (this.stillConfirming()) return 'Check payment status';
     return GetCheckoutSubmitLabel(
       this.checkoutSession()?.submit_type,
-      this.IsSubscription()
+      this.IsSubscription(),
+      this.stillConfirming()
     );
   }
 
   BusyLabel(): string {
-    switch (this.paymentPhase()) {
-      case 'awaiting_wallet':
-        return 'Confirm in wallet';
-      case 'confirming':
-        return 'Confirming payment';
-      default:
-        return 'Processing';
-    }
+    return GetCheckoutBusyLabel(this.paymentPhase(), this.IsSubscription());
+  }
+
+  /** The price's trial; its first charge date is exact once signed. */
+  Trial(): CheckoutTrial | null {
+    const session = this.checkoutSession();
+    const firstChargeAt = this.subscribeTerms()?.firstChargeAt ?? null;
+    return session ? CheckoutTrialSummary(session, firstChargeAt) : null;
   }
 
   SummaryHeading(): string {

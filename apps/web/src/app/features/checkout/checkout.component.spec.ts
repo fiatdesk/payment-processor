@@ -259,6 +259,31 @@ const SUBSCRIPTION_SESSION = {
   },
 } as unknown as CheckoutSession;
 
+const TRIAL_DAYS = 7;
+/** 27 Oct 2026, 12:00 UTC: a 7-day trial from here ends at `TRIAL_END`. */
+const TRIAL_NOW = TRIAL_END - TRIAL_DAYS * 86400;
+
+/** The subscription session, its price with a 7-day trial. */
+const TRIAL_SESSION = {
+  ...SUBSCRIPTION_SESSION,
+  line_items: {
+    object: 'list',
+    data: [
+      {
+        ...SUBSCRIPTION_SESSION.line_items?.data[0],
+        price: {
+          ...SUBSCRIPTION_SESSION.line_items?.data[0].price,
+          recurring: {
+            interval: 'month',
+            interval_count: 1,
+            trial_period_days: TRIAL_DAYS,
+          },
+        },
+      },
+    ],
+  },
+} as unknown as CheckoutSession;
+
 /** An error shaped like the ones `ApiService.Call` throws. */
 function ApiFailure(status: number, body: Record<string, unknown>): Error {
   return Object.assign(new Error(String(body['message'])), {
@@ -681,6 +706,22 @@ describe('CheckoutComponent', () => {
       expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
       expect(component.paymentPhase()).toBe('complete');
     });
+
+    it('does not sign once the wallet switches accounts after prepare', async () => {
+      const { component } = Render();
+      checkoutSessionService.PreparePayment.mockImplementation(async () => {
+        wallet.Emit('accountsChanged', [OTHER_PAYER.toLowerCase()]);
+        return PREPARED;
+      });
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'Your wallet switched accounts. Press Pay to start again.'
+      );
+    });
   });
 
   describe('on-chain subscriptions', () => {
@@ -754,9 +795,10 @@ describe('CheckoutComponent', () => {
     describe('what the customer is shown while the wallet signs', () => {
       /** The page text at the moment the wallet is asked to sign. */
       async function TextWhileSigning(
-        prepared: CheckoutPaymentTransaction
+        prepared: CheckoutPaymentTransaction,
+        session: CheckoutSession = SUBSCRIPTION_SESSION
       ): Promise<string[]> {
-        const { fixture, component } = Render(SUBSCRIPTION_SESSION);
+        const { fixture, component } = Render(session);
         checkoutSessionService.PreparePayment.mockResolvedValue(prepared);
         const seen: string[] = [];
         const sign = wallet.request.getMockImplementation();
@@ -794,13 +836,15 @@ describe('CheckoutComponent', () => {
       });
 
       it('shows the first charge of a trial on the date firstChargeAt sets', async () => {
+        jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
         const [text] = await TextWhileSigning(
           PreparedSubscription({
             subscribe_typed_data: WithFirstChargeAt(TRIAL_END),
-          })
+          }),
+          TRIAL_SESSION
         );
 
-        expect(text).toContain('First charge on 3 Nov 2026');
+        expect(text).toContain('First charge on 3 Nov 2026.');
         expect(text).not.toContain('First charge today');
         expect(SignedTypedData(wallet, 1)).toEqual({
           account: PAYER,
@@ -815,6 +859,108 @@ describe('CheckoutComponent', () => {
 
         expect(text).toContain('First charge today');
       });
+    });
+
+    describe('what a trial charges today', () => {
+      beforeEach(() => jest.useFakeTimers({ now: TRIAL_NOW * 1000 }));
+
+      it('shows nothing due today, the trial and an estimated first charge before signing', () => {
+        const { fixture } = Render(TRIAL_SESSION);
+
+        const text = Text(fixture);
+        expect(text).toMatch(/7-day free trial\s*US\$0\.00/);
+        expect(text).toMatch(
+          /First charge around 3 Nov 2026 \(estimated\)\s*US\$10\.00/
+        );
+        expect(text).toMatch(/Total due today\s*US\$0\.00/);
+      });
+
+      it('shows the signed first charge date once prepared', async () => {
+        // A first charge a day from now: inside the window, and not the
+        // date the trial length would give.
+        const firstChargeAt = TRIAL_NOW + 86400;
+        const { fixture, component } = Render(TRIAL_SESSION);
+        checkoutSessionService.PreparePayment.mockResolvedValue(
+          PreparedSubscription({
+            subscribe_typed_data: WithFirstChargeAt(firstChargeAt),
+          })
+        );
+        let text = '';
+        const sign = wallet.request.getMockImplementation();
+        wallet.request.mockImplementation(async (request) => {
+          if (request.method === 'eth_signTypedData_v4') text = Text(fixture);
+          return sign?.(request);
+        });
+
+        await component.Pay();
+
+        expect(text).toMatch(/First charge on 28 Oct 2026\s*US\$10\.00/);
+        expect(text).not.toContain('(estimated)');
+        expect(text).toMatch(/Total due today\s*US\$0\.00/);
+      });
+
+      it('shows the full amount due today without a trial', () => {
+        const { fixture } = Render(SUBSCRIPTION_SESSION);
+
+        const text = Text(fixture);
+        expect(text).toMatch(/Total due today\s*US\$10\.00/);
+        expect(text).not.toContain('free trial');
+        expect(text).not.toContain('First charge');
+      });
+    });
+
+    it.each([
+      ['a first charge without a trial', SUBSCRIPTION_SESSION, TRIAL_END],
+      ['a trial charging now', TRIAL_SESSION, 0],
+      ['a trial with no first charge', TRIAL_SESSION, undefined],
+      ['a trial charging in the past', TRIAL_SESSION, TRIAL_NOW - 1],
+      ['a trial charging right now', TRIAL_SESSION, TRIAL_NOW],
+      [
+        'a trial charging later than its length allows',
+        TRIAL_SESSION,
+        TRIAL_END + 3601,
+      ],
+      ['a trial with a non-numeric first charge', TRIAL_SESSION, 'soon'],
+    ])(
+      'does not sign %s',
+      async (
+        _label,
+        session: CheckoutSession,
+        firstChargeAt: number | string | undefined
+      ) => {
+        jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
+        const { component } = Render(session);
+        const subscribe =
+          firstChargeAt === undefined
+            ? SUBSCRIBE_TYPED_DATA
+            : WithFirstChargeAt(firstChargeAt as number);
+        checkoutSessionService.PreparePayment.mockResolvedValue(
+          PreparedSubscription({ subscribe_typed_data: subscribe })
+        );
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+        expect(component.paymentError()).toBe(
+          'This subscription request is out of date. Reload the page and try again.'
+        );
+      }
+    );
+
+    it('signs a trial whose first charge is at the end of its allowed window', async () => {
+      jest.useFakeTimers({ now: TRIAL_NOW * 1000 });
+      const { component } = Render(TRIAL_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({
+          subscribe_typed_data: WithFirstChargeAt(TRIAL_END + 3600),
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(component.paymentPhase()).toBe('complete');
     });
 
     it.each([
@@ -952,6 +1098,27 @@ describe('CheckoutComponent', () => {
       );
     });
 
+    it("does not sign a prepare for another plan than the checkout price's", async () => {
+      const otherPlan = `0x${'6b'.repeat(32)}`;
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        PreparedSubscription({
+          plan_id: otherPlan,
+          subscribe_typed_data: {
+            ...SUBSCRIBE_TYPED_DATA,
+            message: { ...SUBSCRIBE_TYPED_DATA.message, planKey: otherPlan },
+          },
+        })
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(component.paymentError()).toBe(
+        'This subscription request is out of date. Reload the page and try again.'
+      );
+    });
+
     it('does not sign when a permit is needed but none was prepared', async () => {
       const { component } = Render(SUBSCRIPTION_SESSION);
       checkoutSessionService.PreparePayment.mockResolvedValue(
@@ -1014,6 +1181,50 @@ describe('CheckoutComponent', () => {
       ]);
       expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
       expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('words the confirm and its 5-minute stop as a subscription', async () => {
+      jest.useFakeTimers();
+      const { fixture, component } = Render(SUBSCRIPTION_SESSION);
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(
+        PaymentPending(HASH, 'another_confirmation')
+      );
+
+      const paying = component.Pay();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(Text(fixture)).toContain(
+        'A subscription for this checkout is already being confirmed'
+      );
+      expect(component.BusyLabel()).toBe('Confirming subscription');
+
+      await jest.advanceTimersByTimeAsync(POLL_TIMEOUT_MS + POLL_INTERVAL_MS);
+      await paying;
+
+      expect(component.paymentError()).toBe(
+        'Your subscription is still confirming. Keep this page open, then check again.'
+      );
+      expect(component.SubmitLabel()).toBe('Check subscription status');
+    });
+
+    it('signs nothing more once the wallet switches accounts after the permit', async () => {
+      const { component } = Render(SUBSCRIPTION_SESSION);
+      const sign = wallet.request.getMockImplementation();
+      wallet.request.mockImplementation(async (request) => {
+        const answer = await sign?.(request);
+        if (request.method === 'eth_signTypedData_v4') {
+          wallet.Emit('accountsChanged', [OTHER_PAYER.toLowerCase()]);
+        }
+        return answer;
+      });
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(1);
+      expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe(
+        'Your wallet switched accounts. Press Subscribe to start again.'
+      );
     });
 
     it('asks for new signatures when the API says the signed ones went stale', async () => {
@@ -1079,32 +1290,68 @@ describe('CheckoutComponent', () => {
       );
     });
 
-    it('confirms an existing on-chain subscription without signing', async () => {
-      const { component } = Render(SUBSCRIPTION_SESSION);
-      checkoutSessionService.PreparePayment.mockResolvedValue({
-        ...PreparedSubscription({
-          needs_permit: false,
-          permit_typed_data: null,
-          subscribe_typed_data: null,
-          deadline: null,
-          already_subscribed: true,
-          subscription_onchain_id: ONCHAIN_ID,
-        }),
-        estimated_fee: '0',
+    describe('an existing on-chain subscription', () => {
+      const EXISTING = {
         already_subscribed: true,
         subscription_onchain_id: ONCHAIN_ID,
+      };
+
+      beforeEach(() =>
+        checkoutSessionService.PreparePayment.mockResolvedValue({
+          ...PreparedSubscription({
+            needs_permit: false,
+            permit_typed_data: null,
+            subscribe_typed_data: null,
+            deadline: null,
+            already_subscribed: true,
+            subscription_onchain_id: ONCHAIN_ID,
+          }),
+          estimated_fee: '0',
+          already_subscribed: true,
+          subscription_onchain_id: ONCHAIN_ID,
+        })
+      );
+
+      it('is confirmed without signing', async () => {
+        const { component } = Render(SUBSCRIPTION_SESSION);
+
+        await component.Pay();
+
+        expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+        expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+          [SESSION.url_slug, EXISTING],
+        ]);
+        expect(component.paymentPhase()).toBe('complete');
       });
 
-      await component.Pay();
-
-      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
-      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+      it.each([
+        ['its first charge is pending', PaymentPending(null)],
         [
-          SESSION.url_slug,
-          { already_subscribed: true, subscription_onchain_id: ONCHAIN_ID },
+          'a gateway 504',
+          Object.assign(new Error('API Call failed: Gateway Timeout'), {
+            status: 504,
+          }),
         ],
-      ]);
-      expect(component.paymentPhase()).toBe('complete');
+      ])(
+        'is confirmed again until it settles when %s',
+        async (_label, failure) => {
+          jest.useFakeTimers();
+          const { component } = Render(SUBSCRIPTION_SESSION);
+          checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(failure);
+
+          const paying = component.Pay();
+          await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+          await paying;
+
+          expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+            [SESSION.url_slug, EXISTING],
+            [SESSION.url_slug, EXISTING],
+          ]);
+          expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+          expect(component.paymentError()).toBeNull();
+          expect(component.paymentPhase()).toBe('complete');
+        }
+      );
     });
   });
 
@@ -1523,6 +1770,79 @@ describe('CheckoutComponent', () => {
 
       expect(checkoutSessionService.ConfirmPayment).not.toHaveBeenCalled();
       expect(component.paymentPhase()).toBe('idle');
+    });
+  });
+
+  describe('a subscription recorded before the page loaded', () => {
+    /** A relayed subscribe, recorded after the session's `expires_at`. */
+    const RECORDED = {
+      ...SUBSCRIPTION_SESSION,
+      expires_at: 1700000000,
+      payment_details: { transaction_hash: HASH, payer_wallet: PAYER },
+    } as CheckoutSession;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      routeSlug = SESSION.url_slug;
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue(
+        RECORDED
+      );
+      checkoutSessionService.PreparePayment.mockResolvedValue(
+        SUBSCRIPTION_PREPARED
+      );
+    });
+
+    async function Load(): Promise<CheckoutComponent> {
+      const fixture = TestBed.createComponent(CheckoutComponent);
+      fixture.detectChanges();
+      await jest.advanceTimersByTimeAsync(0);
+      return fixture.componentInstance;
+    }
+
+    it('confirms by its hash, even past expiry, without asking for signatures', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        PaymentPending(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentPhase()).toBe('confirming');
+      expect(component.BusyLabel()).toBe('Confirming subscription');
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+      expect(checkoutSessionService.ConfirmPayment.mock.calls).toEqual([
+        [SESSION.url_slug, { transaction_hash: HASH }],
+        [SESSION.url_slug, { transaction_hash: HASH }],
+      ]);
+      expect(checkoutSessionService.PreparePayment).not.toHaveBeenCalled();
+      expect(wallet.request).not.toHaveBeenCalled();
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('asks for both signatures again when the network lost the subscribe', async () => {
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        ResubmitRequired(HASH)
+      );
+      const component = await Load();
+
+      expect(component.paymentError()).toBe(
+        'The subscription from 0x3C44…93BC did not reach the network. Press Subscribe and sign it again with that wallet.'
+      );
+      expect(wallet.request).not.toHaveBeenCalled();
+
+      component.email = 'payer@example.com';
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(2);
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenLastCalledWith(
+        SESSION.url_slug,
+        {
+          permit_signature: PERMIT_SIGNATURE,
+          subscribe_signature: SUBSCRIBE_SIGNATURE,
+          deadline: DEADLINE,
+        }
+      );
+      expect(component.paymentPhase()).toBe('complete');
     });
   });
 

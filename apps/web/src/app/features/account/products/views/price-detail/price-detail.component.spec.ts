@@ -65,10 +65,9 @@ describe('PriceDetailComponent', () => {
       remove: { imports: [PriceActionsHostComponent, EventsListComponent] },
       add: { schemas: [CUSTOM_ELEMENTS_SCHEMA] },
     });
-    jest.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => jest.clearAllMocks());
 
   it("shows a recurring price's on-chain plan id", async () => {
     const rows = await PricingRows(TestPrice({}));

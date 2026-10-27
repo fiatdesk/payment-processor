@@ -76,11 +76,20 @@
             -{{ FormatAmount(DiscountAmount()) }}
           </span>
         </div>
+        } @if (Trial(); as trial) {
+        <div class="summary-row">
+          <span>{{ trial.label }}</span>
+          <span>{{ FormatAmount(0) }}</span>
+        </div>
+        <div class="summary-row">
+          <span>{{ trial.firstCharge }}</span>
+          <span>{{ trial.amount }}</span>
+        </div>
         }
 
         <div class="summary-row summary-row-total">
           <span>{{ TotalDueLabel() }}</span>
-          <span>{{ FormatAmount(session.amount_total) }}</span>
+          <span>{{ FormatAmount(Trial() ? 0 : session.amount_total) }}</span>
         </div>
       </div>
     </div>
@@ -436,6 +445,40 @@
               {{ MethodHelpText() }}
             </div>
           </div>
+          @if (subscribeTerms(); as terms) {
+          <section
+            class="checkout-method-detail"
+            aria-labelledby="subscription-terms-title"
+          >
+            <div
+              id="subscription-terms-title"
+              class="checkout-method-detail-label"
+            >
+              You're authorizing
+            </div>
+            <div class="summary-row">
+              <span>Recurring charge</span><span>{{ terms.recurring }}</span>
+            </div>
+            <div class="summary-row">
+              <span>Token</span><span>{{ terms.token }}</span>
+            </div>
+            @if (terms.allowance; as allowance) {
+            <div class="summary-row">
+              <span>Allowance added</span><span>{{ allowance.added }}</span>
+            </div>
+            <div class="summary-row">
+              <span>Total allowance after signing</span
+              ><span>{{ allowance.total }}</span>
+            </div>
+            }
+            <div class="checkout-method-detail-help">
+              {{ terms.firstCharge }}. @if (terms.allowance) { Sign the USDC
+              permit, then the subscription. } @else { Your USDC allowance
+              already covers this subscription, so you sign once. } Cancel
+              anytime, or revoke the allowance to stop all charges.
+            </div>
+          </section>
+          }
         </div>
       </div>
 
@@ -473,42 +516,6 @@
           } @else { Terms of Service }
         </span>
       </label>
-      } @if (subscribeTerms(); as terms) {
-      <section
-        class="subscription-terms checkout-method-box"
-        aria-labelledby="subscription-terms-title"
-      >
-        <div id="subscription-terms-title" class="subscription-terms-title">
-          You're authorizing
-        </div>
-        <dl class="subscription-terms-list">
-          <div class="subscription-terms-row">
-            <dt>Recurring charge</dt>
-            <dd>{{ terms.recurring }}</dd>
-          </div>
-          <div class="subscription-terms-row">
-            <dt>Token</dt>
-            <dd>{{ terms.token }}</dd>
-          </div>
-          @if (terms.allowance; as allowance) {
-          <div class="subscription-terms-row">
-            <dt>Allowance added</dt>
-            <dd>{{ allowance.added }}</dd>
-          </div>
-          <div class="subscription-terms-row">
-            <dt>Total allowance after signing</dt>
-            <dd>{{ allowance.total }}</dd>
-          </div>
-          }
-        </dl>
-        <div class="subscription-terms-note">{{ terms.firstCharge }}.</div>
-        <div class="subscription-terms-note">
-          @if (terms.allowance) { Sign the USDC permit, then the subscription. }
-          @else { Your USDC allowance already covers this subscription, so you
-          sign once. } Cancel anytime, or revoke the allowance to stop all
-          charges.
-        </div>
-      </section>
       }
 
       <button

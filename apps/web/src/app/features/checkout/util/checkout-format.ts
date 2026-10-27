@@ -12,11 +12,20 @@ type SubmitType =
   | null
   | undefined;
 
-/** Label for the hosted checkout / preview pay button. */
+/**
+ * Label for the hosted checkout / preview pay button. `stillConfirming`:
+ * polling stopped, so the button checks on the payment again.
+ */
 export function GetCheckoutSubmitLabel(
   submitType: SubmitType,
-  isSubscription = false
+  isSubscription = false,
+  stillConfirming = false
 ): string {
+  if (stillConfirming) {
+    return isSubscription
+      ? 'Check subscription status'
+      : 'Check payment status';
+  }
   if (isSubscription) return 'Subscribe';
   switch (submitType) {
     case 'book':
@@ -27,5 +36,20 @@ export function GetCheckoutSubmitLabel(
       return 'Subscribe';
     default:
       return 'Pay';
+  }
+}
+
+/** Label for the pay button while a payment or subscription is busy. */
+export function GetCheckoutBusyLabel(
+  phase: string,
+  isSubscription: boolean
+): string {
+  switch (phase) {
+    case 'awaiting_wallet':
+      return 'Confirm in wallet';
+    case 'confirming':
+      return isSubscription ? 'Confirming subscription' : 'Confirming payment';
+    default:
+      return 'Processing';
   }
 }
