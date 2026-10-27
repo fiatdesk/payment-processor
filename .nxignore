@@ -1,2 +1,4 @@
 # Foundry dependencies (git submodules) are not Nx projects
 contracts/lib
+# Agent worktrees (Claude Code) are not Nx projects
+.claude/
