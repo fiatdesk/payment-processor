@@ -78,7 +78,7 @@ export class AccountLinkModule {
     const { dashboardUrl } = GetAppConfig();
     const timestamp = Now();
     const expiresAt = timestamp + 60 * 60; // 1 hour (in seconds)
-    const token = GenerateId('al_z', 32);
+    const token = GenerateId('al', 32);
     const url = `${dashboardUrl}/onboard?token=${token}`;
 
     const record: AccountLinkRecord = {
@@ -86,7 +86,7 @@ export class AccountLinkModule {
       created: timestamp,
       expires_at: expiresAt,
       url: url,
-      id: GenerateId('acct_link_z'),
+      id: GenerateId('acct_link'),
       token: token,
       account: account,
       type: type,

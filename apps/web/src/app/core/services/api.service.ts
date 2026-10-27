@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { StorageService } from './storage.service';
+import { BRAND } from '@zoneless/shared-types';
 import { environment } from '../../../environments/environment';
 
 export interface ApiOptions {
@@ -91,7 +92,7 @@ export class ApiService {
         headers['Authorization'] = `Bearer ${token}`;
       }
       if (zonelessAccount) {
-        headers['Zoneless-Account'] = zonelessAccount;
+        headers[BRAND.connectedAccountHeader] = zonelessAccount;
       }
 
       const options: RequestInit = {

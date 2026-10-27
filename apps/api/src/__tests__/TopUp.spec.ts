@@ -5,10 +5,16 @@ import { TopUpModule } from '../modules/TopUp';
 import type { IncomingDeposit } from '../modules/chains/types';
 import { MemoryDatabase } from './mocks/MemoryDatabase';
 import { CreateMockSettlement } from './mocks/Settlement';
-import { DeterministicId, GetFixedTimestamp, ResetIdCounter } from './Setup';
+import {
+  DeterministicId,
+  DeterministicToken,
+  GetFixedTimestamp,
+  ResetIdCounter,
+} from './Setup';
 
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
+  GenerateToken: jest.fn((prefix: string) => DeterministicToken(prefix)),
 }));
 jest.mock('../utils/Timestamp', () => ({
   Now: jest.fn(() => GetFixedTimestamp()),

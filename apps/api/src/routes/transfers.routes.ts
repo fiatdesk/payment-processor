@@ -132,7 +132,7 @@ const requireTransferReadAccess = AsyncHandler(
 router.post(
   '/',
   RequirePlatform(),
-  OptionalConnectedAccount('zoneless-account'),
+  OptionalConnectedAccount(),
   ValidateRequest(CreateTransferSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const platformAccountId = req.user.account;

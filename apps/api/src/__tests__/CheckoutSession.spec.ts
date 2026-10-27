@@ -15,6 +15,7 @@ import { ListHelper } from '../utils/ListHelper';
 import {
   CreateMockDatabase,
   DeterministicId,
+  DeterministicToken,
   DeterministicUrlSlug,
   ResetIdCounter,
   GetFixedTimestamp,
@@ -23,6 +24,7 @@ import {
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
+  GenerateToken: jest.fn((prefix: string) => DeterministicToken(prefix)),
   GenerateUrlSlug: jest.fn(() => DeterministicUrlSlug()),
 }));
 jest.mock('../utils/Timestamp', () => ({

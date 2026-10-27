@@ -7,7 +7,11 @@
 
 import { Database } from './Database';
 import { EventService } from './EventService';
-import { GenerateId, GenerateUrlSlug } from '../utils/IdGenerator';
+import {
+  GenerateId,
+  GenerateToken,
+  GenerateUrlSlug,
+} from '../utils/IdGenerator';
 import {
   CheckoutSession as CheckoutSessionType,
   CheckoutSessionCustomField,
@@ -203,7 +207,7 @@ export class CheckoutSessionModule {
     lineItems: CheckoutSessionLineItem[],
     paymentLink: string | null = null
   ): CheckoutSessionType {
-    const id = GenerateId('cs_z', 24);
+    const id = GenerateId('cs', 24);
     const livemode = GetAppConfig().livemode;
     const urlSlug = GenerateUrlSlug(livemode);
     const uiMode = input.ui_mode ?? 'hosted_page';
@@ -259,7 +263,7 @@ export class CheckoutSessionModule {
         : null,
       cancel_url: input.cancel_url ?? null,
       client_reference_id: input.client_reference_id ?? null,
-      client_secret: isEmbedded ? GenerateId(`${id}_secret`, 26) : null,
+      client_secret: isEmbedded ? GenerateToken(`${id}_secret`, 26) : null,
       collected_information: null,
       consent: null,
       consent_collection: input.consent_collection
@@ -1133,7 +1137,7 @@ export class CheckoutSessionModule {
   private async BuildLineItem(
     platformAccountId: string,
     input: LineItemInput,
-    id: string = GenerateId('li_z')
+    id: string = GenerateId('li')
   ): Promise<CheckoutSessionLineItem> {
     const price = await this.ResolvePrice(platformAccountId, input);
     const description = await this.GetProductName(price);
@@ -1343,7 +1347,7 @@ export class CheckoutSessionModule {
   ): CheckoutSessionType['shipping_options'] {
     return (input ?? []).map((option) => ({
       shipping_amount: option.shipping_rate_data?.fixed_amount?.amount ?? 0,
-      shipping_rate: option.shipping_rate ?? GenerateId('shr_z'),
+      shipping_rate: option.shipping_rate ?? GenerateId('shr'),
     }));
   }
 

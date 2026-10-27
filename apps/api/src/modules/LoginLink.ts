@@ -63,7 +63,7 @@ export class LoginLinkModule {
     const { dashboardUrl } = GetAppConfig();
     const timestamp = Now();
     const expiresAt = timestamp + 60 * 5; // 5 minutes in seconds (shorter than AccountLink)
-    const token = GenerateId('ll_z', 32);
+    const token = GenerateId('ll', 32);
     const url = `${dashboardUrl}/login?token=${token}`;
 
     const record: LoginLinkRecord = {

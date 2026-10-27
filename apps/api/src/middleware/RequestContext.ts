@@ -10,7 +10,7 @@
 
 import { AsyncLocalStorage } from 'async_hooks';
 import { Request, Response, NextFunction } from 'express';
-import { GenerateId } from '../utils/IdGenerator';
+import { GenerateToken } from '../utils/IdGenerator';
 
 export interface RequestContextData {
   requestId: string;
@@ -42,7 +42,7 @@ export function RequestContextMiddleware(
 ): void {
   const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
   const requestId =
-    (req.headers['x-request-id'] as string) || GenerateId('req');
+    (req.headers['x-request-id'] as string) || GenerateToken('req');
 
   // Set request ID header for tracing
   res.setHeader('X-Request-Id', requestId);

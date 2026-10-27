@@ -1861,7 +1861,7 @@ export class PayoutModule {
 
     const timestamp = Now();
     const payout: PayoutType = {
-      id: GenerateId('po_z'),
+      id: GenerateId('po'),
       object: 'payout',
       account: account,
       platform_account: platformAccountId,

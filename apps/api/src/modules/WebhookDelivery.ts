@@ -130,7 +130,7 @@ export class WebhookDeliveryModule {
     now: number
   ): WebhookDelivery {
     return {
-      id: GenerateId('whd_z'),
+      id: GenerateId('whd'),
       object: 'webhook_delivery',
       event_id: event.id,
       webhook_endpoint_id: endpoint.id,
@@ -153,7 +153,7 @@ export class WebhookDeliveryModule {
       {
         $set: {
           claim_until: Now() + WEBHOOK_DELIVERY_LOCK_SECONDS,
-          claim_token: GenerateId('claim_z'),
+          claim_token: GenerateId('claim'),
         },
       }
     );

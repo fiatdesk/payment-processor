@@ -166,7 +166,7 @@ export class InvoiceItemModule {
     const discountable = input.discountable ?? amount >= 0;
 
     return {
-      id: GenerateId('ii_z'),
+      id: GenerateId('ii'),
       object: 'invoiceitem',
       amount,
       currency: resolved.currency,

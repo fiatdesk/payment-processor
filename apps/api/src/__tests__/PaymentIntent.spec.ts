@@ -14,6 +14,7 @@ import {
 import {
   CreateMockDatabase,
   DeterministicId,
+  DeterministicToken,
   ResetIdCounter,
   GetFixedTimestamp,
 } from './Setup';
@@ -21,6 +22,7 @@ import {
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
+  GenerateToken: jest.fn((prefix: string) => DeterministicToken(prefix)),
 }));
 jest.mock('../utils/Timestamp', () => ({
   Now: jest.fn(() => GetFixedTimestamp()),

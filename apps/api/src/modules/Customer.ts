@@ -104,7 +104,7 @@ export class CustomerModule {
     platformAccountId: string,
     input: CreateCustomerInput
   ): CustomerType {
-    const id = GenerateId('cus_z');
+    const id = GenerateId('cus');
     const requestedReconciliationMode =
       input.cash_balance?.settings?.reconciliation_mode;
     const usingMerchantDefault =
@@ -193,7 +193,7 @@ export class CustomerModule {
       tax_ids: {
         object: 'list',
         data: (input.tax_id_data ?? []).map((taxId) => ({
-          id: GenerateId('txi_z'),
+          id: GenerateId('txi'),
           object: 'tax_id' as const,
           country: null,
           created: Now(),

@@ -1909,3 +1909,90 @@ apps/web/src/app/features/checkout/checkout.component.spec.ts
 - The chain id stays configurable (`ETH_CHAIN_ID`), so the design does not rule out other EVM networks.
 
 Modified: the docs data pages under `apps/docs/src/app/pages/docs/data/` (accounts, account-links, agent-marketplace-quickstart, agent-payments-quickstart, api-quickstart, authentication, billing, build-a-marketplace, customers, deployment, event-types, external-wallets, guides, index, local-development, marketplace-quickstart, migrate-from-stripe, payouts, platform-dashboard, subscriptions, transfers, webhook-endpoints), `docs-catalog.ts`, `apps/docs/scripts/generate-agent-docs.ts` and its test, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `contracts/README.md`, `apps/web/src/app/features/setup/setup.component.html` and the two `.agents/skills` files. Added: `apps/docs/src/app/pages/docs/data/gas-and-fees.ts`.
+
+### Task 17: brand tokens and the rebrand script
+
+- **`BRAND`** (`libs/shared-types/src/lib/Brand.ts`, exported from `@zoneless/shared-types`) holds the brand tokens in one place: `productName`, `packageScope`, `idInfix`, `connectedAccountHeader`, `envPrefix` and `cliBin`. The values are still `Zoneless`, `@zoneless`, `z`, `zoneless-account`, `ZONELESS` and `zoneless`.
+- **IDs:**
+  - `GenerateId(prefix)` now inserts `BRAND.idInfix`, so `GenerateId('po')` returns `po_z_…`.
+  - The 43 call sites in `apps/api/src/modules` dropped their `_z` suffix (`GenerateId('po_z')` became `GenerateId('po')`, and API keys use `GenerateId('sk_live' | 'sk_test', 99)`). Generated IDs are unchanged.
+  - `GenerateToken(prefix)` is the same generator without the infix. It serves values that are not object IDs, and their format is unchanged: client secrets (`pi_z_…_secret_…`), request IDs (`req_…`) and simulated deposit hashes (`sim_dep_…`).
+  - The auth exchange route recognises account-link and login-link tokens by `al_${BRAND.idInfix}_` and `ll_${BRAND.idInfix}_`. Before, it matched the literal `_z_`.
+- **Connected-account header:** the name comes from `BRAND.connectedAccountHeader` in the API middleware (`OptionalConnectedAccount`'s default, and the payout-create route's `RequireConnectedAccountOwnership`), the Node SDK (`HttpClient`, `balanceTransactions`) and the dashboard's `ApiService`. The SDK and dashboard now send it in lowercase (`zoneless-account`). HTTP header names are case-insensitive, so nothing else changes.
+- **Webhook signature header:** a dispatcher test pins the header name to `` `${BRAND.productName}-Signature` `` and checks it is the only header besides `Content-Type`.
+- **Test helpers:** `DeterministicId` inserts the infix like `GenerateId`, and the new `DeterministicToken` mirrors `GenerateToken`. The mocks of the three modules that call `GenerateToken` provide it.
+- **`scripts/rebrand.sh [--dry-run] <name> <Name> <infix>`:**
+  - It reads the current tokens from `BRAND`, rewrites `BRAND` to the new ones, and rewrites matching strings in the tracked text files of `apps/`, `libs/`, `sdks/`, `docker/`, `docker-compose.yml`, `.env*.example`, the root Markdown files, `.github/`, `.agents/`, `scripts/`, `contracts/` (except `contracts/lib/` and Solidity sources), the root `package.json` and `tsconfig*.json`. It renames the `.agents/skills/<name>-*` directories.
+  - Patterns, most specific first: the package scope (also in `\/`-escaped regexes); the connected-account header; `<Name>-Account`; `<Name>-Signature` and `<name>-signature`; `<Name>PayoutBatchError`; the `<NAME>_` env prefix; the remaining upper-case, display and lower-case name; and the `_<infix>` ID infix after a lowercase prefix (`acct_z_…`, `/^vs_z/`).
+  - It keeps:
+    - the per-file attribution header line;
+    - upstream attribution (`github.com/zonelessdev` links, "Zoneless Ltd", "fork of the Zoneless project");
+    - Angular's own `provideZonelessChangeDetection`, `setupZonelessTestEnv` and `jest-preset-angular/setup-env/zoneless`;
+    - the HKDF salt `zoneless-v1`, because renaming it would change every key derived from `APP_SECRET`;
+    - references to binary assets named after the old brand. It lists those assets for replacement by hand.
+  - It never touches `LICENSE`, `NOTICE`, `CHANGES.md`, `docs/plans/`, the root `package-lock.json`, `contracts/lib/` or Solidity sources. It warns if a Solidity file names the old brand, because an EIP-712 domain change alters signed digests.
+  - `--dry-run` prints the hit count of each pattern and writes nothing. A second run with the same arguments changes nothing. After a real run it prints the follow-ups: `npm install`, the test suite, `npm run format` and a diff review.
+- **`scripts/rebrand.spec.sh`:** a bash self-test. It builds a fixture repository in a temp directory and checks four things there:
+  - argument validation;
+  - the dry-run counts, and that nothing is written;
+  - the rewritten files, including that the attribution header and Angular APIs are kept and that the protected files are untouched;
+  - that a second run is a no-op.
+
+Added:
+
+```
+apps/api/src/__tests__/IdGenerator.spec.ts
+libs/shared-types/src/lib/Brand.ts
+scripts/rebrand.sh
+scripts/rebrand.spec.sh
+```
+
+Modified:
+
+```
+CHANGES.md
+apps/api/src/__tests__/CheckoutSession.spec.ts
+apps/api/src/__tests__/PaymentIntent.spec.ts
+apps/api/src/__tests__/Setup.ts
+apps/api/src/__tests__/TopUp.spec.ts
+apps/api/src/__tests__/WebhookDelivery.spec.ts
+apps/api/src/middleware/Authorization.ts
+apps/api/src/middleware/RequestContext.ts
+apps/api/src/modules/Account.ts
+apps/api/src/modules/AccountLink.ts
+apps/api/src/modules/ApiKey.ts
+apps/api/src/modules/Balance.ts
+apps/api/src/modules/BalanceTransaction.ts
+apps/api/src/modules/Charge.ts
+apps/api/src/modules/CheckoutSession.ts
+apps/api/src/modules/Customer.ts
+apps/api/src/modules/Event.ts
+apps/api/src/modules/ExternalWallet.ts
+apps/api/src/modules/IdentityVerificationSession.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/InvoiceItem.ts
+apps/api/src/modules/LoginLink.ts
+apps/api/src/modules/PaymentIntent.ts
+apps/api/src/modules/PaymentLink.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/PayoutBatchStore.ts
+apps/api/src/modules/Person.ts
+apps/api/src/modules/Price.ts
+apps/api/src/modules/Product.ts
+apps/api/src/modules/Subscription.ts
+apps/api/src/modules/TopUp.ts
+apps/api/src/modules/Transfer.ts
+apps/api/src/modules/WebhookDelivery.ts
+apps/api/src/modules/WebhookEndpoint.ts
+apps/api/src/routes/balance.routes.ts
+apps/api/src/routes/balanceTransactions.routes.ts
+apps/api/src/routes/exchange.routes.ts
+apps/api/src/routes/payouts.routes.ts
+apps/api/src/routes/transfers.routes.ts
+apps/api/src/utils/IdGenerator.ts
+apps/web/src/app/core/services/api.service.ts
+libs/shared-types/src/lib/index.ts
+sdks/node/src/HttpClient.ts
+sdks/node/src/__tests__/HttpClient.spec.ts
+sdks/node/src/resources/BalanceTransactions.ts
+```

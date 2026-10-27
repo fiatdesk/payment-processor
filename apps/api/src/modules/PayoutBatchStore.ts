@@ -82,7 +82,7 @@ export class PayoutBatchStore {
   NewPayoutBatch(fields: NewPayoutBatchFields): PayoutBatch {
     const timestamp = Now();
     return {
-      id: GenerateId('pob_z'),
+      id: GenerateId('pob'),
       object: 'payout_batch',
       ...fields,
       status: 'built',

@@ -128,7 +128,7 @@ export class ExternalWalletModule {
   ): ExternalWalletType {
     const walletAddress = input.wallet_address;
     const externalWallet: ExternalWalletType = {
-      id: GenerateId('wa_z'),
+      id: GenerateId('wa'),
       object: 'wallet',
       account: account,
       platform_account: platformAccountId,

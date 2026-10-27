@@ -5,6 +5,7 @@
  * helpers so every test file can spin up modules the same way.
  */
 
+import { BRAND } from '@zoneless/shared-types';
 import { Database } from '../modules/Database';
 
 // ---------------------------------------------------------------------------
@@ -17,10 +18,19 @@ export function ResetIdCounter(): void {
 }
 
 /**
- * Returns a deterministic ID using the given prefix.
+ * Returns a deterministic ID using the given prefix and the brand id infix,
+ * shaped like `GenerateId` (e.g. `po_z_test001`).
  * Counter increments per call so multiple IDs in the same test are unique.
  */
 export function DeterministicId(prefix: string): string {
+  return DeterministicToken(`${prefix}_${BRAND.idInfix}`);
+}
+
+/**
+ * Returns a deterministic token using the given prefix without the brand id
+ * infix, shaped like `GenerateToken` (e.g. `req_test001`).
+ */
+export function DeterministicToken(prefix: string): string {
   idCounter++;
   return `${prefix}_test${String(idCounter).padStart(3, '0')}`;
 }

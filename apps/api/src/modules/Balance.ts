@@ -62,7 +62,7 @@ export class BalanceModule {
    */
   BalanceObject(accountId: string, platformAccountId: string): BalanceType {
     const balance: BalanceType = {
-      id: GenerateId('bal_z'),
+      id: GenerateId('bal'),
       object: 'balance',
       account: accountId,
       platform_account: platformAccountId,

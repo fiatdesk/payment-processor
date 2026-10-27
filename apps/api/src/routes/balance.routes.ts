@@ -46,7 +46,7 @@ const balanceModule = new BalanceModule(db, eventService);
  */
 router.get(
   '/',
-  OptionalConnectedAccount('zoneless-account'),
+  OptionalConnectedAccount(),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     // Use connected account if specified (platform acting on behalf of connected account)
     // Otherwise use the authenticated user's account

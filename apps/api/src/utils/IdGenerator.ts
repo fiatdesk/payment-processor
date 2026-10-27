@@ -1,4 +1,6 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import * as crypto from 'crypto';
+import { BRAND } from '@zoneless/shared-types';
 
 const URL_SAFE_CHARS =
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -7,14 +9,25 @@ const URL_SAFE_CHARS =
 const INVOICE_PREFIX_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /**
- * Generates a random ID with a prefix, similar to Stripe IDs.
- * e.g. acct_1SVYFEIS97JJCA0T
+ * Generates a random object ID with a prefix and the brand id infix, similar
+ * to Stripe IDs. e.g. acct_z_1SVYFEIS97JJCA0T
  *
  * @param prefix The prefix for the ID (e.g. 'acct', 'ch', 'cus')
  * @param length The length of the random part (default 16)
  * @returns The generated ID string
  */
 export function GenerateId(prefix: string, length: number = 16): string {
+  return GenerateToken(`${prefix}_${BRAND.idInfix}`, length);
+}
+
+/**
+ * Generates `<prefix>_<random>` without the brand id infix, for values that
+ * are not object IDs: client secrets, request IDs and simulated hashes.
+ *
+ * @param prefix The full prefix (e.g. 'req', or `${id}_secret`)
+ * @param length The length of the random part (default 16)
+ */
+export function GenerateToken(prefix: string, length = 16): string {
   return `${prefix}_${RandomFromCharset(URL_SAFE_CHARS, length)}`;
 }
 

@@ -153,7 +153,7 @@ export class SubscriptionModule {
     const billingCycleAnchor = validatedInput.billing_cycle_anchor ?? startDate;
 
     const trial = this.ResolveTrial(validatedInput, now, billingCycleAnchor);
-    const id = GenerateId('sub_z');
+    const id = GenerateId('sub');
     const collectionMethod =
       validatedInput.collection_method ?? 'charge_automatically';
     const paymentBehavior =
@@ -1404,7 +1404,7 @@ export class SubscriptionModule {
       taxRatesInput === undefined || taxRatesInput === '' ? [] : taxRatesInput;
 
     const item: SubscriptionItemType = {
-      id: GenerateId('si_z'),
+      id: GenerateId('si'),
       object: 'subscription_item',
       billed_until: null,
       billing_thresholds: billingThresholds,

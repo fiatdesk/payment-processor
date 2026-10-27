@@ -204,7 +204,7 @@ export class AccountModule {
       ? { ...defaultBusinessProfile, ...input.business_profile }
       : defaultBusinessProfile;
 
-    const accountId = GenerateId('acct_z');
+    const accountId = GenerateId('acct');
 
     const account: AccountType = {
       id: accountId,

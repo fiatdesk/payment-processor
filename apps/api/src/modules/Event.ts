@@ -158,7 +158,7 @@ export class EventModule {
     } = options;
 
     const event: Event = {
-      id: GenerateId('evt_z'),
+      id: GenerateId('evt'),
       object: 'event',
       api_version: apiVersion,
       created: Now(),

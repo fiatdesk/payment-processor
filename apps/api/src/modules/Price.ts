@@ -311,7 +311,7 @@ export class PriceModule {
 
   PriceObject(platformAccountId: string, input: CreatePriceInput): PriceType {
     let price: PriceType = {
-      id: GenerateId('price_z'),
+      id: GenerateId('price'),
       active: true,
       currency: 'usdc',
       metadata: input.metadata ?? {},

@@ -14,6 +14,7 @@ import {
   RequireConnectedAccountOwnership,
   OptionalConnectedAccount,
 } from '../middleware/Authorization';
+import { BRAND } from '@zoneless/shared-types';
 import {
   CreatePayoutSchema,
   UpdatePayoutSchema,
@@ -65,7 +66,7 @@ declare global {
 router.post(
   '/',
   RequirePlatform(),
-  RequireConnectedAccountOwnership('zoneless-account', 'header'),
+  RequireConnectedAccountOwnership(BRAND.connectedAccountHeader, 'header'),
   ValidateRequest(CreatePayoutSchema),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     // The connected account is verified by RequireConnectedAccountOwnership middleware
@@ -348,7 +349,7 @@ router.get(
  */
 router.get(
   '/',
-  OptionalConnectedAccount('zoneless-account'),
+  OptionalConnectedAccount(),
   AsyncHandler(async (req: express.Request, res: express.Response) => {
     const limit = req.query.limit
       ? parseInt(req.query.limit as string, 10)

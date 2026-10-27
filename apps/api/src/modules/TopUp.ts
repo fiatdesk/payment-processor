@@ -19,7 +19,7 @@ import { EventService } from './EventService';
 import { BalanceTransactionModule } from './BalanceTransaction';
 import { BalanceModule } from './Balance';
 import { GetAppConfig } from './AppConfig';
-import { GenerateId } from '../utils/IdGenerator';
+import { GenerateId, GenerateToken } from '../utils/IdGenerator';
 import { Now } from '../utils/Timestamp';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -223,7 +223,7 @@ export class TopUpModule {
 
     return this.CreateFromDeposit(
       {
-        transactionHash: GenerateId('sim_dep'),
+        transactionHash: GenerateToken('sim_dep'),
         logIndex: 0,
         amount: amountCents / 100,
         amountCents,
@@ -500,7 +500,7 @@ export class TopUpModule {
     const appConfig = GetAppConfig();
 
     const topUp: TopUpType = {
-      id: GenerateId('tu_z'),
+      id: GenerateId('tu'),
       object: 'topup',
       amount: amount,
       balance_transaction: null,
@@ -525,7 +525,7 @@ export class TopUpModule {
     // If metadata contains blockchain info, create a source object
     if (options.metadata?.blockchain_tx && !options.source) {
       topUp.source = {
-        id: GenerateId('src_z'),
+        id: GenerateId('src'),
         object: 'source',
         type: 'crypto_deposit',
         metadata: {},

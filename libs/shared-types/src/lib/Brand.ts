@@ -1,0 +1,13 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
+/**
+ * Brand tokens, defined once. `scripts/rebrand.sh` rewrites these values and
+ * the matching strings across the repo; code reads them from here.
+ */
+export const BRAND = {
+  productName: 'Zoneless',
+  packageScope: '@zoneless',
+  idInfix: 'z',
+  connectedAccountHeader: 'zoneless-account',
+  envPrefix: 'ZONELESS',
+  cliBin: 'zoneless',
+} as const;

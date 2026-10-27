@@ -13,6 +13,7 @@ export * from './AuthenticatedUser';
 export * from './Balance';
 export * from './BalanceTransaction';
 export * from './Billing';
+export * from './Brand';
 export * from './Charge';
 export * from './Event';
 export * from './ExternalWallet';

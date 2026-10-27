@@ -221,7 +221,7 @@ export class ChargeModule {
     platformAccountId: string,
     input: CreateChargeFromPaymentAttemptInput
   ): Promise<ChargeType> {
-    const id = GenerateId('ch_z');
+    const id = GenerateId('ch');
     const succeeded = input.outcome === 'succeeded';
 
     const charge: ChargeType = {
@@ -339,7 +339,7 @@ export class ChargeModule {
     platformAccountId: string,
     input: CreateChargeInput
   ): ChargeType {
-    const id = GenerateId('ch_z');
+    const id = GenerateId('ch');
     const capture = input.capture !== false;
     const paymentMethod = input.source ?? null;
 

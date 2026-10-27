@@ -10,7 +10,7 @@ import { AccountModule } from '../modules/Account';
 import { CanAccessAccount } from '../modules/PlatformAccess';
 import { AppError } from '../utils/AppError';
 import { ERRORS, ErrorDefinition } from '../utils/Errors';
-import { Account as AccountType } from '@zoneless/shared-types';
+import { Account as AccountType, BRAND } from '@zoneless/shared-types';
 
 const accountModule = new AccountModule(db);
 
@@ -263,10 +263,10 @@ export function RequireConnectedAccountOwnership(
  * If the header is missing, continues without error.
  * If the header is present but invalid (account not found or not owned), throws an error.
  *
- * @param headerName - The header name containing the connected account ID (default: 'zoneless-account')
+ * @param headerName - The header name containing the connected account ID (default: `BRAND.connectedAccountHeader`)
  */
 export function OptionalConnectedAccount(
-  headerName: string = 'zoneless-account'
+  headerName: string = BRAND.connectedAccountHeader
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {

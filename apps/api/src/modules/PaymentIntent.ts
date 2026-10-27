@@ -12,7 +12,7 @@ import { Database } from './Database';
 import { EventService } from './EventService';
 import { AccountModule } from './Account';
 import type { CustomerModule } from './Customer';
-import { GenerateId } from '../utils/IdGenerator';
+import { GenerateId, GenerateToken } from '../utils/IdGenerator';
 import {
   EventType,
   PaymentIntent as PaymentIntentType,
@@ -138,7 +138,7 @@ function ToAmountDetailsLineItem(
   input: AmountDetailsLineItemInput
 ): PaymentIntentAmountDetailsLineItem {
   return {
-    id: GenerateId('uli_z'),
+    id: GenerateId('uli'),
     object: 'payment_intent_amount_details_line_item',
     discount_amount: input.discount_amount ?? null,
     payment_method_options: null,
@@ -254,8 +254,8 @@ export class PaymentIntentModule {
     platformAccountId: string,
     input: CreatePaymentIntentInput
   ): PaymentIntentType {
-    const id = GenerateId('pi_z');
-    const clientSecret = GenerateId(`${id}_secret`, 24);
+    const id = GenerateId('pi');
+    const clientSecret = GenerateToken(`${id}_secret`, 24);
     const hasPaymentMethod = Boolean(input.payment_method);
 
     const paymentIntent: PaymentIntentType = {

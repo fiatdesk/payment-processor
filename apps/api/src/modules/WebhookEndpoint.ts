@@ -83,7 +83,7 @@ export class WebhookEndpointModule {
     input: CreateWebhookEndpointInput
   ): WebhookEndpointRecord {
     return {
-      id: GenerateId('we_z'),
+      id: GenerateId('we'),
       object: 'webhook_endpoint',
       account: account,
       platform_account: account, // Webhook endpoints are always for platform accounts
@@ -94,7 +94,7 @@ export class WebhookEndpointModule {
       enabled_events: input.enabled_events,
       livemode: GetAppConfig().livemode,
       metadata: input.metadata ?? {},
-      secret: GenerateId('whsec_z', 32),
+      secret: GenerateId('whsec', 32),
       status: 'enabled',
       url: input.url,
     };

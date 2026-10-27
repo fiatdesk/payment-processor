@@ -107,7 +107,7 @@ export class PaymentLinkModule {
     input: CreatePaymentLinkInput,
     lineItems: CheckoutSessionLineItem[]
   ): PaymentLinkType {
-    const id = GenerateId('plink_z');
+    const id = GenerateId('plink');
     const livemode = GetAppConfig().livemode;
     const urlSlug = GenerateUrlSlug(livemode);
     const currency = input.currency ?? lineItems[0]?.currency ?? 'usdc';
@@ -1073,7 +1073,7 @@ export class PaymentLinkModule {
   private async BuildLineItem(
     platformAccountId: string,
     input: LineItemInput,
-    id: string = GenerateId('li_z')
+    id: string = GenerateId('li')
   ): Promise<CheckoutSessionLineItem> {
     const price = await this.ResolvePrice(platformAccountId, input);
     const description = await this.GetProductName(price);

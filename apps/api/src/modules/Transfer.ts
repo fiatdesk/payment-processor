@@ -262,7 +262,7 @@ export class TransferModule {
         transferObj.balance_transaction = balanceTransactionA.id;
 
         // Generate a destination payment ID for the receiving account
-        transferObj.destination_payment = GenerateId('py_z');
+        transferObj.destination_payment = GenerateId('py');
 
         const balanceDataA = await balanceModule.GetBalance(
           sourceAccount,
@@ -388,7 +388,7 @@ export class TransferModule {
     } = params;
 
     const timestamp = Now();
-    const transferId = GenerateId('tr_z');
+    const transferId = GenerateId('tr');
 
     const transfer: TransferType = {
       id: transferId,

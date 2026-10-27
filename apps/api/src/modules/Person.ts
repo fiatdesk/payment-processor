@@ -194,7 +194,7 @@ export class PersonModule {
       : null;
 
     const person: PersonType = {
-      id: GenerateId('person_z'),
+      id: GenerateId('person'),
       object: 'person',
       account: accountId,
       platform_account: platformAccountId,

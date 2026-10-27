@@ -1,3 +1,4 @@
+import { BRAND } from '@zoneless/shared-types';
 import { HttpClient, ZonelessApiError } from '../HttpClient';
 
 describe('HttpClient', () => {
@@ -34,7 +35,7 @@ describe('HttpClient', () => {
       expect.objectContaining({
         'x-api-key': 'sk_test_z_key',
         'idempotency-key': 'key_1',
-        'zoneless-account': 'acct_platform',
+        [BRAND.connectedAccountHeader]: 'acct_platform',
       })
     );
     expect(JSON.parse(init.body as string)).toEqual({

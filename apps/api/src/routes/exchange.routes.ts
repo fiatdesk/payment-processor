@@ -12,9 +12,15 @@ import { GetPlatformAccountId } from '../modules/PlatformAccess';
 import { GetJwtSecret } from '../modules/AppConfig';
 import { SignToken } from '../utils/Token';
 import { RateLimiters } from '../middleware/RateLimiter';
-import { AccountLinkRecord, LoginLinkRecord } from '@zoneless/shared-types';
+import {
+  AccountLinkRecord,
+  BRAND,
+  LoginLinkRecord,
+} from '@zoneless/shared-types';
 
 const router = express.Router();
+const ACCOUNT_LINK_TOKEN_PREFIX = `al_${BRAND.idInfix}_`;
+const LOGIN_LINK_TOKEN_PREFIX = `ll_${BRAND.idInfix}_`;
 const accountModule = new AccountModule(db);
 const accountLinkModule = new AccountLinkModule(db);
 const loginLinkModule = new LoginLinkModule(db);
@@ -70,10 +76,10 @@ router.post(
     let linkType: 'account_link' | 'login_link';
 
     // Route based on token prefix
-    if (token.startsWith('al_z_')) {
+    if (token.startsWith(ACCOUNT_LINK_TOKEN_PREFIX)) {
       link = await accountLinkModule.GetAccountLinkByToken(token);
       linkType = 'account_link';
-    } else if (token.startsWith('ll_z_')) {
+    } else if (token.startsWith(LOGIN_LINK_TOKEN_PREFIX)) {
       link = await loginLinkModule.GetLoginLinkByToken(token);
       linkType = 'login_link';
     } else {

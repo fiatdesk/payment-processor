@@ -1,3 +1,5 @@
+import { BRAND } from '@zoneless/shared-types';
+
 export interface HttpClientConfig {
   apiKey: string;
   baseUrl: string;
@@ -161,7 +163,7 @@ export class HttpClient {
 
     // Add connected account header for platform operations
     if (options.zonelessAccount) {
-      headers['zoneless-account'] = options.zonelessAccount;
+      headers[BRAND.connectedAccountHeader] = options.zonelessAccount;
     }
 
     const fetchOptions: RequestInit = {

@@ -100,7 +100,7 @@ export class IdentityVerificationSessionModule {
 
     const resolved = ResolveIdentityProvider(platformAccount);
     const selected = SelectIdentityWorkflow(resolved, relatedAccount);
-    const sessionId = GenerateId('vs_z');
+    const sessionId = GenerateId('vs');
 
     const providerSession = await resolved.provider.CreateSession(
       resolved.apiKey,

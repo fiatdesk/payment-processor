@@ -1,6 +1,10 @@
 import { BaseResource } from './Base';
 import { ApplyDateFilter } from '../utils';
-import { BalanceTransaction, ListResponse } from '@zoneless/shared-types';
+import {
+  BalanceTransaction,
+  BRAND,
+  ListResponse,
+} from '@zoneless/shared-types';
 import type { ListBalanceTransactionsInput } from '../generated/Inputs';
 
 export interface BalanceTransactionRequestOptions {
@@ -43,7 +47,7 @@ export class BalanceTransactions extends BaseResource {
     options: BalanceTransactionRequestOptions
   ): Record<string, string> | undefined {
     if (options.zonelessAccount) {
-      return { 'Zoneless-Account': options.zonelessAccount };
+      return { [BRAND.connectedAccountHeader]: options.zonelessAccount };
     }
     return undefined;
   }

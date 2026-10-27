@@ -273,7 +273,7 @@ export class InvoiceModule {
     customer: CustomerType
   ): InvoiceType {
     const now = Now();
-    const id = GenerateId('in_z');
+    const id = GenerateId('in');
     const collectionMethod = input.collection_method ?? 'charge_automatically';
 
     const invoice: InvoiceType = {
@@ -1095,7 +1095,7 @@ export class InvoiceModule {
       : [];
 
     return {
-      id: GenerateId('il_z'),
+      id: GenerateId('il'),
       object: 'line_item',
       amount: item.amount,
       currency: 'usdc',
@@ -1163,7 +1163,7 @@ export class InvoiceModule {
     }
 
     const now = Now();
-    const id = GenerateId('in_z');
+    const id = GenerateId('in');
     const customerId =
       typeof source.customer === 'string'
         ? source.customer
@@ -1205,7 +1205,7 @@ export class InvoiceModule {
         object: 'list',
         data: source.lines.data.map((line) => ({
           ...line,
-          id: GenerateId('il_z'),
+          id: GenerateId('il'),
           invoice: id,
         })),
         has_more: false,
@@ -1649,7 +1649,7 @@ export class InvoiceModule {
     amountRequested: number
   ): InvoicePayment {
     return {
-      id: GenerateId('inpay_z'),
+      id: GenerateId('inpay'),
       object: 'invoice_payment',
       amount_paid: null,
       amount_requested: amountRequested,

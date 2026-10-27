@@ -101,7 +101,7 @@ export class ProductModule {
     input: CreateProductInput
   ): ProductType {
     const product: ProductType = {
-      id: GenerateId('prod_z'),
+      id: GenerateId('prod'),
       object: 'product',
       active: input.active ?? true,
       created: Now(),

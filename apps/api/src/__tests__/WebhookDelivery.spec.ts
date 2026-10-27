@@ -1,4 +1,5 @@
 import {
+  BRAND,
   Event as EventType,
   WebhookDelivery,
   WebhookDeliveryAttemptResult,
@@ -807,6 +808,27 @@ describe('WebhookDelivery', () => {
         expect(result.durationMs).toBeGreaterThanOrEqual(0);
       }
     );
+
+    it('should send the signature in the <Brand>-Signature header', async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+      await new RealWebhookDispatcher().Send(
+        event,
+        endpoint.url,
+        endpoint.secret
+      );
+
+      const headers = fetchMock.mock.calls[0][1].headers as Record<
+        string,
+        string
+      >;
+      expect(Object.keys(headers).sort()).toEqual(
+        ['Content-Type', `${BRAND.productName}-Signature`].sort()
+      );
+      expect(headers[`${BRAND.productName}-Signature`]).toMatch(
+        new RegExp(`^t=${now},v1=[0-9a-f]{64}$`)
+      );
+    });
 
     it('should sign every attempt with a fresh timestamp', async () => {
       fetchMock.mockResolvedValue({ ok: true, status: 200 });

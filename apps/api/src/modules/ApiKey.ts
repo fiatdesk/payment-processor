@@ -71,7 +71,7 @@ export class ApiKeyModule {
     metadata?: Record<string, string>,
     livemode: boolean = GetAppConfig().livemode
   ): Promise<ApiKeyCreateResult> {
-    const plaintextToken = GenerateId(livemode ? 'sk_live_z' : 'sk_test_z', 99);
+    const plaintextToken = GenerateId(livemode ? 'sk_live' : 'sk_test', 99);
     const apiKey = this.CreateApiKeyObject(
       accountId,
       name,
@@ -290,7 +290,7 @@ export class ApiKeyModule {
     livemode: boolean = GetAppConfig().livemode
   ): ApiKey {
     return {
-      id: GenerateId('api_key_z'),
+      id: GenerateId('api_key'),
       object: 'api_key',
       created: Now(),
       livemode,

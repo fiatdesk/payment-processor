@@ -178,7 +178,7 @@ export class BalanceTransactionModule {
     }
 
     const balanceTransaction: BalanceTransactionType = {
-      id: GenerateId('txn_z'),
+      id: GenerateId('txn'),
       object: 'balance_transaction',
       amount: amount,
       available_on: availableOn,
