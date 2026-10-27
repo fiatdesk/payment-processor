@@ -17,7 +17,7 @@ abstract contract SubscriptionsSigning is Test {
     bytes32 internal constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 internal constant SUBSCRIBE_TYPEHASH = keccak256(
-        "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)"
+        "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)"
     );
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
@@ -31,6 +31,7 @@ abstract contract SubscriptionsSigning is Test {
         bytes32 planKey,
         address subscriber,
         Subscriptions.Terms memory terms,
+        uint64 firstChargeAt,
         uint256 nonce,
         uint256 deadline
     ) internal view returns (bytes32) {
@@ -39,13 +40,22 @@ abstract contract SubscriptionsSigning is Test {
         );
         bytes32 structHash = keccak256(
             abi.encode(
-                SUBSCRIBE_TYPEHASH, planKey, subscriber, terms.token, terms.amount, terms.periodSeconds, nonce, deadline
+                SUBSCRIBE_TYPEHASH,
+                planKey,
+                subscriber,
+                terms.token,
+                terms.amount,
+                terms.periodSeconds,
+                firstChargeAt,
+                nonce,
+                deadline
             )
         );
         return MessageHashUtils.toTypedDataHash(domain, structHash);
     }
 
-    /// @dev Signs the plan's own terms with the subscriber's current nonce.
+    /// @dev Signs the plan's own terms with the subscriber's current nonce and
+    /// the first period due at subscribe time.
     function _signSubscribe(
         Subscriptions subs,
         uint256 signerKey,
@@ -53,8 +63,27 @@ abstract contract SubscriptionsSigning is Test {
         address subscriber,
         uint256 deadline
     ) internal view returns (bytes memory) {
+        return _signSubscribeAt(subs, signerKey, planKey, subscriber, 0, deadline);
+    }
+
+    /// @dev As `_signSubscribe`, with the first period due at `firstChargeAt`.
+    function _signSubscribeAt(
+        Subscriptions subs,
+        uint256 signerKey,
+        bytes32 planKey,
+        address subscriber,
+        uint64 firstChargeAt,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
         return _signSubscribeWith(
-            subs, signerKey, planKey, subscriber, _planTerms(subs, planKey), subs.nonces(subscriber), deadline
+            subs,
+            signerKey,
+            planKey,
+            subscriber,
+            _planTerms(subs, planKey),
+            firstChargeAt,
+            subs.nonces(subscriber),
+            deadline
         );
     }
 
@@ -64,11 +93,13 @@ abstract contract SubscriptionsSigning is Test {
         bytes32 planKey,
         address subscriber,
         Subscriptions.Terms memory terms,
+        uint64 firstChargeAt,
         uint256 nonce,
         uint256 deadline
     ) internal view returns (bytes memory) {
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(signerKey, _subscribeDigest(subs, planKey, subscriber, terms, nonce, deadline));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            signerKey, _subscribeDigest(subs, planKey, subscriber, terms, firstChargeAt, nonce, deadline)
+        );
         return abi.encodePacked(r, s, v);
     }
 
@@ -83,6 +114,58 @@ abstract contract SubscriptionsSigning is Test {
         bytes32 structHash =
             keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, token.nonces(owner), deadline));
         return vm.sign(ownerKey, MessageHashUtils.toTypedDataHash(token.DOMAIN_SEPARATOR(), structHash));
+    }
+
+    /// @dev The arguments of a `subscribeWithPermit` call. Passing twelve values
+    /// at once is too deep a stack for the legacy code generator at most call
+    /// sites, so tests build this and call `_subscribeWithPermit`.
+    struct PermitSubscribe {
+        bytes32 planKey;
+        address subscriber;
+        Subscriptions.Terms terms;
+        uint64 firstChargeAt;
+        uint256 permitValue;
+        uint256 permitDeadline;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint256 deadline;
+        bytes sig;
+    }
+
+    function _permitCalldata(PermitSubscribe memory call) internal pure returns (bytes memory) {
+        return abi.encodeCall(
+            Subscriptions.subscribeWithPermit,
+            (
+                call.planKey,
+                call.subscriber,
+                call.terms,
+                call.firstChargeAt,
+                call.permitValue,
+                call.permitDeadline,
+                call.v,
+                call.r,
+                call.s,
+                call.deadline,
+                call.sig
+            )
+        );
+    }
+
+    function _subscribeWithPermit(Subscriptions subs, PermitSubscribe memory call) internal returns (bytes32) {
+        return subs.subscribeWithPermit(
+            call.planKey,
+            call.subscriber,
+            call.terms,
+            call.firstChargeAt,
+            call.permitValue,
+            call.permitDeadline,
+            call.v,
+            call.r,
+            call.s,
+            call.deadline,
+            call.sig
+        );
     }
 
     function _sub(Subscriptions subs, bytes32 subId) internal view returns (Subscriptions.Sub memory sub) {
@@ -414,7 +497,7 @@ contract SubscriptionsTest is SubscriptionsSigning {
         subs.cancel(subId);
         vm.expectRevert(Subscriptions.InvalidSignature.selector);
         vm.prank(stranger);
-        subs.subscribeWithAuthorization(planKey, subscriber, _terms(), deadline, leaked);
+        subs.subscribeWithAuthorization(planKey, subscriber, _terms(), 0, deadline, leaked);
 
         assertEq(uint8(_sub(subs, subId).status), uint8(Subscriptions.Status.Canceled));
     }
@@ -442,7 +525,7 @@ contract SubscriptionsTest is SubscriptionsSigning {
         assertEq(
             subs.SUBSCRIBE_TYPEHASH(),
             keccak256(
-                "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint256 nonce,uint256 deadline)"
+                "Subscribe(bytes32 planKey,address subscriber,address token,uint256 amount,uint64 periodSeconds,uint64 firstChargeAt,uint256 nonce,uint256 deadline)"
             )
         );
         (, string memory name, string memory version, uint256 chainId, address verifyingContract,,) =
@@ -492,7 +575,7 @@ contract SubscriptionsTest is SubscriptionsSigning {
     /// signature is rejected; the original still works.
     function testSubscribeWithAuthorizationRejectsHighSSignature() public {
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 digest = _subscribeDigest(subs, planKey, subscriber, _terms(), 0, deadline);
+        bytes32 digest = _subscribeDigest(subs, planKey, subscriber, _terms(), 0, 0, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(subscriberKey, digest);
         uint256 n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
         bytes memory malleated = abi.encodePacked(r, bytes32(n - uint256(s)), v == 27 ? uint8(28) : uint8(27));
@@ -516,13 +599,14 @@ contract SubscriptionsTest is SubscriptionsSigning {
         for (uint256 i; i < wrong.length; ++i) {
             vm.expectRevert(Subscriptions.TermsMismatch.selector);
             vm.prank(relayer);
-            subs.subscribeWithAuthorization(planKey, subscriber, wrong[i], deadline, sig);
+            subs.subscribeWithAuthorization(planKey, subscriber, wrong[i], 0, deadline, sig);
         }
 
         // A signature over other terms fails even when the calldata states the
         // plan's own terms.
-        bytes memory other =
-            _signSubscribeWith(subs, subscriberKey, planKey, subscriber, wrong[1], subs.nonces(subscriber), deadline);
+        bytes memory other = _signSubscribeWith(
+            subs, subscriberKey, planKey, subscriber, wrong[1], 0, subs.nonces(subscriber), deadline
+        );
         vm.expectRevert(Subscriptions.InvalidSignature.selector);
         _relay(planKey, subscriber, deadline, other);
         assertEq(subs.nonces(subscriber), 0);
@@ -536,10 +620,10 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.startPrank(relayer);
         vm.expectRevert(Subscriptions.TermsMismatch.selector);
-        subs.subscribeWithAuthorization(pricier, subscriber, _terms(), deadline, sig);
+        subs.subscribeWithAuthorization(pricier, subscriber, _terms(), 0, deadline, sig);
         vm.expectRevert(Subscriptions.InvalidSignature.selector);
         subs.subscribeWithAuthorization(
-            pricier, subscriber, Subscriptions.Terms(usdc, 2 * AMOUNT, PERIOD), deadline, sig
+            pricier, subscriber, Subscriptions.Terms(usdc, 2 * AMOUNT, PERIOD), 0, deadline, sig
         );
         vm.stopPrank();
     }
@@ -609,7 +693,7 @@ contract SubscriptionsTest is SubscriptionsSigning {
         bytes memory sig = _signSubscribe(subs, subscriberKey, evil, subscriber, deadline);
 
         vm.startPrank(attacker);
-        bytes32 subId = subs.subscribeWithAuthorization(evil, subscriber, _planTerms(subs, evil), deadline, sig);
+        bytes32 subId = subs.subscribeWithAuthorization(evil, subscriber, _planTerms(subs, evil), 0, deadline, sig);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IERC20Errors.ERC20InsufficientAllowance.selector, address(subs), PERMIT_VALUE, INITIAL_BALANCE
@@ -635,8 +719,22 @@ contract SubscriptionsTest is SubscriptionsSigning {
         bytes memory sig = _signSubscribe(subs, subscriberKey, planKey, subscriber, deadline);
 
         vm.prank(relayer);
-        bytes32 subId =
-            subs.subscribeWithPermit(planKey, subscriber, _terms(), PERMIT_VALUE, deadline, v, r, s, deadline, sig);
+        bytes32 subId = _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
 
         assertEq(usdc.allowance(subscriber, address(subs)), PERMIT_VALUE);
         assertEq(usdc.nonces(subscriber), 1);
@@ -663,8 +761,22 @@ contract SubscriptionsTest is SubscriptionsSigning {
         usdc.permit(subscriber, address(subs), PERMIT_VALUE, deadline, v, r, s);
 
         vm.prank(relayer);
-        bytes32 subId =
-            subs.subscribeWithPermit(planKey, subscriber, _terms(), PERMIT_VALUE, deadline, v, r, s, deadline, sig);
+        bytes32 subId = _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
 
         assertEq(uint8(_sub(subs, subId).status), uint8(Subscriptions.Status.Active));
         assertEq(usdc.allowance(subscriber, address(subs)), PERMIT_VALUE);
@@ -679,7 +791,22 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.expectRevert(bytes("EIP2612: invalid signature"));
         vm.prank(relayer);
-        subs.subscribeWithPermit(planKey, subscriber, _terms(), PERMIT_VALUE, deadline, v, r, s, deadline, sig);
+        _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
 
         assertEq(subs.nonces(subscriber), 0);
         assertEq(uint8(_sub(subs, keccak256(abi.encode(planKey, subscriber))).status), uint8(Subscriptions.Status.None));
@@ -694,7 +821,22 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.expectRevert(Subscriptions.InvalidSignature.selector);
         vm.prank(relayer);
-        subs.subscribeWithPermit(planKey, subscriber, _terms(), PERMIT_VALUE, deadline, v, r, s, deadline, sig);
+        _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
 
         assertEq(usdc.allowance(subscriber, address(subs)), 0);
         assertEq(usdc.nonces(subscriber), 0);
@@ -708,17 +850,21 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.expectRevert(Subscriptions.TermsMismatch.selector);
         vm.prank(relayer);
-        subs.subscribeWithPermit(
-            planKey,
-            subscriber,
-            Subscriptions.Terms(usdc, AMOUNT + 1, PERIOD),
-            PERMIT_VALUE,
-            deadline,
-            v,
-            r,
-            s,
-            deadline,
-            sig
+        _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: Subscriptions.Terms(usdc, AMOUNT + 1, PERIOD),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
         );
         assertEq(usdc.allowance(subscriber, address(subs)), 0);
     }
@@ -733,7 +879,22 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.expectRevert(Subscriptions.PlanInactive.selector);
         vm.prank(relayer);
-        subs.subscribeWithPermit(planKey, subscriber, _terms(), PERMIT_VALUE, deadline, v, r, s, deadline, sig);
+        _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
         assertEq(usdc.allowance(subscriber, address(subs)), 0);
     }
 
@@ -748,13 +909,190 @@ contract SubscriptionsTest is SubscriptionsSigning {
 
         vm.startPrank(stranger);
         vm.expectRevert(Subscriptions.InvalidSignature.selector);
-        subs.subscribeWithPermit(planKey, subscriber, _terms(), 0, 0, 0, bytes32(0), bytes32(0), deadline, bad);
-        bytes32 subId =
-            subs.subscribeWithPermit(planKey, subscriber, _terms(), 0, 0, 0, bytes32(0), bytes32(0), deadline, good);
+        _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: 0,
+                permitDeadline: 0,
+                v: 0,
+                r: bytes32(0),
+                s: bytes32(0),
+                deadline: deadline,
+                sig: bad
+            })
+        );
+        bytes32 subId = _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: 0,
+                permitValue: 0,
+                permitDeadline: 0,
+                v: 0,
+                r: bytes32(0),
+                s: bytes32(0),
+                deadline: deadline,
+                sig: good
+            })
+        );
         vm.stopPrank();
 
         assertEq(uint8(_sub(subs, subId).status), uint8(Subscriptions.Status.Active));
         assertEq(usdc.allowance(subscriber, address(subs)), PERMIT_VALUE);
+    }
+
+    // ---------------------------------------------------- first charge time
+
+    function testFirstChargeAtDelaysTheFirstPeriod() public {
+        _approve(PERMIT_VALUE);
+        uint64 firstChargeAt = START + 7 days;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, firstChargeAt, deadline);
+
+        vm.expectEmit(true, true, true, true, address(subs));
+        emit Subscriptions.Subscribed(keccak256(abi.encode(planKey, subscriber)), planKey, subscriber, firstChargeAt);
+        bytes32 subId = _relayAt(planKey, subscriber, firstChargeAt, deadline, sig);
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt);
+
+        // No charge before the first charge time, for example during a trial.
+        vm.expectRevert(Subscriptions.NotDueYet.selector);
+        vm.prank(operator);
+        subs.charge(subId, AMOUNT);
+        vm.warp(firstChargeAt - 1);
+        vm.expectRevert(Subscriptions.NotDueYet.selector);
+        vm.prank(operator);
+        subs.charge(subId, AMOUNT);
+
+        vm.warp(firstChargeAt);
+        vm.expectEmit(true, true, true, true, address(subs));
+        emit Subscriptions.Charged(subId, planKey, subscriber, platform, AMOUNT, firstChargeAt + PERIOD);
+        _charge(subId, AMOUNT);
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt + PERIOD);
+        assertEq(usdc.balanceOf(platform), AMOUNT);
+    }
+
+    function testFirstChargeAtZeroMeansNow() public {
+        _approve(PERMIT_VALUE);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, 0, deadline);
+
+        bytes32 subId = _relayAt(planKey, subscriber, 0, deadline, sig);
+
+        assertEq(_sub(subs, subId).nextChargeAt, START);
+        _charge(subId, AMOUNT);
+    }
+
+    function testDirectSubscribeAtAFirstChargeTime() public {
+        _approve(PERMIT_VALUE);
+        uint64 firstChargeAt = START + 14 days;
+
+        vm.prank(subscriber);
+        bytes32 subId = subs.subscribe(planKey, firstChargeAt);
+
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt);
+        assertEq(subs.nonces(subscriber), 1);
+        vm.expectRevert(Subscriptions.NotDueYet.selector);
+        vm.prank(operator);
+        subs.charge(subId, AMOUNT);
+    }
+
+    function testFirstChargeAtInThePastReverts() public {
+        uint64 firstChargeAt = START - 1;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, firstChargeAt, deadline);
+
+        vm.expectRevert(Subscriptions.InvalidFirstCharge.selector);
+        _relayAt(planKey, subscriber, firstChargeAt, deadline, sig);
+        vm.expectRevert(Subscriptions.InvalidFirstCharge.selector);
+        vm.prank(subscriber);
+        subs.subscribe(planKey, firstChargeAt);
+        assertEq(subs.nonces(subscriber), 0);
+    }
+
+    function testFirstChargeAtMoreThanAYearAheadReverts() public {
+        uint64 limit = START + subs.MAX_FIRST_CHARGE_DELAY();
+        assertEq(subs.MAX_FIRST_CHARGE_DELAY(), 365 days);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory tooLate = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, limit + 1, deadline);
+
+        vm.expectRevert(Subscriptions.InvalidFirstCharge.selector);
+        _relayAt(planKey, subscriber, limit + 1, deadline, tooLate);
+
+        bytes memory atLimit = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, limit, deadline);
+        bytes32 subId = _relayAt(planKey, subscriber, limit, deadline, atLimit);
+        assertEq(_sub(subs, subId).nextChargeAt, limit);
+    }
+
+    function testRelayerCannotAlterTheSignedFirstChargeAt() public {
+        uint64 firstChargeAt = START + 7 days;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, firstChargeAt, deadline);
+
+        vm.expectRevert(Subscriptions.InvalidSignature.selector);
+        _relayAt(planKey, subscriber, firstChargeAt + 30 days, deadline, sig);
+        vm.expectRevert(Subscriptions.InvalidSignature.selector);
+        _relayAt(planKey, subscriber, 0, deadline, sig);
+        // A signature for "now" cannot be relayed with a later start either.
+        bytes memory now_ = _signSubscribe(subs, subscriberKey, planKey, subscriber, deadline);
+        vm.expectRevert(Subscriptions.InvalidSignature.selector);
+        _relayAt(planKey, subscriber, firstChargeAt, deadline, now_);
+        assertEq(subs.nonces(subscriber), 0);
+    }
+
+    function testSubscribeWithPermitAtAFirstChargeTime() public {
+        uint64 firstChargeAt = START + 7 days;
+        uint256 deadline = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) =
+            _signPermit(usdc, subscriberKey, subscriber, address(subs), PERMIT_VALUE, deadline);
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, firstChargeAt, deadline);
+
+        vm.prank(relayer);
+        bytes32 subId = _subscribeWithPermit(
+            subs,
+            PermitSubscribe({
+                planKey: planKey,
+                subscriber: subscriber,
+                terms: _terms(),
+                firstChargeAt: firstChargeAt,
+                permitValue: PERMIT_VALUE,
+                permitDeadline: deadline,
+                v: v,
+                r: r,
+                s: s,
+                deadline: deadline,
+                sig: sig
+            })
+        );
+
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt);
+        assertEq(usdc.allowance(subscriber, address(subs)), PERMIT_VALUE);
+    }
+
+    function testFuzzFirstChargeAt(uint64 delay) public {
+        delay = uint64(bound(delay, 0, subs.MAX_FIRST_CHARGE_DELAY()));
+        uint64 firstChargeAt = START + delay;
+        _approve(PERMIT_VALUE);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signSubscribeAt(subs, subscriberKey, planKey, subscriber, firstChargeAt, deadline);
+
+        bytes32 subId = _relayAt(planKey, subscriber, firstChargeAt, deadline, sig);
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt);
+
+        if (delay > 0) {
+            vm.warp(firstChargeAt - 1);
+            vm.expectRevert(Subscriptions.NotDueYet.selector);
+            vm.prank(operator);
+            subs.charge(subId, AMOUNT);
+        }
+        vm.warp(firstChargeAt);
+        _charge(subId, AMOUNT);
+        assertEq(_sub(subs, subId).nextChargeAt, firstChargeAt + PERIOD);
     }
 
     // --------------------------------------------------------------- charge
@@ -1295,8 +1633,16 @@ contract SubscriptionsTest is SubscriptionsSigning {
     /// @dev Relays with the main plan's terms; makes no other call, so it can
     /// follow `vm.expectRevert`.
     function _relay(bytes32 key, address who, uint256 deadline, bytes memory sig) internal returns (bytes32) {
+        return _relayAt(key, who, 0, deadline, sig);
+    }
+
+    /// @dev As `_relay`, with the first period due at `firstChargeAt`.
+    function _relayAt(bytes32 key, address who, uint64 firstChargeAt, uint256 deadline, bytes memory sig)
+        internal
+        returns (bytes32)
+    {
         vm.prank(relayer);
-        return subs.subscribeWithAuthorization(key, who, _terms(), deadline, sig);
+        return subs.subscribeWithAuthorization(key, who, _terms(), firstChargeAt, deadline, sig);
     }
 
     function _charge(bytes32 subId, uint256 amount) internal {
@@ -1476,7 +1822,7 @@ contract SubscriptionsHandler is SubscriptionsSigning {
         bytes memory sig = _signSubscribe(subs, subscriberKey, planKey, subscriber, deadline);
         Subscriptions.Terms memory terms = _planTerms(subs, planKey);
         if (path == 1) {
-            try subs.subscribeWithAuthorization(planKey, subscriber, terms, deadline, sig) {
+            try subs.subscribeWithAuthorization(planKey, subscriber, terms, 0, deadline, sig) {
                 return true;
             } catch {
                 return false;
@@ -1484,11 +1830,26 @@ contract SubscriptionsHandler is SubscriptionsSigning {
         }
         (uint8 v, bytes32 r, bytes32 s) =
             _signPermit(usdc, subscriberKey, subscriber, address(subs), type(uint256).max, deadline);
-        try subs.subscribeWithPermit(planKey, subscriber, terms, type(uint256).max, deadline, v, r, s, deadline, sig) {
-            return true;
-        } catch {
-            return false;
-        }
+        // A low-level call, as `try` would need all twelve arguments here.
+        (bool ok,) = address(subs)
+            .call(
+                _permitCalldata(
+                    PermitSubscribe({
+                        planKey: planKey,
+                        subscriber: subscriber,
+                        terms: terms,
+                        firstChargeAt: 0,
+                        permitValue: type(uint256).max,
+                        permitDeadline: deadline,
+                        v: v,
+                        r: r,
+                        s: s,
+                        deadline: deadline,
+                        sig: sig
+                    })
+                )
+            );
+        return ok;
     }
 
     /// @dev Counts every billing period of the current schedule, up to now, in
