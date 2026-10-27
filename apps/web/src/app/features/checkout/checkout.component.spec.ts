@@ -111,7 +111,10 @@ const DOMAIN_TYPE = [
   { name: 'verifyingContract', type: 'address' },
 ];
 
-/** 10 USDC every 30 days, as `BuildSubscribeTypedData` prepares it. */
+/**
+ * 10 USDC every 30 days with no trial, as `BuildSubscribeTypedData`
+ * prepares it: `firstChargeAt` is signed, and 0 means now.
+ */
 const SUBSCRIBE_TYPED_DATA: Eip712TypedData = {
   domain: {
     name: 'Subscriptions',
@@ -127,6 +130,7 @@ const SUBSCRIBE_TYPED_DATA: Eip712TypedData = {
       { name: 'token', type: 'address' },
       { name: 'amount', type: 'uint256' },
       { name: 'periodSeconds', type: 'uint64' },
+      { name: 'firstChargeAt', type: 'uint64' },
       { name: 'nonce', type: 'uint256' },
       { name: 'deadline', type: 'uint256' },
     ],
@@ -138,28 +142,36 @@ const SUBSCRIBE_TYPED_DATA: Eip712TypedData = {
     token: USDC,
     amount: '10000000',
     periodSeconds: '2592000',
+    firstChargeAt: '0',
     nonce: '0',
     deadline: DEADLINE,
   },
 };
 
-/** The trial shape (Fable Q11a): `firstChargeAt` is signed; 0 means now. */
+/** The `Subscribe` with a first charge at `firstChargeAt` (a trial's end). */
 function WithFirstChargeAt(firstChargeAt: number): Eip712TypedData {
-  const fields = SUBSCRIBE_TYPED_DATA.types['Subscribe'];
   return {
     ...SUBSCRIBE_TYPED_DATA,
-    types: {
-      ...SUBSCRIBE_TYPED_DATA.types,
-      Subscribe: [
-        ...fields.slice(0, 5),
-        { name: 'firstChargeAt', type: 'uint64' },
-        ...fields.slice(5),
-      ],
-    },
     message: {
       ...SUBSCRIBE_TYPED_DATA.message,
       firstChargeAt: String(firstChargeAt),
     },
+  };
+}
+
+/** The `Subscribe` without the `firstChargeAt` field at all. */
+function WithoutFirstChargeAt(): Eip712TypedData {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { firstChargeAt: _dropped, ...message } = SUBSCRIBE_TYPED_DATA.message;
+  return {
+    ...SUBSCRIBE_TYPED_DATA,
+    types: {
+      ...SUBSCRIBE_TYPED_DATA.types,
+      Subscribe: SUBSCRIBE_TYPED_DATA.types['Subscribe'].filter(
+        (field) => field.name !== 'firstChargeAt'
+      ),
+    },
+    message,
   };
 }
 
@@ -198,6 +210,7 @@ const SUBSCRIBE_AUTHORIZATION: CheckoutSubscribeAuthorization = {
   permit_typed_data: PERMIT_TYPED_DATA,
   subscribe_typed_data: SUBSCRIBE_TYPED_DATA,
   deadline: DEADLINE,
+  first_charge_at: 0,
   already_subscribed: false,
   subscription_onchain_id: null,
 };
@@ -852,9 +865,9 @@ describe('CheckoutComponent', () => {
         });
       });
 
-      it('reads firstChargeAt 0 as a first charge today', async () => {
+      it('reads a Subscribe without firstChargeAt as a first charge today', async () => {
         const [text] = await TextWhileSigning(
-          PreparedSubscription({ subscribe_typed_data: WithFirstChargeAt(0) })
+          PreparedSubscription({ subscribe_typed_data: WithoutFirstChargeAt() })
         );
 
         expect(text).toContain('First charge today');
@@ -932,7 +945,7 @@ describe('CheckoutComponent', () => {
         const { component } = Render(session);
         const subscribe =
           firstChargeAt === undefined
-            ? SUBSCRIBE_TYPED_DATA
+            ? WithoutFirstChargeAt()
             : WithFirstChargeAt(firstChargeAt as number);
         checkoutSessionService.PreparePayment.mockResolvedValue(
           PreparedSubscription({ subscribe_typed_data: subscribe })
@@ -1303,6 +1316,7 @@ describe('CheckoutComponent', () => {
             permit_typed_data: null,
             subscribe_typed_data: null,
             deadline: null,
+            first_charge_at: null,
             already_subscribed: true,
             subscription_onchain_id: ONCHAIN_ID,
           }),

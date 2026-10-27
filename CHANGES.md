@@ -1882,3 +1882,17 @@ apps/web/src/app/features/checkout/util/checkout-format.ts
 apps/web/src/app/features/checkout/util/checkout-payment.ts
 apps/web/src/app/features/checkout/util/checkout-subscription.ts
 ```
+
+### Task 15: alignment with the final subscriptions API (Task 14)
+
+- The final `Subscribe` typed data always signs `firstChargeAt`, after `periodSeconds` and as a string: "0" without a trial, the latest block time plus the trial otherwise. This is the field the web already reads and checks, so no web code changed.
+- The checkout specs' fixtures now use the final shapes: `firstChargeAt` in every `Subscribe`, and the new required `subscription.first_charge_at` (0, or null for an existing on-chain subscription). A separate fixture keeps the older shape without the field.
+- The web reads none of the other new fields (`payment_details.first_charge_at`, `PaymentIntent.charge_hashes`, `Subscription.cancel_pending_sent_at`).
+- On the simulated rail with MongoDB, a subscription checkout without a trial now completes end to end with the web's bodies, now that Task 14 fixed the claim `id`.
+
+Modified:
+
+```
+CHANGES.md
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+```
