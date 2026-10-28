@@ -42,40 +42,124 @@ FiatDesk is a self-hosted payment processor for stablecoins. Run it for your own
 - **Batch payouts.** Pay many sellers in one transaction through the `PayoutBatch` contract, so they share the gas.
 - **No percentage fees.** FiatDesk takes no cut. Your only costs are Ethereum gas and your hosting.
 
-## Product tour
+## Screenshots
+
+Every screenshot comes from a running FiatDesk instance with demo data. Click one to open it at full resolution (2880×1800).
+
+### Payments
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/checkout.webp" alt="Hosted checkout showing line items and USDC as the payment method">
-      <h3>Hosted checkout</h3>
-      Send customers to a hosted page, or share a payment link. They pay in USDC from their own wallet, with your business name and terms on the page.
+      <a href="docs/screenshots/checkout.webp"><img src="docs/screenshots/checkout.webp" alt="Hosted checkout: Buyers connect a wallet and sign once to pay in USDC. Your relayer pays the gas."></a>
+      <br><b>Hosted checkout</b><br>Buyers connect a wallet and sign once to pay in USDC. Your relayer pays the gas.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/dashboard-payments.webp" alt="Transactions list with USDC payments, statuses and customers">
-      <h3>Payments</h3>
-      Follow every payment, payout, top-up and transfer, filter by status, and export your activity.
+      <a href="docs/screenshots/dashboard-payment-links.webp"><img src="docs/screenshots/dashboard-payment-links.webp" alt="Payment links: Shareable links that open hosted checkout, with no code."></a>
+      <br><b>Payment links</b><br>Shareable links that open hosted checkout, with no code.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/dashboard-subscriptions.webp" alt="Subscriptions list with active plans and customers">
-      <h3>Subscriptions and invoices</h3>
-      Monthly and yearly plans, invoices and renewals that collect themselves. Pausing, cancelling and failed payments work as you would expect.
+      <a href="docs/screenshots/dashboard-products.webp"><img src="docs/screenshots/dashboard-products.webp" alt="Product catalog: Products with one-time and recurring USDC prices."></a>
+      <br><b>Product catalog</b><br>Products with one-time and recurring USDC prices.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/dashboard-connected-accounts.webp" alt="Connected seller accounts with their status">
-      <h3>Marketplaces</h3>
-      Onboard sellers through a hosted flow with identity checks, transfer their earnings, and pay them out to their own Ethereum wallets. Each seller gets their own dashboard.
+      <a href="docs/screenshots/dashboard-transactions.webp"><img src="docs/screenshots/dashboard-transactions.webp" alt="Transactions: Payments, payouts, top-ups and transfers, filterable and exportable."></a>
+      <br><b>Transactions</b><br>Payments, payouts, top-ups and transfers, filterable and exportable.
     </td>
   </tr>
 </table>
 
-<p align="center">
-  <img src="docs/screenshots/docs-api.webp" alt="FiatDesk API reference page for creating a Checkout Session, with a Node.js example" width="900">
-  <br>
-  <em>Full API reference, guides and Node.js examples ship with the platform (<code>npx nx serve docs</code>).</em>
-</p>
+### Billing
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-subscriptions.webp"><img src="docs/screenshots/dashboard-subscriptions.webp" alt="Subscriptions: Monthly and yearly plans renewed on-chain without another signature."></a>
+      <br><b>Subscriptions</b><br>Monthly and yearly plans renewed on-chain without another signature.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-invoices.webp"><img src="docs/screenshots/dashboard-invoices.webp" alt="Invoices: Invoices created and paid by each billing cycle."></a>
+      <br><b>Invoices</b><br>Invoices created and paid by each billing cycle.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-customers.webp"><img src="docs/screenshots/dashboard-customers.webp" alt="Customers: Everyone who has paid you, with their contact details."></a>
+      <br><b>Customers</b><br>Everyone who has paid you, with their contact details.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-customer-detail.webp"><img src="docs/screenshots/dashboard-customer-detail.webp" alt="Customer detail: A customer's subscriptions, payments and invoices on one page."></a>
+      <br><b>Customer detail</b><br>A customer's subscriptions, payments and invoices on one page.
+    </td>
+  </tr>
+</table>
+
+### Marketplaces
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-connected-accounts.webp"><img src="docs/screenshots/dashboard-connected-accounts.webp" alt="Connected accounts: Your sellers and their onboarding status."></a>
+      <br><b>Connected accounts</b><br>Your sellers and their onboarding status.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-connected-account-detail.webp"><img src="docs/screenshots/dashboard-connected-account-detail.webp" alt="Connected account detail: Balances, transfers, payouts, capabilities and identity checks for one seller."></a>
+      <br><b>Connected account detail</b><br>Balances, transfers, payouts, capabilities and identity checks for one seller.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/seller-onboarding.webp"><img src="docs/screenshots/seller-onboarding.webp" alt="Seller onboarding: A hosted flow where sellers enter their details and connect a wallet."></a>
+      <br><b>Seller onboarding</b><br>A hosted flow where sellers enter their details and connect a wallet.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/seller-dashboard.webp"><img src="docs/screenshots/seller-dashboard.webp" alt="Seller dashboard: Each seller's own view of their balance, payouts and transfers."></a>
+      <br><b>Seller dashboard</b><br>Each seller's own view of their balance, payouts and transfers.
+    </td>
+  </tr>
+</table>
+
+### Platform
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-home.webp"><img src="docs/screenshots/dashboard-home.webp" alt="Home: Today's volume, available balance and trends over time."></a>
+      <br><b>Home</b><br>Today's volume, available balance and trends over time.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-balances.webp"><img src="docs/screenshots/dashboard-balances.webp" alt="Balances: Your USDC balance, what can be paid out, and every balance movement."></a>
+      <br><b>Balances</b><br>Your USDC balance, what can be paid out, and every balance movement.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-developers.webp"><img src="docs/screenshots/dashboard-developers.webp" alt="Developers: API keys and webhook endpoints."></a>
+      <br><b>Developers</b><br>API keys and webhook endpoints.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/dashboard-settings.webp"><img src="docs/screenshots/dashboard-settings.webp" alt="Settings: Business details, identity verification rules and platform wallets."></a>
+      <br><b>Settings</b><br>Business details, identity verification rules and platform wallets.
+    </td>
+  </tr>
+</table>
+
+### Documentation
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/docs-quickstart.webp"><img src="docs/screenshots/docs-quickstart.webp" alt="Guides: Quickstarts for payments, marketplaces, self-hosting and webhooks."></a>
+      <br><b>Guides</b><br>Quickstarts for payments, marketplaces, self-hosting and webhooks.
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/screenshots/docs-api-reference.webp"><img src="docs/screenshots/docs-api-reference.webp" alt="API reference: Every endpoint, with parameters, cURL and Node.js examples, and sample responses."></a>
+      <br><b>API reference</b><br>Every endpoint, with parameters, cURL and Node.js examples, and sample responses.
+    </td>
+  </tr>
+</table>
 
 ## A familiar API
 

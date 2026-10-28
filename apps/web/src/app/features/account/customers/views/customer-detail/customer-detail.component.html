@@ -147,7 +147,7 @@
       </div>
       <div class="mb">
         <div class="bolded mb-small">Customer since</div>
-        <div class="dimmed">{{ c.created | date : 'medium' }}</div>
+        <div class="dimmed">{{ c.created * 1000 | date : 'medium' }}</div>
       </div>
       <div class="mb">
         <div class="bolded mb-small">Billing emails</div>

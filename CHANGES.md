@@ -2915,3 +2915,22 @@ apps/docs/src/index.spec.ts
 apps/web/src/index.html
 apps/web/src/index.spec.ts
 ```
+
+## Full screenshot gallery
+
+- **README "Screenshots" section** replaces the six-image product tour. It shows 18 pages in five groups (Payments, Billing, Marketplaces, Platform, Documentation), each linked to its full-resolution file.
+- **`docs/screenshots/`** now holds 18 WebP images at 2880×1800 (1440×900 at 2×), 1.3 MB in total:
+
+  - checkout, payment links, products and transactions;
+  - subscriptions, invoices, customers and a customer's detail page;
+  - connected accounts, a seller's detail page, seller onboarding and the seller dashboard;
+  - home, balances, developers and settings;
+  - the docs quickstart and an API reference page.
+
+  `dashboard-payments.webp` became `dashboard-transactions.webp`, and `docs-api.webp` became `docs-api-reference.webp`. Like the earlier set, they show demo data, taken in live mode against a local Anvil chain.
+
+- **Fix:** the customer detail page showed "Customer since" in January 1970, because it passed the Unix timestamp in seconds to Angular's `date` pipe. It now multiplies by 1000, as the other detail pages do. `customer-detail.component.spec.ts` covers it.
+
+Added: `apps/web/src/app/features/account/customers/views/customer-detail/customer-detail.component.spec.ts`
+
+Modified: `README.md`, `apps/web/src/app/features/account/customers/views/customer-detail/customer-detail.component.html`
