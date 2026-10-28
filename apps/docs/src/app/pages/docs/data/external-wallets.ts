@@ -132,7 +132,7 @@ const EXTERNAL_WALLET_ATTRIBUTES: Attribute[] = [
     type: 'boolean',
     nullable: true,
     description:
-      'Whether this wallet is the default external account for its currency. When creating a payout without specifying a destination, the default wallet is used.',
+      'Whether this wallet is the default external account for its currency. An account has exactly one default among its active wallets: the first wallet added, until another one is set as the default. When creating a payout without specifying a destination, the default wallet is used. For the platform, the default wallet also receives checkouts, top-ups and subscription charges, and signs payouts.',
   },
   {
     name: 'fingerprint',
@@ -299,6 +299,35 @@ const EXTERNAL_WALLET_MORE_ATTRIBUTES: Attribute[] = [
     enumNote:
       "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API. It enables multi-tenant operation.",
   },
+  {
+    name: 'archived_at',
+    type: 'timestamp',
+    nullable: true,
+    description:
+      'When the wallet was deleted, measured in seconds since the Unix epoch. Null while the wallet is active. A deleted platform wallet is still watched for incoming USDC for 30 days.',
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+  },
+];
+
+/** The rules every account's wallets follow, shown on the object page. */
+const WALLET_RULES = [
+  {
+    text: 'An account can have at most 5 active wallets. Adding a sixth returns a <code>400</code> with the message "An account can have at most 5 wallets. Remove one before adding another."',
+    html: true,
+  },
+  {
+    text: 'Exactly one active wallet is the default. The first wallet added becomes the default. A later wallet becomes the default only when you pass <code>default_for_currency: true</code>, on create or update.',
+    html: true,
+  },
+  {
+    text: 'The default wallet cannot be deleted. Deleting it returns a <code>400</code> with the message "Set another wallet as the default before removing this one."',
+    html: true,
+  },
+  {
+    text: "Changing the <strong>platform's</strong> default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the old wallet is built or broadcast. Broadcast or replace that batch first.",
+    html: true,
+  },
 ];
 
 // ============================================
@@ -308,7 +337,7 @@ export const EXTERNAL_WALLETS_OVERVIEW_PAGE: DocPage = {
   id: 'object',
   title: 'The External Wallet object',
   description:
-    'External wallets are Ethereum wallet addresses associated with a connected account for receiving USDC payouts. They are the crypto equivalent of bank accounts in traditional payment systems.',
+    'External wallets are the Ethereum wallet addresses of an account: where a connected account receives USDC payouts, and where your platform receives payments and pays out from. They are the crypto equivalent of bank accounts in traditional payment systems.',
   stripeDocsUrl: 'https://docs.stripe.com/api/external_accounts',
   endpoints: BuildEndpointSummaries(EXTERNAL_WALLETS_SUBSECTION, [
     {
@@ -346,6 +375,13 @@ export const EXTERNAL_WALLETS_OVERVIEW_PAGE: DocPage = {
           variant: 'info',
           title: 'Key concept: ',
           text: 'External wallets in FiatDesk replace bank accounts in Stripe. Instead of routing numbers and account numbers, you provide an Ethereum wallet address to receive USDC payouts.',
+        },
+        { type: 'heading', level: 2, text: 'Wallet rules' },
+        { type: 'list', items: WALLET_RULES },
+        {
+          type: 'paragraph',
+          text: 'A connected account\'s new default applies to its future payouts. A platform\'s new default takes over checkouts, top-ups, payouts and its subscription plans, which move on-chain. See <a href="/self-hosting">Changing your platform wallet</a>.',
+          html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
         {
@@ -404,7 +440,7 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     name: 'default_for_currency',
     type: 'boolean',
     description:
-      'When set to <code>true</code>, or if this is the first external account added in this currency, this wallet becomes the default for that currency.',
+      'When set to <code>true</code>, or if this is the first external account added in this currency, this wallet becomes the default for that currency and the previous default stops being the default. Otherwise the new wallet is not the default (<code>false</code>).',
   },
   {
     name: 'metadata',
@@ -460,7 +496,7 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'Quick start: ',
-          text: "Only <code>wallet_address</code> is required. The wallet becomes the default for USDC payouts if it's the first one added.",
+          text: "Only <code>wallet_address</code> is required. The wallet becomes the default for USDC payouts if it's the first one added, or when you pass <code>default_for_currency: true</code>.",
           html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
@@ -471,7 +507,7 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns the <code>External Wallet</code> object if the wallet was created successfully. Returns an error if the wallet address is invalid, already in use, or on a sanctions list.',
+          text: "Returns the <code>External Wallet</code> object if the wallet was created successfully. Returns an error if the wallet address is invalid, already in use, or on a sanctions list; a <code>400</code> if the account already has 5 active wallets; and, when it would become the platform's default, a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast.",
           html: true,
         },
       ],
@@ -539,7 +575,7 @@ const UPDATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     name: 'default_for_currency',
     type: 'boolean',
     description:
-      'When set to <code>true</code>, this becomes the default external wallet for its currency.',
+      'When set to <code>true</code>, this becomes the default external wallet for its currency and the previous default stops being the default. <code>false</code> changes nothing: a default stops being the default only when another wallet becomes it. For the platform, this is the wallet switch: checkouts, top-ups, payouts and the subscription plans move to this wallet.',
   },
   {
     name: 'metadata',
@@ -581,7 +617,7 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
   id: 'update',
   title: 'Update an external wallet',
   description:
-    'Updates the metadata, account holder name, account holder type, and default status of an external wallet. The wallet address cannot be changed—delete and create a new wallet instead.',
+    'Updates the metadata, account holder name, account holder type, and default status of an external wallet. The wallet address cannot be changed—add a new wallet and delete the old one instead.',
   endpoints: [
     { method: 'POST', path: '/v1/accounts/:id/external_accounts/:id' },
   ],
@@ -596,13 +632,14 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: 'Returns the updated <code>External Wallet</code> object if the call succeeds.',
+          text: "Returns the updated <code>External Wallet</code> object if the call succeeds. Setting the platform's default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast. The call does not wait for the subscription plans to move on-chain.",
           html: true,
         },
       ],
       right: [
         {
           type: 'code',
+          title: 'Set as the default',
           endpoint: {
             method: 'POST',
             path: '/v1/accounts/:id/external_accounts/:id',
@@ -613,6 +650,7 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
               label: 'cURL',
               code: `curl https://api.yourdomain.com/v1/accounts/acct_fd_1Nv0FGQ9RKHgCVdK/external_accounts/wa_fd_1Nv0FGQ9RKHgCVdK \\
   -H "x-api-key: sk_live_fd_YOUR_API_KEY" \\
+  -d default_for_currency=true \\
   -d account_holder_name="Tom Jones" \\
   -d "metadata[order_id]"=6735`,
             },
@@ -625,6 +663,7 @@ const externalWallet = await fiatdesk.accounts.updateExternalAccount(
   'acct_fd_1Nv0FGQ9RKHgCVdK',
   'wa_fd_1Nv0FGQ9RKHgCVdK',
   {
+    default_for_currency: true,
     account_holder_name: 'Tom Jones',
     metadata: {
       order_id: '6735',
@@ -833,7 +872,7 @@ export const EXTERNAL_WALLETS_DELETE_PAGE: DocPage = {
   id: 'delete',
   title: 'Delete an external wallet',
   description:
-    'Deletes an external wallet from a connected account. Once deleted, the wallet can no longer receive payouts.',
+    'Deletes an external wallet from an account. Once deleted, the wallet can no longer receive payouts. The default wallet cannot be deleted.',
   endpoints: [
     { method: 'DELETE', path: '/v1/accounts/:id/external_accounts/:id' },
   ],
@@ -844,7 +883,8 @@ export const EXTERNAL_WALLETS_DELETE_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Default wallet restrictions: ',
-          text: "You cannot delete a wallet if it's the default for its currency and it's the only wallet for that currency. Add another wallet and set it as default first.",
+          text: 'You cannot delete the default wallet; the request returns a <code>400</code> with the message "Set another wallet as the default before removing this one." Add another wallet, set it as the default, then delete this one. A deleted platform wallet is watched for incoming USDC for 30 days: USDC sent to it is flagged on the dashboard, not credited.',
+          html: true,
         },
         { type: 'heading', level: 2, text: 'Parameters' },
         { type: 'paragraph', text: 'No parameters.' },

@@ -1,5 +1,10 @@
 import { DocSubSection, DocPage, Attribute } from './types';
-import { NODE_INIT, EXPAND_TOOLTIP, BuildEndpointSummaries } from './shared';
+import {
+  MERCHANT_WALLET_CHANGED_CALLOUT,
+  NODE_INIT,
+  EXPAND_TOOLTIP,
+  BuildEndpointSummaries,
+} from './shared';
 import { GetResourceEventAttributes } from './event-types';
 
 export const PAYMENT_INTENTS_SUBSECTION: DocSubSection = {
@@ -1505,6 +1510,7 @@ export const PAYMENT_INTENTS_OVERVIEW_PAGE: DocPage = {
           text: 'A PaymentIntent transitions through multiple statuses as the customer pays in USDC on Ethereum. The customer signs one authorization and needs no ETH; the API submits the payment and pays its gas. The PaymentIntent is <code>processing</code> from the moment the payment is submitted until it confirms on-chain. Successful confirmation creates at most one Charge.',
           html: true,
         },
+        MERCHANT_WALLET_CHANGED_CALLOUT,
         { type: 'heading', level: 2, text: 'Attributes' },
         {
           type: 'attributes',

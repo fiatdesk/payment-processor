@@ -1,5 +1,10 @@
 import { DocSubSection, DocPage, Attribute } from './types';
-import { NODE_INIT, EXPAND_TOOLTIP, BuildEndpointSummaries } from './shared';
+import {
+  MERCHANT_WALLET_CHANGED_CALLOUT,
+  NODE_INIT,
+  EXPAND_TOOLTIP,
+  BuildEndpointSummaries,
+} from './shared';
 import { GetResourceEventAttributes } from './event-types';
 
 export const PAYMENT_LINKS_SUBSECTION: DocSubSection = {
@@ -2059,6 +2064,7 @@ export const PAYMENT_LINKS_OVERVIEW_PAGE: DocPage = {
           text: 'Share a Payment Link URL with customers so they can pay in USDC on Ethereum through a hosted Checkout page. Customers sign an authorization and need no ETH; the API submits the payment and pays its gas. Each visit creates a new Checkout Session — listen for session events to fulfill orders.',
           html: true,
         },
+        MERCHANT_WALLET_CHANGED_CALLOUT,
         { type: 'heading', level: 2, text: 'Attributes' },
         {
           type: 'attributes',

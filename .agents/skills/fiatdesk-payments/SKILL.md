@@ -40,7 +40,9 @@ sign a message and pay no gas, and the operator's relayer pays it.
 The merchant does not need to hold, fund, or manage any crypto to receive
 subscription payments. Money moves from the customer's wallet to the platform
 wallet that setup already created. Say so explicitly; humans routinely assume
-the opposite.
+the opposite. A platform can hold up to 5 wallets; payments always go to the
+default one, and FiatDesk moves checkout and subscription plans along when the
+default changes.
 
 ## Read documentation just in time
 

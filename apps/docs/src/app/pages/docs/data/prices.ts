@@ -43,7 +43,9 @@ const PRICES_OBJECT_JSON = `{
   "type": "recurring",
   "unit_amount": 1000,
   "unit_amount_decimal": "1000",
-  "subscription_plan_id": "0x3f9a6c1e8b2d4f7a0c5e9b1d3a6f8c2e4b7d9a1c3e5f7b9d2a4c6e8f0b1d3a5c"
+  "subscription_plan_id": "0x3f9a6c1e8b2d4f7a0c5e9b1d3a6f8c2e4b7d9a1c3e5f7b9d2a4c6e8f0b1d3a5c",
+  "subscription_plan_destination": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "subscription_plan_destination_change": null
 }`;
 
 const PRICES_ATTRIBUTES: Attribute[] = [
@@ -477,6 +479,80 @@ const PRICES_MORE_ATTRIBUTES: Attribute[] = [
       'The plan key of this recurring price on the Subscriptions contract (32 bytes as <code>0x</code> hex). Creating a recurring price registers the plan from <code>SUBSCRIPTION_OPERATOR_KEY</code>, which owns it and collects each period: the price’s amount at most once per billing period of <code>interval</code> × <code>interval_count</code>, paid to the platform wallet. The plan’s amount and period never change, so a subscription on this price bills one unit of it per period: quantities above 1, more items, and invoice items, prorations or tax that would make an invoice larger than <code>unit_amount</code> are refused with <code>onchain_plan_amount_exceeded</code>. <code>null</code> for one-time prices.',
     enumNote:
       "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'subscription_plan_destination',
+    type: 'string',
+    nullable: true,
+    description:
+      "The wallet the on-chain plan pays, as last confirmed on-chain: the platform's default wallet when the plan was created, or the one a confirmed destination change moved it to. Read-only. <code>null</code> for one-time prices.",
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'subscription_plan_destination_change',
+    type: 'object',
+    nullable: true,
+    description:
+      "The latest change of the plan's destination, made when the platform sets another default wallet. It is recorded before <code>setPlanDestination</code> is sent from <code>SUBSCRIPTION_OPERATOR_KEY</code>; one change is in flight per plan. The plan is not charged while a change is <code>pending</code>. When it confirms, <code>subscription_plan_destination</code> moves to the new wallet and <code>price.updated</code> is sent with <code>previous_attributes</code>. Read-only. <code>null</code> until the destination first changes.",
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+    children: [
+      {
+        name: 'destination',
+        type: 'string',
+        description: "The wallet the plan's charges move to.",
+      },
+      {
+        name: 'transaction_hash',
+        type: 'string',
+        nullable: true,
+        description:
+          "The <code>setPlanDestination</code> transaction, recorded before it is sent. <code>null</code> until it is signed, and on the simulated rail. A change still unmined after 10 minutes is re-priced, and this is the replacement's hash.",
+      },
+      {
+        name: 'status',
+        type: 'enum',
+        description: 'Where the change stands.',
+        enumValues: [
+          {
+            value: 'pending',
+            description:
+              'Sent, or about to be, and not yet confirmed on-chain. Charges of the plan wait.',
+          },
+          {
+            value: 'confirmed',
+            description:
+              'The plan pays <code>destination</code>. On the simulated rail a change is confirmed at once.',
+          },
+          {
+            value: 'failed',
+            description:
+              'The change cannot be made. See <code>failure_message</code>. Charges go on to the previous destination.',
+          },
+        ],
+      },
+      {
+        name: 'created',
+        type: 'timestamp',
+        description:
+          'When the change was requested, measured in seconds since the Unix epoch.',
+      },
+      {
+        name: 'failure_message',
+        type: 'string',
+        nullable: true,
+        description:
+          'Why the change failed. <code>plan_owner_mismatch</code>: <code>SUBSCRIPTION_OPERATOR_KEY</code> does not own the plan, so it cannot change it. <code>null</code> unless <code>status</code> is <code>failed</code>.',
+      },
+      {
+        name: 'sent_at',
+        type: 'timestamp',
+        nullable: true,
+        description:
+          'When <code>transaction_hash</code> was sent. Used to re-price a change that stays unmined.',
+      },
+    ],
   },
 ];
 

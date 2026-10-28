@@ -103,11 +103,17 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: `The deposit address is your platform wallet's address. If you created the wallet during setup, it is the address you saved then. You can view or change the platform wallet under ${ExternalLink(
+          text: `The deposit address is your default platform wallet's address. If you created the wallet during setup, it is the address you saved then. You can add wallets or choose another default under ${ExternalLink(
             dashboardSettingsUrl,
             'Settings'
-          )}.`,
+          )} → Wallets.`,
           html: true,
+        },
+        {
+          type: 'callout',
+          variant: 'warning',
+          title: 'Only the default wallet counts. ',
+          text: "Top-ups are counted on the default wallet only. USDC sent to your platform's other wallets, or to one removed in the last 30 days, is not added to your balance: Home and Balances show a banner until you send it on to the default wallet.",
         },
         {
           type: 'callout',

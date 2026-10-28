@@ -1,4 +1,5 @@
 import { DocPage } from './types';
+import { CHANGING_PLATFORM_WALLET_SECTION } from './shared';
 
 export const SELF_HOSTING_PAGE: DocPage = {
   id: 'self-hosting',
@@ -157,6 +158,7 @@ curl http://localhost/v1/balance \\
         },
       ],
     },
+    CHANGING_PLATFORM_WALLET_SECTION,
     {
       left: [
         {

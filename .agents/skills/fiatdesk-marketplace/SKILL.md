@@ -183,7 +183,9 @@ server-side FiatDesk client in the existing payments/integrations layer using:
 - `FIATDESK_API_KEY`
 - `FIATDESK_API_URL`, using `https://api.yourdomain.com` during integration
 - `WALLET_PRIVATE_KEY` (`0x` plus 64 hex characters) only in the server-side
-  payout processor
+  payout processor. It is the key of the platform's default wallet, which
+  signs every payout; if the human later makes another wallet the default
+  (Settings → Wallets), the processor needs that wallet's key instead
 - `FIATDESK_WEBHOOK_SECRET` only when the app implements a webhook route
 
 Use the SDK for accounts, account links, transfers, payouts, and webhook

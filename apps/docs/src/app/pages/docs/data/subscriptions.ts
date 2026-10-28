@@ -1,5 +1,10 @@
 import { DocSubSection, DocPage, Attribute } from './types';
-import { NODE_INIT, EXPAND_TOOLTIP, BuildEndpointSummaries } from './shared';
+import {
+  CHANGING_PLATFORM_WALLET_SECTION,
+  NODE_INIT,
+  EXPAND_TOOLTIP,
+  BuildEndpointSummaries,
+} from './shared';
 import { GetResourceEventAttributes } from './event-types';
 
 export const SUBSCRIPTIONS_SUBSECTION: DocSubSection = {
@@ -1718,6 +1723,7 @@ export const SUBSCRIPTIONS_OVERVIEW_PAGE: DocPage = {
         },
       ],
     },
+    CHANGING_PLATFORM_WALLET_SECTION,
   ],
 };
 

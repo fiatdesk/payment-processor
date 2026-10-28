@@ -2490,3 +2490,142 @@ sdks/node/src/resources/Webhooks.ts
 sdks/node/tsup.config.ts
 tsconfig.base.json
 ```
+
+## Task 17c: Safe wallet switching and several platform wallets
+
+A platform can hold up to 5 Ethereum wallets, with exactly one default, as Stripe's external accounts do. The default does every job: checkout `to`, the top-up scan, the balance, the payout signer and the destination of the subscription plans. Switching the default moves all of it safely (Fable Q13 and the ledger ruling "Task 17c").
+
+- **Wallet rules** (`ExternalWallet.ts`, for every account):
+  - At most 5 active wallets. A sixth is a 400: "An account can have at most 5 wallets. Remove one before adding another."
+  - The first wallet is the default. A later one becomes the default only with `default_for_currency: true`, on create or on update (`POST /v1/accounts/:id/external_accounts/:wid`). `false` changes nothing; a non-default wallet is stored with `false`.
+  - The default cannot be deleted: 400 "Set another wallet as the default before removing this one." A deleted wallet records `archived_at`.
+  - `GetDefaultWallet` is the one place that picks the default, and every consumer uses it: the top-up scan, balance details, payouts (platform signer and a connected account's default destination), new recurring prices (`createPlan`'s destination), checkout and identity checks. It never returns an archived wallet, even one still flagged. An account with no active wallet flagged (left by the old Settings flow, which archived the flagged wallet) gets its newest active wallet flagged on the next read, so such databases repair themselves.
+- **The switch** (platform accounts):
+  1. Refused with 409 `payout_batch_in_progress` while a `built` or `broadcast` payout batch of the old default exists.
+  2. One `RunTransaction`: save (or flag) the new default, unflag the others, and record a pending destination change on each active recurring price with an on-chain plan.
+  3. After the commit, the changes are sent without waiting for confirmations, and simulated plans flip at once.
+     `external_account.updated` is emitted for the new and the old default (`previous_attributes.default_for_currency`). Connected accounts only move the flag: their new default applies to future payouts (Q13 #4(iii)).
+- **Plan destinations** (`PlanDestination.ts`, Q13 #1):
+  - `Price.subscription_plan_destination` (the confirmed destination) and `Price.subscription_plan_destination_change` (`{ destination, transaction_hash, status: 'pending' | 'confirmed' | 'failed', created, failure_message, sent_at }`) are read-only FiatDesk extensions. New recurring prices record the default they were created with.
+  - The change is persisted before it is sent, one in flight per plan; a repeat request for the same destination is the same change. Each signed hash is recorded with a compare-and-set before it is sent.
+  - `Settlement.SetPlanDestination` sends `setPlanDestination` from `SUBSCRIPTION_OPERATOR_KEY` under the `sender:` lock. A recorded change is followed by its hash, with the cancel's re-price rule: re-priced at its nonce after 10 minutes. `FollowCancel` became `FollowOperatorTransaction`, shared by both. A plan already paying the destination is `confirmed` with nothing sent. A plan the operator key does not own is a 409 `plan_owner_mismatch`, stored as `failed` with `failure_message: 'plan_owner_mismatch'` and logged as an error; charges then go on to the previous destination. The simulated rail confirms at once.
+  - The billing runner follows every pending change first (`ReconcilePending`). The charge gate (`ReadyToCharge`) runs before any new charge in `Invoice.CollectOnchainCycle` and in subscription checkout's first-period collect. It follows the plan's pending change, and moves a plan not on the current default (a plan of an archived price, a price created before this task, or a second switch made while a change was in flight) before anything is charged. A pending plan is a `plan_destination_pending` wait for invoices (no failed attempt, retried next run) and `payment_pending` for checkout.
+  - On confirm the destination flips and `price.updated` is emitted with `previous_attributes`. Recording the destination of a price created before this task, with nothing sent, emits no event.
+- **Deposits to non-default wallets** (`TopUpMonitor.ts`, `ArchivedWalletDeposits.ts`, Q13 #2):
+  - Both the monitor and `check-deposits` scan the platform's other wallets: active non-default ones while they exist, and deleted ones for 30 days after `archived_at`. Each wallet has its own `ChainCursors` entry and uses the same bounded scan as top-ups. An address equal to the default's is scanned once, as the default. USDC an address received before its wallet was added is ignored.
+  - Each transfer is stored once in `ArchivedWalletDeposits` (`wallet_id`, `wallet_address`, `transaction_hash`, `log_index`, `amount` in cents, `block_number`, `acknowledged`), with a unique index on `(transaction_hash, log_index)`. The index is registered in `EnsureCollections` and mirrored by `MemoryDatabase.UniqueIndex` in tests. Each detection logs a warning. Nothing is credited.
+  - A watched wallet that cannot be scanned is logged and retried; it never blocks the default wallet's top-ups.
+  - `BalanceDetails.archived_wallet_deposits[]` lists the unacknowledged ones (not those to the current default). `POST /v1/config/archived-deposits/:id/acknowledge` (platform key) dismisses one, with a 404 for another platform's.
+- **Prepared checkouts** (`CheckoutPayment.ts`, Q13 #3):
+  - A payment-mode confirm with no relay recorded, whose `payment_details.merchant_wallet` is no longer the default, is a 409 `merchant_wallet_changed`: "The merchant's receiving wallet changed. Please approve the payment again." Nothing is sent or cleared.
+  - Prepare reuse (a relay is recorded) is the same 409, with that relay's `transaction_hash`, so the client follows that payment instead of signing the old authorization again.
+  - A recorded relay keeps its reconcile: it completes and is credited, and the deposit alert covers the funds in the old wallet. A recorded relay the network never saw (`not_found`) is cleared and answered with `merchant_wallet_changed`, so the buyer approves the new wallet.
+  - Subscription checkout pays the plan's destination and waits while the plan moves.
+- **Dashboard (web):**
+  - Settings shows a **Wallets** section for the platform. It lists the active wallets, the default first, each with a copyable address, a Default badge and the plans still moving to it ("Updating N plans on-chain", or "N plans could not move: the operator key does not own them"). **Add wallet** opens a slide panel with `app-external-wallet-form` and "Make this the default". **Set as default** and **Remove** (non-default rows only) each open a confirm dialog. Set as default says "Checkouts, top-ups, payouts and subscription plans move to 0x…. N plans will be updated on-chain." The per-wallet on-chain USDC balance is omitted: no existing call returns it per wallet. Connected accounts keep the Payout wallet card.
+  - `SaveExternalWallet` ("Edit payout wallet", onboarding) now adds the new wallet as the default and then deletes the old one. The old order deleted the old wallet first, which the delete-default rule refuses and which left the flag on the archived wallet.
+  - Home and Balances show a banner per wallet with unacknowledged deposits: "USDC arrived at your previous wallet 0x…. Send it to your current wallet 0x… to make it available for payouts." Its **I've moved it** button acknowledges them.
+  - Hosted checkout (`util/checkout-payment.ts`, `PayAcrossWalletChange`): on `merchant_wallet_changed` it shows the copy, prepares again and asks the buyer to approve once more. With a `transaction_hash` it follows that payment. A second change ends with the fixed copy. `checkout.component.ts` grew by 8 lines (995).
+- **Docs:**
+  - External Wallets: wallet rules, `default_for_currency`, the delete-default 400, the platform-switch 409, `archived_at`, and Node examples for create, set default and delete.
+  - Prices: `subscription_plan_destination` and `subscription_plan_destination_change`.
+  - Balance: new pages "Retrieve balance details" (`archived_wallet_deposits`) and "Acknowledge an archived wallet deposit", both FiatDesk extensions.
+  - Checkout Sessions, PaymentIntents and Payment Links: a `merchant_wallet_changed` callout.
+  - Event types: `price.updated` and `external_account.updated`.
+  - Platform Dashboard: Wallets, the banner and "Changing your platform wallet". Its 4 upstream screenshot references became text; the image files stay for the controller to delete after Task 17b merges.
+  - Self-hosting and Subscriptions: a shared "Changing your platform wallet" section.
+  - Fund the platform wallet and Top-ups: only the default wallet counts.
+  - The two agent skills say the payout key is the default wallet's.
+- **SDK:** no change. It does not wrap `/v1/config`, so the acknowledge endpoint (a dashboard route) is not added to it.
+- **Tests:**
+  - `ExternalWallet.spec` covers the 5 limit, first-is-default, set-default, delete-default, the self-heal of an archived flagged default, the switch transaction and its rollback, `payout_batch_in_progress`, migrations for active on-chain plans only, and connected accounts.
+  - `PlanDestination.spec` covers the record and its idempotency, enqueue, send, confirm and event, re-price, `plan_owner_mismatch`, an unreachable rail, convergence, untracked plans and the simulated rail.
+  - `SubscriptionBilling.spec` covers no charge while pending, the confirm-then-charge path, re-priced replacements and `plan_owner_mismatch`.
+  - `TopUpMonitor.spec` covers watched wallets, the 30-day window, idempotency, pre-addition transfers and scan isolation.
+  - `Balance.spec` covers the listing and acknowledge. `CheckoutPayment.spec` covers the confirm and prepare-reuse 409s, re-prepare, a recorded relay, a lost relay and the first-period wait.
+  - A "default is not the first wallet" case was added to the TopUpMonitor, Balance, Price and Payout specs.
+  - Rail cases were added to `Ethereum.spec` for `SetPlanDestination`.
+  - New Anvil spec `WalletSwitch.anvil.spec.ts`: switch, `setPlanDestination` confirms and the next charge lands in the new wallet; a transfer to the old wallet is alerted, not credited, and acknowledged; a checkout prepared before the switch gets the 409 and completes after a re-prepare.
+  - Web specs cover the Wallets section, the banner, `ExternalWalletService` (replace order, default pick) and checkout re-prepare (util and component).
+
+Added:
+
+```
+apps/api/src/__tests__/PlanDestination.spec.ts
+apps/api/src/__tests__/anvil/WalletSwitch.anvil.spec.ts
+apps/api/src/modules/ArchivedWalletDeposits.ts
+apps/api/src/modules/PlanDestination.ts
+apps/web/src/app/data/services/external-wallet.service.spec.ts
+apps/web/src/app/features/account/components/archived-deposit-banner/archived-deposit-banner.component.scss
+apps/web/src/app/features/account/components/archived-deposit-banner/archived-deposit-banner.component.spec.ts
+apps/web/src/app/features/account/components/archived-deposit-banner/archived-deposit-banner.component.ts
+apps/web/src/app/features/account/settings/components/wallets-section/wallets-section.component.html
+apps/web/src/app/features/account/settings/components/wallets-section/wallets-section.component.scss
+apps/web/src/app/features/account/settings/components/wallets-section/wallets-section.component.spec.ts
+apps/web/src/app/features/account/settings/components/wallets-section/wallets-section.component.ts
+```
+
+Modified:
+
+```
+.agents/skills/fiatdesk-marketplace/SKILL.md
+.agents/skills/fiatdesk-payments/SKILL.md
+CHANGES.md
+apps/api/src/__tests__/Balance.spec.ts
+apps/api/src/__tests__/CheckoutPayment.spec.ts
+apps/api/src/__tests__/Database.spec.ts
+apps/api/src/__tests__/ExternalWallet.spec.ts
+apps/api/src/__tests__/Payout.spec.ts
+apps/api/src/__tests__/Price.spec.ts
+apps/api/src/__tests__/SubscriptionBilling.spec.ts
+apps/api/src/__tests__/TopUpMonitor.spec.ts
+apps/api/src/__tests__/mocks/Settlement.ts
+apps/api/src/modules/Balance.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/Database.ts
+apps/api/src/modules/ExternalWallet.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/Payout.ts
+apps/api/src/modules/Price.ts
+apps/api/src/modules/SubscriptionBilling.ts
+apps/api/src/modules/TopUpMonitor.ts
+apps/api/src/modules/chains/Ethereum.spec.ts
+apps/api/src/modules/chains/Ethereum.ts
+apps/api/src/modules/chains/EthereumSubscriptions.ts
+apps/api/src/modules/chains/Settlement.ts
+apps/api/src/modules/chains/types.ts
+apps/api/src/routes/config.routes.ts
+apps/api/src/routes/externalAccounts.routes.ts
+apps/api/src/routes/paymentPages.routes.ts
+apps/api/src/routes/testHelpers.routes.ts
+apps/docs/src/app/pages/docs/data/balance.ts
+apps/docs/src/app/pages/docs/data/checkout-sessions.ts
+apps/docs/src/app/pages/docs/data/event-types.ts
+apps/docs/src/app/pages/docs/data/external-wallets.ts
+apps/docs/src/app/pages/docs/data/fund-platform-wallet.ts
+apps/docs/src/app/pages/docs/data/payment-intents.ts
+apps/docs/src/app/pages/docs/data/payment-links.ts
+apps/docs/src/app/pages/docs/data/platform-dashboard.ts
+apps/docs/src/app/pages/docs/data/prices.ts
+apps/docs/src/app/pages/docs/data/self-hosting.ts
+apps/docs/src/app/pages/docs/data/shared.ts
+apps/docs/src/app/pages/docs/data/subscriptions.ts
+apps/docs/src/app/pages/docs/data/top-ups.ts
+apps/web/src/app/data/services/balance.service.ts
+apps/web/src/app/data/services/external-wallet.service.ts
+apps/web/src/app/data/services/price.service.ts
+apps/web/src/app/features/account/balance/views/full-balance/full-balance.component.html
+apps/web/src/app/features/account/balance/views/full-balance/full-balance.component.ts
+apps/web/src/app/features/account/components/index.ts
+apps/web/src/app/features/account/dashboard/full-home/full-home.component.html
+apps/web/src/app/features/account/dashboard/full-home/full-home.component.ts
+apps/web/src/app/features/account/settings/settings.component.html
+apps/web/src/app/features/account/settings/settings.component.ts
+apps/web/src/app/features/checkout/checkout.component.spec.ts
+apps/web/src/app/features/checkout/checkout.component.ts
+apps/web/src/app/features/checkout/util/checkout-payment.spec.ts
+apps/web/src/app/features/checkout/util/checkout-payment.ts
+libs/shared-types/src/lib/Balance.ts
+libs/shared-types/src/lib/ExternalWallet.ts
+libs/shared-types/src/lib/Price.ts
+```
