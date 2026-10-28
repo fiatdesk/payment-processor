@@ -83,14 +83,81 @@ The API covers checkout, subscriptions, and marketplace payouts. See the [API re
 ## Quick start
 
 ```bash
-git clone https://github.com/OWNER/REPO.git
-cd REPO
+git clone https://github.com/fiatdesk/payment-processor.git
+cd payment-processor
 docker compose up -d
 ```
 
-Open [localhost/setup](http://localhost/setup) to create your platform account and API key.
+Open [localhost/setup](http://localhost/setup) to create your platform account and API key. With no configuration, FiatDesk runs in test mode with simulated funds: no RPC, keys or ETH needed. Credit test USDC from the dashboard, or with `POST /v1/test_helpers/treasury/topups`.
 
-See the self-hosting guide in [`apps/docs`](apps/docs) (served at http://localhost:4205) for configuration, credentials, and deployment options.
+## Setup guide
+
+Follow these steps to settle real transactions, on Sepolia first and then on mainnet.
+
+### 1. Choose a mode
+
+| Mode              | Settings                                    | Money                          |
+| ----------------- | ------------------------------------------- | ------------------------------ |
+| Test, simulated   | defaults                                    | Fake ledger balances, no chain |
+| Test, on Sepolia  | `LIVEMODE=false`, `SETTLEMENT_RAIL=onchain` | Sepolia USDC and Sepolia ETH   |
+| Test, local Anvil | as above, plus `ETH_CHAIN_ID=31337`         | `MockUSDC` you deploy yourself |
+| Live, on mainnet  | `LIVEMODE=true`                             | Real USDC and ETH              |
+
+Copy [`.env.production.example`](.env.production.example) to `.env.production` (or [`.env.example`](.env.example) to `.env` for local development). Every variable is described there.
+
+### 2. Get an RPC endpoint
+
+Set `ETH_RPC_URL` to a Sepolia or mainnet JSON-RPC URL from your node provider. Separate several URLs with commas: the first is the primary and the rest are fallbacks. A public RPC is fine for Sepolia but not for production.
+
+### 3. Create the keys
+
+FiatDesk uses four Ethereum accounts. Create each one with `cast wallet new` (Foundry), or in a wallet you control:
+
+| Account               | Where its key lives                                                                                                      | Holds                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| Platform wallet       | Never on the server: your browser wallet (dashboard), or `WALLET_PRIVATE_KEY` in the Node SDK process that signs payouts | USDC to pay out, ETH for gas   |
+| Checkout relayer      | `CHECKOUT_RELAYER_KEY` on the API host                                                                                   | ETH only: it pays checkout gas |
+| Subscription operator | `SUBSCRIPTION_OPERATOR_KEY` on the API host                                                                              | ETH only: it collects renewals |
+| Deployer              | Your own machine, once (a keystore or hardware wallet)                                                                   | ETH to deploy the contracts    |
+
+The relayer and operator keys can only relay what buyers sign, or pull at most a plan's amount per period to the plan's destination. Keep only gas money on them. Keep the same `SUBSCRIPTION_OPERATOR_KEY` for good: existing plans are owned by it.
+
+### 4. Deploy the contracts
+
+USDC is preset for Sepolia and mainnet. `PayoutBatch` and `Subscriptions` are not deployed for you. Deploy them with Foundry (see [`contracts/README.md`](contracts/README.md)):
+
+```bash
+git submodule update --init
+cd contracts
+forge script script/DeployPayoutBatch.s.sol --rpc-url "$ETH_RPC_URL" --account deployer --broadcast
+forge script script/DeploySubscriptions.s.sol --rpc-url "$ETH_RPC_URL" --account deployer --broadcast
+```
+
+Set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addresses. On Anvil, also deploy `contracts/test/mocks/MockUSDC.sol` (for example with `forge create`) and set `USDC_ADDRESS`.
+
+### 5. Fund the accounts
+
+- **Sepolia:** get test USDC from the [Circle faucet](https://faucet.circle.com/) (select USDC and Ethereum Sepolia) for the platform wallet and a buyer wallet. Send a little Sepolia ETH to the platform wallet, the relayer and the operator. Never send real funds to a test wallet.
+- **Mainnet:** send USDC and ETH to the platform wallet, and ETH to the relayer and the operator. Watch their ETH balances: checkout and renewals stop when a key runs out of gas.
+
+### 6. Start FiatDesk and run setup
+
+```bash
+npm run prod
+```
+
+Open `/setup` on your `DASHBOARD_URL` and enter the platform wallet's address. That wallet becomes the platform's default wallet. You can add more wallets and switch the default later from **Settings → Wallets**.
+
+### 7. Schedule the background work
+
+These jobs are off by default, because several API instances would each run them:
+
+- **Deposits:** call `POST /v1/topups/check-deposits` when you expect USDC to arrive, or set `TOPUP_MONITOR_ENABLED=true` on a single instance.
+- **Subscription billing:** call `POST /v1/billing/run_for_platform` with your platform API key from a scheduler, or set `BILLING_MONITOR_ENABLED=true` on a single instance.
+
+### Before you go live
+
+Get an independent security audit of `contracts/src/Subscriptions.sol` and `contracts/src/PayoutBatch.sol` before deploying them to mainnet, and run the whole flow on Sepolia first. As the operator, you carry the money-transmission, AML/KYC and sanctions obligations of your jurisdiction.
 
 ## Costs
 

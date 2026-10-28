@@ -38,8 +38,8 @@ You do not need to write code to help. Useful contributions include bug reports,
 You need Node.js 20 (see `.nvmrc`), npm, and Docker (for MongoDB).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/REPO.git
-cd REPO
+git clone https://github.com/YOUR_USERNAME/payment-processor.git
+cd payment-processor
 npm install
 docker compose up -d        # MongoDB
 npx nx serve api            # API on :3333

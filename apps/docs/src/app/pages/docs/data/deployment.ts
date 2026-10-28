@@ -127,8 +127,8 @@ export const DEPLOYMENT_PAGE: DocPage = {
             {
               id: 'bash',
               label: 'Terminal',
-              code: `git clone https://github.com/OWNER/REPO.git
-cd REPO`,
+              code: `git clone https://github.com/fiatdesk/payment-processor.git
+cd payment-processor`,
             },
           ],
         },

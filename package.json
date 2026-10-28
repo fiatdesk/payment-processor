@@ -5,11 +5,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/REPO.git"
+    "url": "https://github.com/fiatdesk/payment-processor.git"
   },
-  "homepage": "https://github.com/OWNER/REPO",
+  "homepage": "https://github.com/fiatdesk/payment-processor",
   "bugs": {
-    "url": "https://github.com/OWNER/REPO/issues"
+    "url": "https://github.com/fiatdesk/payment-processor/issues"
   },
   "scripts": {
     "kill": "./scripts/kill-all.sh",

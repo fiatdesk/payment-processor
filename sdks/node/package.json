@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/REPO.git",
+    "url": "git+https://github.com/fiatdesk/payment-processor.git",
     "directory": "sdks/node"
   },
-  "homepage": "https://github.com/OWNER/REPO",
+  "homepage": "https://github.com/fiatdesk/payment-processor",
   "bugs": {
-    "url": "https://github.com/OWNER/REPO/issues"
+    "url": "https://github.com/fiatdesk/payment-processor/issues"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",

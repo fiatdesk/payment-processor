@@ -5,10 +5,10 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/REPO.git",
+    "url": "git+https://github.com/fiatdesk/payment-processor.git",
     "directory": "apps/cli"
   },
-  "homepage": "https://github.com/OWNER/REPO",
+  "homepage": "https://github.com/fiatdesk/payment-processor",
   "publishConfig": {
     "access": "public"
   },

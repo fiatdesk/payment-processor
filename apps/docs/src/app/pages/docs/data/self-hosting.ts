@@ -53,8 +53,8 @@ export const SELF_HOSTING_PAGE: DocPage = {
             {
               id: 'docker',
               label: 'Docker',
-              code: `git clone https://github.com/OWNER/REPO.git
-cd REPO
+              code: `git clone https://github.com/fiatdesk/payment-processor.git
+cd payment-processor
 docker compose up -d --build`,
             },
           ],

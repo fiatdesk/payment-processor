@@ -2835,3 +2835,40 @@ apps/docs/src/app/pages/docs/data/top-ups.ts
 apps/web/src/app/features/account/components/archived-deposit-banner/archived-deposit-banner.component.spec.ts
 libs/shared-types/src/lib/Balance.ts
 ```
+
+## Task 17d: Repository placeholders and the README setup guide
+
+- **Repository placeholders.** `OWNER/REPO` became `fiatdesk/payment-processor` in:
+  - the root, CLI and Node SDK `package.json` repository links;
+  - the issue-template links;
+  - the Node SDK README;
+  - the self-hosting and deployment docs (which now `cd payment-processor`);
+  - `CONTRIBUTING.md`'s fork clone;
+  - the docs site's GitHub star counter, whose placeholder guard is removed.
+- **Old-name sweep.** Nothing left to remove. The remaining "Zoneless" mentions are required or are not the brand: the `LICENSE`, `NOTICE` and `CHANGES.md` attribution, the README fork notice, the license header on modified files, Angular's own `provideZonelessChangeDetection` / `setupZonelessTestEnv`, the `zoneless-v1` HKDF salt (renaming it would break every stored encrypted secret), and the fixtures of `scripts/rebrand.spec.sh`.
+- **README setup guide.** The Quick start clones the real repository and says it runs on simulated funds. A new "Setup guide" covers:
+
+  1. choosing a mode (simulated, Sepolia, Anvil, mainnet);
+  2. the RPC endpoint;
+  3. the four accounts (platform wallet, checkout relayer, subscription operator, deployer): where each key lives and what it holds;
+  4. deploying `PayoutBatch` and `Subscriptions`;
+  5. funding on Sepolia and mainnet;
+  6. running `/setup`;
+  7. scheduling deposit checks and billing.
+
+  It ends with the audit and operator-obligation notes from going live.
+
+Modified:
+
+```
+.github/ISSUE_TEMPLATE/config.yml
+CONTRIBUTING.md
+README.md
+apps/cli/package.json
+apps/docs/src/app/pages/docs/data/deployment.ts
+apps/docs/src/app/pages/docs/data/self-hosting.ts
+apps/docs/src/app/services/github.ts
+package.json
+sdks/node/README.md
+sdks/node/package.json
+```

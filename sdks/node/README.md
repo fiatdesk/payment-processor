@@ -2,7 +2,7 @@
 
 The official Node.js SDK for the FiatDesk API — an open-source Stripe-compatible payments platform that uses USDC on Ethereum.
 
-Source lives in this monorepo at [`sdks/node`](https://github.com/OWNER/REPO/tree/main/sdks/node). Types and request schemas come from [`libs/shared-types`](https://github.com/OWNER/REPO/tree/main/libs/shared-types) and [`libs/shared-schemas`](https://github.com/OWNER/REPO/tree/main/libs/shared-schemas).
+Source lives in this monorepo at [`sdks/node`](https://github.com/fiatdesk/payment-processor/tree/main/sdks/node). Types and request schemas come from [`libs/shared-types`](https://github.com/fiatdesk/payment-processor/tree/main/libs/shared-types) and [`libs/shared-schemas`](https://github.com/fiatdesk/payment-processor/tree/main/libs/shared-schemas).
 
 ## Installation
 
