@@ -45,6 +45,13 @@ export interface ExternalWallet {
    * @fiatdesk_extension
    */
   platform_account: string;
+
+  /**
+   * When the wallet was removed (Unix seconds); null while it is active. A
+   * removed platform wallet is watched for incoming USDC for 30 days.
+   * @fiatdesk_extension
+   */
+  archived_at?: number | null;
 }
 
 export interface ExternalWalletRequirements {

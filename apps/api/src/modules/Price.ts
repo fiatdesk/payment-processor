@@ -140,6 +140,7 @@ export class PriceModule {
         destinationAddress,
         pullerAddress
       );
+      price.subscription_plan_destination = destinationAddress;
     }
 
     await this.db.Set('Prices', price.id, price);
@@ -155,8 +156,7 @@ export class PriceModule {
   }
 
   /**
-   * Gets the platform's wallet public key from ExternalWallet.
-   * Used for building batch payout transactions.
+   * The platform's default wallet address: where a new plan's charges go.
    *
    * @param platformAccountId - The platform account ID
    * @returns The platform's wallet public key
@@ -164,12 +164,9 @@ export class PriceModule {
   private async GetPlatformWalletPublicKey(
     platformAccountId: string
   ): Promise<string> {
-    const externalWalletModule = new ExternalWalletModule(this.db);
-    const wallets = await externalWalletModule.GetExternalWalletsByAccount(
-      platformAccountId
-    );
-    const platformWallet =
-      wallets.find((w) => w.default_for_currency) || wallets[0];
+    const platformWallet = await new ExternalWalletModule(
+      this.db
+    ).GetDefaultWallet(platformAccountId);
     if (!platformWallet) {
       throw new AppError(
         'Platform wallet not found. Please set up your wallet first.',
@@ -333,6 +330,8 @@ export class PriceModule {
         input.unit_amount_decimal ?? input.unit_amount.toString(),
       platform_account: platformAccountId,
       subscription_plan_id: null,
+      subscription_plan_destination: null,
+      subscription_plan_destination_change: null,
       recurring: null,
       type: 'one_time',
     };

@@ -108,6 +108,8 @@ import type {
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PlanDestinationOptions,
+  PlanDestinationResult,
   PreparedAuthorization,
   PreparedSubscribe,
   RailDescription,
@@ -999,6 +1001,14 @@ export class Ethereum implements Settlement {
       subscriptionOnchainId,
       options
     );
+  }
+
+  SetPlanDestination(
+    planKey: string,
+    destination: string,
+    options: PlanDestinationOptions
+  ): Promise<PlanDestinationResult> {
+    return this.subscriptions.SetPlanDestination(planKey, destination, options);
   }
 
   private async BuildUnsignedTransaction(

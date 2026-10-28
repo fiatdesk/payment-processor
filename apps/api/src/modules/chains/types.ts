@@ -344,6 +344,22 @@ export interface SubscriptionCancelOptions {
   onSigned(transactionHash: string): Promise<void>;
 }
 
+/**
+ * Options of a plan destination change: the same follow-and-re-price rule as
+ * a cancel (`SubscriptionCancelOptions`).
+ */
+export type PlanDestinationOptions = SubscriptionCancelOptions;
+
+/**
+ * Where a plan destination change stands: `confirmed` once its transaction
+ * has ETH_CONFIRMATIONS confirmations, or at once when the plan already pays
+ * the destination (`transaction_hash` null, nothing sent); `pending` while
+ * it may still land.
+ */
+export type PlanDestinationResult =
+  | { status: 'confirmed'; transaction_hash: string | null }
+  | { status: 'pending'; transaction_hash: string };
+
 /** On-chain state of a subscription. */
 export type OnchainSubscriptionStatus =
   | 'none'
@@ -386,6 +402,10 @@ export const CYCLE_MISSED = 'cycle_missed';
 export const ONCHAIN_PLAN_MISMATCH = 'onchain_plan_mismatch';
 /** The amount exceeds what the on-chain plan can collect per period. */
 export const ONCHAIN_PLAN_AMOUNT_EXCEEDED = 'onchain_plan_amount_exceeded';
+/** SUBSCRIPTION_OPERATOR_KEY does not own the plan, so it cannot change it. */
+export const PLAN_OWNER_MISMATCH = 'plan_owner_mismatch';
+/** The plan's destination change is not confirmed yet; charges wait for it. */
+export const PLAN_DESTINATION_PENDING = 'plan_destination_pending';
 
 export const COLLECTION_DECLINE_CODES: ReadonlySet<string> = new Set([
   COLLECTION_FAILED_ALLOWANCE,

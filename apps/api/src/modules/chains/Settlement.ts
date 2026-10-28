@@ -33,6 +33,8 @@ import type {
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PlanDestinationOptions,
+  PlanDestinationResult,
   PreparedAuthorization,
   PreparedSubscribe,
   RailDescription,
@@ -256,6 +258,18 @@ export interface Settlement {
     subscriptionOnchainId: string,
     options: SubscriptionCancelOptions
   ): Promise<string | null>;
+  /**
+   * Points the plan's future charges at `destination` from the plan owner,
+   * without waiting for confirmations; `onSigned` records each hash first.
+   * A recorded change is followed (re-priced after 10 minutes) until it is
+   * confirmed. Throws a 409 `plan_owner_mismatch` when
+   * SUBSCRIPTION_OPERATOR_KEY does not own the plan.
+   */
+  SetPlanDestination(
+    planKey: string,
+    destination: string,
+    options: PlanDestinationOptions
+  ): Promise<PlanDestinationResult>;
 }
 
 const SIM_SIG_PREFIX = 'sim_sig:';
@@ -475,6 +489,11 @@ export class SimulatedSettlement implements Settlement {
 
   async CancelSubscription(): Promise<string | null> {
     return null;
+  }
+
+  /** No chain: the change is confirmed at once and nothing is sent. */
+  async SetPlanDestination(): Promise<PlanDestinationResult> {
+    return { status: 'confirmed', transaction_hash: null };
   }
 
   async VerifyCheckoutPayment(

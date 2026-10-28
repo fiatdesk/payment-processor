@@ -21,6 +21,7 @@ import { GetAppConfig } from './AppConfig';
 import { GetPlatformAccountId } from './PlatformAccess';
 import { AccountModule } from './Account';
 import { ExternalWalletModule } from './ExternalWallet';
+import { ArchivedWalletDepositStore } from './ArchivedWalletDeposits';
 import { GetSettlement, IsSimulatedSettlement } from './chains/Settlement';
 
 export class BalanceModule {
@@ -198,26 +199,33 @@ export class BalanceModule {
   async GetBalanceDetails(
     platformAccountId: string
   ): Promise<BalanceDetails | null> {
-    const externalWalletModule = new ExternalWalletModule(this.db);
-    const wallets = await externalWalletModule.GetExternalWalletsByAccount(
+    const wallet = await new ExternalWalletModule(this.db).GetDefaultWallet(
       platformAccountId
     );
-    const wallet = wallets.find((w) => w.default_for_currency) || wallets[0];
 
     if (!wallet) return null;
 
     const settlement = GetSettlement();
-    const [walletUsdc, walletNative, platformBalance, connectedOwed] =
-      await Promise.all([
-        IsSimulatedSettlement()
-          ? Promise.resolve(0)
-          : settlement.GetUSDCBalance(wallet.wallet_address),
-        IsSimulatedSettlement()
-          ? Promise.resolve(0)
-          : settlement.GetNativeBalance(wallet.wallet_address),
-        this.GetBalance(platformAccountId),
-        this.GetConnectedAccountsOwed(platformAccountId),
-      ]);
+    const [
+      walletUsdc,
+      walletNative,
+      platformBalance,
+      connectedOwed,
+      archivedWalletDeposits,
+    ] = await Promise.all([
+      IsSimulatedSettlement()
+        ? Promise.resolve(0)
+        : settlement.GetUSDCBalance(wallet.wallet_address),
+      IsSimulatedSettlement()
+        ? Promise.resolve(0)
+        : settlement.GetNativeBalance(wallet.wallet_address),
+      this.GetBalance(platformAccountId),
+      this.GetConnectedAccountsOwed(platformAccountId),
+      new ArchivedWalletDepositStore(this.db).ListUnacknowledged(
+        platformAccountId,
+        wallet.wallet_address
+      ),
+    ]);
 
     const available =
       platformBalance?.available?.find((b) => b.currency === 'usdc')?.amount ??
@@ -234,6 +242,7 @@ export class BalanceModule {
       platform_available: available,
       platform_pending: pending,
       wallet_address: wallet.wallet_address,
+      archived_wallet_deposits: archivedWalletDeposits,
     };
   }
 

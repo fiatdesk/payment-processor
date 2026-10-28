@@ -29,8 +29,39 @@ export interface BalanceDetails {
   platform_available: number;
   /** Platform's own pending balance from the internal ledger (in cents) */
   platform_pending: number;
-  /** The wallet address these balances correspond to */
+  /** The wallet address these balances correspond to: the default wallet */
   wallet_address: string;
+  /**
+   * USDC that arrived at the platform's other wallets (non-default ones, and
+   * removed ones for 30 days), not yet acknowledged. It is never credited:
+   * only the default wallet's funds can be paid out.
+   */
+  archived_wallet_deposits: ArchivedWalletDeposit[];
+}
+
+/**
+ * A USDC transfer to a platform wallet that is not the default. Alerted, never
+ * credited; acknowledge it once the funds are moved to the default wallet.
+ * @fiatdesk_extension
+ */
+export interface ArchivedWalletDeposit {
+  id: string;
+  object: 'archived_wallet_deposit';
+  /** The platform account that owns the wallet */
+  platform_account: string;
+  /** The wallet (ExternalWallet id) the USDC arrived at */
+  wallet_id: string;
+  wallet_address: string;
+  transaction_hash: string;
+  /** The `Transfer` log's index in its block */
+  log_index: number;
+  /** Amount in cents of USDC */
+  amount: number;
+  block_number: number;
+  /** True once the platform dismissed the alert */
+  acknowledged: boolean;
+  /** When the transfer was detected (Unix seconds) */
+  created: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

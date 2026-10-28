@@ -23,6 +23,12 @@
  *
  * In multi-tenant mode, the monitor polls all platform wallets.
  *
+ * Only the default wallet's deposits are credited. A platform's other
+ * wallets (non-default ones, and ones removed in the last 30 days) are
+ * scanned the same way, each with its own cursor, but a deposit to one is
+ * recorded in ArchivedWalletDeposits and logged as a warning instead: the
+ * payout signer cannot spend it (Fable Q13 #2).
+ *
  *
  * @module TopUpMonitor
  */
@@ -30,6 +36,7 @@
 import { Database } from './Database';
 import { DepositKey, TopUpModule } from './TopUp';
 import { AccountModule } from './Account';
+import { ArchivedWalletDepositStore } from './ArchivedWalletDeposits';
 import { ChainCursorStore } from './ChainCursorStore';
 import { ExternalWalletModule } from './ExternalWallet';
 import { GetChainConfig } from './chains/Chain';
@@ -42,6 +49,7 @@ import {
 import { EventService } from './EventService';
 import { TopUp, CheckDepositsResponse } from '@fiatdesk/shared-types';
 import { Logger } from '../utils/Logger';
+import { Now } from '../utils/Timestamp';
 
 // Hardcoded TopUp settings
 const TOPUP_POLL_INTERVAL_MS = parseInt(
@@ -58,6 +66,8 @@ const MAX_SCAN_CHUNKS = 10;
 /** How far before the head a wallet's first scan starts. */
 const FIRST_SCAN_LOOKBACK_BLOCKS = 1000n;
 const DUPLICATE_KEY = 11000;
+/** How long a removed platform wallet is watched for incoming USDC. */
+const REMOVED_WALLET_WATCH_SECONDS = 30 * 24 * 3600;
 
 /**
  * Internal representation of a platform wallet for polling.
@@ -69,6 +79,10 @@ interface PlatformWalletInfo {
   account: string;
   /** The wallet address */
   address: string;
+  /** The default wallet's deposits are credited; others are only alerted */
+  credit: boolean;
+  /** When the wallet was added: a watched wallet's earlier USDC is not alerted */
+  since: number;
 }
 
 interface ScanResult {
@@ -85,6 +99,7 @@ export class TopUpMonitor {
   private readonly accountModule: AccountModule;
   private readonly externalWalletModule: ExternalWalletModule;
   private readonly cursorStore: ChainCursorStore;
+  private readonly archivedDeposits: ArchivedWalletDepositStore;
   private readonly settlement: Settlement;
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
@@ -96,6 +111,7 @@ export class TopUpMonitor {
     this.accountModule = new AccountModule(db);
     this.externalWalletModule = new ExternalWalletModule(db);
     this.cursorStore = new ChainCursorStore(db);
+    this.archivedDeposits = new ArchivedWalletDepositStore(db);
     this.settlement = GetSettlement();
   }
 
@@ -160,53 +176,62 @@ export class TopUpMonitor {
     Logger.info('TopUpMonitor stopped');
   }
 
-  /**
-   * Get all platform wallets for monitoring.
-   * Returns the default/primary ExternalWallet for each platform account.
-   */
+  /** Every platform's wallets to scan (see `GetPlatformWallets`). */
   private async GetAllPlatformWallets(): Promise<PlatformWalletInfo[]> {
     const platformAccounts = await this.accountModule.GetPlatformAccounts();
     const wallets: PlatformWalletInfo[] = [];
-
     for (const account of platformAccounts) {
-      const accountWallets =
-        await this.externalWalletModule.GetExternalWalletsByAccount(account.id);
-      const primaryWallet =
-        accountWallets.find((w) => w.default_for_currency) || accountWallets[0];
-
-      if (primaryWallet) {
-        wallets.push({
-          id: primaryWallet.id,
-          account: account.id,
-          address: primaryWallet.wallet_address,
-        });
-      }
+      wallets.push(...(await this.GetPlatformWallets(account.id)));
     }
-
     return wallets;
   }
 
   /**
-   * Get the primary wallet for a specific platform account.
+   * The platform's default wallet (credited) first, then its watched ones:
+   * active non-default wallets, and wallets removed in the last 30 days. An
+   * address is scanned once, so the default's address is never alerted.
    */
-  private async GetPlatformWallet(
+  private async GetPlatformWallets(
     platformAccountId: string
-  ): Promise<PlatformWalletInfo | null> {
-    const wallets = await this.externalWalletModule.GetExternalWalletsByAccount(
+  ): Promise<PlatformWalletInfo[]> {
+    const primary = await this.externalWalletModule.GetDefaultWallet(
       platformAccountId
     );
-    const primaryWallet =
-      wallets.find((w) => w.default_for_currency) || wallets[0];
-
-    if (!primaryWallet) {
-      return null;
+    if (!primary) return [];
+    const wallets: PlatformWalletInfo[] = [
+      {
+        id: primary.id,
+        account: platformAccountId,
+        address: primary.wallet_address,
+        credit: true,
+        since: 0,
+      },
+    ];
+    const watchedSince = Now() - REMOVED_WALLET_WATCH_SECONDS;
+    const scanned = new Set([primary.wallet_address.toLowerCase()]);
+    const all = await this.externalWalletModule.GetExternalWalletsByAccount(
+      platformAccountId,
+      true
+    );
+    for (const wallet of all) {
+      const address = wallet.wallet_address.toLowerCase();
+      if (scanned.has(address)) continue;
+      if (
+        wallet.status === 'archived' &&
+        (wallet.archived_at ?? 0) < watchedSince
+      ) {
+        continue;
+      }
+      scanned.add(address);
+      wallets.push({
+        id: wallet.id,
+        account: platformAccountId,
+        address: wallet.wallet_address,
+        credit: false,
+        since: wallet.created ?? 0,
+      });
     }
-
-    return {
-      id: primaryWallet.id,
-      account: platformAccountId,
-      address: primaryWallet.wallet_address,
-    };
+    return wallets;
   }
 
   /**
@@ -253,7 +278,9 @@ export class TopUpMonitor {
   ): Promise<CheckDepositsResponse> {
     Logger.info('Checking deposits for account', { platformAccountId });
 
-    const wallet = await this.GetPlatformWallet(platformAccountId);
+    const [wallet, ...watched] = await this.GetPlatformWallets(
+      platformAccountId
+    );
 
     if (!wallet) {
       Logger.warn('No wallet found for account', { platformAccountId });
@@ -267,6 +294,22 @@ export class TopUpMonitor {
     }
 
     const result = await this.PollWallet(wallet);
+    // Alerts only: a watched wallet that cannot be scanned now is retried
+    // on the next check, and never holds up the default wallet's top-ups.
+    for (const other of watched) {
+      try {
+        await this.PollWallet(other);
+      } catch (error) {
+        Logger.error(
+          'Failed to scan a watched platform wallet',
+          error as Error,
+          {
+            walletId: other.id,
+            account: other.account,
+          }
+        );
+      }
+    }
 
     return {
       object: 'check_deposits_result',
@@ -342,6 +385,10 @@ export class TopUpMonitor {
     result: ScanResult
   ): Promise<void> {
     if (deposits.length === 0) return;
+    if (!wallet.credit) {
+      await this.AlertDeposits(deposits, wallet, result);
+      return;
+    }
 
     Logger.info(`Found ${deposits.length} deposit log(s) to check`, {
       walletId: wallet.id,
@@ -368,6 +415,47 @@ export class TopUpMonitor {
           transactionHash: deposit.transactionHash,
           logIndex: deposit.logIndex,
         });
+        result.errors++;
+      }
+    }
+  }
+
+  /**
+   * Records deposits to a wallet that is not the default, once each, and
+   * logs a warning; nothing is credited. USDC the address received before
+   * the wallet was added is not the platform's. A deposit that could not be
+   * recorded counts as an error, so its range is scanned again.
+   */
+  private async AlertDeposits(
+    deposits: IncomingDeposit[],
+    wallet: PlatformWalletInfo,
+    result: ScanResult
+  ): Promise<void> {
+    for (const deposit of deposits) {
+      if (deposit.timestamp < wallet.since) continue;
+      try {
+        const alert = await this.archivedDeposits.Record(deposit, wallet);
+        if (!alert) continue;
+        Logger.warn(
+          'USDC arrived at a platform wallet that is not the default; it is not credited',
+          {
+            walletId: wallet.id,
+            walletAddress: wallet.address,
+            platformAccountId: wallet.account,
+            transactionHash: deposit.transactionHash,
+            logIndex: deposit.logIndex,
+            amountCents: deposit.amountCents,
+          }
+        );
+      } catch (error) {
+        Logger.error(
+          'Failed to record a deposit to a watched wallet',
+          error as Error,
+          {
+            transactionHash: deposit.transactionHash,
+            logIndex: deposit.logIndex,
+          }
+        );
         result.errors++;
       }
     }

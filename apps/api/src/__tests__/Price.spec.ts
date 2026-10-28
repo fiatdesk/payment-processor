@@ -173,6 +173,46 @@ describe('PriceModule', () => {
         );
       }
     );
+
+    it('points a new plan at the default wallet even when it is not the first, and records it', async () => {
+      const product = await productModule.CreateProduct('acct_fd_platform', {
+        name: 'Pro',
+      });
+      mockDb.Get.mockResolvedValueOnce(product);
+      mockDb.Find2Custom.mockResolvedValueOnce([
+        {
+          id: 'wa_fd_first',
+          wallet_address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+          default_for_currency: false,
+          created: 2,
+        },
+        {
+          id: 'wa_fd_default',
+          wallet_address: PLATFORM_WALLET,
+          default_for_currency: true,
+          created: 1,
+        },
+      ]);
+
+      const price = await module.CreatePrice('acct_fd_platform', {
+        unit_amount: 2000,
+        currency: 'usdc',
+        product: product.id,
+        recurring: { interval: 'month' },
+      });
+
+      expect(mockSettlement.CreateSubscriptionPlan).toHaveBeenCalledWith(
+        price.id,
+        720 * 3600,
+        2000,
+        PLATFORM_WALLET,
+        MOCK_PLAN_OWNER
+      );
+      expect(price).toMatchObject({
+        subscription_plan_destination: PLATFORM_WALLET,
+        subscription_plan_destination_change: null,
+      });
+    });
   });
 
   describe('UpdatePrice', () => {

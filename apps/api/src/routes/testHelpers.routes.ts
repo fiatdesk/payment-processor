@@ -15,6 +15,7 @@ import { PriceModule } from '../modules/Price';
 import { ProductModule } from '../modules/Product';
 import { CustomerModule } from '../modules/Customer';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
+import { PlanDestinationModule } from '../modules/PlanDestination';
 import { PaymentIntentModule } from '../modules/PaymentIntent';
 import { ChargeModule } from '../modules/Charge';
 import { PaymentLinkModule } from '../modules/PaymentLink';
@@ -87,7 +88,8 @@ const checkoutPaymentModule = new CheckoutPaymentModule(
   paymentLinkModule,
   undefined,
   customerModule,
-  subscriptionModule
+  subscriptionModule,
+  new PlanDestinationModule(db, undefined, eventService)
 );
 const topUpModule = new TopUpModule(db, eventService);
 

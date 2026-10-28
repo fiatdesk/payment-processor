@@ -1,6 +1,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import type {
   Invoice,
+  Price,
   Subscription,
   SubscriptionItem,
 } from '@fiatdesk/shared-types';
@@ -13,6 +14,7 @@ import { CustomerModule } from '../modules/Customer';
 import { PaymentIntentModule } from '../modules/PaymentIntent';
 import { PriceModule } from '../modules/Price';
 import { ProductModule } from '../modules/Product';
+import { PlanDestinationModule } from '../modules/PlanDestination';
 import type { EventService } from '../modules/EventService';
 import { Database } from '../modules/Database';
 import { LIVE_SUBSCRIPTION_STATUSES } from '../modules/SubscriptionCycleClaims';
@@ -665,7 +667,8 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
       db,
       subscriptions,
       invoices,
-      settlement
+      settlement,
+      new PlanDestinationModule(db, settlement, eventService)
     );
     memory.Seed('Customers', {
       id: 'cus_fd_1',
@@ -879,5 +882,116 @@ describe('SubscriptionBillingModule with the real billing modules', () => {
       'sub_fd_cancel1',
       'sub_fd_cancel2',
     ]);
+  });
+
+  describe('while the plan moves to a new default wallet', () => {
+    const OLD_WALLET = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+    const NEW_WALLET = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
+    const CHANGE_HASH = `0x${'d5'.repeat(32)}`;
+    const REPLACEMENT = `0x${'d6'.repeat(32)}`;
+
+    beforeEach(() => {
+      memory.Seed('ExternalWallets', {
+        id: 'wa_fd_new',
+        account: PLATFORM_ACCOUNT,
+        wallet_address: NEW_WALLET,
+        default_for_currency: true,
+        status: 'new',
+        created: 2,
+      });
+      memory.Seed('Prices', {
+        ...memory.Doc<Record<string, unknown>>('Prices', 'price_fd_1'),
+        subscription_plan_destination: OLD_WALLET,
+        subscription_plan_destination_change: {
+          destination: NEW_WALLET,
+          transaction_hash: CHANGE_HASH,
+          status: 'pending',
+          created: T0,
+          failure_message: null,
+          sent_at: T0,
+        },
+      });
+    });
+
+    function Plan(): Price {
+      return memory.Doc<Price>('Prices', 'price_fd_1');
+    }
+
+    it('does not charge while the change is pending, and charges after it confirms by its hash', async () => {
+      nextChargeAt = T0;
+      await Subscribed();
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'pending',
+        transaction_hash: CHANGE_HASH,
+      });
+
+      await RunAt(T0 + 60);
+
+      expect(settlement.SetPlanDestination).toHaveBeenCalledWith(
+        `0x${'a1'.repeat(32)}`,
+        NEW_WALLET,
+        expect.objectContaining({ pendingHash: CHANGE_HASH, sentAt: T0 })
+      );
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      expect(CycleInvoices()[0]).toMatchObject({
+        status: 'open',
+        attempt_count: 0,
+        metadata: { last_payment_error_code: 'plan_destination_pending' },
+      });
+      expect(memory.All<Subscription>('Subscriptions')[0].status).not.toBe(
+        'past_due'
+      );
+      expect(Count('invoice.payment_failed')).toBe(0);
+
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'confirmed',
+        transaction_hash: CHANGE_HASH,
+      });
+      await RunAt(T0 + 120);
+
+      expect(Plan()).toMatchObject({
+        subscription_plan_destination: NEW_WALLET,
+        subscription_plan_destination_change: {
+          status: 'confirmed',
+          transaction_hash: CHANGE_HASH,
+        },
+      });
+      expect(Count('price.updated')).toBe(1);
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+      expect(CycleInvoices()[0].status).toBe('paid');
+    });
+
+    it('follows a pending change in every run, even with nothing due, and records its re-priced replacement', async () => {
+      settlement.SetPlanDestination.mockImplementation(
+        async (_planKey, _destination, options) => {
+          await options.onSigned(REPLACEMENT);
+          return { status: 'pending', transaction_hash: REPLACEMENT };
+        }
+      );
+
+      await RunAt(T0 + 601);
+
+      expect(Plan().subscription_plan_destination_change).toMatchObject({
+        status: 'pending',
+        transaction_hash: REPLACEMENT,
+        sent_at: T0 + 601,
+      });
+    });
+
+    it('marks the change failed on plan_owner_mismatch and goes on charging', async () => {
+      nextChargeAt = T0;
+      await Subscribed();
+      settlement.SetPlanDestination.mockRejectedValue(
+        new AppError('not the owner', 409, 'plan_owner_mismatch')
+      );
+
+      await RunAt(T0 + 60);
+
+      expect(Plan().subscription_plan_destination_change).toMatchObject({
+        status: 'failed',
+        failure_message: 'plan_owner_mismatch',
+      });
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+    });
   });
 });

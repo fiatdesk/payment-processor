@@ -2389,6 +2389,197 @@ describe('Ethereum rail', () => {
       });
     });
 
+    describe('changes a plan destination without waiting for the receipt', () => {
+      const OPERATOR = privateKeyToAccount(OPERATOR_KEY).address;
+      const CHANGE: Hex = `0x${'d5'.repeat(32)}`;
+      let planOwner: string;
+      let planDestination: string;
+
+      beforeEach(() => {
+        planOwner = OPERATOR;
+        planDestination = PLATFORM;
+        const reads = client.readContract.getMockImplementation();
+        client.readContract.mockImplementation(
+          async (call: { functionName: string }) =>
+            call.functionName === 'plans'
+              ? [
+                  planOwner,
+                  OPERATOR,
+                  planDestination,
+                  ANVIL_USDC,
+                  20_000_000n,
+                  2_592_000n,
+                  true,
+                ]
+              : reads?.(call)
+        );
+        client.estimateGas.mockResolvedValue(50_000n);
+        client.getTransactionCount.mockResolvedValue(2);
+      });
+
+      /** The recorded change as the node sees it. */
+      function RecordedChange(view: {
+        receipt?: { status: string; blockNumber?: bigint };
+        nonce?: number;
+        minedNonce?: number;
+      }) {
+        client.getTransactionReceipt.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            if (!view.receipt) {
+              throw new TransactionReceiptNotFoundError({ hash });
+            }
+            return { transactionHash: hash, blockNumber: 10n, ...view.receipt };
+          }
+        );
+        client.getTransaction.mockImplementation(
+          async ({ hash }: { hash: Hex }) => {
+            if (view.nonce === undefined) {
+              throw new TransactionNotFoundError({ hash });
+            }
+            return {
+              hash,
+              from: OPERATOR,
+              to: SUBSCRIPTIONS,
+              nonce: view.nonce,
+              input: '0x12345678',
+              gas: 50_000n,
+              maxFeePerGas: 2_000_000_000n,
+              maxPriorityFeePerGas: 1_000_000_000n,
+            };
+          }
+        );
+        client.getTransactionCount.mockResolvedValue(view.minedNonce ?? 3);
+      }
+
+      it('sends setPlanDestination from the operator, records the hash first and returns pending', async () => {
+        const onSigned = jest.fn<Promise<void>, [string]>(
+          async () => undefined
+        );
+        client.sendRawTransaction.mockImplementation(
+          async () => onSigned.mock.calls[0][0]
+        );
+
+        const result = await new Ethereum().SetPlanDestination(
+          PLAN_KEY,
+          RECIPIENT,
+          { onSigned }
+        );
+
+        expect(result.status).toBe('pending');
+        expect(onSigned).toHaveBeenCalledWith(result.transaction_hash, {
+          nonce: 2,
+        });
+        const [{ serializedTransaction }] =
+          client.sendRawTransaction.mock.calls[0];
+        const sent = parseTransaction(serializedTransaction);
+        expect(sent.to).toBe(SUBSCRIPTIONS.toLowerCase());
+        expect(
+          await recoverTransactionAddress({
+            serializedTransaction,
+          } as Parameters<typeof recoverTransactionAddress>[0])
+        ).toBe(OPERATOR);
+        expect(
+          decodeFunctionData({ abi: SUBSCRIPTIONS_ABI, data: sent.data as Hex })
+        ).toEqual({
+          functionName: 'setPlanDestination',
+          args: [PLAN_KEY, RECIPIENT],
+        });
+        expect(client.waitForTransactionReceipt).not.toHaveBeenCalled();
+      });
+
+      it('is confirmed without sending when the plan already pays the destination', async () => {
+        planDestination = RECIPIENT;
+
+        await expect(
+          new Ethereum().SetPlanDestination(PLAN_KEY, RECIPIENT, {
+            onSigned: jest.fn(),
+          })
+        ).resolves.toEqual({ status: 'confirmed', transaction_hash: null });
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+      });
+
+      it('refuses with plan_owner_mismatch when the operator key does not own the plan', async () => {
+        planOwner = PLATFORM;
+
+        await expect(
+          new Ethereum().SetPlanDestination(PLAN_KEY, RECIPIENT, {
+            onSigned: jest.fn(),
+          })
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          type: 'plan_owner_mismatch',
+        });
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+      });
+
+      it('follows a recorded change: pending while unmined, confirmed once deep enough', async () => {
+        RecordedChange({ nonce: 3, minedNonce: 3 });
+        const options = {
+          pendingHash: CHANGE,
+          sentAt: Math.floor(Date.now() / 1000) - 60,
+          onSigned: jest.fn(),
+        };
+
+        await expect(
+          new Ethereum().SetPlanDestination(PLAN_KEY, RECIPIENT, options)
+        ).resolves.toEqual({ status: 'pending', transaction_hash: CHANGE });
+
+        RecordedChange({ receipt: { status: 'success', blockNumber: 12n } });
+        // Its own block is the first confirmation; ETH_CONFIRMATIONS is 1.
+        await expect(
+          new Ethereum().SetPlanDestination(PLAN_KEY, RECIPIENT, options)
+        ).resolves.toEqual({ status: 'confirmed', transaction_hash: CHANGE });
+        expect(client.sendRawTransaction).not.toHaveBeenCalled();
+        expect(options.onSigned).not.toHaveBeenCalled();
+      });
+
+      it('re-prices a change still pending after 10 minutes', async () => {
+        RecordedChange({ nonce: 3, minedNonce: 3 });
+        const onSigned = jest.fn<Promise<void>, [string]>(
+          async () => undefined
+        );
+        client.sendRawTransaction.mockImplementation(
+          async () => onSigned.mock.calls[0][0]
+        );
+
+        const result = await new Ethereum().SetPlanDestination(
+          PLAN_KEY,
+          RECIPIENT,
+          {
+            pendingHash: CHANGE,
+            sentAt: Math.floor(Date.now() / 1000) - 601,
+            onSigned,
+          }
+        );
+
+        expect(result.status).toBe('pending');
+        expect(result.transaction_hash).not.toBe(CHANGE);
+        expect(onSigned).toHaveBeenCalledWith(result.transaction_hash, {
+          nonce: 3,
+        });
+      });
+
+      it('sends again when the recorded change reverted', async () => {
+        RecordedChange({ receipt: { status: 'reverted' }, nonce: 3 });
+        const onSigned = jest.fn<Promise<void>, [string]>(
+          async () => undefined
+        );
+        client.sendRawTransaction.mockImplementation(
+          async () => onSigned.mock.calls[0][0]
+        );
+
+        const result = await new Ethereum().SetPlanDestination(
+          PLAN_KEY,
+          RECIPIENT,
+          { pendingHash: CHANGE, onSigned }
+        );
+
+        expect(result.status).toBe('pending');
+        expect(result.transaction_hash).not.toBe(CHANGE);
+        expect(onSigned).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe('keeps provider text out of client errors', () => {
       async function ClientError(call: Promise<unknown>): Promise<AppError> {
         const error = await call.catch((caught: unknown) => caught);

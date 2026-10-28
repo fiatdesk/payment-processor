@@ -448,6 +448,7 @@ export class Database {
       'AccountLinks',
       'ApiKeys',
       'AppSecrets',
+      'ArchivedWalletDeposits',
       'Balances',
       'BalanceTransactions',
       'ChainCursors',
@@ -535,6 +536,14 @@ export class Database {
       // Claims are inserted under `id = ${subId}:${dueAt}` (unique above);
       // this finds an owner's claims for one subscription.
       flexibleSchema.index({ subscription_onchain_id: 1, owner: 1 });
+    }
+
+    if (collectionName === 'ArchivedWalletDeposits') {
+      // One alert per USDC Transfer log, however often its range is scanned.
+      flexibleSchema.index(
+        { transaction_hash: 1, log_index: 1 },
+        { unique: true }
+      );
     }
 
     if (collectionName === 'TopUps') {
