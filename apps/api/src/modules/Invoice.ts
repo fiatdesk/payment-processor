@@ -31,9 +31,11 @@ import {
   ONCHAIN_PLAN_MISMATCH,
   PAUSED_ON_CHAIN,
   PERIOD_ALREADY_COLLECTED,
+  PLAN_DESTINATION_PENDING,
   type SignedTransaction,
 } from './chains/types';
 import { CurrentDueAt } from './chains/SubscriptionAuthorization';
+import { PlanDestinationModule } from './PlanDestination';
 import {
   ClaimHashes,
   CycleClaimId,
@@ -145,7 +147,7 @@ function ClassifyCollectionError(
       nextPaymentAttempt: typeof next === 'number' ? next : now,
     };
   }
-  if (code === CHARGE_PENDING) {
+  if (code === CHARGE_PENDING || code === PLAN_DESTINATION_PENDING) {
     return { kind: 'wait', code, nextPaymentAttempt: now };
   }
   if (UNSCHEDULED_CODES.has(code)) {
@@ -181,6 +183,7 @@ export class InvoiceModule {
   private readonly balanceTransactionModule: BalanceTransactionModule;
   private readonly settlement: Settlement;
   private readonly cycleClaims: SubscriptionCycleClaims;
+  private readonly planDestinations: PlanDestinationModule;
 
   constructor(
     db: Database,
@@ -210,6 +213,11 @@ export class InvoiceModule {
     this.balanceTransactionModule = new BalanceTransactionModule(db);
     this.settlement = settlement || GetSettlement();
     this.cycleClaims = new SubscriptionCycleClaims(db);
+    this.planDestinations = new PlanDestinationModule(
+      db,
+      this.settlement,
+      this.eventService
+    );
   }
 
   /**
@@ -1943,6 +1951,9 @@ export class InvoiceModule {
    *   with none): a charge found there, and not recorded by another cycle,
    *   pays the invoice.
    * The period the paid charge paid is kept on the claim (Q10 #3).
+   * Nothing new is charged while the plan's destination change is pending
+   * (it is followed first): a `plan_destination_pending` wait, so no charge
+   * pays the platform's old wallet.
    */
   private async CollectOnchainCycle(
     invoice: InvoiceType,
@@ -2042,6 +2053,14 @@ export class InvoiceModule {
         409,
         PERIOD_ALREADY_COLLECTED,
         { next_charge_at: Math.max(nextChargeAt, invoice.period_start) }
+      );
+    }
+
+    if (!(await this.planDestinations.ReadyToCharge(cycle.price))) {
+      throw new AppError(
+        "The subscription plan is moving to the platform's new default wallet on-chain; it is charged once that change confirms",
+        409,
+        PLAN_DESTINATION_PENDING
       );
     }
 

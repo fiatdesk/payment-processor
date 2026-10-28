@@ -82,12 +82,15 @@ import {
   ONCHAIN_PLAN_MISMATCH,
   PAUSED_ON_CHAIN,
   PERIOD_ALREADY_COLLECTED,
+  PLAN_OWNER_MISMATCH,
   type ChargeReconcileExpectation,
   type ChargeReconciliation,
   type ChargeSearch,
   type CheckoutSubscribeVerification,
   type OnchainSubscriptionState,
   type OnchainSubscriptionStatus,
+  type PlanDestinationOptions,
+  type PlanDestinationResult,
   type PreparedSubscribe,
   type RelaySubscribeOptions,
   type SignedTransaction,
@@ -908,10 +911,11 @@ export class EthereumSubscriptions {
     );
     if (!IsSubscribed(subscription)) return null;
     if (options.pendingHash) {
-      const pending = await this.FollowCancel(
+      const pending = await this.FollowOperatorTransaction(
         operator,
         options.pendingHash.toLowerCase() as Hex,
-        options
+        options,
+        'subscription cancel'
       );
       if (pending) return pending;
     }
@@ -937,20 +941,101 @@ export class EthereumSubscriptions {
   }
 
   /**
-   * A recorded cancel that may still land: its hash, or its re-priced
-   * replacement after 10 minutes. Null when a new cancel must be sent.
+   * `setPlanDestination(planKey, destination)` from SUBSCRIPTION_OPERATOR_KEY,
+   * the plan owner, without waiting for it: `options.onSigned` records the
+   * hash first and the billing runner follows it later. A recorded change is
+   * followed as a cancel is (re-priced at its nonce after 10 minutes) and is
+   * `confirmed` once its receipt has ETH_CONFIRMATIONS confirmations; one
+   * that reverted, or whose nonce went elsewhere, is sent again. A plan
+   * already paying `destination` is `confirmed` with nothing sent. A plan the
+   * operator key does not own is a 409 `plan_owner_mismatch`.
    */
-  private async FollowCancel(
+  async SetPlanDestination(
+    planKey: string,
+    destination: string,
+    options: PlanDestinationOptions
+  ): Promise<PlanDestinationResult> {
+    const operator = RequireOperator();
+    const key = Bytes32(planKey, 'subscription_plan_id');
+    const target = ToAddress(destination);
+    if (options.pendingHash) {
+      const followed = await this.FollowOperatorTransaction(
+        operator,
+        options.pendingHash.toLowerCase() as Hex,
+        options,
+        'subscription plan destination change'
+      );
+      if (followed) {
+        const receipt = await NodeCall('plan destination receipt', () =>
+          GetReceiptOrNull(followed as Hex)
+        );
+        if (!receipt) return { status: 'pending', transaction_hash: followed };
+        if (
+          !(await NodeCall('confirmations', () => HasConfirmations(receipt)))
+        ) {
+          return { status: 'pending', transaction_hash: followed };
+        }
+        return { status: 'confirmed', transaction_hash: followed };
+      }
+    }
+
+    const plan = await NodeCall('plan read', () => ReadPlan(key));
+    if (!plan) {
+      throw new AppError(
+        `On-chain plan ${key} does not exist`,
+        400,
+        'invalid_request_error'
+      );
+    }
+    if (!SameAddress(plan.owner, operator.address)) {
+      throw PlanOwnerMismatch();
+    }
+    if (SameAddress(plan.destination, target)) {
+      return { status: 'confirmed', transaction_hash: null };
+    }
+    const data = encodeFunctionData({
+      abi: SUBSCRIPTIONS_ABI,
+      functionName: 'setPlanDestination',
+      args: [key, target],
+    });
+    const simulated = await SimulateSubscriptionsCall(operator.address, data);
+    if ('revert' in simulated) {
+      if (simulated.revert.errorName === 'Unauthorized') {
+        throw PlanOwnerMismatch();
+      }
+      throw SubscriptionsCallRefused(
+        'plan destination change',
+        simulated.revert
+      );
+    }
+    const hash = await SendOperatorTransaction(
+      operator,
+      SubscriptionsAddress(),
+      data,
+      simulated.gas,
+      'subscription plan destination change',
+      options.onSigned
+    );
+    return { status: 'pending', transaction_hash: hash };
+  }
+
+  /**
+   * A recorded operator transaction (a cancel or a plan destination change)
+   * that may still land: its hash, or its re-priced replacement after 10
+   * minutes. Null when it must be sent again.
+   */
+  private async FollowOperatorTransaction(
     operator: PrivateKeyAccount,
     hash: Hex,
-    options: SubscriptionCancelOptions
+    options: SubscriptionCancelOptions,
+    label: string
   ): Promise<string | null> {
-    const receipt = await NodeCall('cancel receipt', () =>
+    const receipt = await NodeCall(`${label} receipt`, () =>
       GetReceiptOrNull(hash)
     );
     if (receipt) return receipt.status === 'success' ? hash : null;
     const client = GetPublicClient();
-    const transaction = await NodeCall('cancel transaction', async () => {
+    const transaction = await NodeCall(`${label} transaction`, async () => {
       try {
         return await client.getTransaction({ hash });
       } catch (error) {
@@ -988,8 +1073,7 @@ export class EthereumSubscriptions {
           transaction.gas,
           {
             onSigned: options.onSigned,
-            refused:
-              'The network did not accept the re-priced subscription cancel',
+            refused: `The network did not accept the re-priced ${label}`,
             ambiguousAsSent: true,
             replace: { nonce: transaction.nonce, fees },
           }
@@ -997,13 +1081,25 @@ export class EthereumSubscriptions {
       );
     } catch (error) {
       if (!(error instanceof AppError)) throw error;
-      Logger.warn('A stuck subscription cancel could not be re-priced', {
+      Logger.warn(`A stuck ${label} could not be re-priced`, {
         transactionHash: hash,
         error: error.message,
       });
       return hash;
     }
   }
+}
+
+/**
+ * 409: the operator key cannot change a plan another key owns. The caller
+ * records and logs it, once.
+ */
+function PlanOwnerMismatch(): AppError {
+  return new AppError(
+    'SUBSCRIPTION_OPERATOR_KEY does not own this on-chain plan, so its destination cannot change',
+    409,
+    PLAN_OWNER_MISMATCH
+  );
 }
 
 function SubscriptionsAddress(): Address {

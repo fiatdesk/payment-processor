@@ -366,7 +366,62 @@ describe('PayoutModule payout batches', () => {
       payouts,
     });
 
+  it("pays a connected account's first stored wallet when none is flagged, and records it as the default", async () => {
+    memory.Seed('Accounts', {
+      id: 'acct_fd_seller',
+      platform_account: 'acct_fd_platform',
+      payouts_enabled: true,
+    });
+    memory.Seed('Balances', {
+      id: 'bal_fd_seller',
+      account: 'acct_fd_seller',
+      available: [{ amount: 5000, currency: 'usdc' }],
+      pending: [],
+    });
+
+    const payout = await module.CreatePayout('acct_fd_seller', {
+      amount: 1000,
+      currency: 'usdc',
+    });
+
+    expect(payout.destination).toBe('wa_fd_1');
+    expect(
+      memory.Doc<{ default_for_currency: boolean }>(
+        'ExternalWallets',
+        'wa_fd_1'
+      ).default_for_currency
+    ).toBe(true);
+  });
+
   describe('BuildPayoutsBatch', () => {
+    it('signs from the default platform wallet even when it is not the first one stored', async () => {
+      const platformWallet = memory.Doc<Record<string, unknown>>(
+        'ExternalWallets',
+        'wa_fd_platform'
+      );
+      await memory.Delete('ExternalWallets', 'wa_fd_platform');
+      memory.Seed(
+        'ExternalWallets',
+        {
+          id: 'wa_fd_platform_first',
+          account: 'acct_fd_platform',
+          wallet_address: RECIPIENTS[0],
+          default_for_currency: false,
+          status: 'new',
+        },
+        platformWallet
+      );
+
+      await Build();
+
+      expect(settlement.BuildBatchPayoutTransaction).toHaveBeenCalledWith(
+        PLATFORM_WALLET,
+        expect.anything(),
+        expect.anything()
+      );
+      expect(Batches()[0].wallet_address).toBe(PLATFORM_WALLET);
+    });
+
     it('records a built batch and keeps the payouts pending', async () => {
       const result = await Build();
 

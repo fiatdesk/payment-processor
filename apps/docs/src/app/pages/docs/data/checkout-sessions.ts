@@ -1,5 +1,10 @@
 import { DocSubSection, DocPage, Attribute } from './types';
-import { NODE_INIT, EXPAND_TOOLTIP, BuildEndpointSummaries } from './shared';
+import {
+  MERCHANT_WALLET_CHANGED_CALLOUT,
+  NODE_INIT,
+  EXPAND_TOOLTIP,
+  BuildEndpointSummaries,
+} from './shared';
 import { GetResourceEventAttributes } from './event-types';
 
 export const CHECKOUT_SESSIONS_SUBSECTION: DocSubSection = {
@@ -1276,7 +1281,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         type: 'string',
         nullable: true,
         description:
-          "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. The payment is verified against it even if the default wallet changes meanwhile.",
+          "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. If the platform's default wallet changes before the payment is submitted, confirming returns a <code>409</code> <code>merchant_wallet_changed</code> and the payment is prepared again for the new wallet. A payment already submitted to this wallet is verified against it. A payment under the session's authorization counts only when it paid this wallet or the platform's current default wallet; a payment to any other wallet, one the platform has deleted included, is refused and not credited.",
       },
       {
         name: 'first_charge_at',
@@ -2390,6 +2395,7 @@ export const CHECKOUT_SESSIONS_OVERVIEW_PAGE: DocPage = {
           text: "A Checkout Session powers a hosted payment page where customers pay in USDC on Ethereum. In live mode they connect an Ethereum wallet and sign one authorization; the API submits the payment and pays its gas, so they need no ETH. In test mode they approve a simulated wallet. Redirect your customer to the Session's <code>url</code> to begin, and they land back on your <code>success_url</code> once the payment confirms on-chain.",
           html: true,
         },
+        MERCHANT_WALLET_CHANGED_CALLOUT,
         { type: 'heading', level: 2, text: 'Attributes' },
         {
           type: 'attributes',

@@ -58,6 +58,49 @@ describe('Database.EnsureCollections', () => {
     expect((error as Error).message).not.toContain('E11000');
   });
 
+  it('creates ArchivedWalletDeposits with one alert per transfer log', async () => {
+    const database = new Database();
+    const created: string[] = [];
+    const GetModel = (
+      database as unknown as {
+        GetModel(name: string): { schema: { indexes(): unknown[] } };
+      }
+    ).GetModel.bind(database);
+    jest
+      .spyOn(
+        database as unknown as { GetModel(name: string): unknown },
+        'GetModel'
+      )
+      .mockImplementation((name: string) => {
+        created.push(name);
+        return {
+          createCollection: jest.fn().mockResolvedValue(undefined),
+          ensureIndexes: jest.fn().mockResolvedValue(undefined),
+        };
+      });
+
+    await database.EnsureCollections();
+
+    expect(created).toContain('ArchivedWalletDeposits');
+    expect(GetModel('ArchivedWalletDeposits').schema.indexes()).toContainEqual([
+      { transaction_hash: 1, log_index: 1 },
+      { unique: true },
+    ]);
+    // The wallet-change guard, and the index the billing run's pending
+    // plan destination pass reads through.
+    expect(created).toEqual(
+      expect.arrayContaining(['ExternalWalletGuards', 'Prices'])
+    );
+    expect(GetModel('Prices').schema.indexes()).toContainEqual([
+      {
+        'subscription_plan_destination_change.status': 1,
+        'subscription_plan_destination_change.created': 1,
+        id: 1,
+      },
+      expect.anything(),
+    ]);
+  });
+
   it('passes other index errors on unchanged', async () => {
     const other = Object.assign(new Error(DRIVER_TEXT), { code: 11000 });
     const database = Models('TopUps', other);

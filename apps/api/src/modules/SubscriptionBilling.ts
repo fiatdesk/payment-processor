@@ -14,6 +14,8 @@
  *   paid (created when missing); open invoices for earlier periods, which
  *   the contract skipped, are voided; after the charge the period follows
  *   the charge's `Charged` event.
+ * A plan whose destination is changing (the platform switched its default
+ * wallet) is followed by its hash first, and not charged until it confirms.
  * A charge sent earlier is reconciled by its recorded hashes before anything
  * else. An invoice is attempted again only once its `next_payment_attempt`
  * has come (the dunning schedule and every wait's own time). Waits (a
@@ -35,6 +37,7 @@ import { ProductModule } from './Product';
 import { InvoiceItemModule } from './InvoiceItem';
 import { PaymentIntentModule } from './PaymentIntent';
 import { ChargeModule } from './Charge';
+import { PlanDestinationModule } from './PlanDestination';
 import { GetSettlement, type Settlement } from './chains/Settlement';
 import { CurrentDueAt } from './chains/SubscriptionAuthorization';
 import {
@@ -124,7 +127,13 @@ export function CreateSubscriptionBilling(
     priceModule,
     invoiceModule
   );
-  return new SubscriptionBillingModule(db, subscriptionModule, invoiceModule);
+  return new SubscriptionBillingModule(
+    db,
+    subscriptionModule,
+    invoiceModule,
+    undefined,
+    new PlanDestinationModule(db, undefined, eventService)
+  );
 }
 
 export class SubscriptionBillingModule {
@@ -133,23 +142,28 @@ export class SubscriptionBillingModule {
   private readonly invoiceModule: InvoiceModule;
   private readonly settlement: Settlement;
   private readonly cycleClaims: SubscriptionCycleClaims;
+  private readonly planDestinations: PlanDestinationModule;
 
   constructor(
     db: Database,
     subscriptionModule: SubscriptionModule,
     invoiceModule: InvoiceModule,
-    settlement?: Settlement
+    settlement?: Settlement,
+    planDestinations?: PlanDestinationModule
   ) {
     this.db = db;
     this.subscriptionModule = subscriptionModule;
     this.invoiceModule = invoiceModule;
     this.settlement = settlement || GetSettlement();
     this.cycleClaims = new SubscriptionCycleClaims(db);
+    this.planDestinations =
+      planDestinations ?? new PlanDestinationModule(db, this.settlement);
   }
 
   /**
-   * Run one billing pass: invoice retries, then due renewals, then on-chain
-   * cancels still pending. A subscription gets at most one turn per run.
+   * Run one billing pass: plan destination changes still pending, invoice
+   * retries, then due renewals, then on-chain cancels still pending. A
+   * subscription gets at most one turn per run.
    */
   async Run(
     options: {
@@ -168,6 +182,16 @@ export class SubscriptionBillingModule {
     };
 
     const attempted = new Set<string>();
+
+    try {
+      await this.planDestinations.ReconcilePending(options.platformAccountId);
+    } catch (error) {
+      // Charges of a plan still moving wait at the charge gate regardless.
+      Logger.error(
+        'Could not follow the pending plan destination changes',
+        error
+      );
+    }
 
     const retryInvoices = await this.FindRetryInvoices(
       now,

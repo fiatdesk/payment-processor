@@ -7,7 +7,10 @@ import {
 import {
   ALREADY_CONFIRMING_MESSAGE,
   CONFIRMING_MESSAGE,
+  CheckoutErrorMessage,
   CheckoutPaymentConfirmer,
+  MERCHANT_WALLET_CHANGED_MESSAGE,
+  PayAcrossWalletChange,
   PaymentPhase,
   RequireAuthorizationTypedData,
   ShortAddress,
@@ -392,5 +395,71 @@ describe('RequireAuthorizationTypedData', () => {
 describe('ShortAddress', () => {
   it('keeps the first 4 and last 4 hex characters', () => {
     expect(ShortAddress(PAYER)).toBe('0x3C44…93BC');
+  });
+});
+
+describe('PayAcrossWalletChange', () => {
+  function WalletChanged(transactionHash?: string): Error {
+    return ApiFailure(409, {
+      code: 'merchant_wallet_changed',
+      type: 'merchant_wallet_changed',
+      message: MERCHANT_WALLET_CHANGED_MESSAGE,
+      ...(transactionHash ? { transaction_hash: transactionHash } : {}),
+    });
+  }
+
+  it('says the wallet changed, then prepares and asks for approval again', async () => {
+    const pay = jest
+      .fn()
+      .mockRejectedValueOnce(WalletChanged())
+      .mockResolvedValueOnce(COMPLETED);
+    const follow = jest.fn();
+    const notify = jest.fn();
+
+    await expect(PayAcrossWalletChange(pay, follow, notify)).resolves.toBe(
+      COMPLETED
+    );
+    expect(pay).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenCalledWith(
+      "The merchant's receiving wallet changed. Please approve the payment again."
+    );
+    expect(follow).not.toHaveBeenCalled();
+  });
+
+  it('follows a payment to the old wallet that is already on its way', async () => {
+    const pay = jest.fn().mockRejectedValueOnce(WalletChanged(HASH));
+    const follow = jest.fn().mockResolvedValue(COMPLETED);
+
+    await expect(PayAcrossWalletChange(pay, follow, jest.fn())).resolves.toBe(
+      COMPLETED
+    );
+    expect(follow).toHaveBeenCalledWith(HASH);
+    expect(pay).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks only once, and passes other errors on', async () => {
+    const changed = WalletChanged();
+    await expect(
+      PayAcrossWalletChange(
+        jest.fn().mockRejectedValue(changed),
+        jest.fn(),
+        jest.fn()
+      )
+    ).rejects.toBe(changed);
+
+    const other = ApiFailure(400, { type: 'invalid_request_error' });
+    await expect(
+      PayAcrossWalletChange(
+        jest.fn().mockRejectedValue(other),
+        jest.fn(),
+        jest.fn()
+      )
+    ).rejects.toBe(other);
+  });
+
+  it('tells the customer to approve again when the change ends a payment', () => {
+    expect(CheckoutErrorMessage(WalletChanged(), false)).toBe(
+      MERCHANT_WALLET_CHANGED_MESSAGE
+    );
   });
 });

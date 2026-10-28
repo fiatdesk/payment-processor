@@ -17,6 +17,7 @@ import {
 import {
   GetApiErrorCode,
   IsUserRejectedError,
+  type ApiError,
   type WalletService,
 } from '../../../core';
 import {
@@ -42,6 +43,9 @@ export const CONFIRMING_MESSAGE =
 export const ALREADY_CONFIRMING_MESSAGE = AlreadyConfirmingMessage(false);
 const OUT_OF_DATE_MESSAGE =
   'This payment request is out of date. Reload the page and try again.';
+/** The merchant's receiving wallet changed after the payment was prepared. */
+export const MERCHANT_WALLET_CHANGED_MESSAGE =
+  "The merchant's receiving wallet changed. Please approve the payment again.";
 /** USDC has 6 decimals: one cent is 10 000 base units. */
 export const USDC_UNITS_PER_CENT = BigInt(10_000);
 
@@ -285,6 +289,40 @@ export class CheckoutPaymentConfirmer {
 }
 
 /**
+ * The API's 409 `merchant_wallet_changed`: the payment prepared for the
+ * session pays a wallet the merchant no longer uses. `transactionHash` is a
+ * payment to the old wallet that is already on its way.
+ */
+export function ReadMerchantWalletChanged(
+  error: unknown
+): { transactionHash: string | null } | null {
+  if (GetApiErrorCode(error) !== 'merchant_wallet_changed') return null;
+  const hash = (error as ApiError).details?.['transaction_hash'];
+  return { transactionHash: typeof hash === 'string' ? hash : null };
+}
+
+/**
+ * Runs `pay` (prepare, sign, confirm). When the merchant's wallet changed
+ * since the payment was prepared, says so and runs it once more, so the
+ * buyer approves a payment to the new wallet; a payment to the old wallet
+ * that is already on its way is followed by its hash instead.
+ */
+export async function PayAcrossWalletChange(
+  pay: () => Promise<CheckoutSession>,
+  follow: (transactionHash: string) => Promise<CheckoutSession>,
+  notify: (message: string) => void
+): Promise<CheckoutSession> {
+  try {
+    return await pay();
+  } catch (error) {
+    const changed = ReadMerchantWalletChanged(error);
+    if (!changed) throw error;
+    notify(MERCHANT_WALLET_CHANGED_MESSAGE);
+    return changed.transactionHash ? follow(changed.transactionHash) : pay();
+  }
+}
+
+/**
  * Signs `typedData` with the wallet, but only while its account is still
  * `signer`, the wallet it was prepared for: a switched account would sign
  * a message the API then refuses.
@@ -391,6 +429,7 @@ const CHECKOUT_ERROR_MESSAGES = new Map<string, string>([
     'onchain_plan_amount_exceeded',
     'This subscription can only be bought with a quantity of 1. Contact the merchant for a new checkout link.',
   ],
+  ['merchant_wallet_changed', MERCHANT_WALLET_CHANGED_MESSAGE],
   [
     'subscription_authorization_stale',
     'This subscription request expired before it was sent. Press Subscribe to sign a new one.',

@@ -8,8 +8,21 @@ import {
   GetFixedTimestamp,
 } from './Setup';
 import { CreateMockSettlement } from './mocks/Settlement';
+import { MemoryDatabase } from './mocks/MemoryDatabase';
+import { ArchivedWalletDepositStore } from '../modules/ArchivedWalletDeposits';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+jest.mock('../modules/EventService', () => ({
+  EventService: jest.fn().mockImplementation(() => ({ Emit: jest.fn() })),
+}));
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
 }));
@@ -131,7 +144,133 @@ describe('BalanceModule', () => {
         platform_available: 2500,
         platform_pending: 100,
         wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+        archived_wallet_deposits: [],
       });
+    });
+  });
+
+  describe('archived wallet deposits', () => {
+    const PLATFORM = 'acct_fd_platform';
+    const DEFAULT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+    const OLD = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+    let memory: MemoryDatabase;
+
+    function Deposit(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        object: 'archived_wallet_deposit',
+        platform_account: PLATFORM,
+        wallet_id: 'wa_fd_old',
+        wallet_address: OLD,
+        transaction_hash: `0x${'ab'.repeat(32)}`,
+        log_index: 0,
+        amount: 1500,
+        block_number: 4500,
+        acknowledged: false,
+        created: 10,
+        ...overrides,
+      };
+    }
+
+    beforeEach(() => {
+      memory = new MemoryDatabase();
+      Object.assign(memory, { Aggregate: async () => [] });
+      memory.Seed(
+        'ExternalWallets',
+        {
+          id: 'wa_fd_old',
+          account: PLATFORM,
+          wallet_address: OLD,
+          default_for_currency: false,
+          status: 'archived',
+          created: 1,
+        },
+        {
+          id: 'wa_fd_first',
+          account: PLATFORM,
+          wallet_address: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+          default_for_currency: false,
+          status: 'new',
+          created: 2,
+        },
+        {
+          id: 'wa_fd_default',
+          account: PLATFORM,
+          wallet_address: DEFAULT,
+          default_for_currency: true,
+          status: 'new',
+          created: 3,
+        }
+      );
+      memory.Seed(
+        'ArchivedWalletDeposits',
+        Deposit('awd_fd_1', { log_index: 0, created: 10 }),
+        Deposit('awd_fd_2', { log_index: 1, created: 11 }),
+        Deposit('awd_fd_seen', { log_index: 2, acknowledged: true }),
+        Deposit('awd_fd_other', { log_index: 3, platform_account: 'acct_x' }),
+        Deposit('awd_fd_in_default', {
+          log_index: 4,
+          wallet_id: 'wa_fd_default',
+          wallet_address: DEFAULT,
+        })
+      );
+      module = new BalanceModule(memory.AsDatabase());
+    });
+
+    it("lists the platform's unacknowledged deposits to other wallets, for the default wallet even when it is not the first", async () => {
+      const details = await module.GetBalanceDetails(PLATFORM);
+
+      expect(details?.wallet_address).toBe(DEFAULT);
+      expect(
+        details?.archived_wallet_deposits.map((deposit) => deposit.id)
+      ).toEqual(['awd_fd_1', 'awd_fd_2']);
+    });
+
+    it('uses the first stored wallet when none is flagged, and records it as the default', async () => {
+      for (const wallet of memory.All<{ id: string }>('ExternalWallets')) {
+        await memory.Update('ExternalWallets', wallet.id, {
+          default_for_currency: null,
+        });
+      }
+
+      const details = await module.GetBalanceDetails(PLATFORM);
+
+      expect(details?.wallet_address).toBe(
+        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+      );
+      expect(
+        memory.Doc<{ default_for_currency: boolean }>(
+          'ExternalWallets',
+          'wa_fd_first'
+        ).default_for_currency
+      ).toBe(true);
+    });
+
+    it('acknowledges a deposit, which then leaves the list', async () => {
+      const store = new ArchivedWalletDepositStore(memory.AsDatabase());
+
+      await expect(
+        store.Acknowledge(PLATFORM, 'awd_fd_1')
+      ).resolves.toMatchObject({
+        id: 'awd_fd_1',
+        acknowledged: true,
+      });
+
+      const details = await module.GetBalanceDetails(PLATFORM);
+      expect(
+        details?.archived_wallet_deposits.map((deposit) => deposit.id)
+      ).toEqual(['awd_fd_2']);
+    });
+
+    it("refuses another platform's deposit with a 404", async () => {
+      const store = new ArchivedWalletDepositStore(memory.AsDatabase());
+
+      await expect(
+        store.Acknowledge(PLATFORM, 'awd_fd_other')
+      ).rejects.toMatchObject({ statusCode: 404, type: 'resource_missing' });
+      await expect(
+        store.Acknowledge(PLATFORM, 'awd_fd_missing')
+      ).rejects.toMatchObject({ statusCode: 404 });
     });
   });
 

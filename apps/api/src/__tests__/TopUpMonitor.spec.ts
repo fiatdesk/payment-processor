@@ -1,8 +1,13 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
-import type { Balance, TopUp } from '@fiatdesk/shared-types';
+import type {
+  ArchivedWalletDeposit,
+  Balance,
+  TopUp,
+} from '@fiatdesk/shared-types';
 import type { ChainCursor } from '../modules/ChainCursorStore';
 import { TopUpModule } from '../modules/TopUp';
 import { TopUpMonitor } from '../modules/TopUpMonitor';
+import { Logger } from '../utils/Logger';
 import type { IncomingDeposit } from '../modules/chains/types';
 import { MemoryDatabase } from './mocks/MemoryDatabase';
 import { CreateMockSettlement } from './mocks/Settlement';
@@ -368,5 +373,228 @@ describe('TopUpMonitor deposit scanning', () => {
       expect(mockSettlement.GetIncomingDeposits).not.toHaveBeenCalled();
       expect(Cursor()).toBe(100);
     });
+  });
+
+  describe('watching the other platform wallets', () => {
+    const OTHER_ID = 'wa_fd_other';
+    const OTHER = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+    const REMOVED_ID = 'wa_fd_removed';
+    const REMOVED = '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65';
+    const OLD_ID = 'wa_fd_old';
+    const OLD = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
+    const DAY = 24 * 3600;
+
+    beforeEach(() => {
+      memory.UniqueIndex('ArchivedWalletDeposits', [
+        'transaction_hash',
+        'log_index',
+      ]);
+      memory.Seed(
+        'ExternalWallets',
+        {
+          id: OTHER_ID,
+          account: PLATFORM,
+          wallet_address: OTHER,
+          default_for_currency: false,
+          status: 'new',
+        },
+        {
+          id: REMOVED_ID,
+          account: PLATFORM,
+          wallet_address: REMOVED,
+          default_for_currency: true,
+          status: 'archived',
+          archived_at: GetFixedTimestamp() - 30 * DAY,
+        },
+        {
+          id: OLD_ID,
+          account: PLATFORM,
+          wallet_address: OLD,
+          default_for_currency: false,
+          status: 'archived',
+          archived_at: GetFixedTimestamp() - 30 * DAY - 1,
+        },
+        {
+          id: 'wa_fd_untracked',
+          account: PLATFORM,
+          wallet_address: OLD,
+          default_for_currency: false,
+          status: 'archived',
+        }
+      );
+      mockSettlement.GetIncomingDeposits.mockImplementation(async (address) =>
+        address === WALLET
+          ? []
+          : [Deposit({ logIndex: address === OTHER ? 0 : 1 })]
+      );
+    });
+
+    function Scanned(): string[] {
+      return mockSettlement.GetIncomingDeposits.mock.calls.map(
+        ([address]) => address
+      );
+    }
+
+    function Alerts() {
+      return memory
+        .All<ArchivedWalletDeposit>('ArchivedWalletDeposits')
+        .map((deposit) => ({
+          wallet_id: deposit.wallet_id,
+          wallet_address: deposit.wallet_address,
+          transaction_hash: deposit.transaction_hash,
+          log_index: deposit.log_index,
+          amount: deposit.amount,
+          block_number: deposit.block_number,
+          acknowledged: deposit.acknowledged,
+        }));
+    }
+
+    it('scans non-default wallets and wallets removed in the last 30 days, and credits none of it', async () => {
+      const result = await Check();
+
+      expect(Scanned()).toEqual([WALLET, OTHER, REMOVED]);
+      expect(result).toMatchObject({ processed: 0, errors: 0, topups: [] });
+      expect(memory.All('TopUps')).toHaveLength(0);
+      expect(Available()).toBe(0);
+      expect(Alerts()).toEqual([
+        {
+          wallet_id: OTHER_ID,
+          wallet_address: OTHER,
+          transaction_hash: TX,
+          log_index: 0,
+          amount: 1500,
+          block_number: 4500,
+          acknowledged: false,
+        },
+        {
+          wallet_id: REMOVED_ID,
+          wallet_address: REMOVED,
+          transaction_hash: TX,
+          log_index: 1,
+          amount: 1500,
+          block_number: 4500,
+          acknowledged: false,
+        },
+      ]);
+      expect(Logger.warn).toHaveBeenCalledWith(
+        'USDC arrived at a platform wallet that is not the default; it is not credited',
+        expect.objectContaining({ walletId: OTHER_ID, transactionHash: TX })
+      );
+      // Each wallet has its own cursor.
+      expect(
+        memory
+          .All<ChainCursor>('ChainCursors')
+          .map((cursor) => cursor.id)
+          .sort()
+      ).toEqual([OTHER_ID, REMOVED_ID, WALLET_ID].sort());
+    });
+
+    it('records each transfer once when a range is scanned again', async () => {
+      await Check();
+      for (const id of [OTHER_ID, REMOVED_ID]) {
+        memory.Seed('ChainCursors', {
+          id,
+          chain_id: SEPOLIA,
+          last_scanned_block: 3999,
+          updated: 1,
+        });
+      }
+
+      await Check();
+
+      expect(memory.All('ArchivedWalletDeposits')).toHaveLength(2);
+    });
+
+    it('does not alert USDC a watched wallet received before it was added', async () => {
+      memory.Seed('ExternalWallets', {
+        ...memory.Doc<Record<string, unknown>>('ExternalWallets', OTHER_ID),
+        created: 1_700_000_001,
+      });
+
+      await Check();
+
+      // The deposit's block time is 1_700_000_000.
+      expect(Alerts().map((alert) => alert.wallet_id)).toEqual([REMOVED_ID]);
+    });
+
+    it('polls the watched wallets too', async () => {
+      await monitor.Poll();
+
+      expect(Scanned()).toEqual([WALLET, OTHER, REMOVED]);
+      expect(memory.All('ArchivedWalletDeposits')).toHaveLength(2);
+      expect(memory.All('TopUps')).toHaveLength(0);
+    });
+
+    it('still credits the default wallet when a watched wallet cannot be scanned', async () => {
+      mockSettlement.GetIncomingDeposits.mockImplementation(async (address) => {
+        if (address === WALLET) return [Deposit()];
+        throw new Error('rpc down');
+      });
+
+      await expect(Check()).resolves.toMatchObject({ processed: 1 });
+      expect(Available()).toBe(1500);
+    });
+  });
+
+  it('scans the first stored wallet when none is flagged, and records it as the default', async () => {
+    memory = new MemoryDatabase();
+    memory.Seed('Accounts', { id: PLATFORM, platform_account: PLATFORM });
+    memory.Seed(
+      'ExternalWallets',
+      {
+        id: WALLET_ID,
+        account: PLATFORM,
+        wallet_address: WALLET,
+        default_for_currency: null,
+        status: 'new',
+        created: 2,
+      },
+      {
+        id: 'wa_fd_newer',
+        account: PLATFORM,
+        wallet_address: BUYER,
+        default_for_currency: null,
+        status: 'new',
+        created: 3,
+      }
+    );
+    monitor = new TopUpMonitor(memory.AsDatabase());
+
+    await monitor.CheckDepositsForAccount(PLATFORM);
+
+    expect(mockSettlement.GetIncomingDeposits.mock.calls[0][0]).toBe(WALLET);
+    expect(
+      memory.Doc<{ default_for_currency: boolean }>(
+        'ExternalWallets',
+        WALLET_ID
+      ).default_for_currency
+    ).toBe(true);
+  });
+
+  it('scans the default wallet even when it is not the first one stored', async () => {
+    memory = new MemoryDatabase();
+    memory.Seed('Accounts', { id: PLATFORM, platform_account: PLATFORM });
+    memory.Seed(
+      'ExternalWallets',
+      {
+        id: 'wa_fd_first',
+        account: PLATFORM,
+        wallet_address: BUYER,
+        default_for_currency: false,
+        status: 'new',
+      },
+      {
+        id: WALLET_ID,
+        account: PLATFORM,
+        wallet_address: WALLET,
+        default_for_currency: true,
+        status: 'new',
+      }
+    );
+    monitor = new TopUpMonitor(memory.AsDatabase());
+
+    await monitor.CheckDepositsForAccount(PLATFORM);
+
+    expect(mockSettlement.GetIncomingDeposits.mock.calls[0][0]).toBe(WALLET);
   });
 });

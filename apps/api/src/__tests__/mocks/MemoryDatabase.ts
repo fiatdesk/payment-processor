@@ -3,11 +3,11 @@
  * In-memory stand-in for `Database` with the Mongo semantics the payout and
  * billing flows rely on: equality, `$in`/`$ne`, range and top-level `$or`
  * filters (array fields match by containment), `$set`/`$setOnInsert`/`$inc`/
- * `$addToSet`/`$unset` updates with dotted paths, upserts by `id`, ordered
- * queries with `startAt` /
- * `startAfter` cursors, transactions that roll back when the callback
- * throws, and opt-in unique (optionally partial) indexes. Pass it where a
- * `Database` is expected with `AsDatabase()`.
+ * `$addToSet`/`$unset` updates with dotted paths (one document or every
+ * match), upserts by `id`, queries ordered on one or more keys (dotted keys
+ * too) with `startAt` / `startAfter` cursors, transactions that roll back
+ * when the callback throws, and opt-in unique (optionally partial) indexes.
+ * Pass it where a `Database` is expected with `AsDatabase()`.
  */
 
 import type { QueryParameters } from '@fiatdesk/shared-types';
@@ -83,6 +83,22 @@ export class MemoryDatabase {
     return Clone(this.Store(collection, id, doc)) as T;
   }
 
+  async UpdateMany(
+    collection: string,
+    filter: Filter,
+    data: Doc
+  ): Promise<number> {
+    const matched = [...this.Collection(collection).values()].filter((doc) =>
+      Matches(doc, filter)
+    );
+    for (const doc of matched) {
+      const updated = Clone(doc);
+      ApplyUpdate(updated, data);
+      this.Store(collection, String(doc.id), updated);
+    }
+    return matched.length;
+  }
+
   async FindOneAndUpdateByFilter<T>(
     collection: string,
     filter: Filter,
@@ -149,14 +165,17 @@ export class MemoryDatabase {
       });
     }
     const results = this.Filter<T>(options.collection, filter);
-    if (order) {
-      const sign = descending ? -1 : 1;
-      results.sort(
-        (a, b) =>
-          sign *
-          (Number((a as Doc)[order.key] ?? 0) -
-            Number((b as Doc)[order.key] ?? 0))
-      );
+    const orders = options.orderBy ?? [];
+    if (orders.length > 0) {
+      // Every order key in turn, as Mongo's compound sort does.
+      results.sort((a, b) => {
+        for (const { key, direction } of orders) {
+          const sign = (direction ?? 'desc') === 'desc' ? -1 : 1;
+          const byKey = CompareValues(Read(a as Doc, key), Read(b as Doc, key));
+          if (byKey !== 0) return sign * byKey;
+        }
+        return 0;
+      });
     }
     return options.limit ? results.slice(0, options.limit) : results;
   }
@@ -282,6 +301,16 @@ function InRange(value: unknown, operator: string, bound: unknown): boolean {
     default:
       return a >= b;
   }
+}
+
+/** Numbers by value (missing as 0), strings by code point. */
+function CompareValues(a: unknown, b: unknown): number {
+  if (typeof a === 'string' || typeof b === 'string') {
+    const x = String(a ?? '');
+    const y = String(b ?? '');
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  return Number(a ?? 0) - Number(b ?? 0);
 }
 
 function Matches(doc: Doc, filter: Filter): boolean {

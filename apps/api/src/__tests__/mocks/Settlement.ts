@@ -29,6 +29,7 @@ import type {
   PayoutBuildOptions,
   PayoutTransactionExpectation,
   PayoutTransactionMatch,
+  PlanDestinationResult,
   PreparedAuthorization,
   PreparedSubscribe,
   RelayCheckoutOptions,
@@ -63,6 +64,8 @@ export const MOCK_CHARGE_HASH = `0x${'c4'.repeat(32)}`;
 /** The operator nonce the mock charge is signed with. */
 export const MOCK_CHARGE_NONCE = 7;
 export const MOCK_CANCEL_HASH = `0x${'ca'.repeat(32)}`;
+/** Hash of the mock's `setPlanDestination` transaction. */
+export const MOCK_DESTINATION_HASH = `0x${'d5'.repeat(32)}`;
 /** Nonce of built batches; GetAccountNonce returns it, so nothing is consumed. */
 export const MOCK_PAYOUT_NONCE = 7;
 /** What GetConfirmedBlock returns: the block at `latest - ETH_CONFIRMATIONS`. */
@@ -355,5 +358,10 @@ export function CreateMockSettlement(): jest.Mocked<Settlement> {
         return MOCK_CANCEL_HASH;
       }
     ),
+    // The plan already pays the destination unless a test says otherwise.
+    SetPlanDestination: jest.fn<
+      Promise<PlanDestinationResult>,
+      Parameters<Settlement['SetPlanDestination']>
+    >(async () => ({ status: 'confirmed', transaction_hash: null })),
   };
 }

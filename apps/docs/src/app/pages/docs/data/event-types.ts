@@ -269,7 +269,8 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
     resource: 'external_account',
     objectType: 'ExternalWallet',
     objectHref: '#external-wallets-object',
-    description: 'Occurs whenever an external wallet is updated.',
+    description:
+      'Occurs whenever an external wallet is updated, including when it becomes, or stops being, the default (<code>previous_attributes.default_for_currency</code>).',
   },
   {
     name: 'external_account.deleted',
@@ -582,7 +583,8 @@ export const EVENT_TYPE_DEFINITIONS: EventTypeDefinition[] = [
     resource: 'price',
     objectType: 'Price',
     objectHref: '#prices-object',
-    description: 'Occurs whenever a price is updated.',
+    description:
+      "Occurs whenever a price is updated, including when a recurring price's on-chain plan finishes moving to the platform's new default wallet: <code>previous_attributes</code> then holds the old <code>subscription_plan_destination</code> and <code>subscription_plan_destination_change</code>.",
   },
   {
     name: 'price.deleted',

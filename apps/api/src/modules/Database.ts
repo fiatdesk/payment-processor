@@ -79,6 +79,22 @@ export class Database {
   }
 
   /**
+   * Update every document matching `filter`; returns how many matched.
+   */
+  async UpdateMany(
+    collection: string,
+    filter: Record<string, unknown>,
+    data: Record<string, unknown>,
+    session?: ClientSession
+  ): Promise<number> {
+    const model = this.GetModel(collection);
+    const result = await model
+      .updateMany(filter, data, session ? { session } : {})
+      .exec();
+    return result.matchedCount;
+  }
+
+  /**
    * Add a new document with auto-generated MongoDB _id
    */
   async Add<T>(collection: string, data: Partial<T>): Promise<T> {
@@ -448,15 +464,18 @@ export class Database {
       'AccountLinks',
       'ApiKeys',
       'AppSecrets',
+      'ArchivedWalletDeposits',
       'Balances',
       'BalanceTransactions',
       'ChainCursors',
       'Events',
+      'ExternalWalletGuards',
       'ExternalWallets',
       'LoginLinks',
       'PayoutBatches',
       'Payouts',
       'Persons',
+      'Prices',
       'SubscriptionCycleClaims',
       'Subscriptions',
       'TopUps',
@@ -535,6 +554,24 @@ export class Database {
       // Claims are inserted under `id = ${subId}:${dueAt}` (unique above);
       // this finds an owner's claims for one subscription.
       flexibleSchema.index({ subscription_onchain_id: 1, owner: 1 });
+    }
+
+    if (collectionName === 'ArchivedWalletDeposits') {
+      // One alert per USDC Transfer log, however often its range is scanned.
+      flexibleSchema.index(
+        { transaction_hash: 1, log_index: 1 },
+        { unique: true }
+      );
+    }
+
+    if (collectionName === 'Prices') {
+      // The billing run follows pending plan destination changes, oldest
+      // first, paging on (created, id).
+      flexibleSchema.index({
+        'subscription_plan_destination_change.status': 1,
+        'subscription_plan_destination_change.created': 1,
+        id: 1,
+      });
     }
 
     if (collectionName === 'TopUps') {

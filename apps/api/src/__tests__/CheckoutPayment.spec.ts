@@ -47,6 +47,7 @@ import { MemoryDatabase } from './mocks/MemoryDatabase';
 import {
   CreateMockSettlement,
   MOCK_CHARGE_HASH,
+  MOCK_DESTINATION_HASH,
   MOCK_PAYER,
   MOCK_PLAN_KEY,
   MOCK_RELAY_HASH,
@@ -57,6 +58,14 @@ import {
 } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 jest.mock('../utils/IdGenerator', () => ({
   ...jest.requireActual('../utils/IdGenerator'),
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
@@ -598,6 +607,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
   beforeEach(() => {
     wallets = {
       GetDefaultWallet: jest.fn(async () => merchantWallet),
+      GetExternalWalletsByAccount: jest.fn(async () => [merchantWallet]),
     } as unknown as ExternalWalletModule;
     jest.clearAllMocks();
     ResetIdCounter();
@@ -734,6 +744,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       MOCK_RELAY_HASH,
       {
         merchantWalletAddress: MERCHANT_WALLET,
+        otherMerchantWalletAddresses: [],
         amountInCents: 1000,
         checkoutSessionId: 'cs_fd_pay',
         payerAddress: PAYER_WALLET,
@@ -1148,33 +1159,325 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     expect(result.payment_details?.transaction_hash).toBe(OTHER_HASH);
   });
 
-  it('verifies against the merchant wallet recorded at prepare, not the current default', async () => {
+  describe('after the merchant changes its default wallet (Q13 #3)', () => {
     const NEW_DEFAULT = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
-    Seed({ payment_details: null });
-    await module.PreparePayment(SLUG, PAYER_WALLET, {
-      email: 'buyer@example.com',
-    });
-    expect(Session().payment_details).toMatchObject({
-      payer_wallet: PAYER_WALLET,
-      merchant_wallet: MERCHANT_WALLET,
-    });
-    jest
-      .mocked(wallets.GetDefaultWallet)
-      .mockResolvedValue({ ...merchantWallet, wallet_address: NEW_DEFAULT });
 
-    const result = await module.ConfirmPayment(SLUG, { signature: SIGNATURE });
+    function SwitchDefault(): void {
+      jest
+        .mocked(wallets.GetDefaultWallet)
+        .mockResolvedValue({ ...merchantWallet, wallet_address: NEW_DEFAULT });
+    }
 
-    expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
-      expect.objectContaining({ to: MERCHANT_WALLET }),
-      SIGNATURE,
-      expect.anything()
-    );
-    expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
-      MOCK_RELAY_HASH,
-      expect.objectContaining({ merchantWalletAddress: MERCHANT_WALLET }),
-      expect.anything()
-    );
-    expect(result.payment_details?.merchant_wallet).toBe(MERCHANT_WALLET);
+    it('answers merchant_wallet_changed at confirm, sending and clearing nothing', async () => {
+      Seed({ payment_details: null });
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      const prepared = Session();
+      SwitchDefault();
+
+      await expect(
+        module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'merchant_wallet_changed',
+        message:
+          "The merchant's receiving wallet changed. Please approve the payment again.",
+        details: { code: 'merchant_wallet_changed' },
+      });
+      expect(settlement.RelayCheckoutAuthorization).not.toHaveBeenCalled();
+      expect(Session()).toEqual(prepared);
+      expect(Intent().status).toBe('requires_confirmation');
+    });
+
+    it('pays the new default after the client prepares again', async () => {
+      Seed({ payment_details: null });
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      SwitchDefault();
+      await expect(
+        module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+      ).rejects.toMatchObject({ type: 'merchant_wallet_changed' });
+
+      const again = await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      const result = await module.ConfirmPayment(SLUG, {
+        signature: SIGNATURE,
+      });
+
+      expect(again.merchant_wallet_address).toBe(NEW_DEFAULT);
+      expect(settlement.RelayCheckoutAuthorization).toHaveBeenCalledWith(
+        expect.objectContaining({ to: NEW_DEFAULT }),
+        SIGNATURE,
+        expect.anything()
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: { merchant_wallet: NEW_DEFAULT },
+      });
+    });
+
+    it('answers merchant_wallet_changed with the recorded hash at prepare reuse, so the client follows that payment', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      SwitchDefault();
+
+      await expect(
+        module.PreparePayment(SLUG, PAYER_WALLET, {
+          email: 'buyer@example.com',
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'merchant_wallet_changed',
+        details: {
+          code: 'merchant_wallet_changed',
+          transaction_hash: MOCK_RELAY_HASH,
+        },
+      });
+      expect(Session().payment_details?.transaction_hash).toBe(MOCK_RELAY_HASH);
+      expect(
+        settlement.BuildCheckoutPaymentAuthorization
+      ).not.toHaveBeenCalled();
+    });
+
+    it('still completes a relay to the old wallet recorded before the change', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+      SwitchDefault();
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: MOCK_RELAY_HASH,
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        MOCK_RELAY_HASH,
+        expect.objectContaining({ merchantWalletAddress: MERCHANT_WALLET }),
+        expect.anything()
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it('clears a relay to the old wallet that never reached the network, and asks for approval again', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+      SwitchDefault();
+      settlement.VerifyCheckoutPayment.mockResolvedValue({
+        ...Pending(MOCK_RELAY_HASH),
+        status: 'not_found',
+      });
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: MOCK_RELAY_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'merchant_wallet_changed',
+        details: { code: 'merchant_wallet_changed' },
+      });
+      expect(Session().payment_details?.transaction_hash).toBeNull();
+      ExpectNothingCompleted();
+    });
+
+    /** The platform still lists the old wallet, archived, next to the new one. */
+    function ListBothWallets(): void {
+      jest.mocked(wallets.GetExternalWalletsByAccount).mockResolvedValue([
+        { ...merchantWallet, status: 'archived' },
+        { ...merchantWallet, id: 'ew_fd_2', wallet_address: NEW_DEFAULT },
+      ]);
+    }
+
+    /**
+     * The session's authorization paid `address`. As on-chain, that pays the
+     * session only when `address` is the expected merchant wallet or one of
+     * the others the confirm allows.
+     */
+    function PaidTo(address: string, hash: string = OTHER_HASH): void {
+      settlement.VerifyCheckoutPayment.mockImplementation(
+        async (_hash, expected) =>
+          [
+            expected.merchantWalletAddress,
+            ...(expected.otherMerchantWalletAddresses ?? []),
+          ].some((wallet) => wallet.toLowerCase() === address.toLowerCase())
+            ? Verified(hash, { merchant_address: address })
+            : {
+                status: 'failed',
+                transaction_hash: hash,
+                amount_cents: 0,
+                payer_address: PAYER_WALLET,
+                failure_reason:
+                  'The authorized transfer does not pay the merchant wallet',
+              }
+      );
+    }
+
+    it("verifies a customer's transaction_hash before refusing it, and completes a payment to the wallet the session recorded", async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: null,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      SwitchDefault();
+      ListBothWallets();
+      PaidTo(MERCHANT_WALLET);
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: OTHER_HASH,
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        OTHER_HASH,
+        expect.objectContaining({
+          merchantWalletAddress: MERCHANT_WALLET,
+          otherMerchantWalletAddresses: [NEW_DEFAULT],
+        }),
+        expect.anything()
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: OTHER_HASH,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it('credits a used-nonce payment to the current default and records the wallet it paid', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+      SwitchDefault();
+      ListBothWallets();
+      PaidTo(NEW_DEFAULT);
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: MOCK_RELAY_HASH,
+      });
+
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: OTHER_HASH,
+          merchant_wallet: NEW_DEFAULT,
+        },
+      });
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it("refuses a customer's transaction_hash that paid a retired wallet the session never recorded", async () => {
+      // Prepared after the switch: the session only ever offered NEW_DEFAULT.
+      Seed({
+        payment_details: {
+          transaction_hash: null,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: NEW_DEFAULT,
+        },
+      });
+      SwitchDefault();
+      ListBothWallets();
+      PaidTo(MERCHANT_WALLET);
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'The authorized transfer does not pay the merchant wallet',
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        OTHER_HASH,
+        expect.objectContaining({
+          merchantWalletAddress: NEW_DEFAULT,
+          otherMerchantWalletAddresses: [],
+        }),
+        expect.anything()
+      );
+      ExpectNothingCompleted();
+      expect(Intent().status).toBe('requires_confirmation');
+    });
+
+    it('refuses a used-nonce payment to a retired wallet the session never recorded', async () => {
+      Seed({ payment_details: null });
+      SwitchDefault();
+      ListBothWallets();
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      // The session's nonce is used, by a transfer to the retired wallet.
+      settlement.RelayCheckoutAuthorization.mockResolvedValue(null);
+      PaidTo(MERCHANT_WALLET);
+
+      await expect(
+        module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'The authorized transfer does not pay the merchant wallet',
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({
+          merchantWalletAddress: NEW_DEFAULT,
+          otherMerchantWalletAddresses: [],
+        }),
+        expect.anything()
+      );
+      expect(Session()).toMatchObject({
+        status: 'open',
+        payment_status: 'unpaid',
+      });
+      expect(Intent().status).not.toBe('succeeded');
+      expect(
+        memory
+          .All<Charge>('Charges')
+          .filter((charge) => charge.status !== 'failed')
+      ).toEqual([]);
+      expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([]);
+    });
   });
 
   describe('when the network does not know the transaction', () => {
@@ -1675,6 +1978,45 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
           payer_wallet: PAYER_WALLET,
         },
       });
+    });
+
+    it('waits with payment_pending while the plan moves to a new default wallet, then collects', async () => {
+      memory.Seed('Prices', {
+        ...RecurringPrice(),
+        id: 'price_fd_1',
+        subscription_plan_destination: PAYER_WALLET,
+        subscription_plan_destination_change: {
+          destination: MERCHANT_WALLET,
+          transaction_hash: MOCK_DESTINATION_HASH,
+          status: 'pending',
+          created: NOW,
+          failure_message: null,
+          sent_at: NOW,
+        },
+      });
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'pending',
+        transaction_hash: MOCK_DESTINATION_HASH,
+      });
+
+      await expect(module.ConfirmPayment(SLUG, SIGNED)).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'payment_pending',
+      });
+      expect(settlement.CollectSubscriptionPayment).not.toHaveBeenCalled();
+      ExpectNoSubscription();
+
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'confirmed',
+        transaction_hash: MOCK_DESTINATION_HASH,
+      });
+      const result = await module.ConfirmPayment(SLUG, SIGNED);
+
+      expect(settlement.CollectSubscriptionPayment).toHaveBeenCalledTimes(1);
+      expect(result.status).toBe('complete');
+      expect(
+        memory.Doc<Price>('Prices', 'price_fd_1').subscription_plan_destination
+      ).toBe(MERCHANT_WALLET);
     });
 
     it('relays without a permit when none was signed', async () => {

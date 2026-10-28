@@ -241,6 +241,7 @@ describe('CheckoutAuthorization', () => {
         status: 'verified',
         amount_cents: 1234,
         payer_address: BUYER,
+        merchant_address: MERCHANT,
       });
     });
 
@@ -360,6 +361,27 @@ describe('CheckoutAuthorization', () => {
       });
     });
 
+    it("accepts a payment to another of the platform's wallets and says which it paid", () => {
+      const receipt = Receipt([
+        AuthorizationUsed(),
+        Transfer(OTHER, 12_340_000n),
+      ]);
+
+      expect(
+        VerifyCheckoutReceipt(receipt, { ...EXPECTED, alsoPays: [OTHER] })
+      ).toEqual({
+        status: 'verified',
+        amount_cents: 1234,
+        payer_address: BUYER,
+        merchant_address: OTHER,
+      });
+      expect(VerifyCheckoutReceipt(receipt, EXPECTED)).toMatchObject({
+        status: 'failed',
+        failure_reason:
+          'The authorized transfer does not pay the merchant wallet',
+      });
+    });
+
     it('accepts a second authorizer that pays when the first does not', () => {
       expect(
         VerifyCheckoutReceipt(
@@ -375,6 +397,7 @@ describe('CheckoutAuthorization', () => {
         status: 'verified',
         amount_cents: 1234,
         payer_address: BUYER,
+        merchant_address: MERCHANT,
       });
     });
   });

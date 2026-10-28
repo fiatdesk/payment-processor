@@ -287,7 +287,7 @@ export const TOPUPS_OVERVIEW_PAGE: DocPage = {
           type: 'callout',
           variant: 'info',
           title: 'How top-ups work: ',
-          text: 'In live mode, send USDC on Ethereum to the platform wallet, then call the <a href="#topups-check-deposits">check-deposits endpoint</a> to detect the transfer. Test mode with <code>SETTLEMENT_RAIL=onchain</code> works the same way on Sepolia. In simulated test mode, add USDC from the dashboard (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>.',
+          text: 'In live mode, send USDC on Ethereum to the default platform wallet, then call the <a href="#topups-check-deposits">check-deposits endpoint</a> to detect the transfer. Test mode with <code>SETTLEMENT_RAIL=onchain</code> works the same way on Sepolia. In simulated test mode, add USDC from the dashboard (<strong>Add test USDC</strong>) or with <code>POST /v1/test_helpers/treasury/topups</code>.',
           html: true,
         },
         { type: 'heading', level: 2, text: 'Attributes' },
@@ -925,6 +925,10 @@ export const TOPUPS_CHECK_DEPOSITS_PAGE: DocPage = {
             },
             {
               text: 'Amounts are whole cents. A transfer worth less than one cent is not credited, and fractions of a cent stay in the wallet.',
+            },
+            {
+              text: 'Only transfers to the <strong>default</strong> platform wallet are top-ups. The same call scans the platform\'s other wallets (active non-default ones, and ones removed in the last 30 days, each from its own cursor) and never credits them: each transfer to one is listed in <a href="/balance/details">balance details</a> as an <code>archived_wallet_deposit</code> until you acknowledge it. Send those funds on to the default wallet to credit them.',
+              html: true,
             },
           ],
         },

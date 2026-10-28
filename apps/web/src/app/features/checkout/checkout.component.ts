@@ -62,6 +62,7 @@ import {
   AlreadyConfirmingMessage,
   CheckoutErrorMessage,
   CheckoutPaymentConfirmer,
+  PayAcrossWalletChange,
   PaymentPhase,
   ReadSignatureRequired,
   RequireAuthorizationTypedData,
@@ -593,7 +594,14 @@ export class CheckoutComponent implements OnInit {
     const chainId = this.RequireChainId();
     const payerWallet =
       this.walletService.GetAddress() || (await this.walletService.Connect());
-    return this.PrepareSignAndConfirm(session, payerWallet, chainId);
+    return PayAcrossWalletChange(
+      () => this.PrepareSignAndConfirm(session, payerWallet, chainId),
+      (hash) => this.ConfirmOrSignAgain(session, hash, payerWallet),
+      (message) => {
+        this.confirmer.Forget();
+        this.paymentNotice.set(message);
+      }
+    );
   }
 
   /**

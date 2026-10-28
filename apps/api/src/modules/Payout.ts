@@ -220,21 +220,17 @@ export class PayoutModule {
         );
       }
     } else {
-      // Get the account's default external wallet
-      const wallets =
-        await this.externalWalletModule.GetExternalWalletsByAccount(account);
-
-      if (wallets.length === 0) {
+      const defaultWallet = await this.externalWalletModule.GetDefaultWallet(
+        account
+      );
+      if (!defaultWallet) {
         throw new AppError(
           'No external wallet found for this account. Please add a payout method first.',
           400,
           'invalid_request_error'
         );
       }
-
-      // Use the default wallet (first one marked as default, or just the first one)
-      wallet =
-        wallets.find((w) => w.default_for_currency === true) || wallets[0];
+      wallet = defaultWallet;
     }
 
     // Verify the destination is a valid Ethereum address
@@ -621,11 +617,9 @@ export class PayoutModule {
   private async GetPlatformWalletPublicKey(
     platformAccountId: string
   ): Promise<string> {
-    const wallets = await this.externalWalletModule.GetExternalWalletsByAccount(
+    const platformWallet = await this.externalWalletModule.GetDefaultWallet(
       platformAccountId
     );
-    const platformWallet =
-      wallets.find((w) => w.default_for_currency) || wallets[0];
     if (!platformWallet) {
       throw new AppError(
         'Platform wallet not found. Please set up your wallet first.',

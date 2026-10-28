@@ -3,12 +3,16 @@ import { AsyncHandler } from '../utils/AsyncHandler';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
-import { ParseCreatedFilter } from '../utils/ListHelper';
+import {
+  ParseCreatedFilter,
+  ParseOptionalQueryBoolean,
+} from '../utils/ListHelper';
 
 import { db } from '../modules/Database';
 import { EventService } from '../modules/EventService';
 import { AccountModule } from '../modules/Account';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
+import { PlanDestinationModule } from '../modules/PlanDestination';
 import { IdentityLiteModule } from '../modules/identity/IdentityLite';
 
 import { ValidateRequest } from '../middleware/ValidateRequest';
@@ -24,7 +28,12 @@ const router = express.Router();
 
 const eventService = new EventService(db);
 const accountModule = new AccountModule(db, eventService);
-const externalWalletModule = new ExternalWalletModule(db, eventService);
+// A platform's default switch moves its subscription plans on-chain.
+const externalWalletModule = new ExternalWalletModule(
+  db,
+  eventService,
+  new PlanDestinationModule(db, undefined, eventService)
+);
 const identityLiteModule = new IdentityLiteModule(db, eventService);
 
 // POST /v1/accounts/:id/external_accounts
@@ -106,6 +115,9 @@ router.get(
       startingAfter: starting_after as string | undefined,
       endingBefore: ending_before as string | undefined,
       created: ParseCreatedFilter(req.query as Record<string, unknown>),
+      // FiatDesk extension: each wallet's on-chain USDC, for the dashboard.
+      includeUsdcBalance:
+        ParseOptionalQueryBoolean(req.query.include_usdc_balance) === true,
     });
 
     res.json(result);

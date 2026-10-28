@@ -98,7 +98,50 @@ export interface Price {
    * Null for one-time prices or before plan creation succeeds.
    */
   subscription_plan_id: string | null;
+  /**
+   * @fiatdesk_extension The wallet the on-chain plan pays, as last confirmed
+   * on-chain. Read-only. Null for one-time prices.
+   */
+  subscription_plan_destination?: string | null;
+  /**
+   * @fiatdesk_extension The latest change of the on-chain plan's destination,
+   * made when the platform's default wallet changes. Read-only. Null until
+   * the destination first changes.
+   */
+  subscription_plan_destination_change?: PriceDestinationChange | null;
 }
+
+/**
+ * A change of a recurring price's on-chain plan destination, recorded before
+ * it is sent.
+ * @fiatdesk_extension
+ */
+export interface PriceDestinationChange {
+  /** The wallet the plan's charges move to */
+  destination: string;
+  /** The `setPlanDestination` transaction; null until it is signed, and on the simulated rail */
+  transaction_hash: string | null;
+  /**
+   * `pending` until the change has ETH_CONFIRMATIONS confirmations, then
+   * `confirmed`; `failed` when it cannot be made. Charges wait while it is
+   * `pending`.
+   */
+  status: PriceDestinationChangeStatus;
+  /** When the change was requested (Unix seconds) */
+  created: number;
+  /**
+   * Why the change failed: `plan_owner_mismatch` when SUBSCRIPTION_OPERATOR_KEY
+   * does not own the plan. Null unless `status` is `failed`.
+   */
+  failure_message: string | null;
+  /**
+   * When `transaction_hash` was sent (Unix seconds); a change still unmined
+   * 10 minutes later is re-priced, as a stuck charge is.
+   */
+  sent_at: number | null;
+}
+
+export type PriceDestinationChangeStatus = 'pending' | 'confirmed' | 'failed';
 
 export interface PriceTier {
   /** Price for the entire tier. */

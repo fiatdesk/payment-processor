@@ -22,6 +22,7 @@ import type { SubscriptionModule } from './Subscription';
 import type { PaymentIntentModule } from './PaymentIntent';
 import type { ChargeModule } from './Charge';
 import type { PaymentLinkModule } from './PaymentLink';
+import { PlanDestinationModule } from './PlanDestination';
 import {
   GetSettlement,
   SimulatedSignature,
@@ -66,6 +67,7 @@ import {
   IsTransactionHash,
   Price,
   Product,
+  SameAddress,
   Subscription,
   SubscriptionItem,
 } from '@fiatdesk/shared-types';
@@ -164,6 +166,47 @@ function PaymentPending(
 }
 
 /**
+ * Besides the wallet the session recorded at prepare (`merchantWallet`),
+ * the only wallet a payment under the session's authorization may pay is
+ * the platform's current default. Any other wallet, one the platform has
+ * deleted included, does not pay the session: its key may be someone
+ * else's, so such a payment is refused and not credited.
+ */
+function AlsoAccepted(
+  merchantWallet: string,
+  currentMerchant: string | null
+): string[] {
+  return currentMerchant && !SameAddress(currentMerchant, merchantWallet)
+    ? [currentMerchant]
+    : [];
+}
+
+/** What the buyer is told when the merchant's default wallet changed. */
+export const MERCHANT_WALLET_CHANGED_MESSAGE =
+  "The merchant's receiving wallet changed. Please approve the payment again.";
+
+/**
+ * 409 `merchant_wallet_changed` (Fable Q13 #3): the payment prepared for the
+ * session pays a wallet that is no longer the merchant's default. Nothing
+ * else is cleared; the client prepares again and the buyer signs a new
+ * authorization. With `transactionHash`, a relay to the old wallet is still
+ * recorded: the client follows it by that hash instead.
+ */
+function MerchantWalletChanged(
+  transactionHash: string | null = null
+): AppError {
+  return new AppError(
+    MERCHANT_WALLET_CHANGED_MESSAGE,
+    409,
+    'merchant_wallet_changed',
+    {
+      code: 'merchant_wallet_changed',
+      ...(transactionHash ? { transaction_hash: transactionHash } : {}),
+    }
+  );
+}
+
+/**
  * 409 when the recorded transaction is unknown to the network and the
  * authorization is unused: waiting cannot help, so the client sends the
  * signature again (which relays it again).
@@ -232,6 +275,7 @@ export class CheckoutPaymentModule {
   private readonly subscriptionModule: SubscriptionModule | null;
   private readonly settlement: Settlement;
   private readonly cycleClaims: SubscriptionCycleClaims;
+  private readonly planDestinations: PlanDestinationModule;
 
   constructor(
     db: Database,
@@ -243,7 +287,8 @@ export class CheckoutPaymentModule {
     paymentLinkModule?: PaymentLinkModule,
     settlement?: Settlement,
     customerModule?: CustomerModule,
-    subscriptionModule?: SubscriptionModule
+    subscriptionModule?: SubscriptionModule,
+    planDestinations?: PlanDestinationModule
   ) {
     this.db = db;
     this.accountModule = new AccountModule(db);
@@ -259,6 +304,14 @@ export class CheckoutPaymentModule {
     this.subscriptionModule = subscriptionModule || null;
     this.settlement = settlement || GetSettlement();
     this.cycleClaims = new SubscriptionCycleClaims(db);
+    this.planDestinations =
+      planDestinations ??
+      new PlanDestinationModule(
+        db,
+        this.settlement,
+        null,
+        externalWalletModule
+      );
   }
 
   /**
@@ -414,6 +467,16 @@ export class CheckoutPaymentModule {
     const merchantWallet = await this.ResolveMerchantWallet(
       session.platform_account
     );
+    // Preparing during a relay hands out the authorization it relayed; one
+    // paying a wallet that is no longer the default is followed by its hash.
+    const recordedMerchant = session.payment_details?.merchant_wallet ?? null;
+    if (
+      inFlight &&
+      recordedMerchant &&
+      !SameAddress(recordedMerchant, merchantWallet.wallet_address)
+    ) {
+      throw MerchantWalletChanged(inFlight);
+    }
 
     if (resolvedDetails) {
       await this.checkoutSessionModule.SetCollectedCustomerDetails(
@@ -712,11 +775,26 @@ export class CheckoutPaymentModule {
     const amountDue = this.AmountDue(session);
     // The wallet the authorization pays was recorded at prepare; sessions
     // prepared before that was recorded use the current default wallet.
-    const merchantWallet =
-      session.payment_details?.merchant_wallet ??
-      (await this.ResolveMerchantWallet(session.platform_account))
-        .wallet_address;
+    const recordedMerchant = session.payment_details?.merchant_wallet ?? null;
+    const currentMerchant = recordedMerchant
+      ? (
+          await this.externalWalletModule.GetDefaultWallet(
+            session.platform_account
+          )
+        )?.wallet_address ?? null
+      : (await this.ResolveMerchantWallet(session.platform_account))
+          .wallet_address;
+    const merchantWallet = recordedMerchant ?? (currentMerchant as string);
     const recorded = session.payment_details?.transaction_hash ?? null;
+    // A new relay to a wallet that is no longer the default is not sent:
+    // the buyer approves the new wallet. A recorded relay keeps its
+    // reconcile, and a hash the customer sends is verified first.
+    const walletChanged =
+      recordedMerchant !== null &&
+      !SameAddress(recordedMerchant, currentMerchant);
+    if (walletChanged && !recorded && input.signature) {
+      throw MerchantWalletChanged();
+    }
 
     let transactionHash: string | null;
     if (input.transactionHash) {
@@ -757,6 +835,10 @@ export class CheckoutPaymentModule {
       transactionHash,
       {
         merchantWalletAddress: merchantWallet,
+        otherMerchantWalletAddresses: AlsoAccepted(
+          merchantWallet,
+          currentMerchant
+        ),
         amountInCents: amountDue,
         checkoutSessionId: session.id,
         payerAddress: payerWallet,
@@ -768,6 +850,16 @@ export class CheckoutPaymentModule {
     const paidBy = verification.transaction_hash ?? transactionHash;
     if (verification.status === 'not_found' && !input.signature) {
       // Fail fast: the network has never seen this transaction.
+      if (recorded && walletChanged) {
+        // A relay to the old wallet that never reached the network is not
+        // signed again: the buyer approves the new wallet instead.
+        await this.checkoutSessionModule.SetPaymentTransactionHash(
+          session.id,
+          null,
+          recorded
+        );
+        throw MerchantWalletChanged();
+      }
       if (recorded) throw ResubmitRequired(recorded);
       throw new AppError(
         'transaction_hash is not a transaction the network knows',
@@ -807,7 +899,7 @@ export class CheckoutPaymentModule {
 
     return this.SettleVerifiedPayment(session, verification, {
       paidBy,
-      merchantWallet,
+      merchantWallet: verification.merchant_address ?? merchantWallet,
     });
   }
 
@@ -1505,6 +1597,7 @@ export class CheckoutPaymentModule {
     let first: FirstCharge | null = null;
     if (trialEnd === null) {
       first = await this.CollectFirstPeriod(session, {
+        price,
         subscriptionOnchainId,
         planKey,
         subscriberWallet,
@@ -1586,10 +1679,14 @@ export class CheckoutPaymentModule {
    *   did not pay.
    * The charge waits only for what is left of the confirm's budget; past it,
    * it is `payment_pending` and the client confirms again.
+   * - The plan's destination decides where it pays: while the plan moves to
+   *   the platform's new default wallet, nothing new is charged and the
+   *   answer is `payment_pending` (the plan's change is followed first).
    */
   private async CollectFirstPeriod(
     session: CheckoutSession,
     cycle: {
+      price: Price;
       subscriptionOnchainId: string;
       planKey: string;
       subscriberWallet: string;
@@ -1679,6 +1776,9 @@ export class CheckoutPaymentModule {
     }
 
     if (cycle.now < cycle.nextChargeAt) throw PeriodAlreadyCollected();
+    if (!(await this.planDestinations.ReadyToCharge(cycle.price))) {
+      throw Pending();
+    }
     const dueAt = CurrentDueAt(cycle.nextChargeAt, cycle.now, periodSeconds);
     const { claim, owned: claimed } = await this.cycleClaims.Claim(
       subscriptionOnchainId,

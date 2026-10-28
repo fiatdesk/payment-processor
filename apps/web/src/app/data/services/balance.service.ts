@@ -1,6 +1,10 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService, AuthService } from '../../core';
-import { Balance, BalanceDetails } from '@fiatdesk/shared-types';
+import {
+  ArchivedWalletDeposit,
+  Balance,
+  BalanceDetails,
+} from '@fiatdesk/shared-types';
 import { ConfigService } from './config.service';
 
 @Injectable({
@@ -67,6 +71,27 @@ export class BalanceService {
     } finally {
       this.syncing.set(false);
     }
+  }
+
+  /**
+   * Dismiss the alert for USDC that reached one of the platform's other
+   * wallets, once it was moved to the default wallet.
+   */
+  async AcknowledgeArchivedDeposit(depositId: string): Promise<void> {
+    await this.api.Call<ArchivedWalletDeposit>(
+      'POST',
+      `config/archived-deposits/${depositId}/acknowledge`
+    );
+    this.balanceDetails.update((details) =>
+      details
+        ? {
+            ...details,
+            archived_wallet_deposits: details.archived_wallet_deposits.filter(
+              (deposit) => deposit.id !== depositId
+            ),
+          }
+        : details
+    );
   }
 
   async SyncBalanceOnPageOpen(): Promise<void> {

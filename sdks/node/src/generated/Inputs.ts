@@ -707,6 +707,7 @@ export type CreateExternalWalletInput = {
   account_holder_name?: string | null | undefined;
   account_holder_type?: 'individual' | 'company' | null | undefined;
   default_for_currency?: boolean | null | undefined;
+  archive_previous?: boolean | undefined;
   metadata?: Record<string, string> | undefined;
 };
 
@@ -1957,6 +1958,7 @@ export type ListExternalWalletsInput = {
   limit?: number | undefined;
   starting_after?: string | undefined;
   ending_before?: string | undefined;
+  include_usdc_balance?: boolean | undefined;
 };
 
 export type ListIdentityVerificationSessionsInput = {
@@ -2672,6 +2674,7 @@ export type UpdateExternalWalletInput = {
   account_holder_name?: string | null | undefined;
   account_holder_type?: 'individual' | 'company' | null | undefined;
   default_for_currency?: boolean | null | undefined;
+  archive_previous?: boolean | undefined;
   metadata?: Record<string, string> | undefined;
 };
 

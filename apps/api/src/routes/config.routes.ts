@@ -4,6 +4,8 @@
  * In multi-tenant mode:
  * - /v1/config returns platform info based on context (token or auth)
  * - /v1/config/deposit-info returns the authenticated platform's wallet
+ * - /v1/config/archived-deposits/:id/acknowledge dismisses an alert for USDC
+ *   that reached a platform wallet other than the default
  */
 
 import * as express from 'express';
@@ -12,6 +14,7 @@ import { db } from '../modules/Database';
 import { AccountModule } from '../modules/Account';
 import { AccountLinkModule } from '../modules/AccountLink';
 import { ExternalWalletModule } from '../modules/ExternalWallet';
+import { ArchivedWalletDepositStore } from '../modules/ArchivedWalletDeposits';
 import { ApiKeyModule } from '../modules/ApiKey';
 import { GetPlatformAccountId } from '../modules/PlatformAccess';
 import { ValidateApiKey } from '../middleware/AuthMiddleware';
@@ -33,6 +36,7 @@ const accountModule = new AccountModule(db);
 const accountLinkModule = new AccountLinkModule(db);
 const externalWalletModule = new ExternalWalletModule(db);
 const apiKeyModule = new ApiKeyModule(db);
+const archivedWalletDeposits = new ArchivedWalletDepositStore(db);
 
 /**
  * Helper to build PublicConfig from a platform account.
@@ -181,6 +185,24 @@ router.get(
     };
 
     res.json(depositInfo);
+  })
+);
+
+/**
+ * POST /v1/config/archived-deposits/:id/acknowledge
+ * Dismisses the alert for a USDC transfer to one of the platform's other
+ * wallets (listed in `BalanceDetails.archived_wallet_deposits`). Platform
+ * only; moving the funds to the default wallet is what credits them.
+ * @fiatdesk_extension
+ */
+router.post(
+  '/archived-deposits/:id/acknowledge',
+  ValidateApiKey,
+  RequirePlatform(),
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    res.json(
+      await archivedWalletDeposits.Acknowledge(req.user.account, req.params.id)
+    );
   })
 );
 

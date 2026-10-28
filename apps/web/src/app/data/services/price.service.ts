@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, WritableSignal } from '@angular/core';
 import { ApiService } from '../../core';
-import { Price } from '@fiatdesk/shared-types';
+import { ListResponse, Price } from '@fiatdesk/shared-types';
 import { CreatePriceInput, UpdatePriceInput } from '@fiatdesk/shared-schemas';
 
 @Injectable({
@@ -43,6 +43,16 @@ export class PriceService {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Active recurring prices: their on-chain plans pay the default wallet. */
+  async ListPlanPrices(): Promise<Price[]> {
+    const response = await this.api.Call<ListResponse<Price>>('GET', 'prices', {
+      type: 'recurring',
+      active: 'true',
+      limit: '100',
+    });
+    return response.data ?? [];
   }
 
   async GetPrice(priceId: string): Promise<Price> {

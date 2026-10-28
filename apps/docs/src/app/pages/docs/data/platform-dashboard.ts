@@ -22,13 +22,42 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
+    },
+    {
+      left: [
+        { type: 'heading', level: 2, text: 'Find your way around' },
         {
-          type: 'image',
-          src: '/assets/images/screenshots/transfers.webp',
-          alt: 'Transfers in the FiatDesk Platform Dashboard',
-          caption:
-            'View transfers between your platform and connected accounts.',
+          type: 'paragraph',
+          text: 'The sidebar groups the dashboard into these areas:',
+        },
+        {
+          type: 'list',
+          items: [
+            {
+              text: "<strong>Home:</strong> Today's volume, an overview chart and recent activity.",
+              html: true,
+            },
+            {
+              text: '<strong>Balances:</strong> Your platform balance, what connected accounts are owed, and transfers, payouts and top-ups.',
+              html: true,
+            },
+            {
+              text: '<strong>Connected accounts:</strong> Your sellers, their onboarding status and their balances.',
+              html: true,
+            },
+            {
+              text: '<strong>Payments, Payment Links, Customers, Products, Subscriptions and Invoices:</strong> Collecting USDC with FiatDesk.',
+              html: true,
+            },
+            {
+              text: '<strong>Developers:</strong> API keys, webhooks and events.',
+              html: true,
+            },
+            {
+              text: '<strong>Settings:</strong> Business details, identity verification and your platform wallets.',
+              html: true,
+            },
+          ],
         },
       ],
     },
@@ -70,7 +99,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Fund accounts and pay sellers' },
         {
           type: 'paragraph',
-          text: 'Seller payouts come from your platform wallet. The dashboard shows its USDC balance and the connected account balances recorded by FiatDesk.',
+          text: 'Seller payouts come from your default platform wallet. The dashboard shows its USDC balance and the connected account balances recorded by FiatDesk.',
         },
         {
           type: 'list',
@@ -95,13 +124,22 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
           title: 'Check payout details before sending. ',
           text: 'On-chain transfers cannot be reversed. Confirm the seller, amount, and wallet before processing a payout.',
         },
-      ],
-      right: [
+        { type: 'heading', level: 3, text: 'Fund a connected account' },
         {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-8.webp',
-          alt: 'Add funds to a connected account',
-          caption: 'Create a transfer from the connected account page.',
+          type: 'list',
+          items: [
+            {
+              text: '1. Open <strong>Connected accounts</strong> and select the seller.',
+              html: true,
+            },
+            {
+              text: '2. Choose <strong>Add funds</strong> and enter the amount in USDC.',
+              html: true,
+            },
+            {
+              text: "3. Confirm. The amount moves from your platform balance to the seller's balance, ready for a payout.",
+            },
+          ],
         },
       ],
     },
@@ -124,14 +162,9 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
           text: 'Use an <a href="/account-links">Account Link</a> for onboarding or required account updates. Use a <a href="/login-links">Login Link</a> to open the seller\'s Express Dashboard.',
           html: true,
         },
-      ],
-      right: [
         {
-          type: 'image',
-          src: '/assets/images/screenshots/connect.webp',
-          alt: 'Connected account Express Dashboard',
-          caption:
-            'The Express Dashboard only shows data for the connected account.',
+          type: 'paragraph',
+          text: "The Express Dashboard only shows the connected account's own data: its balance, its payouts, its account details and its payout wallet.",
         },
       ],
     },
@@ -165,13 +198,80 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
           text: 'FiatDesk Cloud has separate live and test environments. Live mode uses Ethereum mainnet and real USDC. Test mode uses simulated USDC, so you can test checkout, payouts, and subscriptions without a wallet or faucet.',
         },
       ],
-      right: [
+    },
+    {
+      left: [
+        { type: 'heading', level: 2, text: 'Wallets' },
         {
-          type: 'image',
-          src: '/assets/images/screenshots/webhooks-connect.webp',
-          alt: 'Webhook settings in the FiatDesk Platform Dashboard',
-          caption:
-            'Configure webhook endpoints and inspect developer activity.',
+          type: 'paragraph',
+          text: "Open <strong>Settings → Wallets</strong> to manage your platform's Ethereum wallets. You can keep up to 5. One of them is the <strong>default</strong>, marked with a Default badge: it receives checkout payments, subscription charges and top-ups, and it signs payouts. Only USDC in the default wallet counts toward your balance.",
+          html: true,
+        },
+        {
+          type: 'list',
+          items: [
+            {
+              text: '<strong>Add wallet:</strong> Enter an Ethereum address. Tick <strong>Make this the default</strong> to switch to it: the same confirmation as Set as default opens first.',
+              html: true,
+            },
+            {
+              text: '<strong>Set as default:</strong> On another wallet\'s row. A confirmation lists what moves (checkouts, top-ups, payouts and subscription plans), how many plans are updated on-chain, and where your USDC stays: "Your USDC stays in 0x… (N USDC). Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail." When the old wallet\'s balance cannot be read, the amount is left out. In simulated test mode nothing is held on-chain, so this part is not shown.',
+              html: true,
+            },
+            {
+              text: '<strong>Remove:</strong> On any wallet but the default, after a confirmation. Set another wallet as the default first to remove the current one.',
+              html: true,
+            },
+            {
+              text: 'Each row shows the wallet\'s on-chain USDC, and each address can be copied. A wallet whose plans are still moving shows "Updating N plans on-chain" until the billing run confirms them; the list checks again every few seconds for up to 2 minutes after a switch.',
+            },
+          ],
+        },
+        {
+          type: 'paragraph',
+          text: 'If USDC arrives at a wallet that is not the default, Home and Balances show a banner: "USDC arrived at your previous wallet 0x…. Send it to your current wallet 0x… to make it available for payouts." Send the funds to the default wallet, then press <strong>I\'ve moved it</strong> to dismiss the banner.',
+          html: true,
+        },
+      ],
+    },
+    {
+      left: [
+        {
+          type: 'heading',
+          level: 2,
+          text: 'Changing your platform wallet',
+        },
+        {
+          type: 'paragraph',
+          text: 'Setting another wallet as the default moves everything the default does, except the USDC it already holds:',
+        },
+        {
+          type: 'list',
+          items: [
+            {
+              text: 'New checkouts pay the new wallet. A customer who prepared a payment before the change is asked to approve it again; a payment already submitted to the old wallet still completes.',
+            },
+            {
+              text: 'Top-ups are counted on the new wallet only.',
+            },
+            {
+              text: 'Payouts are signed from the new wallet. The change waits while a payout batch of the old wallet is built or broadcast.',
+            },
+            {
+              text: "Subscription plans move on-chain: FiatDesk sends each plan's destination change without waiting, and charges of a plan pause until its change confirms, so no renewal pays the old wallet. A charge sent in the moment before the switch can still pay the old wallet; it is credited, and the banner flags the USDC there.",
+            },
+          ],
+        },
+        {
+          type: 'callout',
+          variant: 'warning',
+          title: 'Move your USDC after switching. ',
+          text: 'The USDC in the old wallet stays there. Send it to the new default wallet. Until it arrives, your available balance counts only the new wallet, and payouts above that amount fail. The Wallets list shows how much each wallet holds.',
+        },
+        {
+          type: 'paragraph',
+          text: 'FiatDesk keeps watching your other wallets: active ones that are not the default, and removed ones for 30 days. USDC sent to them raises the banner above and is never added to your balance. See <a href="/self-hosting">Self-hosting</a> for what the API does on a switch.',
+          html: true,
         },
       ],
     },

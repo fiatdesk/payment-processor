@@ -206,6 +206,7 @@ describe('Checkout on Anvil', () => {
       transaction_hash: hash,
       amount_cents: 1234,
       payer_address: buyer,
+      merchant_address: merchant,
     });
     expect(await BalanceOf(merchant)).toBe(merchantBefore + 12_340_000n);
     expect(await BalanceOf(buyer)).toBe(buyerBefore - 12_340_000n);
@@ -321,11 +322,16 @@ describe('Checkout on Anvil', () => {
       transaction_hash: frontRun,
       amount_cents: 900,
       payer_address: buyer,
+      merchant_address: merchant,
     });
   });
 
-  /** The checkout module on MemoryDatabase, with one open session. */
-  function HostedCheckout(amountCents: number) {
+  /**
+   * The checkout module on MemoryDatabase, with one open session. The
+   * platform's default is `merchant`; `retired` wallets are listed too, as
+   * deleted ones.
+   */
+  function HostedCheckout(amountCents: number, retired: Address[] = []) {
     const memory = new MemoryDatabase();
     const db = memory.AsDatabase();
     const eventService = {
@@ -341,13 +347,23 @@ describe('Checkout on Anvil', () => {
       undefined,
       paymentIntents
     );
+    const merchantWallet = {
+      id: 'wa_fd_merchant',
+      wallet_address: merchant,
+      network: 'ethereum',
+      currency: 'usdc',
+    };
     const wallets = {
-      GetDefaultWallet: jest.fn(async () => ({
-        id: 'wa_fd_merchant',
-        wallet_address: merchant,
-        network: 'ethereum',
-        currency: 'usdc',
-      })),
+      GetDefaultWallet: jest.fn(async () => merchantWallet),
+      GetExternalWalletsByAccount: jest.fn(async () => [
+        merchantWallet,
+        ...retired.map((wallet_address, i) => ({
+          ...merchantWallet,
+          id: `wa_fd_retired_${i}`,
+          wallet_address,
+          status: 'archived',
+        })),
+      ]),
     } as unknown as ExternalWalletModule;
     const module = new CheckoutPaymentModule(
       db,
@@ -515,5 +531,52 @@ describe('Checkout on Anvil', () => {
         memory.All<BalanceTransaction>('BalanceTransactions')
       ).toMatchObject([{ amount: 1600, metadata: { blockchain_tx: paidByA } }]);
     });
+  });
+
+  it('refuses a payment the buyer sent with the session nonce to a retired platform wallet', async () => {
+    const { publicClient, accounts } = Context();
+    // A wallet the platform deleted, say after its key leaked: the buyer
+    // holds that key.
+    const retired = privateKeyToAccount(generatePrivateKey()).address;
+    const { memory, module, session, intent } = HostedCheckout(1700, [retired]);
+    await module.PreparePayment(session.url_slug, buyer, {
+      email: 'buyer@example.com',
+    });
+
+    // The buyer signs the session's authorization to the retired wallet
+    // and submits it themselves.
+    const toRetired = await ethereum.BuildCheckoutPaymentAuthorization(
+      buyer,
+      retired,
+      1700,
+      session.id,
+      session.expires_at
+    );
+    if (!toRetired.authorization) throw new Error('No authorization');
+    const hash = await Wallet(accounts.buyer).writeContract({
+      address: Context().addresses.usdc,
+      abi: USDC_ABI,
+      functionName: 'transferWithAuthorization',
+      args: CallArgs(toRetired.authorization, await Sign(toRetired.typed_data)),
+    });
+    await publicClient.waitForTransactionReceipt({ hash });
+    await Context().Mine(1);
+    expect(await BalanceOf(retired)).toBe(17_000_000n);
+
+    await expect(
+      module.ConfirmPayment(session.url_slug, { transaction_hash: hash })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'The authorized transfer does not pay the merchant wallet',
+    });
+
+    expect(
+      memory.Doc<CheckoutSession>('CheckoutSessions', session.id)
+    ).toMatchObject({ status: 'open', payment_status: 'unpaid' });
+    expect(
+      memory.Doc<PaymentIntent>('PaymentIntents', intent.id).status
+    ).not.toBe('succeeded');
+    expect(memory.All('Charges')).toEqual([]);
+    expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([]);
   });
 });

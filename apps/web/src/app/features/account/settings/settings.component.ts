@@ -43,6 +43,7 @@ import {
   GetIdentityDocumentTaskTitle,
   NeedsIdentityDocumentRemediation,
 } from '../connected-accounts/util/identity-requirements';
+import { WalletsSectionComponent } from './components/wallets-section/wallets-section.component';
 import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
 
 @Component({
@@ -55,6 +56,7 @@ import { IsRejectedAccountReason } from '@fiatdesk/shared-schemas';
     BusinessProfileFormComponent,
     IdentitySettingsFormComponent,
     SettingsCardComponent,
+    WalletsSectionComponent,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
