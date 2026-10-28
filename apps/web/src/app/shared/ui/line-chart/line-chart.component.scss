@@ -2,7 +2,7 @@
 
 .line-chart {
   --chart-current: #{$base-color};
-  --chart-previous: #94a3b8;
+  --chart-previous: #{$grey-600};
   position: relative;
   width: 100%;
 }

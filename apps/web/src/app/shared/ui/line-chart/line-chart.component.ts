@@ -235,7 +235,7 @@ export class LineChartComponent implements OnDestroy {
     const current = this.hoverCurrentPoint();
     if (current) {
       rows.push({
-        color: 'var(--chart-current, #0055ff)',
+        color: 'var(--chart-current, #000000)',
         label: this.formatTooltipDate()(current.point),
         value: formatTooltip(current.point.value),
       });
@@ -244,7 +244,7 @@ export class LineChartComponent implements OnDestroy {
     const previous = this.hoverPreviousPoint();
     if (previous) {
       rows.push({
-        color: 'var(--chart-previous, #94a3b8)',
+        color: 'var(--chart-previous, #6b6b6b)',
         label: this.formatTooltipDate()(previous.point),
         value: formatTooltip(previous.point.value),
       });

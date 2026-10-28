@@ -1,4 +1,11 @@
-<h1 align="center">FiatDesk</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/docs/src/assets/brand/fiatdesk-logo-white.svg">
+    <img src="apps/docs/src/assets/brand/fiatdesk-logo-black.svg" alt="FiatDesk" width="320">
+  </picture>
+</h1>
+
+<p align="center">Stablecoin settlement for high-risk businesses.</p>
 
 <p align="center">
   <strong>Your own open-source payments platform.<br>Accept payments, manage subscriptions, and pay sellers globally in USDC on Ethereum from infrastructure you control. No platform fees. You pay Ethereum network gas.</strong>

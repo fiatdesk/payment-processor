@@ -7,7 +7,7 @@
 
 .field-title {
   font-size: $font-size-med;
-  font-weight: bold;
+  font-weight: $medium-weight;
   margin-bottom: $spacing-small;
   font-family: $title-font;
 }
@@ -215,7 +215,7 @@ input[type='time'] {
 input:focus-within,
 textarea:focus-within {
   box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px,
-    rgba(58, 151, 212, 0.36) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
+    rgba($black, 0.24) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
     rgba(60, 66, 87, 0.16) 0px 0px 0px 1px, rgba(0, 0, 0, 0) 0px 0px 0px 0px,
     rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px;
 }

@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   inject,
 } from '@angular/core';
+import { BRAND } from '@fiatdesk/shared-types';
 import { ConfigService } from '../../../data';
 
 @Component({
@@ -39,5 +40,18 @@ export class PlatformLogoComponent {
 
   HasLogo(): boolean {
     return this.configService.HasLogo();
+  }
+
+  /**
+   * True when the operator has set neither a logo nor a name, so the default
+   * is the FiatDesk icon. An operator's name alone still shows its initials.
+   */
+  UsesProductIcon(): boolean {
+    return !this.HasLogo() && this.GetPlatformName() === BRAND.productName;
+  }
+
+  GetProductIconUrl(): string {
+    const variant = this.theme === 'dark' ? 'white' : 'black';
+    return `assets/brand/fiatdesk-icon-${variant}.svg`;
   }
 }

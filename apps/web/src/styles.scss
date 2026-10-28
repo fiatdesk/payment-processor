@@ -1,29 +1,5 @@
 @use 'app/styles/base.scss' as *;
 
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Regular.ttf) format('truetype');
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
-}
-
 * {
   box-sizing: border-box;
 }
@@ -42,6 +18,11 @@ textarea {
   background-color: $background-color;
 }
 
+// Amounts use tabular figures so columns of numbers line up
+body {
+  font-variant-numeric: tabular-nums;
+}
+
 h1,
 h2,
 h3,
@@ -51,7 +32,7 @@ h4 {
   letter-spacing: -0.02em;
   margin: 0px;
   margin-bottom: $spacing;
-  line-height: 1.2;
+  line-height: $title-line-height;
 }
 
 h1 {
@@ -130,7 +111,14 @@ a:visited {
 }
 
 a:hover {
-  filter: brightness(0.85);
+  opacity: $dimmed;
+}
+
+// Links in running text are underlined: the monochrome palette has no link hue
+p a,
+.field-help a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 i,

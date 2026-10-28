@@ -24,10 +24,7 @@
         <img src="/assets/icons/menu.svg" alt="" />
       </button>
       <a href="/" class="topbar-logo">
-        <img
-          src="/assets/images/logos/logo-lg-text-blue-300w.png"
-          alt="FiatDesk"
-        />
+        <img [src]="logoSrc()" alt="FiatDesk" />
       </a>
       <span class="topbar-product">Docs</span>
     </div>
@@ -119,10 +116,7 @@
   <aside class="docs-sidebar" [class.open]="mobileMenuOpen()">
     <div class="sidebar-header">
       <a href="/" class="sidebar-logo">
-        <img
-          src="/assets/images/logos/logo-lg-text-blue-300w.png"
-          alt="FiatDesk"
-        />
+        <img [src]="logoSrc()" alt="FiatDesk" />
       </a>
       <button class="mobile-close" (click)="ToggleMobileMenu()">
         <img src="/assets/icons/close.svg" alt="Close" />

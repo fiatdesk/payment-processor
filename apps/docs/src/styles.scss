@@ -1,14 +1,19 @@
 @use 'app/styles/base.scss' as *;
 
 :root {
-  --doc-bg: #ffffff;
+  --doc-bg: #{$white};
   --doc-bg-subtle: #{$light-background-color};
   --doc-bg-muted: #{$lighter-background-color};
   --doc-border: #{$lightest-background-color};
-  --doc-text-rgb: 30, 41, 59;
+  --doc-text-rgb: 26, 26, 26;
   --doc-text: #{$text-color};
-  --doc-panel-header: #f1f3f5;
-  --doc-panel-body: #f6f8fa;
+  --doc-accent: #{$black};
+  --doc-accent-rgb: 0, 0, 0;
+  --doc-on-accent: #{$white};
+  --doc-on-accent-rgb: 255, 255, 255;
+  --doc-accent-filter: #{$base-filter};
+  --doc-panel-header: #{$grey-100};
+  --doc-panel-body: #fafafa;
   --doc-icon-filter: none;
   --doc-shadow-color: rgba(0, 0, 0, 0.1);
   --doc-required-color: rgb(177, 54, 0);
@@ -22,15 +27,21 @@
   --syn-flag: #6f42c1;
 }
 
+// Dark theme: black and Ink 900 surfaces with neutral steps between them
 [data-theme='dark'] {
-  --doc-bg: #0a0e1a;
-  --doc-bg-subtle: #111827;
-  --doc-bg-muted: #1e293b;
-  --doc-border: #2d3748;
-  --doc-text-rgb: 226, 232, 240;
-  --doc-text: #e2e8f0;
-  --doc-panel-header: #1e2430;
-  --doc-panel-body: #131a27;
+  --doc-bg: #{$black};
+  --doc-bg-subtle: #{$ink-900};
+  --doc-bg-muted: #262626;
+  --doc-border: #333333;
+  --doc-text-rgb: 245, 245, 245;
+  --doc-text: #{$grey-100};
+  --doc-accent: #{$white};
+  --doc-accent-rgb: 255, 255, 255;
+  --doc-on-accent: #{$black};
+  --doc-on-accent-rgb: 0, 0, 0;
+  --doc-accent-filter: #{$base-filter} invert(1);
+  --doc-panel-header: #{$ink-900};
+  --doc-panel-body: #111111;
   --doc-icon-filter: invert(0.85);
   --doc-shadow-color: rgba(0, 0, 0, 0.4);
   --doc-required-color: #f97066;
@@ -42,30 +53,6 @@
   --syn-keyword: #5ebfff;
   --syn-comment: #6b7280;
   --syn-flag: #a78bfa;
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Regular.ttf) format('truetype');
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url(/assets/fonts/InstrumentSans-Medium.ttf) format('truetype');
 }
 
 * {
@@ -102,12 +89,12 @@ h4 {
   letter-spacing: -0.02em;
   margin: 0;
   margin-bottom: $spacing;
-  line-height: 1.2;
+  line-height: $title-line-height;
 }
 
 h1 {
   font-size: 32px;
-  color: $base-color;
+  color: var(--doc-text);
 }
 
 h2 {
@@ -144,7 +131,7 @@ ul {
 
 a,
 a:visited {
-  color: $base-color !important;
+  color: var(--doc-accent) !important;
   font-size: $font-size;
   text-decoration: none;
   cursor: pointer;

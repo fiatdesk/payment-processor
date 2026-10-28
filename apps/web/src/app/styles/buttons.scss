@@ -3,11 +3,10 @@
 .button,
 .action-button {
   font-family: $title-font;
-  font-weight: $title-weight;
+  font-weight: $medium-weight;
 }
 
 .action-button {
-  font-weight: 500;
   background-color: $button-color;
   color: $background-color;
   font-size: $font-size-large;

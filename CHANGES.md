@@ -2490,3 +2490,88 @@ sdks/node/src/resources/Webhooks.ts
 sdks/node/tsup.config.ts
 tsconfig.base.json
 ```
+
+### Task 17b: FiatDesk visual identity
+
+- **Logos.** The FiatDesk lockup, icon and mark SVGs (black and white) are copied unchanged from the brand package into `apps/web/src/assets/brand/` and `apps/docs/src/assets/brand/`. They replace the upstream logos:
+  - the docs top bar and mobile sidebar show the lockup, black in the light theme and white in the dark theme, at 32 px high (about 129 px wide);
+  - the platform login header shows the black lockup;
+  - the setup welcome screens show the black icon;
+  - the onboarding "Powered by" footer shows the white lockup at 120 px wide on the black panel.
+- **Platform logo.** `app-platform-logo` still shows the operator's own logo, or its initials when the operator has set only a name. When the operator has set neither, it shows the FiatDesk icon (white on dark surfaces), with square corners.
+- **Favicons.** Each app's favicon folder holds the brand package's black set, including `favicon-48x48.png` and `favicon.svg`, and `favicon/dark/` holds the white set. `index.html` links the ICO, the SVG (with a `prefers-color-scheme: dark` variant), the Apple touch icon and the manifest, following the package's `head-snippet.html`. The manifests use `#000000`. The package's `favicon.svg` leaves its background `<rect>` without a size, so browsers draw only the arch. The supplied icon SVG is the same artwork with the square drawn, so `favicon.svg` is a copy of it.
+- **Type.** Both apps load Be Vietnam Pro 300 to 600 from Google Fonts. `$title-font` and `$text-font` are `'Be Vietnam Pro', system-ui, sans-serif`, headlines use 600 with a line-height of 1.1, buttons and form labels use 500, and the dashboard sets `font-variant-numeric: tabular-nums` on `body` so amounts line up. The Instrument Sans files are removed. Monospace fonts are unchanged.
+- **Colour.** Both `base.scss` files define the palette (`$black`, `$white`, `$ink-900`, `$grey-600`, `$grey-300`, `$grey-100`). The brand accent and primary buttons are black, body text is Ink 900, surfaces are Grey 100, borders are Grey 300, and hover surfaces are a neutral step between them. The docs dark theme uses black and Ink 900 surfaces, and a `--doc-accent` variable that flips between black and white. Other blue identity hues (chart line, search highlight, filter chevron, copy tooltip, input focus ring, scrollbars, setup and login backgrounds) are now neutral. Status colours, test-mode colours, HTTP method colours and code syntax colours are unchanged. In running text, dashboard links are underlined because the palette has no link hue.
+- **Meta.** Both `index.html` files have the title `FiatDesk`, a description with the tagline "Stablecoin settlement for high-risk businesses.", and an `og:image` that points to `assets/brand/fiatdesk-og.png`. That image is the supplied 1920 px black lockup PNG, scaled to 840 px and centred on a white 1200×630 canvas. The docs `MetaService` call uses the same values.
+- **Docs.** The upstream screenshots are removed from the quickstart, marketplace quickstart, identity verification and fund-your-platform-wallet pages. The step text already describes each screen. The four screenshots that the Platform Dashboard page still uses are kept for now. The README shows the lockup and the tagline, and `CONTRIBUTING.md` has a "Brand assets" section.
+- **Tests.** New specs cover both `index.html` heads and manifests, the platform-logo fallback, the login lockup, and the docs header lockup in both themes.
+
+Added:
+
+```
+apps/docs/src/assets/brand/ (fiatdesk-{logo,icon,mark}-{black,white}.svg, fiatdesk-og.png)
+apps/docs/src/assets/favicon/dark/ (the white favicon set: 16, 32, 48, 180, 192 and 512 px PNGs, favicon.ico, favicon.svg)
+apps/docs/src/assets/favicon/favicon-48x48.png
+apps/docs/src/assets/favicon/favicon.svg
+apps/docs/src/index.spec.ts
+apps/web/src/app/features/platform-login/platform-login.component.spec.ts
+apps/web/src/app/shared/ui/platform-logo/platform-logo.component.spec.ts
+apps/web/src/assets/brand/ (the same seven files as the docs brand folder)
+apps/web/src/assets/favicon/dark/ (the same eight files as the docs dark favicon folder)
+apps/web/src/assets/favicon/favicon-48x48.png
+apps/web/src/assets/favicon/favicon.svg
+apps/web/src/index.spec.ts
+```
+
+Modified:
+
+```
+CHANGES.md
+CONTRIBUTING.md
+README.md
+apps/docs/src/app/pages/docs/data/fund-platform-wallet.ts
+apps/docs/src/app/pages/docs/data/identity-verification.ts
+apps/docs/src/app/pages/docs/data/marketplace-quickstart.ts
+apps/docs/src/app/pages/docs/data/quickstart.ts
+apps/docs/src/app/pages/docs/docs.html
+apps/docs/src/app/pages/docs/docs.scss
+apps/docs/src/app/pages/docs/docs.spec.ts
+apps/docs/src/app/pages/docs/docs.ts
+apps/docs/src/app/styles/base.scss
+apps/docs/src/assets/favicon/ (android-chrome-192x192.png, android-chrome-512x512.png, apple-touch-icon.png, favicon-16x16.png, favicon-32x32.png, favicon.ico, site.webmanifest)
+apps/docs/src/index.html
+apps/docs/src/styles.scss
+apps/web/public/favicon.ico
+apps/web/src/app/features/account/payment-links/components/payment-link-form/payment-link-form.component.scss
+apps/web/src/app/features/account/shells/full-shell/dashboard-search/dashboard-search.component.scss
+apps/web/src/app/features/onboard/onboard.component.html
+apps/web/src/app/features/onboard/onboard.component.scss
+apps/web/src/app/features/platform-login/platform-login.component.html
+apps/web/src/app/features/platform-login/platform-login.component.scss
+apps/web/src/app/features/setup/setup.component.html
+apps/web/src/app/features/setup/setup.component.scss
+apps/web/src/app/shared/ui/copy-text/copy-text.component.scss
+apps/web/src/app/shared/ui/line-chart/line-chart.component.scss
+apps/web/src/app/shared/ui/line-chart/line-chart.component.ts
+apps/web/src/app/shared/ui/platform-logo/platform-logo.component.html
+apps/web/src/app/shared/ui/platform-logo/platform-logo.component.scss
+apps/web/src/app/shared/ui/platform-logo/platform-logo.component.ts
+apps/web/src/app/styles/base.scss
+apps/web/src/app/styles/buttons.scss
+apps/web/src/app/styles/filter-pills.scss
+apps/web/src/app/styles/forms.scss
+apps/web/src/app/styles/scrollbars.scss
+apps/web/src/assets/favicon/ (the same seven files as the docs favicon folder)
+apps/web/src/index.html
+apps/web/src/styles.scss
+```
+
+Deleted (`git diff --name-status` lists each path):
+
+```
+apps/docs/src/assets/fonts/ (both Instrument Sans files)
+apps/docs/src/assets/images/logos/ (the upstream logo PNG; the GitHub and Discord marks stay)
+apps/docs/src/assets/images/screenshots/ (53 upstream screenshots and social images; the four used by platform-dashboard.ts stay)
+apps/web/src/assets/fonts/ (both Instrument Sans files)
+apps/web/src/assets/images/logos/ (the three upstream logo PNGs; the Ethereum and USDC marks stay)
+```

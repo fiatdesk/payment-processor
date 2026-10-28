@@ -1,9 +1,15 @@
 <div class="platform-logo-wrapper" [class]="size + ' theme-' + theme">
-  <div class="logo-circle">
+  <div class="logo-circle" [class.product-icon]="UsesProductIcon()">
     @if (HasLogo()) {
     <img
       class="platform-logo-image"
       [src]="GetLogoUrl()"
+      [alt]="GetPlatformName()"
+    />
+    } @else if (UsesProductIcon()) {
+    <img
+      class="platform-logo-image"
+      [src]="GetProductIconUrl()"
       [alt]="GetPlatformName()"
     />
     } @else {

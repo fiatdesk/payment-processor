@@ -30,13 +30,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           text: 'Check the account before taking action. Legitimate sellers can have unusual or mismatched details.',
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/account-review.webp',
-          alt: 'A connected account marked as in review',
-        },
-      ],
     },
     {
       left: [
@@ -60,13 +53,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-1.webp',
-          alt: 'Didit sign-up page',
-        },
-      ],
     },
     {
       left: [
@@ -75,13 +61,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           type: 'paragraph',
           text: 'In Didit, open the <strong>API keys</strong> page and copy your API key.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-2.webp',
-          alt: 'API key page in Didit',
         },
       ],
     },
@@ -100,13 +79,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           text: 'Treat it like a password. Do not add it to client-side code or share it publicly.',
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-3.webp',
-          alt: 'Didit API key field in FiatDesk',
-        },
-      ],
     },
     {
       left: [
@@ -115,13 +87,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Return to Didit and open <strong>Workflows</strong>. Find the <strong>Free KYC</strong> workflow and click the copy button next to its ID.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-4.webp',
-          alt: 'Free KYC workflow in Didit',
         },
       ],
     },
@@ -136,13 +101,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Paste the ID into the <strong>Workflow ID</strong> field in your FiatDesk Identity settings.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-5.webp',
-          alt: 'Workflow ID field in FiatDesk',
         },
       ],
     },
@@ -165,13 +123,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-6.webp',
-          alt: 'Add webhook destination form in Didit',
-        },
-      ],
     },
     {
       left: [
@@ -184,13 +135,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: 'The secret lets FiatDesk confirm that identity updates really came from Didit.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-7.webp',
-          alt: 'Webhook secret field in FiatDesk',
         },
       ],
     },
@@ -219,13 +163,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
           ],
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-8.webp',
-          alt: 'Default and country payout thresholds in FiatDesk',
-        },
-      ],
     },
     {
       left: [
@@ -237,18 +174,6 @@ export const IDENTITY_VERIFICATION_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: "Didit sends the result to FiatDesk through the webhook. Once the check is approved, FiatDesk enables the seller's payouts again.",
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-10.webp',
-          alt: 'Identity check notification in the seller Express Dashboard',
-        },
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/didit/identity-9.webp',
-          alt: 'Didit onboarding start',
         },
       ],
     },

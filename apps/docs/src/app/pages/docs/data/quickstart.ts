@@ -23,13 +23,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-1.webp',
-          alt: 'Payment Links in the dashboard sidebar',
-        },
-      ],
     },
     {
       left: [
@@ -42,13 +35,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Click <strong>Create payment link</strong>.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-2.webp',
-          alt: 'Create payment link button',
         },
       ],
     },
@@ -65,13 +51,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-3.webp',
-          alt: 'Find or add a product, then Add new product',
-        },
-      ],
     },
     {
       left: [
@@ -84,13 +63,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Enter a <strong>Name</strong> and <strong>Amount</strong>, then click <strong>Save</strong>.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-4.webp',
-          alt: 'Product name and amount fields',
         },
       ],
     },
@@ -107,13 +79,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-5.webp',
-          alt: 'Create link button in the payment link modal',
-        },
-      ],
     },
     {
       left: [
@@ -128,13 +93,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-6.webp',
-          alt: 'Copy payment link URL on the detail page',
-        },
-      ],
     },
     {
       left: [
@@ -146,13 +104,6 @@ export const PAYMENT_LINK_QUICKSTART_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: 'When a customer opens the link, they see your product and pay in USDC. In test mode, Checkout shows a simulated wallet you can approve without connecting a real wallet. In live mode, the customer connects an Ethereum wallet such as MetaMask and signs one USDC authorization. The API relays it and pays the network gas, so the customer needs USDC but no ETH.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/quickstart/pl-7.webp',
-          alt: 'Checkout page for the payment link product',
         },
       ],
     },

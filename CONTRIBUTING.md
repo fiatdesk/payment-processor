@@ -91,6 +91,38 @@ CI also runs `npm run format:check` and `npx nx run-many --target=test --all`. R
 
 By contributing, you agree that your contributions are licensed under the [Apache License 2.0](./LICENSE).
 
+## Brand assets
+
+The FiatDesk logo files are in [`apps/web/src/assets/brand`](apps/web/src/assets/brand) and [`apps/docs/src/assets/brand`](apps/docs/src/assets/brand). Both folders hold the same files:
+
+- `fiatdesk-logo-black.svg` and `fiatdesk-logo-white.svg`: the lockup (icon and wordmark). Use black on light backgrounds and white on dark ones.
+- `fiatdesk-icon-black.svg` and `fiatdesk-icon-white.svg`: the square icon.
+- `fiatdesk-mark-black.svg` and `fiatdesk-mark-white.svg`: the mark on its own.
+- `fiatdesk-og.png`: the 1200×630 social preview, the black lockup on white.
+
+The favicons are in `apps/web/src/assets/favicon` and `apps/docs/src/assets/favicon` (the black set, the default), with the white set in each `favicon/dark` folder for dark-mode browsers. `apps/web/public/favicon.ico` is the black ICO.
+
+Use the files as they are. Do not redraw, stretch, recolour, outline or rotate the logo, add shadows or other effects, round the icon's corners, or place it on a busy background.
+
+- **Minimum size:** the lockup 120 px wide on screen, the icon 16 px. Below 48 px, use the pixel-hinted favicon PNG and ICO files rather than scaling down a large image.
+- **Clear space:** at least 1X on every side, where X is the thickness of the icon's crown (about 16.6% of the icon's side). The lockup files already include it.
+- **Colour:** the logo is only ever `#000000` or `#FFFFFF`. Approved pairings are black on white, white on black, black on Grey 100 and white on Ink 900.
+
+The colour tokens are in `apps/web/src/app/styles/base.scss` and `apps/docs/src/app/styles/base.scss`:
+
+| Token       | Value     | Use                                    |
+| ----------- | --------- | -------------------------------------- |
+| `$black`    | `#000000` | Logo, primary buttons, links, accents  |
+| `$white`    | `#FFFFFF` | Logo on dark surfaces, page background |
+| `$ink-900`  | `#1A1A1A` | Body text, dark surfaces               |
+| `$grey-600` | `#6B6B6B` | Secondary text                         |
+| `$grey-300` | `#D4D4D4` | Dividers and borders                   |
+| `$grey-100` | `#F5F5F5` | Surfaces                               |
+
+The docs dark theme uses the `--doc-accent` CSS variable, which is black in the light theme and white in the dark one. Status colours (success, warning, error) are fine in the product UI but never in the logo.
+
+The typeface is [Be Vietnam Pro](https://fonts.google.com/specimen/Be+Vietnam+Pro) (SIL Open Font License 1.1), loaded from Google Fonts. Use 600 for headlines and key numbers, 500 for buttons and labels, 400 for body text, and 300 only for large display text. Headlines are sentence case. Amounts use tabular figures (`font-variant-numeric: tabular-nums`). Code and monospace fonts are unchanged.
+
 ## Style
 
 - TypeScript for all new code
