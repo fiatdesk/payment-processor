@@ -40,8 +40,9 @@ export interface BalanceDetails {
 }
 
 /**
- * A USDC transfer to a platform wallet that is not the default. Alerted, never
- * credited; acknowledge it once the funds are moved to the default wallet.
+ * A USDC transfer to a platform wallet that is not the default. Alerted, not
+ * credited while it sits there; it is credited once its funds reach the
+ * default wallet (moved there, or its wallet made the default).
  * @fiatdesk_extension
  */
 export interface ArchivedWalletDeposit {
@@ -58,6 +59,10 @@ export interface ArchivedWalletDeposit {
   /** Amount in cents of USDC */
   amount: number;
   block_number: number;
+  /** Who sent the USDC; null for transfers recorded before it was stored */
+  sender_address: string | null;
+  /** The top-up that credited these funds once they reached the default wallet */
+  topup: string | null;
   /** True once the platform dismissed the alert */
   acknowledged: boolean;
   /** When the transfer was detected (Unix seconds) */

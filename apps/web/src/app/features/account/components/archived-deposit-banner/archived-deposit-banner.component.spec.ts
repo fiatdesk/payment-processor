@@ -22,6 +22,8 @@ function Deposit(id: string): ArchivedWalletDeposit {
     log_index: Number(id.slice(-1)),
     amount: 1500,
     block_number: 4500,
+    sender_address: null,
+    topup: null,
     acknowledged: false,
     created: 1,
   };

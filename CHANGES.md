@@ -2788,3 +2788,50 @@ Added: `sdks/node/src/__tests__/ExternalAccounts.spec.ts`.
 - **The switch confirm without a balance.** When the old wallet's USDC cannot be read, the confirm still says "Your USDC stays in 0x…. Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail." The simulated rail lists no `usdc_balance`, so the confirm shows nothing about USDC there, and `null` now only means a failed read.
 - **The plan-status poll stops on destroy.** It stops even when a plan read is still in flight at that moment.
 - **Write conflicts.** A wallet change that meets a concurrent one is retried up to twice, each after a random 50 to 150 ms wait. If it still conflicts, it returns a `409` `conflict`: "Another change to this account's wallets is in progress. Try the request again." This rule is listed with the other External Wallet rules.
+
+## Task 17e: The ledger counts each cent of USDC once
+
+Before this task the top-up scan credited every USDC `Transfer` to the default wallet. A checkout or invoice payment was therefore credited twice, once as the payment and once as a top-up. So was USDC moved between the platform's own wallets after a switch, because the old default's funds were already on the ledger. Fable's Q14 ruling did not reach this repository. The rules below are rebuilt from the code and the 17c notes, so review them against that ruling.
+
+- **Payments are counted once** (`PaymentLedger.ts`, `TopUp.ts`):
+  - Checkout and invoice payments share one `RecordOnchainPayment`. It replaces the two copies of `RecordPaymentOnLedger`, and each caller passes its own `Settlement`.
+  - The scan does not credit a deposit whose transaction is a `payment` balance transaction of that platform. `CreateFromDeposit` checks this after the transaction's first read and throws `DepositIsPaymentError`. A payment committed meanwhile conflicts on the balance write instead.
+  - A payment recorded after the scan credited its transaction reverses that credit in the same transaction. The top-up becomes `reversed` and a `topup_reversal` balance transaction debits it. A move that credited the payment's USDC from an old wallet is debited the same way. `topup.reversed` is emitted and a warning logged.
+  - USDC that reaches a platform wallet without a recorded payment (an expired session, say) is still credited, since the funds are there.
+- **Moves between the platform's wallets** (`TopUpMonitor.ts`, `ArchivedWalletDeposits.ts`):
+  - A transfer to the default from another wallet the platform ever added is credited only for that wallet's recorded deposits it carries, oldest first while they fit in the amount moved. A carried deposit must not be credited yet, not be a payment, not be a move from another platform wallet, and must date from no later than the move's block. The rest of a move was counted while that wallet was the default, so it adds nothing. A self-transfer is ignored.
+  - Watched wallets are scanned before the default. A move is credited only once the sender's own scan has reached its block; until then the default's range is retried.
+  - The credit and the marking of the deposits it covers (`topup`, `acknowledged: true`) commit together. The marking is a compare-and-set, so two moves never credit the same deposit.
+  - When a wallet becomes the default, its recorded deposits that are uncredited and not dismissed are credited where they sit, one top-up each, keyed by their own `Transfer` log.
+- **Index:** `BalanceTransactions` has a partial index on `(metadata.blockchain_tx, account)` for `payment` rows, which serves the scan's payment lookup.
+- **`ArchivedWalletDeposit`** gains `sender_address` and `topup` (both FiatDesk extensions, documented on Balance details). Alerts recorded before this task have no sender and count as external deposits.
+- **Docs:** Balance details (the new fields, and what a move to the default credits), the shared "Changing your platform wallet" section, Fund the platform wallet, and the top-up `reversed` status.
+- **Tests:**
+  - `PaymentLedger.spec` covers idempotency, reversing the scan's top-up, debiting a move that carried a payment, the scan refusing a transaction already paid, and another platform's top-ups being left alone.
+  - `TopUpMonitor.spec` covers payment skips, moves with and without uncredited deposits, repeated scans, the block and amount limits, waiting for the sender's scan, and crediting at a wallet that became the default. Watched wallets are now scanned first.
+  - No Anvil spec was added, and `api:test-anvil` was not run: the cloud session that wrote this task could not download `solc`. Run it before merging.
+
+Added:
+
+```
+apps/api/src/modules/PaymentLedger.ts
+apps/api/src/__tests__/PaymentLedger.spec.ts
+```
+
+Modified:
+
+```
+apps/api/src/modules/ArchivedWalletDeposits.ts
+apps/api/src/modules/CheckoutPayment.ts
+apps/api/src/modules/Database.ts
+apps/api/src/modules/Invoice.ts
+apps/api/src/modules/TopUp.ts
+apps/api/src/modules/TopUpMonitor.ts
+apps/api/src/__tests__/TopUpMonitor.spec.ts
+apps/docs/src/app/pages/docs/data/balance.ts
+apps/docs/src/app/pages/docs/data/fund-platform-wallet.ts
+apps/docs/src/app/pages/docs/data/shared.ts
+apps/docs/src/app/pages/docs/data/top-ups.ts
+apps/web/src/app/features/account/components/archived-deposit-banner/archived-deposit-banner.component.spec.ts
+libs/shared-types/src/lib/Balance.ts
+```

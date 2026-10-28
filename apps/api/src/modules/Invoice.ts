@@ -12,14 +12,13 @@
 
 import { Database } from './Database';
 import { EventService } from './EventService';
+import { RecordOnchainPayment } from './PaymentLedger';
 import { ExtractChangedFields } from './Event';
 import type { CustomerModule } from './Customer';
 import type { InvoiceItemModule } from './InvoiceItem';
 import type { PaymentIntentModule } from './PaymentIntent';
 import type { ChargeModule } from './Charge';
 import type { PriceModule } from './Price';
-import { BalanceModule } from './Balance';
-import { BalanceTransactionModule } from './BalanceTransaction';
 import { GetSettlement, type Settlement } from './chains/Settlement';
 import {
   CANCELED_ON_CHAIN,
@@ -77,7 +76,6 @@ import { GetAppConfig } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
-import { ClientSession } from 'mongoose';
 
 /** Fields that may only be changed while the invoice is a draft. */
 const DRAFT_ONLY_UPDATE_FIELDS = new Set([
@@ -179,8 +177,6 @@ export class InvoiceModule {
   private readonly paymentIntentModule: PaymentIntentModule | null;
   private readonly chargeModule: ChargeModule | null;
   private readonly priceModule: PriceModule | null;
-  private readonly balanceModule: BalanceModule;
-  private readonly balanceTransactionModule: BalanceTransactionModule;
   private readonly settlement: Settlement;
   private readonly cycleClaims: SubscriptionCycleClaims;
   private readonly planDestinations: PlanDestinationModule;
@@ -209,8 +205,6 @@ export class InvoiceModule {
     this.paymentIntentModule = paymentIntentModule || null;
     this.chargeModule = chargeModule || null;
     this.priceModule = priceModule || null;
-    this.balanceModule = new BalanceModule(db);
-    this.balanceTransactionModule = new BalanceTransactionModule(db);
     this.settlement = settlement || GetSettlement();
     this.cycleClaims = new SubscriptionCycleClaims(db);
     this.planDestinations = new PlanDestinationModule(
@@ -1541,83 +1535,22 @@ export class InvoiceModule {
 
   /**
    * Credit the merchant platform balance after a successful on-chain invoice
-   * settlement. Idempotent per invoice id (source).
+   * settlement, once per invoice (see `RecordOnchainPayment`).
    */
   private async RecordPaymentOnLedger(
     invoice: InvoiceType,
     payerWallet: string | null,
     transactionHash: string
   ): Promise<BalanceTransactionType> {
-    const existing = await this.db.Find2Custom<BalanceTransactionType>(
-      'BalanceTransactions',
-      'source',
-      '==',
-      invoice.id,
-      'type',
-      '==',
-      'payment'
-    );
-    if (existing.length > 0) return existing[0];
-
-    const merchantAccountId = invoice.platform_account;
-    const timestamp = Now();
-    const explorerUrl =
-      transactionHash && transactionHash !== 'already_collected'
-        ? this.settlement.ExplorerUrl('tx', transactionHash)
-        : '';
-
-    const balanceTransaction =
-      this.balanceTransactionModule.BalanceTransactionObject({
-        amount: invoice.amount_due,
-        currency: invoice.currency,
-        account: merchantAccountId,
-        platformAccountId: merchantAccountId,
-        type: 'payment',
-        source: invoice.id,
-        description: `Payment for Invoice ${invoice.id}`,
-        metadata: {
-          blockchain_tx: transactionHash,
-          network: this.settlement.Describe().network,
-          sender_address: payerWallet ?? '',
-          explorer_url: explorerUrl,
-        },
-        status: 'available',
-        available_on: timestamp,
-      });
-
-    const balanceData =
-      (await this.balanceModule.GetBalance(merchantAccountId)) ??
-      (await this.balanceModule.CreateBalance(merchantAccountId));
-
-    await this.db.RunTransaction(async (mongoSession: ClientSession) => {
-      await this.db.Set(
-        'BalanceTransactions',
-        balanceTransaction.id,
-        balanceTransaction,
-        mongoSession
-      );
-
-      const updatedBalance = this.balanceModule.UpdateBalance(
-        balanceData,
-        invoice.amount_due,
-        balanceTransaction.currency,
-        'available'
-      );
-      await this.db.Update(
-        'Balances',
-        updatedBalance.id,
-        { available: updatedBalance.available },
-        mongoSession
-      );
-    });
-
-    Logger.info('Recorded invoice payment on ledger', {
-      invoiceId: invoice.id,
-      balanceTransactionId: balanceTransaction.id,
+    return RecordOnchainPayment(this.db, this.settlement, {
+      source: invoice.id,
+      description: `Payment for Invoice ${invoice.id}`,
+      account: invoice.platform_account,
       amountCents: invoice.amount_due,
+      currency: invoice.currency,
+      payerWallet,
+      transactionHash,
     });
-
-    return balanceTransaction;
   }
 
   private async CreateInvoicePaymentIntent(invoice: InvoiceType) {

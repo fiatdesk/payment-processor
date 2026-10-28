@@ -8,14 +8,11 @@
  * @module CheckoutPayment
  */
 
-import { ClientSession } from 'mongoose';
 import { getAddress, isAddress } from 'viem';
 import { Database } from './Database';
 import { AccountModule } from './Account';
 import { CheckoutSessionModule } from './CheckoutSession';
 import { ExternalWalletModule } from './ExternalWallet';
-import { BalanceModule } from './Balance';
-import { BalanceTransactionModule } from './BalanceTransaction';
 import { ProductModule } from './Product';
 import type { CustomerModule } from './Customer';
 import type { SubscriptionModule } from './Subscription';
@@ -23,6 +20,7 @@ import type { PaymentIntentModule } from './PaymentIntent';
 import type { ChargeModule } from './Charge';
 import type { PaymentLinkModule } from './PaymentLink';
 import { PlanDestinationModule } from './PlanDestination';
+import { RecordOnchainPayment } from './PaymentLedger';
 import {
   GetSettlement,
   SimulatedSignature,
@@ -266,8 +264,6 @@ export class CheckoutPaymentModule {
   private readonly checkoutSessionModule: CheckoutSessionModule;
   private readonly externalWalletModule: ExternalWalletModule;
   private readonly productModule: ProductModule;
-  private readonly balanceModule: BalanceModule;
-  private readonly balanceTransactionModule: BalanceTransactionModule;
   private readonly paymentIntentModule: PaymentIntentModule | null;
   private readonly chargeModule: ChargeModule | null;
   private readonly paymentLinkModule: PaymentLinkModule | null;
@@ -295,8 +291,6 @@ export class CheckoutPaymentModule {
     this.checkoutSessionModule = checkoutSessionModule;
     this.externalWalletModule = externalWalletModule;
     this.productModule = productModule;
-    this.balanceModule = new BalanceModule(db);
-    this.balanceTransactionModule = new BalanceTransactionModule(db);
     this.paymentIntentModule = paymentIntentModule || null;
     this.chargeModule = chargeModule || null;
     this.paymentLinkModule = paymentLinkModule || null;
@@ -2095,16 +2089,8 @@ export class CheckoutPaymentModule {
   }
 
   /**
-   * Record a completed checkout payment on the merchant's internal ledger:
-   * creates a 'payment' balance transaction sourced from the session and
-   * credits the merchant's available balance, atomically.
-   *
-   * Mirrors the pattern used by TopUpModule.CreateFromDeposit: the funds are
-   * already confirmed on-chain, so the balance transaction is immediately
-   * available.
-   *
-   * Idempotent: if a payment balance transaction already exists for this
-   * session, it is returned without crediting the balance again.
+   * Record a completed checkout payment on the merchant's internal ledger,
+   * once per session (see `RecordOnchainPayment`).
    */
   private async RecordPaymentOnLedger(
     session: CheckoutSession,
@@ -2112,73 +2098,15 @@ export class CheckoutPaymentModule {
     payerWallet: string | null,
     transactionHash: string
   ): Promise<BalanceTransaction> {
-    const existing = await this.db.Find2Custom<BalanceTransaction>(
-      'BalanceTransactions',
-      'source',
-      '==',
-      session.id,
-      'type',
-      '==',
-      'payment'
-    );
-    if (existing.length > 0) return existing[0];
-
-    const merchantAccountId = session.platform_account;
-    const timestamp = Now();
-
-    const balanceTransaction =
-      this.balanceTransactionModule.BalanceTransactionObject({
-        amount: amountCents,
-        currency: session.currency ?? 'usdc',
-        account: merchantAccountId,
-        platformAccountId: merchantAccountId,
-        type: 'payment',
-        source: session.id,
-        description: `Payment for Checkout Session ${session.id}`,
-        metadata: {
-          blockchain_tx: transactionHash,
-          network: this.settlement.Describe().network,
-          sender_address: payerWallet ?? '',
-          explorer_url: this.settlement.ExplorerUrl('tx', transactionHash),
-        },
-        status: 'available',
-        available_on: timestamp,
-      });
-
-    // The merchant may not have a ledger balance yet (e.g. fresh setup)
-    const balanceData =
-      (await this.balanceModule.GetBalance(merchantAccountId)) ??
-      (await this.balanceModule.CreateBalance(merchantAccountId));
-
-    await this.db.RunTransaction(async (mongoSession: ClientSession) => {
-      await this.db.Set(
-        'BalanceTransactions',
-        balanceTransaction.id,
-        balanceTransaction,
-        mongoSession
-      );
-
-      const updatedBalance = this.balanceModule.UpdateBalance(
-        balanceData,
-        amountCents,
-        balanceTransaction.currency,
-        'available'
-      );
-      await this.db.Update(
-        'Balances',
-        updatedBalance.id,
-        { available: updatedBalance.available },
-        mongoSession
-      );
-    });
-
-    Logger.info('Recorded checkout payment on ledger', {
-      checkoutSessionId: session.id,
-      balanceTransactionId: balanceTransaction.id,
+    return RecordOnchainPayment(this.db, this.settlement, {
+      source: session.id,
+      description: `Payment for Checkout Session ${session.id}`,
+      account: session.platform_account,
       amountCents,
+      currency: session.currency ?? 'usdc',
+      payerWallet,
+      transactionHash,
     });
-
-    return balanceTransaction;
   }
 
   /**

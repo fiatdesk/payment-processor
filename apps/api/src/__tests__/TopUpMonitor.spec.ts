@@ -452,7 +452,7 @@ describe('TopUpMonitor deposit scanning', () => {
     it('scans non-default wallets and wallets removed in the last 30 days, and credits none of it', async () => {
       const result = await Check();
 
-      expect(Scanned()).toEqual([WALLET, OTHER, REMOVED]);
+      expect(Scanned()).toEqual([OTHER, REMOVED, WALLET]);
       expect(result).toMatchObject({ processed: 0, errors: 0, topups: [] });
       expect(memory.All('TopUps')).toHaveLength(0);
       expect(Available()).toBe(0);
@@ -520,9 +520,203 @@ describe('TopUpMonitor deposit scanning', () => {
     it('polls the watched wallets too', async () => {
       await monitor.Poll();
 
-      expect(Scanned()).toEqual([WALLET, OTHER, REMOVED]);
+      expect(Scanned()).toEqual([OTHER, REMOVED, WALLET]);
       expect(memory.All('ArchivedWalletDeposits')).toHaveLength(2);
       expect(memory.All('TopUps')).toHaveLength(0);
+    });
+
+    describe('counting each cent once', () => {
+      const MOVE_TX = `0x${'cd'.repeat(32)}`;
+      const PAYMENT_TX = `0x${'ef'.repeat(32)}`;
+
+      function Alert(
+        overrides: Partial<ArchivedWalletDeposit> = {}
+      ): Record<string, unknown> {
+        const alert: ArchivedWalletDeposit = {
+          id: 'awd_fd_1',
+          object: 'archived_wallet_deposit',
+          platform_account: PLATFORM,
+          wallet_id: OTHER_ID,
+          wallet_address: OTHER,
+          transaction_hash: TX,
+          log_index: 0,
+          amount: 1500,
+          block_number: 4000,
+          sender_address: BUYER,
+          topup: null,
+          acknowledged: false,
+          created: 1,
+          ...overrides,
+        };
+        return { ...alert };
+      }
+
+      function Payment(transactionHash: string): Record<string, unknown> {
+        return {
+          id: `txn_fd_${transactionHash.slice(2, 6)}`,
+          account: PLATFORM,
+          type: 'payment',
+          amount: 1500,
+          metadata: { blockchain_tx: transactionHash },
+        };
+      }
+
+      /** USDC moved from OTHER to the default at block 4500. */
+      function Move(amountCents: number): void {
+        mockSettlement.GetIncomingDeposits.mockImplementation(async (address) =>
+          address === WALLET
+            ? [
+                Deposit({
+                  transactionHash: MOVE_TX,
+                  senderAddress: OTHER,
+                  amount: amountCents / 100,
+                  amountCents,
+                }),
+              ]
+            : []
+        );
+      }
+
+      function Credited(id: string): string | null {
+        return memory.Doc<ArchivedWalletDeposit>('ArchivedWalletDeposits', id)
+          .topup;
+      }
+
+      it('does not credit a deposit whose transaction the ledger records as a payment', async () => {
+        memory.Seed('BalanceTransactions', Payment(TX));
+        mockSettlement.GetIncomingDeposits.mockImplementation(async (address) =>
+          address === WALLET ? [Deposit()] : []
+        );
+
+        const result = await Check();
+
+        expect(result).toMatchObject({ processed: 0, errors: 0 });
+        expect(memory.All('TopUps')).toHaveLength(0);
+        expect(Available()).toBe(0);
+        expect(Cursor()).toBe(4998);
+      });
+
+      it('credits a move only for the uncredited deposits it carries, and marks them credited', async () => {
+        memory.Seed(
+          'ArchivedWalletDeposits',
+          Alert(),
+          Alert({ id: 'awd_fd_2', log_index: 1, amount: 700, created: 2 })
+        );
+        // 50 USDC moved: the two recorded deposits (22 USDC) and 28 USDC
+        // the ledger counted while OTHER was the default.
+        Move(5000);
+
+        const result = await Check();
+
+        expect(result).toMatchObject({ processed: 1, errors: 0 });
+        expect(Available()).toBe(2200);
+        const [topUp] = memory.All<TopUp>('TopUps');
+        expect(topUp).toMatchObject({
+          amount: 2200,
+          metadata: { blockchain_tx: MOVE_TX, log_index: '0' },
+        });
+        expect(Credited('awd_fd_1')).toBe(topUp.id);
+        expect(Credited('awd_fd_2')).toBe(topUp.id);
+        expect(
+          memory.Doc<ArchivedWalletDeposit>(
+            'ArchivedWalletDeposits',
+            'awd_fd_1'
+          ).acknowledged
+        ).toBe(true);
+      });
+
+      it('credits a move once when its range is scanned again', async () => {
+        memory.Seed('ArchivedWalletDeposits', Alert());
+        Move(1500);
+        await Check();
+        SeedCursor(3999);
+
+        await Check();
+
+        expect(memory.All('TopUps')).toHaveLength(1);
+        expect(Available()).toBe(1500);
+      });
+
+      it('credits nothing for a move of funds the ledger already counts', async () => {
+        memory.Seed(
+          'ArchivedWalletDeposits',
+          Alert({ topup: 'tu_fd_earlier', acknowledged: true }),
+          // Funds moved in from another platform wallet, and a payment.
+          Alert({ id: 'awd_fd_2', log_index: 1, sender_address: REMOVED }),
+          Alert({ id: 'awd_fd_3', transaction_hash: PAYMENT_TX })
+        );
+        memory.Seed('BalanceTransactions', Payment(PAYMENT_TX));
+        Move(5000);
+
+        const result = await Check();
+
+        expect(result).toMatchObject({ processed: 0, errors: 0 });
+        expect(memory.All('TopUps')).toHaveLength(0);
+        expect(Available()).toBe(0);
+        expect(Logger.info).toHaveBeenCalledWith(
+          'USDC moved from another platform wallet; the ledger already counts it',
+          expect.objectContaining({ transactionHash: MOVE_TX })
+        );
+      });
+
+      it('leaves out deposits that arrived after the move or do not fit in it', async () => {
+        memory.Seed(
+          'ArchivedWalletDeposits',
+          Alert({ amount: 2000 }),
+          Alert({ id: 'awd_fd_2', log_index: 1, amount: 400, created: 2 }),
+          Alert({ id: 'awd_fd_3', log_index: 2, block_number: 4600 })
+        );
+        Move(1500);
+
+        await Check();
+
+        expect(Available()).toBe(400);
+        expect(Credited('awd_fd_1')).toBeNull();
+        expect(Credited('awd_fd_3')).toBeNull();
+      });
+
+      it('retries a move while the sending wallet is not scanned up to it', async () => {
+        memory.Seed('ArchivedWalletDeposits', Alert());
+        Move(1500);
+        mockSettlement.GetIncomingDeposits.mockImplementation(
+          async (address) => {
+            if (address === OTHER) throw new Error('rpc down');
+            return address === WALLET
+              ? [Deposit({ transactionHash: MOVE_TX, senderAddress: OTHER })]
+              : [];
+          }
+        );
+
+        const result = await Check();
+
+        expect(result).toMatchObject({ processed: 0, errors: 1 });
+        expect(Cursor()).toBeUndefined();
+        expect(Credited('awd_fd_1')).toBeNull();
+      });
+
+      it('credits deposits recorded at a wallet once it is the default, unless dismissed', async () => {
+        memory.Seed(
+          'ArchivedWalletDeposits',
+          Alert({ wallet_id: WALLET_ID, wallet_address: WALLET }),
+          Alert({
+            id: 'awd_fd_2',
+            wallet_id: WALLET_ID,
+            wallet_address: WALLET,
+            log_index: 1,
+            acknowledged: true,
+          })
+        );
+        mockSettlement.GetIncomingDeposits.mockResolvedValue([]);
+
+        const first = await Check();
+        await Check();
+
+        expect(first).toMatchObject({ processed: 1, errors: 0 });
+        expect(memory.All('TopUps')).toHaveLength(1);
+        expect(Available()).toBe(1500);
+        expect(Credited('awd_fd_1')).toEqual(expect.any(String));
+        expect(Credited('awd_fd_2')).toBeNull();
+      });
     });
 
     it('still credits the default wallet when a watched wallet cannot be scanned', async () => {
@@ -562,7 +756,9 @@ describe('TopUpMonitor deposit scanning', () => {
 
     await monitor.CheckDepositsForAccount(PLATFORM);
 
-    expect(mockSettlement.GetIncomingDeposits.mock.calls[0][0]).toBe(WALLET);
+    expect(mockSettlement.GetIncomingDeposits.mock.calls.at(-1)?.[0]).toBe(
+      WALLET
+    );
     expect(
       memory.Doc<{ default_for_currency: boolean }>(
         'ExternalWallets',
@@ -595,6 +791,8 @@ describe('TopUpMonitor deposit scanning', () => {
 
     await monitor.CheckDepositsForAccount(PLATFORM);
 
-    expect(mockSettlement.GetIncomingDeposits.mock.calls[0][0]).toBe(WALLET);
+    expect(mockSettlement.GetIncomingDeposits.mock.calls.at(-1)?.[0]).toBe(
+      WALLET
+    );
   });
 });

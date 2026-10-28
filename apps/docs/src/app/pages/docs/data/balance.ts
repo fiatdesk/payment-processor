@@ -299,6 +299,8 @@ const ARCHIVED_WALLET_DEPOSIT_JSON = `{
   "log_index": 0,
   "amount": 2500,
   "block_number": 21894212,
+  "sender_address": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "topup": null,
   "acknowledged": false,
   "created": 1793011200
 }`;
@@ -360,10 +362,24 @@ const ARCHIVED_WALLET_DEPOSIT_ATTRIBUTES: Attribute[] = [
     description: 'The block that holds the transfer.',
   },
   {
+    name: 'sender_address',
+    type: 'string',
+    nullable: true,
+    description:
+      'Who sent the USDC. <code>null</code> for alerts recorded before the sender was stored.',
+  },
+  {
+    name: 'topup',
+    type: 'string',
+    nullable: true,
+    description:
+      'The top-up that credited this USDC once it reached the default wallet, either moved there or because its wallet became the default. <code>null</code> while it is not credited.',
+  },
+  {
     name: 'acknowledged',
     type: 'boolean',
     description:
-      'Whether the alert was dismissed. Only unacknowledged deposits are listed.',
+      'Whether the alert was dismissed. Only unacknowledged deposits are listed. Crediting the USDC dismisses its alert.',
   },
   {
     name: 'created',
@@ -417,7 +433,7 @@ const BALANCE_DETAILS_ATTRIBUTES: Attribute[] = [
     name: 'archived_wallet_deposits',
     type: 'array of objects',
     description:
-      "USDC that arrived at one of the platform's other wallets, not yet acknowledged: an active wallet that is not the default, or a wallet deleted in the last 30 days. It is never added to the balance, because only the default wallet's funds can be paid out. Send it to the default wallet (that transfer is a normal top-up), then acknowledge the alert.",
+      "USDC that arrived at one of the platform's other wallets, not yet acknowledged: an active wallet that is not the default, or a wallet deleted in the last 30 days. It is not added to the balance while it sits there, because only the default wallet's funds can be paid out. Send it to the default wallet: that transfer is credited as a top-up for the alerted USDC it carries, and the alerts are dismissed. Any more USDC in the same transfer is not credited, because the balance already counts it from when that wallet was the default.",
     expandable: true,
     enumNote:
       "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",

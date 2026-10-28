@@ -105,7 +105,7 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           type: 'callout',
           variant: 'warning',
           title: 'Only the default wallet counts. ',
-          text: "Top-ups are counted on the default wallet only. USDC sent to your platform's other wallets, or to one removed in the last 30 days, is not added to your balance: Home and Balances show a banner until you send it on to the default wallet.",
+          text: "Top-ups are counted on the default wallet only. USDC sent to your platform's other wallets, or to one removed in the last 30 days, is not added to your balance while it sits there: Home and Balances show a banner until you send it on to the default wallet, which credits it. Moving USDC that your balance already counts, such as the old default's funds after a switch, adds nothing.",
         },
         {
           type: 'callout',

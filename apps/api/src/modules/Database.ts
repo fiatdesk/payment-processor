@@ -556,6 +556,14 @@ export class Database {
       flexibleSchema.index({ subscription_onchain_id: 1, owner: 1 });
     }
 
+    if (collectionName === 'BalanceTransactions') {
+      // The top-up scan looks up payments by their transaction hash.
+      flexibleSchema.index(
+        { 'metadata.blockchain_tx': 1, account: 1 },
+        { partialFilterExpression: { type: 'payment' } }
+      );
+    }
+
     if (collectionName === 'ArchivedWalletDeposits') {
       // One alert per USDC Transfer log, however often its range is scanned.
       flexibleSchema.index(

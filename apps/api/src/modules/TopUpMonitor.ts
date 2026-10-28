@@ -25,22 +25,38 @@
  *
  * Only the default wallet's deposits are credited. A platform's other
  * wallets (non-default ones, and ones removed in the last 30 days) are
- * scanned the same way, each with its own cursor, but a deposit to one is
- * recorded in ArchivedWalletDeposits and logged as a warning instead: the
- * payout signer cannot spend it (Fable Q13 #2).
+ * scanned the same way, each with its own cursor and before the default,
+ * but a deposit to one is recorded in ArchivedWalletDeposits and logged as
+ * a warning instead: the payout signer cannot spend it (Fable Q13 #2).
+ *
+ * The ledger counts each cent once (Task 17e):
+ * - A deposit whose transaction is a checkout or invoice payment is not
+ *   credited; the payment already is (see TopUpModule).
+ * - USDC moved to the default from another of the platform's wallets is
+ *   credited only for that wallet's recorded deposits it carries: those
+ *   not credited yet, not payments, and not themselves moves between the
+ *   platform's wallets, oldest first while they fit in the amount moved.
+ *   The rest was counted while that wallet was the default. A move is
+ *   credited only once the sender's own scan has reached its block.
+ * - When a wallet becomes the default, its recorded deposits that are
+ *   still uncredited and not dismissed are credited where they sit.
  *
  *
  * @module TopUpMonitor
  */
 
 import { Database } from './Database';
-import { DepositKey, TopUpModule } from './TopUp';
+import { DepositIsPaymentError, DepositKey, TopUpModule } from './TopUp';
 import { AccountModule } from './Account';
 import { ArchivedWalletDepositStore } from './ArchivedWalletDeposits';
 import { ChainCursorStore } from './ChainCursorStore';
 import { ExternalWalletModule } from './ExternalWallet';
 import { GetChainConfig } from './chains/Chain';
 import type { IncomingDeposit } from './chains/types';
+import {
+  SameAddress,
+  type ArchivedWalletDeposit,
+} from '@fiatdesk/shared-types';
 import {
   GetSettlement,
   IsSimulatedSettlement,
@@ -83,6 +99,10 @@ interface PlatformWalletInfo {
   credit: boolean;
   /** When the wallet was added: a watched wallet's earlier USDC is not alerted */
   since: number;
+  /** Every wallet the platform ever added: transfers between them are moves */
+  ownAddresses: string[];
+  /** The platform's watched wallets; set on the default only */
+  watched: PlatformWalletInfo[];
 }
 
 interface ScanResult {
@@ -187,9 +207,10 @@ export class TopUpMonitor {
   }
 
   /**
-   * The platform's default wallet (credited) first, then its watched ones:
-   * active non-default wallets, and wallets removed in the last 30 days. An
-   * address is scanned once, so the default's address is never alerted.
+   * The platform's watched wallets (active non-default wallets, and wallets
+   * removed in the last 30 days), then its default wallet (credited), so a
+   * move between them is seen by the sender's scan first. An address is
+   * scanned once, so the default's address is never alerted.
    */
   private async GetPlatformWallets(
     platformAccountId: string
@@ -198,21 +219,18 @@ export class TopUpMonitor {
       platformAccountId
     );
     if (!primary) return [];
-    const wallets: PlatformWalletInfo[] = [
-      {
-        id: primary.id,
-        account: platformAccountId,
-        address: primary.wallet_address,
-        credit: true,
-        since: 0,
-      },
-    ];
-    const watchedSince = Now() - REMOVED_WALLET_WATCH_SECONDS;
-    const scanned = new Set([primary.wallet_address.toLowerCase()]);
     const all = await this.externalWalletModule.GetExternalWalletsByAccount(
       platformAccountId,
       true
     );
+    const ownAddresses = [
+      ...new Set(
+        [primary, ...all].map((wallet) => wallet.wallet_address.toLowerCase())
+      ),
+    ];
+    const watched: PlatformWalletInfo[] = [];
+    const watchedSince = Now() - REMOVED_WALLET_WATCH_SECONDS;
+    const scanned = new Set([primary.wallet_address.toLowerCase()]);
     for (const wallet of all) {
       const address = wallet.wallet_address.toLowerCase();
       if (scanned.has(address)) continue;
@@ -223,15 +241,28 @@ export class TopUpMonitor {
         continue;
       }
       scanned.add(address);
-      wallets.push({
+      watched.push({
         id: wallet.id,
         account: platformAccountId,
         address: wallet.wallet_address,
         credit: false,
         since: wallet.created ?? 0,
+        ownAddresses,
+        watched: [],
       });
     }
-    return wallets;
+    return [
+      ...watched,
+      {
+        id: primary.id,
+        account: platformAccountId,
+        address: primary.wallet_address,
+        credit: true,
+        since: 0,
+        ownAddresses,
+        watched,
+      },
+    ];
   }
 
   /**
@@ -278,9 +309,8 @@ export class TopUpMonitor {
   ): Promise<CheckDepositsResponse> {
     Logger.info('Checking deposits for account', { platformAccountId });
 
-    const [wallet, ...watched] = await this.GetPlatformWallets(
-      platformAccountId
-    );
+    const wallets = await this.GetPlatformWallets(platformAccountId);
+    const wallet = wallets.find((candidate) => candidate.credit);
 
     if (!wallet) {
       Logger.warn('No wallet found for account', { platformAccountId });
@@ -293,10 +323,9 @@ export class TopUpMonitor {
       };
     }
 
-    const result = await this.PollWallet(wallet);
     // Alerts only: a watched wallet that cannot be scanned now is retried
-    // on the next check, and never holds up the default wallet's top-ups.
-    for (const other of watched) {
+    // on the next check, and holds up only a move it sent to the default.
+    for (const other of wallet.watched) {
       try {
         await this.PollWallet(other);
       } catch (error) {
@@ -310,6 +339,7 @@ export class TopUpMonitor {
         );
       }
     }
+    const result = await this.PollWallet(wallet);
 
     return {
       object: 'check_deposits_result',
@@ -337,6 +367,7 @@ export class TopUpMonitor {
     };
     // The simulated rail has no chain to scan.
     if (IsSimulatedSettlement()) return result;
+    if (wallet.credit) await this.CreditDepositsAtDefault(wallet, result);
 
     const { chainId, confirmations } = GetChainConfig();
     // One head read per scan: no chunk may end past this confirmed block.
@@ -405,7 +436,11 @@ export class TopUpMonitor {
         continue;
       }
       try {
-        const topUp = await this.ProcessDeposit(deposit, wallet.account);
+        const topUp = wallet.ownAddresses.includes(
+          deposit.senderAddress.toLowerCase()
+        )
+          ? await this.CreditMove(deposit, wallet)
+          : await this.ProcessDeposit(deposit, wallet.account);
         if (topUp) {
           result.processed++;
           result.topUps.push(topUp);
@@ -415,6 +450,114 @@ export class TopUpMonitor {
           transactionHash: deposit.transactionHash,
           logIndex: deposit.logIndex,
         });
+        result.errors++;
+      }
+    }
+  }
+
+  /**
+   * Credits USDC moved to the default from another platform wallet, for
+   * the uncredited deposits it carries (see the module comment). Throws,
+   * so the range is scanned again, while the sender's scan is behind.
+   */
+  private async CreditMove(
+    deposit: IncomingDeposit,
+    wallet: PlatformWalletInfo
+  ): Promise<TopUp | null> {
+    if (SameAddress(deposit.senderAddress, wallet.address)) return null;
+    const sender = wallet.watched.find((watched) =>
+      SameAddress(watched.address, deposit.senderAddress)
+    );
+    if (sender) {
+      const cursor = await this.cursorStore.Get(
+        sender.id,
+        GetChainConfig().chainId
+      );
+      if (!cursor || cursor.last_scanned_block < deposit.blockNumber) {
+        throw new Error(
+          'The sending wallet is not scanned up to this move yet; retrying'
+        );
+      }
+    }
+
+    const carried: ArchivedWalletDeposit[] = [];
+    let amount = 0;
+    for (const recorded of await this.archivedDeposits.ListUncredited(
+      wallet.account,
+      deposit.senderAddress,
+      wallet.ownAddresses
+    )) {
+      if (
+        recorded.block_number > deposit.blockNumber ||
+        amount + recorded.amount > deposit.amountCents ||
+        (await this.topUpModule.IsPaidOnLedger(
+          recorded.transaction_hash,
+          wallet.account
+        ))
+      ) {
+        continue;
+      }
+      carried.push(recorded);
+      amount += recorded.amount;
+    }
+    if (amount === 0) {
+      Logger.info(
+        'USDC moved from another platform wallet; the ledger already counts it',
+        {
+          transactionHash: deposit.transactionHash,
+          logIndex: deposit.logIndex,
+          sender: deposit.senderAddress,
+          amountCents: deposit.amountCents,
+        }
+      );
+      return null;
+    }
+    return this.ProcessDeposit(
+      { ...deposit, amount: amount / 100, amountCents: amount },
+      wallet.account,
+      carried
+    );
+  }
+
+  /**
+   * Credits the deposits recorded at the default wallet while it was not
+   * the default, each where it sits, unless the platform dismissed them.
+   * One that cannot be credited now is counted and tried on the next scan.
+   */
+  private async CreditDepositsAtDefault(
+    wallet: PlatformWalletInfo,
+    result: ScanResult
+  ): Promise<void> {
+    const recorded = await this.archivedDeposits.ListUncredited(
+      wallet.account,
+      wallet.address,
+      wallet.ownAddresses
+    );
+    for (const deposit of recorded.filter((each) => !each.acknowledged)) {
+      try {
+        const topUp = await this.ProcessDeposit(
+          {
+            transactionHash: deposit.transaction_hash,
+            logIndex: deposit.log_index,
+            amount: deposit.amount / 100,
+            amountCents: deposit.amount,
+            senderAddress: deposit.sender_address ?? deposit.wallet_address,
+            timestamp: deposit.created,
+            blockNumber: deposit.block_number,
+          },
+          wallet.account,
+          [deposit]
+        );
+        if (topUp) {
+          result.processed++;
+          result.topUps.push(topUp);
+        }
+      } catch (error) {
+        Logger.error(
+          'Failed to credit a deposit recorded before its wallet became the default',
+          error as Error,
+          { archivedWalletDepositId: deposit.id }
+        );
         result.errors++;
       }
     }
@@ -467,11 +610,13 @@ export class TopUpMonitor {
    *
    * @param deposit - The deposit to process
    * @param platformAccountId - The platform account to credit
+   * @param carried - Recorded deposits this credit covers
    * @returns The created TopUp, or null if skipped or already processed
    */
   private async ProcessDeposit(
     deposit: IncomingDeposit,
-    platformAccountId: string
+    platformAccountId: string,
+    carried: ArchivedWalletDeposit[] = []
   ): Promise<TopUp | null> {
     const logContext = {
       transactionHash: deposit.transactionHash,
@@ -507,11 +652,24 @@ export class TopUpMonitor {
       // Creates the BalanceTransaction, updates the balance and emits events
       topUp = await this.topUpModule.CreateFromDeposit(
         deposit,
-        platformAccountId
+        platformAccountId,
+        (created, session) =>
+          this.archivedDeposits.MarkCredited(
+            carried.map((recorded) => recorded.id),
+            created.id,
+            session
+          )
       );
     } catch (error) {
       if ((error as { code?: number })?.code === DUPLICATE_KEY) {
         Logger.info('Deposit was credited by a concurrent scan', logContext);
+        return null;
+      }
+      if (error instanceof DepositIsPaymentError) {
+        Logger.debug(
+          'Skipping a payment the ledger already counts',
+          logContext
+        );
         return null;
       }
       throw error;

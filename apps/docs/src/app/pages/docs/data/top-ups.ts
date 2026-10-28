@@ -216,7 +216,11 @@ const TOPUP_ATTRIBUTES: Attribute[] = [
         value: 'pending',
         description: 'The top-up is waiting for funds to arrive.',
       },
-      { value: 'reversed', description: 'The top-up was reversed.' },
+      {
+        value: 'reversed',
+        description:
+          'The top-up was reversed. A deposit whose transaction is later recorded as a checkout or invoice payment is reversed, so the payment is counted once.',
+      },
       {
         value: 'succeeded',
         description: 'Funds have arrived and are available.',

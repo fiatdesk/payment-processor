@@ -71,7 +71,7 @@ export const CHANGING_PLATFORM_WALLET_SECTION: DocPageSection = {
     },
     {
       type: 'paragraph',
-      text: 'FiatDesk keeps watching the platform\'s other wallets: active wallets that are not the default, for as long as they exist, and removed wallets for 30 days after removal. Each has its own scan cursor and uses the same scan as top-ups. USDC sent to them is never credited, because only the default wallet\'s funds can be paid out. It is listed in <code>archived_wallet_deposits</code> of <a href="/balance/details">balance details</a>, logged as a warning, and shown as a banner on the dashboard. Send the funds to the default wallet, then <a href="/balance/acknowledge-archived-deposit">acknowledge</a> the alert.',
+      text: 'FiatDesk keeps watching the platform\'s other wallets: active wallets that are not the default, for as long as they exist, and removed wallets for 30 days after removal. Each has its own scan cursor and uses the same scan as top-ups. USDC sent to them is not credited while it sits there, because only the default wallet\'s funds can be paid out. It is listed in <code>archived_wallet_deposits</code> of <a href="/balance/details">balance details</a>, logged as a warning, and shown as a banner on the dashboard. Send the funds to the default wallet. That transfer is credited as a top-up for the alerted USDC it carries, and the alerts are dismissed. The rest of a transfer from one of your wallets is not credited, because the balance already counts it. If you make the wallet the default instead, its alerted USDC is credited where it sits, unless you dismissed the alert. Payments are counted once: USDC of a checkout or invoice payment is never credited again as a top-up.',
       html: true,
     },
     {
