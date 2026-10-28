@@ -2880,7 +2880,7 @@ sdks/node/package.json
   - A new header with badges, quick links and a dashboard screenshot.
   - A "Why FiatDesk" list.
   - A product tour (hosted checkout, payments, subscriptions, marketplaces, API reference) that replaces the old feature list.
-- **Screenshots.** `docs/screenshots/*.webp` were captured from a local simulated-rail instance seeded with demo data ("Northwind Market"). Nothing in them is real.
+- **Screenshots.** `docs/screenshots/*.webp` show demo data ("Northwind Market"), seeded on the simulated rail. The dashboard and checkout shots were then retaken with the API in live mode against a local Anvil chain with chain ID 1, so they show the live UI without the test-mode banner. Nothing in them is real, and no public network was used.
 - **Upstream residue removed.**
   - The docs header's Discord link pointed to the original project's server; it is removed, with its icon and style.
   - The four unreferenced upstream docs screenshots under `apps/docs/src/assets/images/screenshots/` are deleted. They showed PromptBase and Solana.
