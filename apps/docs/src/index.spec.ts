@@ -1,3 +1,4 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -66,7 +67,7 @@ describe('index.html', () => {
     expect(Meta('meta[property="og:title"]')).toBe('FiatDesk');
     expect(Meta('meta[property="og:description"]')).toBe(DESCRIPTION);
     expect(Meta('meta[property="og:image"]')).toBe(
-      'https://docs.yourdomain.com/assets/brand/fiatdesk-og.png'
+      '/assets/brand/fiatdesk-og.png'
     );
     expect(existsSync(join(SRC, 'assets/brand/fiatdesk-og.png'))).toBe(true);
     expect(Meta('meta[name="theme-color"]')).toBe('#000000');

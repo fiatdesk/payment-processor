@@ -181,7 +181,7 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
       description:
         'Stablecoin settlement for high-risk businesses. API reference, guides, and examples.',
       url: 'https://docs.yourdomain.com',
-      image: 'https://docs.yourdomain.com/assets/brand/fiatdesk-og.png',
+      image: '/assets/brand/fiatdesk-og.png',
     });
   }
 

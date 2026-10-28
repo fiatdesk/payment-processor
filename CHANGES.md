@@ -2575,3 +2575,24 @@ apps/docs/src/assets/images/screenshots/ (53 upstream screenshots and social ima
 apps/web/src/assets/fonts/ (both Instrument Sans files)
 apps/web/src/assets/images/logos/ (the three upstream logo PNGs; the Ethereum and USDC marks stay)
 ```
+
+### Task 17b fix round 1: offline builds and local preview image
+
+- The production configurations of `web` and `docs` set `optimization.fonts.inline` to `false`, so production builds no longer download the Google Fonts stylesheet and work offline. Scripts and styles are still optimised. The `<link>` tags load Be Vietnam Pro at runtime, and `system-ui` covers the time before it loads or when it cannot be reached.
+- The docs `og:image` (in `index.html` and the `MetaService` call) is now the root-relative `/assets/brand/fiatdesk-og.png`, like the dashboard's, rather than a placeholder host. A comment next to each `og:image` says operators set an absolute URL for link previews.
+- The four new spec files carry the attribution header.
+
+Modified:
+
+```
+CHANGES.md
+apps/docs/project.json
+apps/docs/src/app/pages/docs/docs.ts
+apps/docs/src/index.html
+apps/docs/src/index.spec.ts
+apps/web/project.json
+apps/web/src/app/features/platform-login/platform-login.component.spec.ts
+apps/web/src/app/shared/ui/platform-logo/platform-logo.component.spec.ts
+apps/web/src/index.html
+apps/web/src/index.spec.ts
+```

@@ -1,3 +1,4 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import { TestBed } from '@angular/core/testing';
 
 import { ConfigService } from '../../../data';
