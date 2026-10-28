@@ -7,6 +7,9 @@
 // ============================================
 $sidebar-width: 260px;
 $topbar-height: 56px;
+// The lockup file carries its own clear space. At 32px high it is about
+// 129px wide, above the 120px minimum.
+$logo-height: 32px;
 // Readable measure for prose columns
 $prose-max-width: 760px;
 
@@ -31,7 +34,7 @@ $prose-max-width: 760px;
 .section-left {
   ::ng-deep a:not(.anchor-link):not(.meta-chip):not(.breadcrumb-link),
   ::ng-deep a:not(.anchor-link):not(.meta-chip):not(.breadcrumb-link):visited {
-    color: $base-color !important;
+    color: var(--doc-accent) !important;
     font-size: inherit;
     text-decoration: underline !important;
     text-underline-offset: 2px;
@@ -43,7 +46,7 @@ $prose-max-width: 760px;
     height: 14px;
     margin-left: 4px;
     vertical-align: -2px;
-    filter: $base-filter;
+    filter: var(--doc-accent-filter);
   }
 }
 
@@ -108,7 +111,7 @@ $prose-max-width: 760px;
   align-items: center;
 
   img {
-    height: 24px;
+    height: $logo-height;
     width: auto;
   }
 }
@@ -239,7 +242,7 @@ $prose-max-width: 760px;
   align-items: center;
 
   img {
-    height: 24px;
+    height: $logo-height;
     width: auto;
   }
 }
@@ -468,17 +471,17 @@ $toggle-gap: 2px;
   transition: background $transition-fast;
 
   &.selected {
-    background: $base-color;
+    background: var(--doc-accent);
 
     .search-result-title {
-      color: #fff;
+      color: var(--doc-on-accent);
     }
     .search-result-category {
-      color: rgba(#fff, 0.65);
+      color: rgba(var(--doc-on-accent-rgb), 0.65);
     }
     .search-result-description,
     .search-result-context {
-      color: rgba(#fff, 0.55);
+      color: rgba(var(--doc-on-accent-rgb), 0.55);
     }
   }
 }
@@ -638,7 +641,7 @@ $toggle-gap: 2px;
   }
 
   &.active {
-    color: $base-color;
+    color: var(--doc-accent);
     font-weight: 500;
   }
 
@@ -650,8 +653,8 @@ $toggle-gap: 2px;
     }
 
     &.active {
-      background: rgba($base-color, 0.08);
-      color: $base-color;
+      background: rgba(var(--doc-accent-rgb), 0.08);
+      color: var(--doc-accent);
       font-weight: 500;
     }
   }
@@ -701,9 +704,9 @@ $toggle-gap: 2px;
   }
 
   &.active {
-    color: $base-color;
+    color: var(--doc-accent);
     font-weight: 500;
-    border-left: 2px solid $base-color;
+    border-left: 2px solid var(--doc-accent);
     margin-left: -1px;
   }
 
@@ -891,7 +894,7 @@ $toggle-gap: 2px;
 
   &.copied {
     opacity: 0.75;
-    filter: $base-filter;
+    filter: var(--doc-accent-filter);
   }
 }
 
@@ -969,8 +972,8 @@ $toggle-gap: 2px;
   }
 
   &.active {
-    color: $base-color;
-    border-bottom-color: $base-color;
+    color: var(--doc-accent);
+    border-bottom-color: var(--doc-accent);
   }
 }
 
@@ -1048,7 +1051,7 @@ $toggle-gap: 2px;
   }
 
   ::ng-deep a {
-    color: $base-color !important;
+    color: var(--doc-accent) !important;
     text-decoration: underline !important;
     text-underline-offset: 2px;
   }
@@ -1142,8 +1145,8 @@ $toggle-gap: 2px;
   height: 26px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: rgba($base-color, 0.09);
-  color: $base-color;
+  background: rgba(var(--doc-accent-rgb), 0.09);
+  color: var(--doc-accent);
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
@@ -1370,7 +1373,7 @@ $toggle-gap: 2px;
   position: relative;
   font-size: 13px;
   font-weight: 500;
-  color: $base-color;
+  color: var(--doc-accent);
   cursor: help;
   outline: none;
 
@@ -1418,7 +1421,7 @@ $toggle-gap: 2px;
 
   ::ng-deep a,
   ::ng-deep a:visited {
-    color: $base-color !important;
+    color: var(--doc-accent) !important;
     text-decoration: none;
 
     &:hover {
@@ -1471,18 +1474,18 @@ $toggle-gap: 2px;
   margin-top: $spacing-extra-small;
   margin-bottom: $spacing-small;
   padding: $spacing-small $spacing;
-  background: rgba($base-color, 0.05);
-  border-left: 3px solid $base-color;
+  background: rgba(var(--doc-accent-rgb), 0.05);
+  border-left: 3px solid var(--doc-accent);
   border-radius: 0 $border-radius $border-radius 0;
   line-height: 1.5;
 
   ::ng-deep strong {
-    color: $base-color;
+    color: var(--doc-accent);
     font-weight: 600;
   }
 
   ::ng-deep code {
-    background: rgba($base-color, 0.08);
+    background: rgba(var(--doc-accent-rgb), 0.08);
   }
 }
 
@@ -1657,7 +1660,7 @@ $toggle-gap: 2px;
     border: none;
     font-family: $text-font;
     font-size: 14px;
-    color: $base-color;
+    color: var(--doc-accent);
     cursor: pointer;
     padding: 0;
 

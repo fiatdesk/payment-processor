@@ -90,9 +90,11 @@
   }
 }
 
+// White lockup on the black panel, at the 120px minimum width
 .fiatdesk-logo {
-  height: 18px;
-  opacity: 0.9;
+  display: block;
+  width: 120px;
+  height: auto;
 }
 
 .footer-links {

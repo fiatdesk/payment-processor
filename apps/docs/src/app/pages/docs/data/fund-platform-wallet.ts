@@ -77,14 +77,6 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           text: 'Check the exchange fee and any waiting period before you buy. A new bank deposit may need to clear before the exchange lets you send the USDC to another wallet.',
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/top-ups/top-up-1.webp',
-          alt: 'Buy USDC on an exchange',
-          caption: 'Buy USDC using the money you added to the exchange.',
-        },
-      ],
     },
     {
       left: [
@@ -114,14 +106,6 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
           variant: 'warning',
           title: 'Check the address carefully. ',
           text: 'Crypto transfers cannot be reversed. Copy and paste the address, then compare the first and last few characters before sending.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-1.webp',
-          alt: 'Add funds panel showing the platform deposit address',
-          caption: 'Copy the deposit address from the Add funds panel.',
         },
       ],
     },
@@ -170,15 +154,6 @@ export const FUND_PLATFORM_WALLET_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: 'Once detected, the deposit is added to your available platform balance. If it does not appear, check that the exchange marks the withdrawal as complete, the network was Ethereum, and the destination matches your deposit address.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/top-ups/top-up-4.webp',
-          alt: 'Confirmed USDC deposit in the platform balance',
-          caption:
-            'The USDC is ready when it appears in your available balance.',
         },
       ],
     },

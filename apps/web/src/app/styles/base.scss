@@ -1,34 +1,39 @@
-$base-color: #0055ff;
-$base-filter: brightness(0) saturate(100%) invert(30%) sepia(85%)
-  saturate(2000%) hue-rotate(210deg) brightness(95%) contrast(95%);
+@use 'sass:color';
 
-// Typography updates
-$title-font: 'Instrument Sans', sans-serif;
-$title-weight: 600; // Slightly bolder for better hierarchy
-$text-font: 'Instrument Sans', sans-serif;
+// FiatDesk monochrome palette (brand guidelines)
+$black: #000000;
+$white: #ffffff;
+$ink-900: #1a1a1a;
+$grey-600: #6b6b6b; // Secondary text
+$grey-300: #d4d4d4; // Dividers and borders
+$grey-100: #f5f5f5; // Surfaces
+
+// Brand accent: black on white, white on Ink 900 for dark surfaces
+$base-color: $black;
+$base-filter: brightness(0) saturate(100%);
+
+// Typography: Be Vietnam Pro, loaded in index.html
+$title-font: 'Be Vietnam Pro', system-ui, sans-serif;
+$title-weight: 600;
+$title-line-height: 1.1;
+$text-font: 'Be Vietnam Pro', system-ui, sans-serif;
 $medium-weight: 500;
 $text-weight: 400;
 
-// Refined color palette
-$success-green: #059669; // Professional success green
-$text-color: #1e293b; // Dark slate for primary text
+// Semantic status colours stay as they were
+$success-green: #059669;
+$text-color: $ink-900;
 $background-color-filter: brightness(0) saturate(100%) invert(100%) sepia(0%)
   saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
 
-$background-color: #ffffff; // Pure white background
-$mid-background-color: #f8fafc; // Alternating background
-$dark-background-color: #f8fafc; // Slightly off-white
-$darker-background-color: #f1f5f9; // Light gray for hover states
-$darkest-background-color: #e2e8f0; // Subtle border color
+$background-color: $white;
+$mid-background-color: $grey-100;
+$dark-background-color: $grey-100;
+// Hover surface: a neutral step between Grey 100 and Grey 300
+$darker-background-color: color.mix($grey-100, $grey-300, 65%);
+$darkest-background-color: $grey-300;
 
-// Enhanced gradient
-$button-color: #0055ff;
-$button-color-reverse: linear-gradient(
-  -122deg,
-  #3b82f6,
-  #2563eb 62%,
-  #1d4ed8 100%
-);
+$button-color: $black;
 
 $border-radius: 12px;
 $border-radius-small: 8px;

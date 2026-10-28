@@ -1,40 +1,38 @@
-// Updated base colors for a more sophisticated palette
-$base-color: #0055ff; // Professional blue for financial platform
-$base-filter: brightness(0) saturate(100%) invert(30%) sepia(85%)
-  saturate(2000%) hue-rotate(210deg) brightness(95%) contrast(95%);
+@use 'sass:color';
 
-// Typography updates
-$title-font: 'Instrument Sans', sans-serif;
-$title-weight: 600; // Slightly bolder for better hierarchy
-$text-font: 'Instrument Sans', sans-serif;
+// FiatDesk monochrome palette (brand guidelines)
+$black: #000000;
+$white: #ffffff;
+$ink-900: #1a1a1a;
+$grey-600: #6b6b6b; // Secondary text
+$grey-300: #d4d4d4; // Dividers and borders
+$grey-100: #f5f5f5; // Surfaces
+
+// Brand accent on fixed light surfaces. Theme-aware rules use
+// var(--doc-accent), which is black in the light theme and white in the dark.
+$base-color: $black;
+$base-filter: brightness(0) saturate(100%);
+
+// Typography: Be Vietnam Pro, loaded in index.html
+$title-font: 'Be Vietnam Pro', system-ui, sans-serif;
+$title-weight: 600;
+$title-line-height: 1.1;
+$text-font: 'Be Vietnam Pro', system-ui, sans-serif;
 $text-weight: 400;
 
-// Refined color palette
-$success-green: #059669; // Professional success green
+// Semantic status colours stay as they were
+$success-green: #059669;
 $success-filter: brightness(0) saturate(100%) invert(43%) sepia(73%)
   saturate(531%) hue-rotate(119deg) brightness(92%) contrast(92%);
-$text-color: #1e293b; // Dark slate for primary text
-$background-color: #ffffff; // Pure white background
+$text-color: $ink-900;
+$background-color: $white;
 $background-color-filter: brightness(0) saturate(100%) invert(100%) sepia(0%)
   saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
-$light-background-color: #f8fafc; // Slightly off-white
-$lighter-background-color: #f1f5f9; // Light gray for hover states
-$lightest-background-color: #e2e8f0; // Subtle border color
-$mid-background-color: #f8fafc; // Alternating background
-
-// Dark surfaces (landing dev section, login aside)
-$dark-navy: #0f172a;
-$dark-navy-light: #1e293b;
-$dark-navy-text: #f8fafc;
-
-// Enhanced gradient
-$button-color: #0055ff;
-$button-color-reverse: linear-gradient(
-  -122deg,
-  #3b82f6,
-  #2563eb 62%,
-  #1d4ed8 100%
-);
+$light-background-color: $grey-100;
+// Hover surface: a neutral step between Grey 100 and Grey 300
+$lighter-background-color: color.mix($grey-100, $grey-300, 65%);
+$lightest-background-color: $grey-300;
+$mid-background-color: $grey-100;
 
 $border-radius: 12px;
 $border-radius-small: 8px;

@@ -259,7 +259,7 @@
   align-items: center;
   padding: 1px 6px;
   border-radius: $border-radius-small;
-  background: rgba(0, 85, 255, 0.1);
+  background: rgba($base-color, 0.1);
   color: $base-color;
   font-size: $font-size-tiny;
   font-weight: $medium-weight;

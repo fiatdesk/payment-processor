@@ -24,13 +24,6 @@ export const QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-2.webp',
-          alt: 'Connected accounts in the dashboard sidebar',
-        },
-      ],
     },
     {
       left: [
@@ -43,13 +36,6 @@ export const QUICKSTART_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Click <strong>+ Create</strong> in the top-right corner.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-3.webp',
-          alt: 'Create connected account button',
         },
       ],
     },
@@ -66,13 +52,6 @@ export const QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-4.webp',
-          alt: 'Connected account details',
-        },
-      ],
     },
     {
       left: [
@@ -86,13 +65,6 @@ export const QUICKSTART_PAGE: DocPage = {
           text: 'Copy the onboarding link and send it to the seller.',
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-5.webp',
-          alt: 'Connected account onboarding link',
-        },
-      ],
     },
     {
       left: [
@@ -104,13 +76,6 @@ export const QUICKSTART_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: 'The seller opens the link, adds their details, and connects the Ethereum wallet where they want to receive payouts. If you want to test this yourself, open the link in an incognito window.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-6.webp',
-          alt: 'Seller onboarding form',
         },
       ],
     },
@@ -127,13 +92,6 @@ export const QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-1.webp',
-          alt: 'Platform wallet balance',
-        },
-      ],
     },
     {
       left: [
@@ -146,13 +104,6 @@ export const QUICKSTART_PAGE: DocPage = {
           type: 'paragraph',
           text: 'Once the seller has finished onboarding, return to <a href="https://pay.yourdomain.com/account/connected-accounts" target="_blank" rel="noopener noreferrer"><strong>Connected accounts</strong><img src="/assets/icons/open-in-new-tab.svg" alt="" class="external-link-icon" /></a> and click their account.',
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-7.webp',
-          alt: 'Onboarded seller in the connected accounts list',
         },
       ],
     },
@@ -169,13 +120,6 @@ export const QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-8.webp',
-          alt: 'Add funds button on a connected account',
-        },
-      ],
     },
     {
       left: [
@@ -188,13 +132,6 @@ export const QUICKSTART_PAGE: DocPage = {
           type: 'paragraph',
           text: "Enter the amount to add to the seller's balance, check the confirmation box, and click <strong>Send</strong>.",
           html: true,
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-9.webp',
-          alt: 'Transfer amount for a connected account',
         },
       ],
     },
@@ -211,13 +148,6 @@ export const QUICKSTART_PAGE: DocPage = {
           html: true,
         },
       ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-10.webp',
-          alt: 'Pay out account balance button',
-        },
-      ],
     },
     {
       left: [
@@ -229,13 +159,6 @@ export const QUICKSTART_PAGE: DocPage = {
         {
           type: 'paragraph',
           text: "Enter the amount to send from the seller's balance to their wallet.",
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-11.webp',
-          alt: 'Payout amount for a connected account',
         },
       ],
     },
@@ -256,13 +179,6 @@ export const QUICKSTART_PAGE: DocPage = {
           variant: 'warning',
           title: 'Keep your private key safe. ',
           text: 'Only enter it in your own FiatDesk instance. Never share it or store it in client-side code.',
-        },
-      ],
-      right: [
-        {
-          type: 'image',
-          src: '/assets/images/screenshots/connect-quickstart/connect-12.webp',
-          alt: 'Sign and confirm a connected account payout',
         },
       ],
     },

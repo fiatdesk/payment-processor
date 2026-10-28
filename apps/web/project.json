@@ -43,6 +43,11 @@
             }
           ],
           "outputHashing": "all",
+          "optimization": {
+            "scripts": true,
+            "styles": true,
+            "fonts": { "inline": false }
+          },
           "fileReplacements": [
             {
               "replace": "apps/web/src/environments/environment.ts",

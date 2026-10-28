@@ -63,6 +63,13 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
   themeService = inject(ThemeService);
   private sdkPreference = inject(SdkPreferenceService);
   github = inject(GithubService);
+  /** Black lockup on light surfaces, white lockup on dark ones. */
+  readonly logoSrc = computed(
+    () =>
+      `/assets/brand/fiatdesk-logo-${
+        this.themeService.IsDark() ? 'white' : 'black'
+      }.svg`
+  );
   readonly agentMarketplacePrompt = marketplaceAgentPrompt;
   readonly agentPaymentsPrompt = paymentsAgentPrompt;
 
@@ -170,11 +177,11 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
     this.isBrowser = isPlatformBrowser(platformId);
     this.BuildSearchIndex();
     this.metaService.SetMeta({
-      title: 'Documentation | FiatDesk',
+      title: 'FiatDesk',
       description:
-        'Accept USDC payments, run subscriptions, and pay out sellers with FiatDesk. API reference, guides, and examples.',
+        'Stablecoin settlement for high-risk businesses. API reference, guides, and examples.',
       url: 'https://docs.yourdomain.com',
-      image: 'https://docs.yourdomain.com/assets/images/screenshots/og.png',
+      image: '/assets/brand/fiatdesk-og.png',
     });
   }
 
