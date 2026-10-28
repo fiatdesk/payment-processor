@@ -159,8 +159,8 @@ export interface RelayCheckoutOptions {
 export interface CheckoutPaymentExpectation {
   merchantWalletAddress: string;
   /**
-   * The platform's other wallets: a payment that used the session's
-   * authorization and pays one of them pays the session too
+   * The other wallets a payment under the session's authorization may pay
+   * (the platform's current default, when it is not the recorded one)
    */
   otherMerchantWalletAddresses?: string[];
   amountInCents: number;

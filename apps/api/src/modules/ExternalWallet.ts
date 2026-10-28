@@ -54,6 +54,14 @@ const COLLECTION = 'ExternalWallets';
 const GUARDS = 'ExternalWalletGuards';
 /** Plan destination changes a switch sends itself; the billing run sends the rest. */
 const INLINE_PLAN_MIGRATIONS = 3;
+/**
+ * Retries of a wallet change that met a concurrent one, each after a random
+ * wait in this range, so it usually runs after the other has committed.
+ */
+const WRITE_CONFLICT_RETRIES = 2;
+const WRITE_CONFLICT_WAIT_MS = { min: 50, max: 150 };
+export const WALLET_CHANGE_CONFLICT_MESSAGE =
+  "Another change to this account's wallets is in progress. Try the request again.";
 
 /** Most active wallets an account can hold. */
 export const MAX_ACTIVE_WALLETS = 5;
@@ -708,13 +716,14 @@ export class ExternalWalletModule {
   /**
    * Runs one change of the account's wallets in a transaction that first
    * writes the account's guard document: two changes at once conflict, and
-   * the losing one is retried once.
+   * the losing one is retried up to twice after a short random wait. Still
+   * conflicting, it answers a 409 the client can retry.
    */
   private async InWalletTransaction<T>(
     account: string,
     work: (session: ClientSession) => Promise<T>
   ): Promise<T> {
-    for (let attempt = 1; ; attempt++) {
+    for (let retry = 0; ; retry++) {
       try {
         return await this.db.RunTransaction(async (session: ClientSession) => {
           await this.db.Set(
@@ -726,10 +735,29 @@ export class ExternalWalletModule {
           return work(session);
         });
       } catch (error) {
-        if (attempt > 1 || !IsTransientTransactionError(error)) throw error;
+        if (!IsTransientTransactionError(error)) throw error;
+        if (retry >= WRITE_CONFLICT_RETRIES) {
+          Logger.warn('A wallet change kept meeting concurrent ones', {
+            account,
+          });
+          throw new AppError(
+            WALLET_CHANGE_CONFLICT_MESSAGE,
+            409,
+            ERRORS.DUPLICATE_RESOURCE.type
+          );
+        }
         Logger.warn('A wallet change met a concurrent one; retrying', {
           account,
+          retry: retry + 1,
         });
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            WRITE_CONFLICT_WAIT_MS.min +
+              Math.random() *
+                (WRITE_CONFLICT_WAIT_MS.max - WRITE_CONFLICT_WAIT_MS.min)
+          )
+        );
       }
     }
   }
@@ -748,13 +776,14 @@ export class ExternalWalletModule {
     return wallets.filter((wallet) => wallet.status !== 'archived');
   }
 
-  /** Each wallet's on-chain USDC; null when it cannot be read. */
+  /**
+   * Each wallet's on-chain USDC; null when it cannot be read. The simulated
+   * rail holds nothing on-chain, so its wallets carry no `usdc_balance`.
+   */
   private async WithUsdcBalances(
     wallets: ExternalWalletType[]
   ): Promise<ExternalWalletType[]> {
-    if (IsSimulatedSettlement()) {
-      return wallets.map((wallet) => ({ ...wallet, usdc_balance: null }));
-    }
+    if (IsSimulatedSettlement()) return wallets;
     const settlement = GetSettlement();
     return Promise.all(
       wallets.map(async (wallet) => {

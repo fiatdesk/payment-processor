@@ -345,4 +345,66 @@ describe('WalletsSectionComponent', () => {
       'It still holds 40.00 USDC: send it to your default wallet first.'
     );
   });
+
+  it("still says where the USDC stays when the old wallet's balance can't be read", async () => {
+    stored[1] = { ...stored[1], usdc_balance: null };
+    TestBed.inject(ExternalWalletService).wallets.set(stored);
+    const { component, text } = await Render();
+
+    component.AskSetDefault(stored[0]);
+
+    expect(text()).toContain(
+      '2 plans will be updated on-chain. Your USDC stays in 0x7099...79C8. Send it to 0x9965...A4dc after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail.'
+    );
+  });
+
+  it('says nothing about USDC staying behind on the simulated rail', async () => {
+    stored = stored.map((wallet) => {
+      const simulated = { ...wallet };
+      delete simulated.usdc_balance;
+      return simulated;
+    });
+    TestBed.inject(ExternalWalletService).wallets.set(stored);
+    const { component, text } = await Render();
+
+    component.AskSetDefault(stored[0]);
+
+    expect(text()).toContain('2 plans will be updated on-chain.');
+    expect(text()).not.toContain('Your USDC stays');
+  });
+
+  it('stops reading plan statuses once destroyed, even with a read in flight', async () => {
+    jest.useFakeTimers();
+    try {
+      const pending = PlanPrice('price_fd_a', {
+        subscription_plan_destination_change: {
+          destination: OTHER,
+          transaction_hash: null,
+          status: 'pending',
+          created: 1,
+          failure_message: null,
+          sent_at: null,
+        },
+      });
+      prices.ListPlanPrices.mockResolvedValue([pending]);
+      const { fixture } = await Render();
+      let finish: (plans: Price[]) => void = () => undefined;
+      prices.ListPlanPrices.mockImplementationOnce(
+        () =>
+          new Promise<Price[]>((resolve) => {
+            finish = resolve;
+          })
+      );
+      await jest.advanceTimersByTimeAsync(5_000);
+      const reads = prices.ListPlanPrices.mock.calls.length;
+
+      fixture.destroy();
+      finish([pending]);
+      await jest.advanceTimersByTimeAsync(120_000);
+
+      expect(prices.ListPlanPrices.mock.calls.length).toBe(reads);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

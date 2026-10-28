@@ -215,7 +215,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
               html: true,
             },
             {
-              text: '<strong>Set as default:</strong> On another wallet\'s row. A confirmation lists what moves (checkouts, top-ups, payouts and subscription plans), how many plans are updated on-chain, and where your USDC stays: "Your USDC stays in 0x… (N USDC). Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail."',
+              text: '<strong>Set as default:</strong> On another wallet\'s row. A confirmation lists what moves (checkouts, top-ups, payouts and subscription plans), how many plans are updated on-chain, and where your USDC stays: "Your USDC stays in 0x… (N USDC). Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail." When the old wallet\'s balance cannot be read, the amount is left out. In simulated test mode nothing is held on-chain, so this part is not shown.',
               html: true,
             },
             {

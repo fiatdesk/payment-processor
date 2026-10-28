@@ -95,6 +95,7 @@ describe('Database.EnsureCollections', () => {
       {
         'subscription_plan_destination_change.status': 1,
         'subscription_plan_destination_change.created': 1,
+        id: 1,
       },
       expect.anything(),
     ]);

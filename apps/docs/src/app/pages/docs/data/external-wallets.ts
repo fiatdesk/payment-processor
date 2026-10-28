@@ -313,7 +313,7 @@ const EXTERNAL_WALLET_MORE_ATTRIBUTES: Attribute[] = [
     type: 'number',
     nullable: true,
     description:
-      'The USDC the wallet holds on-chain, in whole USDC (for example <code>12.5</code>). Only on a list request with <code>include_usdc_balance=true</code>; <code>null</code> on the simulated rail or when the chain cannot be read.',
+      'The USDC the wallet holds on-chain, in whole USDC (for example <code>12.5</code>). Only on a list request with <code>include_usdc_balance=true</code>, and never on the simulated rail, which holds nothing on-chain; <code>null</code> when the chain cannot be read.',
     enumNote:
       "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
@@ -343,6 +343,10 @@ const WALLET_RULES = [
   },
   {
     text: "<strong>FiatDesk extension:</strong> Changing the <strong>platform's</strong> default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the old wallet is built or broadcast. Broadcast or replace that batch first.",
+    html: true,
+  },
+  {
+    text: '<strong>FiatDesk extension:</strong> Changes to one account\'s wallets run one at a time. A change made at the same moment as another is retried; if it still conflicts, it returns a <code>409</code> with the message "Another change to this account\'s wallets is in progress. Try the request again."',
     html: true,
   },
   {
@@ -799,7 +803,7 @@ const LIST_EXTERNAL_WALLETS_PARAMETERS: Attribute[] = [
     name: 'include_usdc_balance',
     type: 'boolean',
     description:
-      'When <code>true</code>, each wallet carries <code>usdc_balance</code>, the USDC it holds on-chain (one read per wallet).',
+      'When <code>true</code>, each wallet carries <code>usdc_balance</code>, the USDC it holds on-chain (one read per wallet). Ignored on the simulated rail.',
     enumNote:
       "<strong>FiatDesk extension:</strong> This parameter is not present in Stripe's API.",
   },

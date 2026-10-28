@@ -25,7 +25,7 @@ export const MERCHANT_WALLET_CHANGED_CALLOUT: CalloutBlock = {
   type: 'callout',
   variant: 'info',
   title: 'FiatDesk extension: ',
-  text: "If the platform sets another default wallet after a payment was prepared, confirming it returns a <code>409</code> <code>merchant_wallet_changed</code> with the message \"The merchant's receiving wallet changed. Please approve the payment again.\" Nothing is sent and nothing else changes: hosted Checkout prepares the payment again and the customer approves a payment to the new wallet. A payment already submitted to the old wallet still completes and is credited, and so does any payment that used the session's authorization and paid one of the platform's own wallets (a <code>transaction_hash</code> the client sends is verified before anything is refused); the dashboard flags USDC that lands outside the default wallet. Subscription Checkout pays the plan's destination, and waits (<code>payment_pending</code>) while the plan moves to the new wallet on-chain.",
+  text: "If the platform sets another default wallet after a payment was prepared, confirming it returns a <code>409</code> <code>merchant_wallet_changed</code> with the message \"The merchant's receiving wallet changed. Please approve the payment again.\" Nothing is sent and nothing else changes: hosted Checkout prepares the payment again and the customer approves a payment to the new wallet. A payment already submitted to the old wallet still completes and is credited. A payment that used the session's authorization counts only when it paid the wallet recorded for the session at prepare or the platform's current default wallet: one to any other wallet, a wallet the platform deleted included, is refused and not credited (a <code>transaction_hash</code> the client sends is verified before anything is refused). The dashboard flags USDC that lands outside the default wallet. Subscription Checkout pays the plan's destination, and waits (<code>payment_pending</code>) while the plan moves to the new wallet on-chain.",
   html: true,
 };
 
@@ -66,7 +66,7 @@ export const CHANGING_PLATFORM_WALLET_SECTION: DocPageSection = {
       type: 'callout',
       variant: 'warning',
       title: 'Your USDC stays in the old wallet. ',
-      text: "A switch moves no funds. Send the old wallet's USDC to the new default after switching. Until it arrives, the available balance counts only the new wallet's USDC, and payouts above that amount fail. The dashboard's Wallets list shows what each wallet holds (<code>include_usdc_balance=true</code> on the API), and the switch confirm names the amount and both addresses.",
+      text: "A switch moves no funds. Send the old wallet's USDC to the new default after switching. Until it arrives, the available balance counts only the new wallet's USDC, and payouts above that amount fail. The dashboard's Wallets list shows what each wallet holds (<code>include_usdc_balance=true</code> on the API), and the switch confirm names the amount (left out when the old wallet's balance cannot be read) and both addresses.",
       html: true,
     },
     {

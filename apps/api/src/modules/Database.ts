@@ -565,10 +565,12 @@ export class Database {
     }
 
     if (collectionName === 'Prices') {
-      // The billing run follows pending plan destination changes, oldest first.
+      // The billing run follows pending plan destination changes, oldest
+      // first, paging on (created, id).
       flexibleSchema.index({
         'subscription_plan_destination_change.status': 1,
         'subscription_plan_destination_change.created': 1,
+        id: 1,
       });
     }
 

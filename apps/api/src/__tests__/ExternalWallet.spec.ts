@@ -13,6 +13,7 @@ import {
   MOCK_DESTINATION_HASH,
 } from './mocks/Settlement';
 import { MemoryDatabase } from './mocks/MemoryDatabase';
+import { IsSimulatedSettlement } from '../modules/chains/Settlement';
 
 jest.mock('../modules/Database');
 jest.mock('../utils/IdGenerator', () => ({
@@ -492,6 +493,21 @@ describe('ExternalWalletModule', () => {
       expect(plain.data[0]).not.toHaveProperty('usdc_balance');
     });
 
+    it('lists no usdc_balance on the simulated rail, so null means the chain could not be read', async () => {
+      SeedWallet('wa_fd_first', OLD_WALLET, { default_for_currency: true });
+      jest.mocked(IsSimulatedSettlement).mockReturnValue(true);
+      try {
+        const list = await wallets.ListExternalWallets(PLATFORM, {
+          includeUsdcBalance: true,
+        });
+
+        expect(list.data[0]).not.toHaveProperty('usdc_balance');
+        expect(mockSettlement.GetUSDCBalance).not.toHaveBeenCalled();
+      } finally {
+        jest.mocked(IsSimulatedSettlement).mockReturnValue(false);
+      }
+    });
+
     it('writes the account guard in every wallet change, so concurrent changes conflict', async () => {
       const guardWrites = jest.spyOn(memory, 'Set');
 
@@ -507,7 +523,7 @@ describe('ExternalWalletModule', () => {
       );
     });
 
-    it('retries a wallet change once after a write conflict', async () => {
+    it('retries a write conflict up to twice, each after a 50–150 ms jittered wait', async () => {
       SeedWallet('wa_fd_old', OLD_WALLET, { default_for_currency: true });
       const run = memory.RunTransaction.bind(memory);
       const conflict = Object.assign(new Error('WriteConflict'), {
@@ -516,25 +532,49 @@ describe('ExternalWalletModule', () => {
       const transactions = jest
         .spyOn(memory, 'RunTransaction')
         .mockRejectedValueOnce(conflict)
+        .mockRejectedValueOnce(conflict)
         .mockImplementation(run);
+      const waits = jest.spyOn(global, 'setTimeout');
+      try {
+        const wallet = await wallets.CreateExternalWallet(PLATFORM, {
+          wallet_address: VALID_WALLET,
+          default_for_currency: true,
+        });
 
-      const wallet = await wallets.CreateExternalWallet(PLATFORM, {
-        wallet_address: VALID_WALLET,
-        default_for_currency: true,
+        expect(transactions).toHaveBeenCalledTimes(3);
+        const delays = waits.mock.calls.map(([, ms]) => ms);
+        expect(delays).toHaveLength(2);
+        for (const ms of delays) {
+          expect(ms).toBeGreaterThanOrEqual(50);
+          expect(ms).toBeLessThanOrEqual(150);
+        }
+        expect(Stored(wallet.id).default_for_currency).toBe(true);
+        expect(Stored('wa_fd_old').default_for_currency).toBe(false);
+      } finally {
+        waits.mockRestore();
+      }
+    });
+
+    it('answers a clear 409 when the change still conflicts after two retries', async () => {
+      const conflict = Object.assign(new Error('WriteConflict'), {
+        errorLabels: ['TransientTransactionError'],
       });
+      const transactions = jest
+        .spyOn(memory, 'RunTransaction')
+        .mockRejectedValue(conflict);
 
-      expect(transactions).toHaveBeenCalledTimes(2);
-      expect(Stored(wallet.id).default_for_currency).toBe(true);
-      expect(Stored('wa_fd_old').default_for_currency).toBe(false);
-
-      transactions.mockReset();
-      transactions.mockRejectedValue(conflict);
       await expect(
         wallets.CreateExternalWallet(PLATFORM, {
           wallet_address: VALID_WALLET_2,
         })
-      ).rejects.toBe(conflict);
-      expect(transactions).toHaveBeenCalledTimes(2);
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        type: 'conflict',
+        message:
+          "Another change to this account's wallets is in progress. Try the request again.",
+      });
+      expect(transactions).toHaveBeenCalledTimes(3);
+      expect(memory.All('ExternalWallets')).toEqual([]);
     });
 
     describe('when two changes run at once', () => {

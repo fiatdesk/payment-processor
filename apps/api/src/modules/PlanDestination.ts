@@ -22,6 +22,7 @@ import {
   SameAddress,
   type Price,
   type PriceDestinationChange,
+  type QueryParameters,
 } from '@fiatdesk/shared-types';
 import type { Database } from './Database';
 import type { EventService } from './EventService';
@@ -38,6 +39,12 @@ const RECONCILE_PAGE_SIZE = 100;
 const MAX_RECONCILE_PAGES = 20;
 const PENDING = 'subscription_plan_destination_change.status';
 const PENDING_SINCE = 'subscription_plan_destination_change.created';
+
+/** Where a reconcile pass stopped: the last change it read. */
+interface ReconcileCursor {
+  created: number;
+  id: string;
+}
 
 /** Whether a plan can be charged now, or waits for its destination change. */
 type PlanState = 'ready' | 'pending';
@@ -126,42 +133,87 @@ export class PlanDestinationModule {
 
   /**
    * The billing runner's pass: follows every pending change, oldest first
-   * and page by page (the `Prices` index on the change's status and time
-   * serves it), so changes are not capped at one page.
+   * and page by page (the `Prices` index on the change's status, time and
+   * id serves it), so changes are not capped at one page.
    */
   async ReconcilePending(platformAccountId?: string): Promise<void> {
-    const seen = new Set<string>();
-    let cursor: number | undefined;
+    let cursor: ReconcileCursor | undefined;
     for (let page = 0; page < MAX_RECONCILE_PAGES; page++) {
-      const pending =
-        (await this.db.Query<Price>({
-          collection: COLLECTION,
-          method: 'READ',
-          parameters: [
-            { key: PENDING, operator: QueryOperators['=='], value: 'pending' },
-            ...(platformAccountId
-              ? [
-                  {
-                    key: 'platform_account',
-                    operator: QueryOperators['=='],
-                    value: platformAccountId,
-                  },
-                ]
-              : []),
-          ],
-          orderBy: [{ key: PENDING_SINCE, direction: 'asc' }],
-          limit: RECONCILE_PAGE_SIZE,
-          ...(cursor === undefined ? {} : { startAt: cursor }),
-        })) ?? [];
-      const fresh = pending.filter((price) => !seen.has(price.id));
-      for (const price of fresh) seen.add(price.id);
-      await this.SyncAll(fresh.map((price) => price.id));
-      if (pending.length < RECONCILE_PAGE_SIZE || fresh.length === 0) return;
-      cursor =
-        pending[pending.length - 1].subscription_plan_destination_change
-          ?.created;
-      if (cursor === undefined) return;
+      const pending = await this.PendingPage(platformAccountId, cursor);
+      await this.SyncAll(pending.map((price) => price.id));
+      if (pending.length < RECONCILE_PAGE_SIZE) return;
+      const last = pending[pending.length - 1];
+      const created = last.subscription_plan_destination_change?.created;
+      if (created === undefined) return;
+      cursor = { created, id: last.id };
     }
+  }
+
+  /**
+   * One page of pending changes in `(created, id)` order, strictly after
+   * `cursor`. A switch enqueues all its plans in the same second, so the id
+   * breaks the tie: those changes neither repeat nor end the paging, even
+   * while they stay pending.
+   */
+  private async PendingPage(
+    platformAccountId: string | undefined,
+    cursor: ReconcileCursor | undefined
+  ): Promise<Price[]> {
+    const Page = async (
+      after: QueryParameters['parameters'],
+      orderBy: NonNullable<QueryParameters['orderBy']>,
+      limit: number
+    ): Promise<Price[]> =>
+      (await this.db.Query<Price>({
+        collection: COLLECTION,
+        method: 'READ',
+        parameters: [
+          { key: PENDING, operator: QueryOperators['=='], value: 'pending' },
+          ...(platformAccountId
+            ? [
+                {
+                  key: 'platform_account',
+                  operator: QueryOperators['=='],
+                  value: platformAccountId,
+                },
+              ]
+            : []),
+          ...(after ?? []),
+        ],
+        orderBy,
+        limit,
+      })) ?? [];
+    const inOrder: NonNullable<QueryParameters['orderBy']> = [
+      { key: PENDING_SINCE, direction: 'asc' },
+      { key: 'id', direction: 'asc' },
+    ];
+    if (!cursor) return Page([], inOrder, RECONCILE_PAGE_SIZE);
+    // The rest of the cursor's second, then the later ones.
+    const sameSecond = await Page(
+      [
+        {
+          key: PENDING_SINCE,
+          operator: QueryOperators['=='],
+          value: cursor.created,
+        },
+        { key: 'id', operator: QueryOperators['>'], value: cursor.id },
+      ],
+      [{ key: 'id', direction: 'asc' }],
+      RECONCILE_PAGE_SIZE
+    );
+    if (sameSecond.length >= RECONCILE_PAGE_SIZE) return sameSecond;
+    const later = await Page(
+      [
+        {
+          key: PENDING_SINCE,
+          operator: QueryOperators['>'],
+          value: cursor.created,
+        },
+      ],
+      inOrder,
+      RECONCILE_PAGE_SIZE - sameSecond.length
+    );
+    return [...sameSecond, ...later];
   }
 
   /**

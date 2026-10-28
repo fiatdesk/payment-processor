@@ -84,6 +84,8 @@ export class WalletsSectionComponent implements OnInit {
   private readonly accountService = inject(AccountService);
   private readonly priceService = inject(PriceService);
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Set on destroy: a plan read still in flight then arms no new poll. */
+  private destroyed = false;
 
   readonly maxWallets = MAX_WALLETS;
   readonly ShortAddress = ShortWalletAddress;
@@ -128,18 +130,23 @@ export class WalletsSectionComponent implements OnInit {
         target.address
       )}. ${Plans(moving)} will be updated on-chain.`,
     ];
+    // On-chain the old wallet's USDC stays behind: say how much, or, when
+    // its balance could not be read (null), still say it stays. The
+    // simulated rail lists no balance and holds nothing on-chain.
     const current = this.externalWalletService.wallet();
     if (
       current &&
       !SameAddress(current.wallet_address, target.address) &&
-      typeof current.usdc_balance === 'number'
+      current.usdc_balance !== undefined
     ) {
+      const held =
+        typeof current.usdc_balance === 'number'
+          ? ` (${FormatUsdc(current.usdc_balance)})`
+          : '';
       parts.push(
         `Your USDC stays in ${ShortWalletAddress(
           current.wallet_address
-        )} (${FormatUsdc(
-          current.usdc_balance
-        )}). Send it to ${ShortWalletAddress(
+        )}${held}. Send it to ${ShortWalletAddress(
           target.address
         )} after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail.`
       );
@@ -166,7 +173,10 @@ export class WalletsSectionComponent implements OnInit {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.StopWatching());
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.StopWatching();
+    });
   }
 
   ngOnInit(): void {
@@ -347,12 +357,14 @@ export class WalletsSectionComponent implements OnInit {
    */
   private WatchPlanMigrations(attempt = 0): void {
     this.StopWatching();
+    if (this.destroyed) return;
     const pending = this.plans().some(
       (price) =>
         price.subscription_plan_destination_change?.status === 'pending'
     );
     if (!pending || attempt >= PLAN_POLL_ATTEMPTS) return;
     this.pollTimer = setTimeout(async () => {
+      this.pollTimer = null;
       await this.LoadPlans();
       this.WatchPlanMigrations(attempt + 1);
     }, PLAN_POLL_INTERVAL_MS);

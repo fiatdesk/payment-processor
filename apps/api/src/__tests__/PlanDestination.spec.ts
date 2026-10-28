@@ -457,6 +457,7 @@ describe('PlanDestinationModule', () => {
             key: 'subscription_plan_destination_change.created',
             direction: 'asc',
           },
+          { key: 'id', direction: 'asc' },
         ],
         limit: 100,
       });
@@ -468,6 +469,38 @@ describe('PlanDestinationModule', () => {
               price.subscription_plan_destination_change?.status === 'pending'
           )
       ).toHaveLength(0);
+    });
+
+    it('follows each of 150 changes made in the same second exactly once, while they stay in flight', async () => {
+      // One switch enqueues every plan with the same `created`.
+      const prices = Array.from({ length: 150 }, (_, i) =>
+        RecurringPrice({
+          id: `price_fd_${String(149 - i).padStart(3, '0')}`,
+          subscription_plan_id: `0x${i.toString(16).padStart(64, '0')}`,
+          subscription_plan_destination_change: {
+            destination: NEW_WALLET,
+            transaction_hash: MOCK_DESTINATION_HASH,
+            status: 'pending',
+            created: 1000,
+            failure_message: null,
+            sent_at: 1,
+          },
+        })
+      );
+      SeedPrices(...prices);
+      // Not mined yet: every change is still pending after its sync.
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'pending',
+        transaction_hash: MOCK_DESTINATION_HASH,
+      });
+
+      await module.ReconcilePending(PLATFORM);
+
+      const followed = settlement.SetPlanDestination.mock.calls.map(
+        ([planKey]) => planKey
+      );
+      expect(followed).toHaveLength(150);
+      expect(new Set(followed).size).toBe(150);
     });
 
     it("follows every pending change of the platform's plans", async () => {

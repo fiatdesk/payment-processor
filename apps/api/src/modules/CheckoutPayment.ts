@@ -165,6 +165,22 @@ function PaymentPending(
   });
 }
 
+/**
+ * Besides the wallet the session recorded at prepare (`merchantWallet`),
+ * the only wallet a payment under the session's authorization may pay is
+ * the platform's current default. Any other wallet, one the platform has
+ * deleted included, does not pay the session: its key may be someone
+ * else's, so such a payment is refused and not credited.
+ */
+function AlsoAccepted(
+  merchantWallet: string,
+  currentMerchant: string | null
+): string[] {
+  return currentMerchant && !SameAddress(currentMerchant, merchantWallet)
+    ? [currentMerchant]
+    : [];
+}
+
 /** What the buyer is told when the merchant's default wallet changed. */
 export const MERCHANT_WALLET_CHANGED_MESSAGE =
   "The merchant's receiving wallet changed. Please approve the payment again.";
@@ -819,8 +835,7 @@ export class CheckoutPaymentModule {
       transactionHash,
       {
         merchantWalletAddress: merchantWallet,
-        otherMerchantWalletAddresses: await this.OtherMerchantWallets(
-          session.platform_account,
+        otherMerchantWalletAddresses: AlsoAccepted(
           merchantWallet,
           currentMerchant
         ),
@@ -886,37 +901,6 @@ export class CheckoutPaymentModule {
       paidBy,
       merchantWallet: verification.merchant_address ?? merchantWallet,
     });
-  }
-
-  /**
-   * The platform's own wallets other than `merchantWallet` (the current
-   * default among them): a payment that used the session's authorization
-   * and pays one of them is the platform's, so it pays the session. A
-   * wallet that is not the default is watched, so its USDC is alerted.
-   */
-  private async OtherMerchantWallets(
-    platformAccountId: string,
-    merchantWallet: string,
-    currentMerchant: string | null
-  ): Promise<string[]> {
-    const wallets = await this.externalWalletModule.GetExternalWalletsByAccount(
-      platformAccountId,
-      true
-    );
-    const others: string[] = [];
-    for (const address of [
-      currentMerchant,
-      ...wallets.map((wallet) => wallet.wallet_address),
-    ]) {
-      if (
-        address &&
-        !SameAddress(address, merchantWallet) &&
-        !others.some((other) => SameAddress(other, address))
-      ) {
-        others.push(address);
-      }
-    }
-    return others;
   }
 
   /**

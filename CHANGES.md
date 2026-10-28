@@ -2665,3 +2665,20 @@ libs/shared-types/src/lib/Price.ts
   - The top-up credit and skip rules for these moves are left to Task 17e (Q14).
 
 Added: `sdks/node/src/__tests__/ExternalAccounts.spec.ts`.
+
+### Task 17c fix round 2: checkout pays only the session's or the current wallet, and every plan change is paged
+
+- **Checkout accepts two wallets only.** A payment that used the session's authorization (a used nonce, or a `transaction_hash` the client sends) is valid only when it paid one of:
+
+  - the wallet the session recorded at prepare (`payment_details.merchant_wallet`);
+  - the platform's current default.
+
+  This replaces round 1's "any of the platform's own wallets". A payment to any other wallet is refused and not credited, a deleted wallet included, since its key may be someone else's. The new unit tests and an Anvil test cover this: the buyer signs the session's authorization to a deleted platform wallet and submits it, and the confirm is refused with nothing completed or credited. The Checkout Sessions docs and the shared "merchant wallet changed" callout say so.
+
+- **Plan changes page on `(created, id)`.**
+  - `ReconcilePending` reads, strictly after its cursor, the rest of the cursor's second by `id`, then the later seconds. One switch enqueues all its plans in the same second, so changes that stay pending neither repeat nor end the paging.
+  - The `Prices` index adds `id`. `MemoryDatabase` sorts on every `orderBy` key, comparing strings by code point.
+  - Tested with 150 changes of the same `created` that stay in flight: each is followed exactly once.
+- **The switch confirm without a balance.** When the old wallet's USDC cannot be read, the confirm still says "Your USDC stays in 0x…. Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail." The simulated rail lists no `usdc_balance`, so the confirm shows nothing about USDC there, and `null` now only means a failed read.
+- **The plan-status poll stops on destroy.** It stops even when a plan read is still in flight at that moment.
+- **Write conflicts.** A wallet change that meets a concurrent one is retried up to twice, each after a random 50 to 150 ms wait. If it still conflicts, it returns a `409` `conflict`: "Another change to this account's wallets is in progress. Try the request again." This rule is listed with the other External Wallet rules.

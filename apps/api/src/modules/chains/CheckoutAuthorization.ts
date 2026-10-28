@@ -134,7 +134,7 @@ export function SplitSignature(signature: string): {
  * `Transfer(authorizer, merchant, value ≥ amount due)` of the same call. A
  * transfer to the merchant that no session authorization made does not
  * count, and logs in any other order fail. A transfer to one of `alsoPays`
- * (the platform's other wallets) counts as paying the merchant;
+ * (the caller's other accepted wallets) counts as paying the merchant;
  * `merchant_address` says which wallet was paid.
  */
 export function VerifyCheckoutReceipt(

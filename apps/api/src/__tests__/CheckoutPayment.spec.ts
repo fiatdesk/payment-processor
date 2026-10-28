@@ -212,10 +212,7 @@ describe('CheckoutPaymentModule', () => {
   let chargeModule: ChargeModule;
   let mockSettlement: jest.Mocked<Settlement>;
   let mockExternalWalletModule: jest.Mocked<
-    Pick<
-      ExternalWalletModule,
-      'GetDefaultWallet' | 'GetExternalWalletsByAccount'
-    >
+    Pick<ExternalWalletModule, 'GetDefaultWallet'>
   >;
 
   beforeEach(() => {
@@ -242,9 +239,6 @@ describe('CheckoutPaymentModule', () => {
 
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
-      GetExternalWalletsByAccount: jest
-        .fn()
-        .mockResolvedValue([merchantWallet]),
     };
     // The prepare write is conditional on no relay being recorded.
     mockDb.FindOneAndUpdateByFilter = jest
@@ -1314,7 +1308,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       ExpectNothingCompleted();
     });
 
-    /** Both wallets are the platform's: the old one stays listed, archived. */
+    /** The platform still lists the old wallet, archived, next to the new one. */
     function ListBothWallets(): void {
       jest.mocked(wallets.GetExternalWalletsByAccount).mockResolvedValue([
         { ...merchantWallet, status: 'archived' },
@@ -1322,7 +1316,31 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       ]);
     }
 
-    it("verifies a customer's transaction_hash before refusing it, and completes a payment to the old wallet", async () => {
+    /**
+     * The session's authorization paid `address`. As on-chain, that pays the
+     * session only when `address` is the expected merchant wallet or one of
+     * the others the confirm allows.
+     */
+    function PaidTo(address: string, hash: string = OTHER_HASH): void {
+      settlement.VerifyCheckoutPayment.mockImplementation(
+        async (_hash, expected) =>
+          [
+            expected.merchantWalletAddress,
+            ...(expected.otherMerchantWalletAddresses ?? []),
+          ].some((wallet) => wallet.toLowerCase() === address.toLowerCase())
+            ? Verified(hash, { merchant_address: address })
+            : {
+                status: 'failed',
+                transaction_hash: hash,
+                amount_cents: 0,
+                payer_address: PAYER_WALLET,
+                failure_reason:
+                  'The authorized transfer does not pay the merchant wallet',
+              }
+      );
+    }
+
+    it("verifies a customer's transaction_hash before refusing it, and completes a payment to the wallet the session recorded", async () => {
       Seed({
         payment_details: {
           transaction_hash: null,
@@ -1333,9 +1351,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       });
       SwitchDefault();
       ListBothWallets();
-      settlement.VerifyCheckoutPayment.mockResolvedValue(
-        Verified(OTHER_HASH, { merchant_address: MERCHANT_WALLET })
-      );
+      PaidTo(MERCHANT_WALLET);
 
       const result = await module.ConfirmPayment(SLUG, {
         transaction_hash: OTHER_HASH,
@@ -1373,9 +1389,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
       SwitchDefault();
       ListBothWallets();
-      settlement.VerifyCheckoutPayment.mockResolvedValue(
-        Verified(OTHER_HASH, { merchant_address: NEW_DEFAULT })
-      );
+      PaidTo(NEW_DEFAULT);
 
       const result = await module.ConfirmPayment(SLUG, {
         transaction_hash: MOCK_RELAY_HASH,
@@ -1393,38 +1407,76 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       ).toHaveLength(1);
     });
 
-    it('completes with the lost relay to the old wallet when it lands after the buyer approved again', async () => {
+    it("refuses a customer's transaction_hash that paid a retired wallet the session never recorded", async () => {
+      // Prepared after the switch: the session only ever offered NEW_DEFAULT.
+      Seed({
+        payment_details: {
+          transaction_hash: null,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: NEW_DEFAULT,
+        },
+      });
+      SwitchDefault();
+      ListBothWallets();
+      PaidTo(MERCHANT_WALLET);
+
+      await expect(
+        module.ConfirmPayment(SLUG, { transaction_hash: OTHER_HASH })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'The authorized transfer does not pay the merchant wallet',
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        OTHER_HASH,
+        expect.objectContaining({
+          merchantWalletAddress: NEW_DEFAULT,
+          otherMerchantWalletAddresses: [],
+        }),
+        expect.anything()
+      );
+      ExpectNothingCompleted();
+      expect(Intent().status).toBe('requires_confirmation');
+    });
+
+    it('refuses a used-nonce payment to a retired wallet the session never recorded', async () => {
       Seed({ payment_details: null });
       SwitchDefault();
       ListBothWallets();
       await module.PreparePayment(SLUG, PAYER_WALLET, {
         email: 'buyer@example.com',
       });
-      // The new authorization's nonce is used: the old relay landed first.
+      // The session's nonce is used, by a transfer to the retired wallet.
       settlement.RelayCheckoutAuthorization.mockResolvedValue(null);
-      settlement.VerifyCheckoutPayment.mockResolvedValue(
-        Verified(OTHER_HASH, { merchant_address: MERCHANT_WALLET })
-      );
+      PaidTo(MERCHANT_WALLET);
 
-      const result = await module.ConfirmPayment(SLUG, {
-        signature: SIGNATURE,
+      await expect(
+        module.ConfirmPayment(SLUG, { signature: SIGNATURE })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'The authorized transfer does not pay the merchant wallet',
       });
 
       expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
         null,
         expect.objectContaining({
           merchantWalletAddress: NEW_DEFAULT,
-          otherMerchantWalletAddresses: [MERCHANT_WALLET],
+          otherMerchantWalletAddresses: [],
         }),
         expect.anything()
       );
-      expect(result).toMatchObject({
-        status: 'complete',
-        payment_details: {
-          transaction_hash: OTHER_HASH,
-          merchant_wallet: MERCHANT_WALLET,
-        },
+      expect(Session()).toMatchObject({
+        status: 'open',
+        payment_status: 'unpaid',
       });
+      expect(Intent().status).not.toBe('succeeded');
+      expect(
+        memory
+          .All<Charge>('Charges')
+          .filter((charge) => charge.status !== 'failed')
+      ).toEqual([]);
+      expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([]);
     });
   });
 

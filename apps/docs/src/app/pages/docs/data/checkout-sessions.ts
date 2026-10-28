@@ -1281,7 +1281,7 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         type: 'string',
         nullable: true,
         description:
-          "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. If the platform's default wallet changes before the payment is submitted, confirming returns a <code>409</code> <code>merchant_wallet_changed</code> and the payment is prepared again for the new wallet. A payment already submitted to this wallet is verified against it.",
+          "The merchant wallet the customer's authorization pays, recorded when the payment is prepared. If the platform's default wallet changes before the payment is submitted, confirming returns a <code>409</code> <code>merchant_wallet_changed</code> and the payment is prepared again for the new wallet. A payment already submitted to this wallet is verified against it. A payment under the session's authorization counts only when it paid this wallet or the platform's current default wallet; a payment to any other wallet, one the platform has deleted included, is refused and not credited.",
       },
       {
         name: 'first_charge_at',

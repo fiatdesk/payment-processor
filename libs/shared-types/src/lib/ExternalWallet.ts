@@ -55,8 +55,8 @@ export interface ExternalWallet {
 
   /**
    * The wallet's on-chain USDC, in whole USDC (e.g. 12.5). Only on a list
-   * request with `include_usdc_balance=true`; null on the simulated rail or
-   * when the chain cannot be read.
+   * request with `include_usdc_balance=true`, and never on the simulated
+   * rail; null when the chain cannot be read.
    * @fiatdesk_extension
    */
   usdc_balance?: number | null;
