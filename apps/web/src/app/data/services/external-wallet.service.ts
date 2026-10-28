@@ -1,3 +1,4 @@
+// Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 import {
   Injectable,
   inject,
@@ -6,7 +7,7 @@ import {
   computed,
 } from '@angular/core';
 import { ApiService } from '../../core';
-import { ExternalWallet } from '@fiatdesk/shared-types';
+import { ExternalWallet, SameAddress } from '@fiatdesk/shared-types';
 import { SettingsCardRow } from '../../shared';
 
 /**
@@ -24,6 +25,9 @@ export interface ExternalWalletCreateInput {
   metadata?: Record<string, string>;
 }
 
+/** Most active wallets an account can hold (the API refuses a sixth). */
+export const MAX_WALLETS = 5;
+
 @Injectable({
   providedIn: 'root',
 })
@@ -31,12 +35,16 @@ export class ExternalWalletService {
   private readonly api = inject(ApiService);
 
   loading: WritableSignal<boolean> = signal(false);
+  /** The account's active wallets, newest first (as the API lists them). */
   wallets: WritableSignal<ExternalWallet[]> = signal([]);
 
+  /**
+   * The default wallet: the one flagged `default_for_currency`. Without a
+   * flagged one, the newest, which the API makes the default on its next read.
+   */
   wallet = computed<ExternalWallet | null>(() => {
     const wallets = this.wallets();
-    if (!wallets.length) return null;
-    return wallets.find((w) => w.default_for_currency) || wallets[0];
+    return wallets.find((w) => w.default_for_currency) ?? wallets[0] ?? null;
   });
 
   Reset(): void {
@@ -44,7 +52,9 @@ export class ExternalWalletService {
   }
 
   /**
-   * Save external wallet - creates if none exists, archives the old one if address changes.
+   * Replace the default wallet ("Edit payout wallet"): add the new address
+   * as the default, then remove the old wallet. The first wallet of an
+   * account is simply added.
    */
   async SaveExternalWallet(
     accountId: string,
@@ -54,34 +64,57 @@ export class ExternalWalletService {
     try {
       const existingWallet = this.wallet();
 
-      if (existingWallet?.wallet_address === data.wallet_address) {
+      if (
+        existingWallet &&
+        SameAddress(existingWallet.wallet_address, data.wallet_address)
+      ) {
         return existingWallet;
       }
 
+      const wallet = await this.Create(accountId, {
+        ...data,
+        default_for_currency: true,
+      });
       if (existingWallet) {
-        await this.ArchiveExternalWallet(accountId, existingWallet.id);
+        await this.api.Call<void>(
+          'DELETE',
+          `accounts/${accountId}/external_accounts/${existingWallet.id}`
+        );
       }
-
-      const wallet = await this.api.Call<ExternalWallet>(
-        'POST',
-        `accounts/${accountId}/external_accounts`,
-        data
-      );
-      this.wallets.set([wallet]);
+      await this.GetExternalWallets(accountId);
       return wallet;
     } finally {
       this.loading.set(false);
     }
   }
 
-  private async ArchiveExternalWallet(
+  /** Add a wallet; `default_for_currency: true` also makes it the default. */
+  async AddWallet(
     accountId: string,
-    walletId: string
-  ): Promise<void> {
+    data: ExternalWalletCreateInput
+  ): Promise<ExternalWallet> {
+    const wallet = await this.Create(accountId, data);
+    await this.GetExternalWallets(accountId);
+    return wallet;
+  }
+
+  /** Make the wallet the default: it then receives and pays everything. */
+  async SetDefaultWallet(accountId: string, walletId: string): Promise<void> {
+    await this.api.Call<ExternalWallet>(
+      'POST',
+      `accounts/${accountId}/external_accounts/${walletId}`,
+      { default_for_currency: true }
+    );
+    await this.GetExternalWallets(accountId);
+  }
+
+  /** Remove a wallet that is not the default. */
+  async RemoveWallet(accountId: string, walletId: string): Promise<void> {
     await this.api.Call<void>(
       'DELETE',
       `accounts/${accountId}/external_accounts/${walletId}`
     );
+    await this.GetExternalWallets(accountId);
   }
 
   async GetExternalWallets(accountId: string): Promise<ExternalWallet[]> {
@@ -96,13 +129,22 @@ export class ExternalWalletService {
   GetWalletTitle(): string {
     const wallet = this.wallet();
     if (!wallet?.wallet_address) return '';
-    const addr = wallet.wallet_address;
-    if (addr.length <= 12) return addr;
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    return ShortWalletAddress(wallet.wallet_address);
   }
 
   GetFullWalletAddress(): string {
     return this.wallet()?.wallet_address || '';
+  }
+
+  private Create(
+    accountId: string,
+    data: ExternalWalletCreateInput
+  ): Promise<ExternalWallet> {
+    return this.api.Call<ExternalWallet>(
+      'POST',
+      `accounts/${accountId}/external_accounts`,
+      data
+    );
   }
 
   private GetNetworkDisplay(): string {
@@ -138,4 +180,10 @@ export class ExternalWalletService {
       },
     ];
   }
+}
+
+/** `0x1234...abcd` */
+export function ShortWalletAddress(address: string): string {
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }

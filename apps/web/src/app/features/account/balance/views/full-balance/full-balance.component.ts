@@ -11,7 +11,10 @@ import { DecimalPipe } from '@angular/common';
 
 import type { PaginatedListColumn } from '../../../../../shared';
 import { BalanceService } from '../../../../../data';
-import { TransactionListComponent } from '../../../components';
+import {
+  ArchivedDepositBannerComponent,
+  TransactionListComponent,
+} from '../../../components';
 import { MetaService } from '../../../../../core';
 import { BalanceActionsService } from '../../services/balance-actions.service';
 import { BalanceActionsHostComponent } from '../../components/balance-actions-host/balance-actions-host.component';
@@ -20,7 +23,12 @@ type BalanceActivityTab = 'all' | 'payouts' | 'topups';
 
 @Component({
   selector: 'app-full-balance',
-  imports: [TransactionListComponent, DecimalPipe, BalanceActionsHostComponent],
+  imports: [
+    ArchivedDepositBannerComponent,
+    TransactionListComponent,
+    DecimalPipe,
+    BalanceActionsHostComponent,
+  ],
   templateUrl: './full-balance.component.html',
   styleUrl: './full-balance.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

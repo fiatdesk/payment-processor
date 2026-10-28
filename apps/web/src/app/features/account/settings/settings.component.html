@@ -143,8 +143,10 @@
 </div>
 }
 
-<!-- External Wallet Card -->
-@if (externalWalletService.wallet()) {
+<!-- Wallets (platform) or the payout wallet (connected accounts) -->
+@if (authService.isPlatform()) {
+<app-wallets-section></app-wallets-section>
+} @else if (externalWalletService.wallet()) {
 <div class="view-section">
   <div class="settings-section-title">Payout wallet</div>
   <app-settings-card

@@ -737,6 +737,87 @@ describe('CheckoutComponent', () => {
     });
   });
 
+  describe('when the merchant changes its receiving wallet', () => {
+    const NEW_MERCHANT = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
+    const REPREPARED: CheckoutPaymentTransaction = {
+      ...PREPARED,
+      merchant_wallet_address: NEW_MERCHANT,
+      typed_data: {
+        ...TYPED_DATA,
+        message: { ...TYPED_DATA.message, to: NEW_MERCHANT },
+      },
+    };
+
+    function WalletChanged(transactionHash?: string): Error {
+      return ApiFailure(409, {
+        code: 'merchant_wallet_changed',
+        type: 'merchant_wallet_changed',
+        message:
+          "The merchant's receiving wallet changed. Please approve the payment again.",
+        ...(transactionHash ? { transaction_hash: transactionHash } : {}),
+      });
+    }
+
+    it('prepares again and asks the buyer to approve a payment to the new wallet', async () => {
+      const { component } = Render();
+      let noticeAtReprepare: string | null = null;
+      checkoutSessionService.PreparePayment.mockResolvedValueOnce(
+        PREPARED
+      ).mockImplementationOnce(async () => {
+        noticeAtReprepare = component.paymentNotice();
+        return REPREPARED;
+      });
+      checkoutSessionService.ConfirmPayment.mockRejectedValueOnce(
+        WalletChanged()
+      ).mockResolvedValueOnce(COMPLETED);
+
+      await component.Pay();
+
+      expect(noticeAtReprepare).toBe(
+        "The merchant's receiving wallet changed. Please approve the payment again."
+      );
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(2);
+      const signed = Calls(wallet, 'eth_signTypedData_v4');
+      expect(signed).toHaveLength(2);
+      expect(SignedTypedData(wallet, 1)).toEqual({
+        account: PAYER,
+        typedData: Lowercased(REPREPARED.typed_data as Eip712TypedData),
+      });
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledTimes(2);
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('follows a payment to the old wallet that is already on its way, without signing', async () => {
+      const { component } = Render();
+      checkoutSessionService.PreparePayment.mockRejectedValueOnce(
+        WalletChanged(HASH)
+      );
+
+      await component.Pay();
+
+      expect(Calls(wallet, 'eth_signTypedData_v4')).toHaveLength(0);
+      expect(checkoutSessionService.ConfirmPayment).toHaveBeenCalledWith(
+        SESSION.url_slug,
+        { transaction_hash: HASH }
+      );
+      expect(component.paymentPhase()).toBe('complete');
+    });
+
+    it('stops with the fixed words when the wallet changes again', async () => {
+      const { component } = Render();
+      checkoutSessionService.PreparePayment.mockResolvedValue(PREPARED);
+      checkoutSessionService.ConfirmPayment.mockRejectedValue(WalletChanged());
+
+      await component.Pay();
+
+      expect(checkoutSessionService.PreparePayment).toHaveBeenCalledTimes(2);
+      expect(component.paymentError()).toBe(
+        "The merchant's receiving wallet changed. Please approve the payment again."
+      );
+      expect(component.paymentPhase()).toBe('idle');
+    });
+  });
+
   describe('on-chain subscriptions', () => {
     const ONCHAIN_ID = `0x${'34'.repeat(32)}`;
 

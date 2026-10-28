@@ -21,7 +21,10 @@ import {
   type DateRangePresetId,
   type DateRangeValue,
 } from '../../../../shared';
-import { TransactionListComponent } from '../../components';
+import {
+  ArchivedDepositBannerComponent,
+  TransactionListComponent,
+} from '../../components';
 import type { PaginatedListColumn } from '../../../../shared';
 import { BalanceService, ReportingService } from '../../../../data';
 import { MetaService, StorageService } from '../../../../core';
@@ -44,6 +47,7 @@ const DEFAULT_PRESET: DateRangePresetId = 'last_7_days';
   imports: [
     DecimalPipe,
     RouterLink,
+    ArchivedDepositBannerComponent,
     TransactionListComponent,
     LineChartComponent,
     DateRangePickerComponent,

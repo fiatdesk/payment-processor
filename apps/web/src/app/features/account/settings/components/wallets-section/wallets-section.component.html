@@ -1,0 +1,107 @@
+<div class="view-section">
+  <div class="section-header">
+    <div class="settings-section-title">Wallets</div>
+    <button
+      type="button"
+      class="action-button action-button-dainty outline"
+      [disabled]="atLimit()"
+      (click)="OpenAddPanel()"
+    >
+      Add wallet
+    </button>
+  </div>
+  <p class="section-description">
+    The default wallet receives checkouts, top-ups and subscription payments,
+    and pays out. Only USDC in the default wallet counts toward your balance.
+    @if (atLimit()) { You can have up to {{ maxWallets }} wallets. }
+  </p>
+
+  <div class="wallets-card">
+    @for (wallet of wallets(); track wallet.id) {
+    <div class="wallet-row" data-test="wallet-row">
+      <div class="wallet-main">
+        <app-copy-text
+          [text]="wallet.wallet_address"
+          [displayText]="wallet.wallet_address"
+          tooltipText="Copy address"
+        ></app-copy-text>
+        <div class="wallet-meta">
+          @if (IsDefault(wallet)) {
+          <app-status-chip status="default"></app-status-chip>
+          } @if (MigrationStatus(wallet); as status) {
+          <span class="wallet-migration">{{ status }}</span>
+          }
+        </div>
+      </div>
+      @if (!IsDefault(wallet)) {
+      <div class="wallet-actions">
+        <button type="button" class="text-link" (click)="AskSetDefault(wallet)">
+          Set as default
+        </button>
+        <button
+          type="button"
+          class="text-link text-link-danger"
+          (click)="AskRemove(wallet)"
+        >
+          Remove
+        </button>
+      </div>
+      }
+    </div>
+    } @empty {
+    <div class="wallet-row wallet-empty">No wallets yet.</div>
+    }
+  </div>
+</div>
+
+<app-slide-panel
+  [isOpen]="addPanelOpen()"
+  title="Add wallet"
+  [loading]="addLoading()"
+  submitLabel="Add wallet"
+  [submitDisabled]="false"
+  (closed)="CloseAddPanel()"
+  (submitted)="SubmitAdd()"
+>
+  <app-external-wallet-form
+    #addWalletForm
+    mode="edit"
+    [wallet]="null"
+    [isOpen]="addPanelOpen()"
+    [showErrors]="addShowErrors()"
+  ></app-external-wallet-form>
+  <label class="wallet-default-option">
+    <input
+      type="checkbox"
+      [ngModel]="makeDefault()"
+      (ngModelChange)="makeDefault.set($event)"
+    />
+    <span>Make this the default</span>
+  </label>
+  @if (addError()) {
+  <p class="wallet-error">{{ addError() }}</p>
+  }
+</app-slide-panel>
+
+<app-confirm-dialog
+  [isOpen]="!!setDefaultTarget()"
+  title="Set as default wallet"
+  [description]="setDefaultDescription()"
+  confirmLabel="Set as default"
+  [loading]="setDefaultLoading()"
+  [error]="setDefaultError()"
+  (confirmed)="ConfirmSetDefault()"
+  (cancelled)="setDefaultTarget.set(null)"
+></app-confirm-dialog>
+
+<app-confirm-dialog
+  [isOpen]="!!removeTarget()"
+  title="Remove wallet"
+  [description]="removeDescription()"
+  confirmLabel="Remove wallet"
+  [destructive]="true"
+  [loading]="removeLoading()"
+  [error]="removeError()"
+  (confirmed)="ConfirmRemove()"
+  (cancelled)="removeTarget.set(null)"
+></app-confirm-dialog>

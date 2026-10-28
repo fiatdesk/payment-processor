@@ -1,0 +1,6 @@
+@use '../../../../styles/base.scss' as *;
+
+.archived-deposit-alert {
+  border-radius: $border-radius-small;
+  overflow: hidden;
+}
