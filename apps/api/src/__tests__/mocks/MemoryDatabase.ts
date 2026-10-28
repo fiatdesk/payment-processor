@@ -3,8 +3,8 @@
  * In-memory stand-in for `Database` with the Mongo semantics the payout and
  * billing flows rely on: equality, `$in`/`$ne`, range and top-level `$or`
  * filters (array fields match by containment), `$set`/`$setOnInsert`/`$inc`/
- * `$addToSet`/`$unset` updates with dotted paths, upserts by `id`, ordered
- * queries with `startAt` /
+ * `$addToSet`/`$unset` updates with dotted paths (one document or every
+ * match), upserts by `id`, ordered queries (dotted keys too) with `startAt` /
  * `startAfter` cursors, transactions that roll back when the callback
  * throws, and opt-in unique (optionally partial) indexes. Pass it where a
  * `Database` is expected with `AsDatabase()`.
@@ -83,6 +83,22 @@ export class MemoryDatabase {
     return Clone(this.Store(collection, id, doc)) as T;
   }
 
+  async UpdateMany(
+    collection: string,
+    filter: Filter,
+    data: Doc
+  ): Promise<number> {
+    const matched = [...this.Collection(collection).values()].filter((doc) =>
+      Matches(doc, filter)
+    );
+    for (const doc of matched) {
+      const updated = Clone(doc);
+      ApplyUpdate(updated, data);
+      this.Store(collection, String(doc.id), updated);
+    }
+    return matched.length;
+  }
+
   async FindOneAndUpdateByFilter<T>(
     collection: string,
     filter: Filter,
@@ -154,8 +170,8 @@ export class MemoryDatabase {
       results.sort(
         (a, b) =>
           sign *
-          (Number((a as Doc)[order.key] ?? 0) -
-            Number((b as Doc)[order.key] ?? 0))
+          (Number(Read(a as Doc, order.key) ?? 0) -
+            Number(Read(b as Doc, order.key) ?? 0))
       );
     }
     return options.limit ? results.slice(0, options.limit) : results;

@@ -52,6 +52,22 @@ export interface ExternalWallet {
    * @fiatdesk_extension
    */
   archived_at?: number | null;
+
+  /**
+   * The wallet's on-chain USDC, in whole USDC (e.g. 12.5). Only on a list
+   * request with `include_usdc_balance=true`; null on the simulated rail or
+   * when the chain cannot be read.
+   * @fiatdesk_extension
+   */
+  usdc_balance?: number | null;
+
+  /**
+   * Only on the response of a request that made this wallet the platform's
+   * default: how many plan destination changes are left for the billing run
+   * to send (a few are sent with the request).
+   * @fiatdesk_extension
+   */
+  plan_migrations_queued?: number;
 }
 
 export interface ExternalWalletRequirements {

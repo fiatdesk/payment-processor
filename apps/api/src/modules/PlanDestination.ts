@@ -33,9 +33,11 @@ import { Logger } from '../utils/Logger';
 import { Now } from '../utils/Timestamp';
 
 const COLLECTION = 'Prices';
-/** Pending changes followed per billing run. */
+/** Pending changes read per page, and pages read per billing run. */
 const RECONCILE_PAGE_SIZE = 100;
+const MAX_RECONCILE_PAGES = 20;
 const PENDING = 'subscription_plan_destination_change.status';
+const PENDING_SINCE = 'subscription_plan_destination_change.created';
 
 /** Whether a plan can be charged now, or waits for its destination change. */
 type PlanState = 'ready' | 'pending';
@@ -79,11 +81,30 @@ export class PlanDestinationModule {
     return prices.map((price) => price.id);
   }
 
-  /** After the switch commits: sends the recorded changes, flips simulated plans. */
-  async SyncAll(priceIds: string[]): Promise<void> {
+  /**
+   * Sends (or follows) the recorded changes and flips simulated plans. With
+   * `maxSends`, at most that many pending on-chain changes are sent; the
+   * rest stay pending for the billing run. Returns how many were left.
+   */
+  async SyncAll(
+    priceIds: string[],
+    options: { maxSends?: number } = {}
+  ): Promise<number> {
+    let sends = 0;
+    let queued = 0;
     for (const id of priceIds) {
       const price = await this.db.Get<Price>(COLLECTION, id);
       if (!price) continue;
+      const sending =
+        !this.IsSimulatedPlan(price) &&
+        price.subscription_plan_destination_change?.status === 'pending';
+      if (sending && options.maxSends !== undefined) {
+        if (sends >= options.maxSends) {
+          queued += 1;
+          continue;
+        }
+        sends += 1;
+      }
       try {
         await this.Sync(price);
       } catch (error) {
@@ -92,6 +113,7 @@ export class PlanDestinationModule {
         });
       }
     }
+    return queued;
   }
 
   /**
@@ -102,26 +124,44 @@ export class PlanDestinationModule {
     return (await this.Sync(price)) === 'ready';
   }
 
-  /** The billing runner's pass: follows every pending change. */
+  /**
+   * The billing runner's pass: follows every pending change, oldest first
+   * and page by page (the `Prices` index on the change's status and time
+   * serves it), so changes are not capped at one page.
+   */
   async ReconcilePending(platformAccountId?: string): Promise<void> {
-    const pending = await this.db.Query<Price>({
-      collection: COLLECTION,
-      method: 'READ',
-      parameters: [
-        { key: PENDING, operator: QueryOperators['=='], value: 'pending' },
-        ...(platformAccountId
-          ? [
-              {
-                key: 'platform_account',
-                operator: QueryOperators['=='],
-                value: platformAccountId,
-              },
-            ]
-          : []),
-      ],
-      limit: RECONCILE_PAGE_SIZE,
-    });
-    await this.SyncAll(pending.map((price) => price.id));
+    const seen = new Set<string>();
+    let cursor: number | undefined;
+    for (let page = 0; page < MAX_RECONCILE_PAGES; page++) {
+      const pending =
+        (await this.db.Query<Price>({
+          collection: COLLECTION,
+          method: 'READ',
+          parameters: [
+            { key: PENDING, operator: QueryOperators['=='], value: 'pending' },
+            ...(platformAccountId
+              ? [
+                  {
+                    key: 'platform_account',
+                    operator: QueryOperators['=='],
+                    value: platformAccountId,
+                  },
+                ]
+              : []),
+          ],
+          orderBy: [{ key: PENDING_SINCE, direction: 'asc' }],
+          limit: RECONCILE_PAGE_SIZE,
+          ...(cursor === undefined ? {} : { startAt: cursor }),
+        })) ?? [];
+      const fresh = pending.filter((price) => !seen.has(price.id));
+      for (const price of fresh) seen.add(price.id);
+      await this.SyncAll(fresh.map((price) => price.id));
+      if (pending.length < RECONCILE_PAGE_SIZE || fresh.length === 0) return;
+      cursor =
+        pending[pending.length - 1].subscription_plan_destination_change
+          ?.created;
+      if (cursor === undefined) return;
+    }
   }
 
   /**

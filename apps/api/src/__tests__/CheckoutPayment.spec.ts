@@ -58,6 +58,14 @@ import {
 } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 jest.mock('../utils/IdGenerator', () => ({
   ...jest.requireActual('../utils/IdGenerator'),
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
@@ -204,7 +212,10 @@ describe('CheckoutPaymentModule', () => {
   let chargeModule: ChargeModule;
   let mockSettlement: jest.Mocked<Settlement>;
   let mockExternalWalletModule: jest.Mocked<
-    Pick<ExternalWalletModule, 'GetDefaultWallet'>
+    Pick<
+      ExternalWalletModule,
+      'GetDefaultWallet' | 'GetExternalWalletsByAccount'
+    >
   >;
 
   beforeEach(() => {
@@ -231,6 +242,9 @@ describe('CheckoutPaymentModule', () => {
 
     mockExternalWalletModule = {
       GetDefaultWallet: jest.fn().mockResolvedValue(merchantWallet),
+      GetExternalWalletsByAccount: jest
+        .fn()
+        .mockResolvedValue([merchantWallet]),
     };
     // The prepare write is conditional on no relay being recorded.
     mockDb.FindOneAndUpdateByFilter = jest
@@ -599,6 +613,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
   beforeEach(() => {
     wallets = {
       GetDefaultWallet: jest.fn(async () => merchantWallet),
+      GetExternalWalletsByAccount: jest.fn(async () => [merchantWallet]),
     } as unknown as ExternalWalletModule;
     jest.clearAllMocks();
     ResetIdCounter();
@@ -735,6 +750,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       MOCK_RELAY_HASH,
       {
         merchantWalletAddress: MERCHANT_WALLET,
+        otherMerchantWalletAddresses: [],
         amountInCents: 1000,
         checkoutSessionId: 'cs_fd_pay',
         payerAddress: PAYER_WALLET,
@@ -1296,6 +1312,119 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
       });
       expect(Session().payment_details?.transaction_hash).toBeNull();
       ExpectNothingCompleted();
+    });
+
+    /** Both wallets are the platform's: the old one stays listed, archived. */
+    function ListBothWallets(): void {
+      jest.mocked(wallets.GetExternalWalletsByAccount).mockResolvedValue([
+        { ...merchantWallet, status: 'archived' },
+        { ...merchantWallet, id: 'ew_fd_2', wallet_address: NEW_DEFAULT },
+      ]);
+    }
+
+    it("verifies a customer's transaction_hash before refusing it, and completes a payment to the old wallet", async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: null,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      SwitchDefault();
+      ListBothWallets();
+      settlement.VerifyCheckoutPayment.mockResolvedValue(
+        Verified(OTHER_HASH, { merchant_address: MERCHANT_WALLET })
+      );
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: OTHER_HASH,
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        OTHER_HASH,
+        expect.objectContaining({
+          merchantWalletAddress: MERCHANT_WALLET,
+          otherMerchantWalletAddresses: [NEW_DEFAULT],
+        }),
+        expect.anything()
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: OTHER_HASH,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it('credits a used-nonce payment to the current default and records the wallet it paid', async () => {
+      Seed({
+        payment_details: {
+          transaction_hash: MOCK_RELAY_HASH,
+          payer_wallet: PAYER_WALLET,
+          relayed: true,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
+      memory.Seed('PaymentIntents', { ...Intent(), status: 'processing' });
+      SwitchDefault();
+      ListBothWallets();
+      settlement.VerifyCheckoutPayment.mockResolvedValue(
+        Verified(OTHER_HASH, { merchant_address: NEW_DEFAULT })
+      );
+
+      const result = await module.ConfirmPayment(SLUG, {
+        transaction_hash: MOCK_RELAY_HASH,
+      });
+
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: OTHER_HASH,
+          merchant_wallet: NEW_DEFAULT,
+        },
+      });
+      expect(
+        memory.All<BalanceTransaction>('BalanceTransactions')
+      ).toHaveLength(1);
+    });
+
+    it('completes with the lost relay to the old wallet when it lands after the buyer approved again', async () => {
+      Seed({ payment_details: null });
+      SwitchDefault();
+      ListBothWallets();
+      await module.PreparePayment(SLUG, PAYER_WALLET, {
+        email: 'buyer@example.com',
+      });
+      // The new authorization's nonce is used: the old relay landed first.
+      settlement.RelayCheckoutAuthorization.mockResolvedValue(null);
+      settlement.VerifyCheckoutPayment.mockResolvedValue(
+        Verified(OTHER_HASH, { merchant_address: MERCHANT_WALLET })
+      );
+
+      const result = await module.ConfirmPayment(SLUG, {
+        signature: SIGNATURE,
+      });
+
+      expect(settlement.VerifyCheckoutPayment).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({
+          merchantWalletAddress: NEW_DEFAULT,
+          otherMerchantWalletAddresses: [MERCHANT_WALLET],
+        }),
+        expect.anything()
+      );
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_details: {
+          transaction_hash: OTHER_HASH,
+          merchant_wallet: MERCHANT_WALLET,
+        },
+      });
     });
   });
 

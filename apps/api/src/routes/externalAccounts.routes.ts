@@ -3,7 +3,10 @@ import { AsyncHandler } from '../utils/AsyncHandler';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { Logger } from '../utils/Logger';
-import { ParseCreatedFilter } from '../utils/ListHelper';
+import {
+  ParseCreatedFilter,
+  ParseOptionalQueryBoolean,
+} from '../utils/ListHelper';
 
 import { db } from '../modules/Database';
 import { EventService } from '../modules/EventService';
@@ -112,6 +115,9 @@ router.get(
       startingAfter: starting_after as string | undefined,
       endingBefore: ending_before as string | undefined,
       created: ParseCreatedFilter(req.query as Record<string, unknown>),
+      // FiatDesk extension: each wallet's on-chain USDC, for the dashboard.
+      includeUsdcBalance:
+        ParseOptionalQueryBoolean(req.query.include_usdc_balance) === true,
     });
 
     res.json(result);

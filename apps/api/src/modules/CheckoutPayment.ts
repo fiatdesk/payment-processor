@@ -770,12 +770,15 @@ export class CheckoutPaymentModule {
           .wallet_address;
     const merchantWallet = recordedMerchant ?? (currentMerchant as string);
     const recorded = session.payment_details?.transaction_hash ?? null;
-    // Nothing reached the chain yet, so the buyer approves the new wallet.
-    // A recorded relay keeps its reconcile: the payment it makes is valid.
+    // A new relay to a wallet that is no longer the default is not sent:
+    // the buyer approves the new wallet. A recorded relay keeps its
+    // reconcile, and a hash the customer sends is verified first.
     const walletChanged =
       recordedMerchant !== null &&
       !SameAddress(recordedMerchant, currentMerchant);
-    if (walletChanged && !recorded) throw MerchantWalletChanged();
+    if (walletChanged && !recorded && input.signature) {
+      throw MerchantWalletChanged();
+    }
 
     let transactionHash: string | null;
     if (input.transactionHash) {
@@ -816,6 +819,11 @@ export class CheckoutPaymentModule {
       transactionHash,
       {
         merchantWalletAddress: merchantWallet,
+        otherMerchantWalletAddresses: await this.OtherMerchantWallets(
+          session.platform_account,
+          merchantWallet,
+          currentMerchant
+        ),
         amountInCents: amountDue,
         checkoutSessionId: session.id,
         payerAddress: payerWallet,
@@ -876,8 +884,39 @@ export class CheckoutPaymentModule {
 
     return this.SettleVerifiedPayment(session, verification, {
       paidBy,
-      merchantWallet,
+      merchantWallet: verification.merchant_address ?? merchantWallet,
     });
+  }
+
+  /**
+   * The platform's own wallets other than `merchantWallet` (the current
+   * default among them): a payment that used the session's authorization
+   * and pays one of them is the platform's, so it pays the session. A
+   * wallet that is not the default is watched, so its USDC is alerted.
+   */
+  private async OtherMerchantWallets(
+    platformAccountId: string,
+    merchantWallet: string,
+    currentMerchant: string | null
+  ): Promise<string[]> {
+    const wallets = await this.externalWalletModule.GetExternalWalletsByAccount(
+      platformAccountId,
+      true
+    );
+    const others: string[] = [];
+    for (const address of [
+      currentMerchant,
+      ...wallets.map((wallet) => wallet.wallet_address),
+    ]) {
+      if (
+        address &&
+        !SameAddress(address, merchantWallet) &&
+        !others.some((other) => SameAddress(other, address))
+      ) {
+        others.push(address);
+      }
+    }
+    return others;
   }
 
   /**

@@ -12,6 +12,17 @@ import { MemoryDatabase } from './mocks/MemoryDatabase';
 import { ArchivedWalletDepositStore } from '../modules/ArchivedWalletDeposits';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+jest.mock('../modules/EventService', () => ({
+  EventService: jest.fn().mockImplementation(() => ({ Emit: jest.fn() })),
+}));
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
 }));
@@ -213,6 +224,26 @@ describe('BalanceModule', () => {
       expect(
         details?.archived_wallet_deposits.map((deposit) => deposit.id)
       ).toEqual(['awd_fd_1', 'awd_fd_2']);
+    });
+
+    it('uses the first stored wallet when none is flagged, and records it as the default', async () => {
+      for (const wallet of memory.All<{ id: string }>('ExternalWallets')) {
+        await memory.Update('ExternalWallets', wallet.id, {
+          default_for_currency: null,
+        });
+      }
+
+      const details = await module.GetBalanceDetails(PLATFORM);
+
+      expect(details?.wallet_address).toBe(
+        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+      );
+      expect(
+        memory.Doc<{ default_for_currency: boolean }>(
+          'ExternalWallets',
+          'wa_fd_first'
+        ).default_for_currency
+      ).toBe(true);
     });
 
     it('acknowledges a deposit, which then leaves the list', async () => {

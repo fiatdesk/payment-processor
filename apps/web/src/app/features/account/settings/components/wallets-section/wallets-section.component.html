@@ -28,6 +28,8 @@
         <div class="wallet-meta">
           @if (IsDefault(wallet)) {
           <app-status-chip status="default"></app-status-chip>
+          } @if (Balance(wallet); as balance) {
+          <span class="wallet-balance">{{ balance }}</span>
           } @if (MigrationStatus(wallet); as status) {
           <span class="wallet-migration">{{ status }}</span>
           }

@@ -308,12 +308,29 @@ const EXTERNAL_WALLET_MORE_ATTRIBUTES: Attribute[] = [
     enumNote:
       "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
   },
+  {
+    name: 'usdc_balance',
+    type: 'number',
+    nullable: true,
+    description:
+      'The USDC the wallet holds on-chain, in whole USDC (for example <code>12.5</code>). Only on a list request with <code>include_usdc_balance=true</code>; <code>null</code> on the simulated rail or when the chain cannot be read.',
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+  },
+  {
+    name: 'plan_migrations_queued',
+    type: 'integer',
+    description:
+      "Only on the response of a request that made this wallet the platform's default: how many subscription plan destination changes are left for the billing run to send. The request sends up to 3 itself.",
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+  },
 ];
 
 /** The rules every account's wallets follow, shown on the object page. */
 const WALLET_RULES = [
   {
-    text: 'An account can have at most 5 active wallets. Adding a sixth returns a <code>400</code> with the message "An account can have at most 5 wallets. Remove one before adding another."',
+    text: '<strong>FiatDesk extension:</strong> An account can have at most 5 active wallets. Adding a sixth returns a <code>400</code> with the message "An account can have at most 5 wallets. Remove one before adding another."',
     html: true,
   },
   {
@@ -325,7 +342,11 @@ const WALLET_RULES = [
     html: true,
   },
   {
-    text: "Changing the <strong>platform's</strong> default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the old wallet is built or broadcast. Broadcast or replace that batch first.",
+    text: "<strong>FiatDesk extension:</strong> Changing the <strong>platform's</strong> default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the old wallet is built or broadcast. Broadcast or replace that batch first.",
+    html: true,
+  },
+  {
+    text: "<strong>FiatDesk extension:</strong> Changing the <strong>platform's</strong> default does not move its USDC: it stays in the old wallet. Send it to the new default after switching. Until it arrives, the available balance counts only the new wallet's USDC, and payouts above that amount fail. List the wallets with <code>include_usdc_balance=true</code> to see what each one holds.",
     html: true,
   },
 ];
@@ -443,6 +464,14 @@ const CREATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
       'When set to <code>true</code>, or if this is the first external account added in this currency, this wallet becomes the default for that currency and the previous default stops being the default. Otherwise the new wallet is not the default (<code>false</code>).',
   },
   {
+    name: 'archive_previous',
+    type: 'boolean',
+    description:
+      'With <code>default_for_currency: true</code>, also deletes the previous default in the same step, so a replacement needs one request. Only valid with <code>default_for_currency: true</code>. A replacement is allowed at 5 active wallets, since the count stays the same.',
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This parameter is not present in Stripe's API.",
+  },
+  {
     name: 'metadata',
     type: 'object',
     description:
@@ -507,7 +536,7 @@ export const EXTERNAL_WALLETS_CREATE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: "Returns the <code>External Wallet</code> object if the wallet was created successfully. Returns an error if the wallet address is invalid, already in use, or on a sanctions list; a <code>400</code> if the account already has 5 active wallets; and, when it would become the platform's default, a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast.",
+          text: "Returns the <code>External Wallet</code> object if the wallet was created successfully. Returns an error if the wallet address is invalid or on a sanctions list; a <code>400</code> if the account already has 5 active wallets; and, when it would become the platform's default, a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast. When it becomes the platform's default, the response includes <code>plan_migrations_queued</code>.",
           html: true,
         },
       ],
@@ -575,7 +604,15 @@ const UPDATE_EXTERNAL_WALLET_PARAMETERS: Attribute[] = [
     name: 'default_for_currency',
     type: 'boolean',
     description:
-      'When set to <code>true</code>, this becomes the default external wallet for its currency and the previous default stops being the default. <code>false</code> changes nothing: a default stops being the default only when another wallet becomes it. For the platform, this is the wallet switch: checkouts, top-ups, payouts and the subscription plans move to this wallet.',
+      'When set to <code>true</code>, this becomes the default external wallet for its currency and the previous default stops being the default. <code>false</code> changes nothing: a default stops being the default only when another wallet becomes it. For the platform, this is the wallet switch: checkouts, top-ups, payouts and the subscription plans move to this wallet. The USDC already in the old wallet stays there.',
+  },
+  {
+    name: 'archive_previous',
+    type: 'boolean',
+    description:
+      'With <code>default_for_currency: true</code>, also deletes the previous default in the same step, so a replacement needs one request. Only valid with <code>default_for_currency: true</code>. A replacement is allowed at 5 active wallets, since the count stays the same.',
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This parameter is not present in Stripe's API.",
   },
   {
     name: 'metadata',
@@ -632,7 +669,7 @@ export const EXTERNAL_WALLETS_UPDATE_PAGE: DocPage = {
         { type: 'heading', level: 2, text: 'Returns' },
         {
           type: 'paragraph',
-          text: "Returns the updated <code>External Wallet</code> object if the call succeeds. Setting the platform's default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast. The call does not wait for the subscription plans to move on-chain.",
+          text: "Returns the updated <code>External Wallet</code> object if the call succeeds. Setting the platform's default returns a <code>409</code> <code>payout_batch_in_progress</code> while a payout batch of the current default is built or broadcast. The call does not wait for the subscription plans to move on-chain; the response's <code>plan_migrations_queued</code> says how many the billing run still sends.",
           html: true,
         },
       ],
@@ -757,6 +794,14 @@ const LIST_EXTERNAL_WALLETS_PARAMETERS: Attribute[] = [
     type: 'integer',
     description:
       'A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.',
+  },
+  {
+    name: 'include_usdc_balance',
+    type: 'boolean',
+    description:
+      'When <code>true</code>, each wallet carries <code>usdc_balance</code>, the USDC it holds on-chain (one read per wallet).',
+    enumNote:
+      "<strong>FiatDesk extension:</strong> This parameter is not present in Stripe's API.",
   },
   {
     name: 'starting_after',

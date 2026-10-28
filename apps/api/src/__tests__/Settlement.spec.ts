@@ -84,6 +84,7 @@ describe('SimulatedSettlement', () => {
       transaction_hash: signature,
       amount_cents: 1500,
       payer_address: PAYER,
+      merchant_address: CHECKOUT_EXPECTATION.merchantWalletAddress,
     });
   });
 

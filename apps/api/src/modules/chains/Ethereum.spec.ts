@@ -1507,6 +1507,7 @@ describe('Ethereum rail', () => {
           transaction_hash: HASH,
           amount_cents: 1234,
           payer_address: BUYER,
+          merchant_address: MERCHANT,
         });
         expect(client.getTransactionReceipt).toHaveBeenCalledWith({
           hash: HASH,
@@ -1591,6 +1592,7 @@ describe('Ethereum rail', () => {
           transaction_hash: FIRST_HASH,
           amount_cents: 1234,
           payer_address: BUYER,
+          merchant_address: MERCHANT,
         });
         expect(client.getLogs).toHaveBeenCalledWith(
           expect.objectContaining({

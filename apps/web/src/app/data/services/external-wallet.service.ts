@@ -22,7 +22,15 @@ export interface ExternalWalletCreateInput {
   account_holder_name?: string | null;
   account_holder_type?: 'individual' | 'company' | null;
   default_for_currency?: boolean | null;
+  /** With `default_for_currency: true`, also delete the previous default. */
+  archive_previous?: boolean;
   metadata?: Record<string, string>;
+}
+
+/** How the wallet list is read back after a change. */
+export interface WalletListOptions {
+  /** Each wallet's on-chain USDC (`usdc_balance`) */
+  usdcBalance?: boolean;
 }
 
 /** Most active wallets an account can hold (the API refuses a sixth). */
@@ -52,9 +60,10 @@ export class ExternalWalletService {
   }
 
   /**
-   * Replace the default wallet ("Edit payout wallet"): add the new address
-   * as the default, then remove the old wallet. The first wallet of an
-   * account is simply added.
+   * Replace the default wallet ("Edit payout wallet"): one request adds the
+   * new address as the default and deletes the old wallet in the same
+   * transaction (`archive_previous`). The first wallet of an account is
+   * simply added.
    */
   async SaveExternalWallet(
     accountId: string,
@@ -74,13 +83,8 @@ export class ExternalWalletService {
       const wallet = await this.Create(accountId, {
         ...data,
         default_for_currency: true,
+        ...(existingWallet ? { archive_previous: true } : {}),
       });
-      if (existingWallet) {
-        await this.api.Call<void>(
-          'DELETE',
-          `accounts/${accountId}/external_accounts/${existingWallet.id}`
-        );
-      }
       await this.GetExternalWallets(accountId);
       return wallet;
     } finally {
@@ -88,39 +92,57 @@ export class ExternalWalletService {
     }
   }
 
-  /** Add a wallet; `default_for_currency: true` also makes it the default. */
+  /**
+   * Add a wallet; `default_for_currency: true` also makes it the default.
+   * The response's `plan_migrations_queued` says how many plan changes the
+   * billing run still sends.
+   */
   async AddWallet(
     accountId: string,
-    data: ExternalWalletCreateInput
+    data: ExternalWalletCreateInput,
+    list: WalletListOptions = {}
   ): Promise<ExternalWallet> {
     const wallet = await this.Create(accountId, data);
-    await this.GetExternalWallets(accountId);
+    await this.GetExternalWallets(accountId, list);
     return wallet;
   }
 
   /** Make the wallet the default: it then receives and pays everything. */
-  async SetDefaultWallet(accountId: string, walletId: string): Promise<void> {
-    await this.api.Call<ExternalWallet>(
+  async SetDefaultWallet(
+    accountId: string,
+    walletId: string,
+    list: WalletListOptions = {}
+  ): Promise<ExternalWallet> {
+    const wallet = await this.api.Call<ExternalWallet>(
       'POST',
       `accounts/${accountId}/external_accounts/${walletId}`,
       { default_for_currency: true }
     );
-    await this.GetExternalWallets(accountId);
+    await this.GetExternalWallets(accountId, list);
+    return wallet;
   }
 
   /** Remove a wallet that is not the default. */
-  async RemoveWallet(accountId: string, walletId: string): Promise<void> {
+  async RemoveWallet(
+    accountId: string,
+    walletId: string,
+    list: WalletListOptions = {}
+  ): Promise<void> {
     await this.api.Call<void>(
       'DELETE',
       `accounts/${accountId}/external_accounts/${walletId}`
     );
-    await this.GetExternalWallets(accountId);
+    await this.GetExternalWallets(accountId, list);
   }
 
-  async GetExternalWallets(accountId: string): Promise<ExternalWallet[]> {
+  async GetExternalWallets(
+    accountId: string,
+    list: WalletListOptions = {}
+  ): Promise<ExternalWallet[]> {
     const response = await this.api.Call<{ data: ExternalWallet[] }>(
       'GET',
-      `accounts/${accountId}/external_accounts`
+      `accounts/${accountId}/external_accounts`,
+      list.usdcBalance ? { include_usdc_balance: 'true' } : {}
     );
     this.wallets.set(response.data || []);
     return this.wallets();

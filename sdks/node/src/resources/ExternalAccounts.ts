@@ -70,6 +70,10 @@ export class ExternalAccounts extends BaseResource {
       limit: params.limit,
       starting_after: params.starting_after,
       ending_before: params.ending_before,
+      include_usdc_balance:
+        params.include_usdc_balance === undefined
+          ? undefined
+          : String(params.include_usdc_balance),
     };
 
     return this.client.Get<ListResponse<ExternalWallet>>(

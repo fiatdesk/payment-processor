@@ -16,6 +16,17 @@ import {
 } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+jest.mock('../modules/EventService', () => ({
+  EventService: jest.fn().mockImplementation(() => ({ Emit: jest.fn() })),
+}));
 jest.mock('../utils/IdGenerator', () => ({
   GenerateId: jest.fn((prefix: string) => DeterministicId(prefix)),
 }));
@@ -173,6 +184,52 @@ describe('PriceModule', () => {
         );
       }
     );
+
+    it('points a new plan at the first stored wallet when none is flagged, and records it as the default', async () => {
+      const product = await productModule.CreateProduct('acct_fd_platform', {
+        name: 'Pro',
+      });
+      mockDb.Get.mockResolvedValueOnce(product);
+      const stored = [
+        {
+          id: 'wa_fd_first',
+          account: 'acct_fd_platform',
+          wallet_address: PLATFORM_WALLET,
+          default_for_currency: null,
+          status: 'new',
+        },
+        {
+          id: 'wa_fd_second',
+          account: 'acct_fd_platform',
+          wallet_address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+          default_for_currency: null,
+          status: 'new',
+        },
+      ];
+      mockDb.Find2Custom.mockResolvedValueOnce(stored);
+      mockDb.Find.mockResolvedValueOnce(stored);
+
+      await module.CreatePrice('acct_fd_platform', {
+        unit_amount: 2000,
+        currency: 'usdc',
+        product: product.id,
+        recurring: { interval: 'month' },
+      });
+
+      expect(mockSettlement.CreateSubscriptionPlan).toHaveBeenCalledWith(
+        expect.any(String),
+        720 * 3600,
+        2000,
+        PLATFORM_WALLET,
+        MOCK_PLAN_OWNER
+      );
+      expect(mockDb.Update).toHaveBeenCalledWith(
+        'ExternalWallets',
+        'wa_fd_first',
+        { default_for_currency: true },
+        expect.anything()
+      );
+    });
 
     it('points a new plan at the default wallet even when it is not the first, and records it', async () => {
       const product = await productModule.CreateProduct('acct_fd_platform', {

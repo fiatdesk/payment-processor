@@ -2629,3 +2629,39 @@ libs/shared-types/src/lib/Balance.ts
 libs/shared-types/src/lib/ExternalWallet.ts
 libs/shared-types/src/lib/Price.ts
 ```
+
+### Task 17c fix round 1: where the USDC stays on a switch, and the switch races
+
+- **The USDC stays in the old wallet** (I1). A switch moves no funds.
+  - The Set-as-default confirm, which Add-with-default now goes through too, says: "Your USDC stays in 0x… (N USDC). Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail."
+  - The Wallets list shows each wallet's on-chain USDC, read in one request: `GET /v1/accounts/:id/external_accounts?include_usdc_balance=true` adds `usdc_balance`, a FiatDesk extension. It is null on the simulated rail and when the chain cannot be read. The SDK's `list` accepts `include_usdc_balance`.
+  - The Remove confirm says what a wallet still holds.
+  - External Wallets, Platform Dashboard and the shared "Changing your platform wallet" section describe the move step.
+- **One transaction per wallet change.**
+  - `archive_previous: true` (create or update, with `default_for_currency: true`) deletes the previous default inside the switch transaction, and is allowed at 5 wallets. "Edit payout wallet" uses it in one request.
+  - Every create, switch, delete and self-heal first writes the account's `ExternalWalletGuards` document, so concurrent changes conflict. Mongo then aborts one, and it is retried once. The 5-wallet count and the default are read inside that transaction, and the other wallets are unflagged with one filtered `UpdateMany` (new in `Database` and `MemoryDatabase`).
+- **Events.** One `external_account.updated` per wallet per request. A set-default together with other fields is a single event. `previous_attributes.default_for_currency` carries the stored value (`null`, `false` or `true`). An archived previous default gets `external_account.deleted`.
+- **Self-heal.**
+  - It picks the first active wallet in storage order, the legacy `wallets[0]`, so no connected account's payout destination changes.
+  - It unflags archived wallets that are still flagged, emits `external_account.updated` for each, and runs in the guarded transaction.
+  - The list endpoint heals first.
+- **Checkout.**
+  - A payment that used the session's authorization and paid any of the platform's own wallets (the recorded merchant wallet, the current default, or an older one) is valid. It is credited, and the verification's new `merchant_address` is recorded.
+  - A `transaction_hash` the client sends is verified before anything is refused; only a new relay to a stale wallet gets `merchant_wallet_changed`.
+  - `VerifyCheckoutReceipt` takes `alsoPays`.
+- **Plan changes.**
+  - A switch sends at most 3 plan destination changes itself; the response's `plan_migrations_queued` says how many the billing run sends.
+  - `ReconcilePending` follows pending changes oldest first and page by page, served by a new `Prices` index on the change's status and time.
+  - `plan_owner_mismatch` is logged once.
+  - The docs name the window in which one charge sent just before a switch still pays the old wallet; that charge is credited and its USDC is flagged.
+- **Web.**
+  - After a switch, the Wallets section reads the plan statuses again every 5 s for up to 2 minutes while any change is pending.
+  - The confirm's plan count leaves out plans that already pay the target.
+- **Docs:** `plan_destination_pending` is in the invoice wait list and the billing-run description. The Create "Returns" no longer says "already in use". The 5-wallet limit and the switch 409 are marked FiatDesk extensions. `archive_previous`, `usdc_balance`, `include_usdc_balance` and `plan_migrations_queued` are documented.
+- **Tests:**
+  - All-unflagged cases for top-ups, payouts (a connected account's default destination), prices and balance assert that the helper records its pick.
+  - New cases cover concurrent switches (exactly one default), concurrent adds at 4 wallets (one succeeds), the guard write, a WriteConflict retry, `archive_previous`, events, the send cap, the 150-change reconcile, the used-nonce and customer-hash checkout paths, and the web confirm, polling and balances.
+  - The CheckoutPayment and SubscriptionBilling specs mock `Logger`.
+  - The top-up credit and skip rules for these moves are left to Task 17e (Q14).
+
+Added: `sdks/node/src/__tests__/ExternalAccounts.spec.ts`.

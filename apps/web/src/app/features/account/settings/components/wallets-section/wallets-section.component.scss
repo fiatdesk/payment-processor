@@ -48,6 +48,11 @@
   font-family: $text-font;
 }
 
+.wallet-balance {
+  font-size: $font-size-small;
+  font-weight: $medium-weight;
+}
+
 .wallet-migration {
   font-size: $font-size-small;
   opacity: $dimmed;

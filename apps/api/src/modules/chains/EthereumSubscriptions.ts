@@ -988,7 +988,7 @@ export class EthereumSubscriptions {
       );
     }
     if (!SameAddress(plan.owner, operator.address)) {
-      throw PlanOwnerMismatch(key, plan.owner);
+      throw PlanOwnerMismatch();
     }
     if (SameAddress(plan.destination, target)) {
       return { status: 'confirmed', transaction_hash: null };
@@ -1001,7 +1001,7 @@ export class EthereumSubscriptions {
     const simulated = await SimulateSubscriptionsCall(operator.address, data);
     if ('revert' in simulated) {
       if (simulated.revert.errorName === 'Unauthorized') {
-        throw PlanOwnerMismatch(key, plan.owner);
+        throw PlanOwnerMismatch();
       }
       throw SubscriptionsCallRefused(
         'plan destination change',
@@ -1090,12 +1090,11 @@ export class EthereumSubscriptions {
   }
 }
 
-/** 409: the operator key cannot change a plan another key owns. */
-function PlanOwnerMismatch(planKey: Hex, owner: Address): AppError {
-  Logger.error('The operator key does not own an on-chain plan', null, {
-    planKey,
-    owner,
-  });
+/**
+ * 409: the operator key cannot change a plan another key owns. The caller
+ * records and logs it, once.
+ */
+function PlanOwnerMismatch(): AppError {
   return new AppError(
     'SUBSCRIPTION_OPERATOR_KEY does not own this on-chain plan, so its destination cannot change',
     409,

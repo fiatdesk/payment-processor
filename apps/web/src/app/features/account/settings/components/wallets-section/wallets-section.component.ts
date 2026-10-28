@@ -2,6 +2,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   ViewChild,
   computed,
@@ -12,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 import { ExternalWallet, Price, SameAddress } from '@fiatdesk/shared-types';
 import {
   AccountService,
+  ExternalWalletCreateInput,
   ExternalWalletService,
   MAX_WALLETS,
   PriceService,
@@ -27,9 +29,27 @@ import {
 
 /** On-chain plan keys are bytes32; simulated plans have no chain to update. */
 const ONCHAIN_PLAN_ID = /^0x[0-9a-fA-F]{64}$/;
+/** After a switch, plan statuses are read again this often, this many times. */
+export const PLAN_POLL_INTERVAL_MS = 5_000;
+export const PLAN_POLL_ATTEMPTS = 24;
+
+/** What a confirmed switch makes the default: a listed wallet, or one to add. */
+interface SwitchTarget {
+  address: string;
+  wallet: ExternalWallet | null;
+  add: ExternalWalletCreateInput | null;
+}
 
 function Plans(count: number): string {
   return `${count} ${count === 1 ? 'plan' : 'plans'}`;
+}
+
+/** `12.50 USDC` */
+export function FormatUsdc(amount: number): string {
+  return `${amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  })} USDC`;
 }
 
 function ErrorMessage(error: unknown, fallback: string): string {
@@ -37,10 +57,11 @@ function ErrorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * Settings → Wallets (platform): the platform's wallets, Stripe-style. The
- * default receives checkouts and top-ups, signs payouts and receives the
- * subscription plans' charges; making another wallet the default moves all
- * of that, including the plans on-chain.
+ * Settings → Wallets (platform): the platform's wallets, Stripe-style, each
+ * with its on-chain USDC. The default receives checkouts and top-ups, signs
+ * payouts and receives the subscription plans' charges; making another
+ * wallet the default moves all of that, including the plans on-chain, but
+ * not the USDC already held, which the confirm says.
  */
 @Component({
   selector: 'app-wallets-section',
@@ -62,6 +83,7 @@ export class WalletsSectionComponent implements OnInit {
   readonly externalWalletService = inject(ExternalWalletService);
   private readonly accountService = inject(AccountService);
   private readonly priceService = inject(PriceService);
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly maxWallets = MAX_WALLETS;
   readonly ShortAddress = ShortWalletAddress;
@@ -86,7 +108,7 @@ export class WalletsSectionComponent implements OnInit {
   addError = signal('');
   makeDefault = signal(false);
 
-  setDefaultTarget = signal<ExternalWallet | null>(null);
+  setDefaultTarget = signal<SwitchTarget | null>(null);
   setDefaultLoading = signal(false);
   setDefaultError = signal('');
 
@@ -97,22 +119,64 @@ export class WalletsSectionComponent implements OnInit {
   readonly setDefaultDescription = computed(() => {
     const target = this.setDefaultTarget();
     if (!target) return '';
-    const count = this.plans().length;
-    return `Checkouts, top-ups, payouts and subscription plans move to ${ShortWalletAddress(
-      target.wallet_address
-    )}. ${Plans(count)} will be updated on-chain.`;
+    const moving = this.plans().filter(
+      (price) =>
+        !SameAddress(price.subscription_plan_destination, target.address)
+    ).length;
+    const parts = [
+      `Checkouts, top-ups, payouts and subscription plans move to ${ShortWalletAddress(
+        target.address
+      )}. ${Plans(moving)} will be updated on-chain.`,
+    ];
+    const current = this.externalWalletService.wallet();
+    if (
+      current &&
+      !SameAddress(current.wallet_address, target.address) &&
+      typeof current.usdc_balance === 'number'
+    ) {
+      parts.push(
+        `Your USDC stays in ${ShortWalletAddress(
+          current.wallet_address
+        )} (${FormatUsdc(
+          current.usdc_balance
+        )}). Send it to ${ShortWalletAddress(
+          target.address
+        )} after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail.`
+      );
+    }
+    return parts.join(' ');
   });
 
   readonly removeDescription = computed(() => {
     const target = this.removeTarget();
     if (!target) return '';
-    return `${ShortWalletAddress(
-      target.wallet_address
-    )} will no longer be used. USDC sent to it in the next 30 days is flagged on Home and Balances, not added to your balance.`;
+    const parts = [
+      `${ShortWalletAddress(
+        target.wallet_address
+      )} will no longer be used. USDC sent to it in the next 30 days is flagged on Home and Balances, not added to your balance.`,
+    ];
+    if (typeof target.usdc_balance === 'number' && target.usdc_balance > 0) {
+      parts.push(
+        `It still holds ${FormatUsdc(
+          target.usdc_balance
+        )}: send it to your default wallet first.`
+      );
+    }
+    return parts.join(' ');
   });
 
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.StopWatching());
+  }
+
   ngOnInit(): void {
-    void this.LoadPlans();
+    const account = this.accountService.account();
+    if (account) {
+      void this.externalWalletService
+        .GetExternalWallets(account.id, { usdcBalance: true })
+        .catch(() => undefined);
+    }
+    void this.LoadPlans().then(() => this.WatchPlanMigrations());
   }
 
   async LoadPlans(): Promise<void> {
@@ -130,6 +194,13 @@ export class WalletsSectionComponent implements OnInit {
 
   IsDefault(wallet: ExternalWallet): boolean {
     return wallet.id === this.externalWalletService.wallet()?.id;
+  }
+
+  /** The wallet's on-chain USDC, when the chain could be read. */
+  Balance(wallet: ExternalWallet): string | null {
+    return typeof wallet.usdc_balance === 'number'
+      ? FormatUsdc(wallet.usdc_balance)
+      : null;
   }
 
   /** Where the plans moving to this wallet stand, if any are moving. */
@@ -162,25 +233,36 @@ export class WalletsSectionComponent implements OnInit {
     this.addShowErrors.set(false);
   }
 
+  /**
+   * Adds the wallet. Made the default while another wallet is the default,
+   * it switches, so the switch's confirm comes first.
+   */
   async SubmitAdd(): Promise<void> {
     const form = this.addWalletForm;
-    const account = this.accountService.account();
-    if (!form || !account) return;
+    if (!form) return;
     this.addShowErrors.set(true);
     if (!form.ValidateAll()) return;
 
+    const data = form.GetFormData();
+    const input: ExternalWalletCreateInput = {
+      wallet_address: data.walletAddress,
+      network: data.network,
+      currency: data.currency,
+      default_for_currency: this.makeDefault(),
+    };
+    if (this.makeDefault() && this.externalWalletService.wallet()) {
+      this.setDefaultError.set('');
+      this.setDefaultTarget.set({
+        address: data.walletAddress,
+        wallet: null,
+        add: input,
+      });
+      return;
+    }
     this.addLoading.set(true);
     this.addError.set('');
     try {
-      const data = form.GetFormData();
-      await this.externalWalletService.AddWallet(account.id, {
-        wallet_address: data.walletAddress,
-        network: data.network,
-        currency: data.currency,
-        default_for_currency: this.makeDefault(),
-      });
-      this.addPanelOpen.set(false);
-      if (this.makeDefault()) await this.LoadPlans();
+      await this.Add(input);
     } catch (error) {
       this.addError.set(ErrorMessage(error, 'The wallet could not be added.'));
     } finally {
@@ -190,7 +272,11 @@ export class WalletsSectionComponent implements OnInit {
 
   AskSetDefault(wallet: ExternalWallet): void {
     this.setDefaultError.set('');
-    this.setDefaultTarget.set(wallet);
+    this.setDefaultTarget.set({
+      address: wallet.wallet_address,
+      wallet,
+      add: null,
+    });
   }
 
   async ConfirmSetDefault(): Promise<void> {
@@ -200,9 +286,18 @@ export class WalletsSectionComponent implements OnInit {
     this.setDefaultLoading.set(true);
     this.setDefaultError.set('');
     try {
-      await this.externalWalletService.SetDefaultWallet(account.id, target.id);
+      if (target.add) {
+        await this.Add(target.add);
+      } else if (target.wallet) {
+        await this.externalWalletService.SetDefaultWallet(
+          account.id,
+          target.wallet.id,
+          { usdcBalance: true }
+        );
+      }
       this.setDefaultTarget.set(null);
       await this.LoadPlans();
+      this.WatchPlanMigrations();
     } catch (error) {
       this.setDefaultError.set(
         ErrorMessage(error, 'The default wallet could not be changed.')
@@ -224,7 +319,9 @@ export class WalletsSectionComponent implements OnInit {
     this.removeLoading.set(true);
     this.removeError.set('');
     try {
-      await this.externalWalletService.RemoveWallet(account.id, target.id);
+      await this.externalWalletService.RemoveWallet(account.id, target.id, {
+        usdcBalance: true,
+      });
       this.removeTarget.set(null);
     } catch (error) {
       this.removeError.set(
@@ -233,5 +330,36 @@ export class WalletsSectionComponent implements OnInit {
     } finally {
       this.removeLoading.set(false);
     }
+  }
+
+  private async Add(input: ExternalWalletCreateInput): Promise<void> {
+    const account = this.accountService.account();
+    if (!account) return;
+    await this.externalWalletService.AddWallet(account.id, input, {
+      usdcBalance: true,
+    });
+    this.addPanelOpen.set(false);
+  }
+
+  /**
+   * Reads the plan statuses again until no change is pending, for at most
+   * 2 minutes: the billing run confirms the changes.
+   */
+  private WatchPlanMigrations(attempt = 0): void {
+    this.StopWatching();
+    const pending = this.plans().some(
+      (price) =>
+        price.subscription_plan_destination_change?.status === 'pending'
+    );
+    if (!pending || attempt >= PLAN_POLL_ATTEMPTS) return;
+    this.pollTimer = setTimeout(async () => {
+      await this.LoadPlans();
+      this.WatchPlanMigrations(attempt + 1);
+    }, PLAN_POLL_INTERVAL_MS);
+  }
+
+  private StopWatching(): void {
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
   }
 }

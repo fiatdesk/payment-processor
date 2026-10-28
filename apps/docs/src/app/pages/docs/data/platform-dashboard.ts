@@ -211,11 +211,11 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: '<strong>Add wallet:</strong> Enter an Ethereum address and tick <strong>Make this the default</strong> to switch to it at once.',
+              text: '<strong>Add wallet:</strong> Enter an Ethereum address. Tick <strong>Make this the default</strong> to switch to it: the same confirmation as Set as default opens first.',
               html: true,
             },
             {
-              text: "<strong>Set as default:</strong> On another wallet's row. A confirmation lists what moves (checkouts, top-ups, payouts and subscription plans) and how many plans are updated on-chain.",
+              text: '<strong>Set as default:</strong> On another wallet\'s row. A confirmation lists what moves (checkouts, top-ups, payouts and subscription plans), how many plans are updated on-chain, and where your USDC stays: "Your USDC stays in 0x… (N USDC). Send it to 0x… after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail."',
               html: true,
             },
             {
@@ -223,7 +223,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
               html: true,
             },
             {
-              text: 'Each address can be copied. A wallet whose plans are still moving shows "Updating N plans on-chain".',
+              text: 'Each row shows the wallet\'s on-chain USDC, and each address can be copied. A wallet whose plans are still moving shows "Updating N plans on-chain" until the billing run confirms them; the list checks again every few seconds for up to 2 minutes after a switch.',
             },
           ],
         },
@@ -243,7 +243,7 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
         },
         {
           type: 'paragraph',
-          text: 'Setting another wallet as the default moves everything the default does:',
+          text: 'Setting another wallet as the default moves everything the default does, except the USDC it already holds:',
         },
         {
           type: 'list',
@@ -258,9 +258,15 @@ export const PLATFORM_DASHBOARD_PAGE: DocPage = {
               text: 'Payouts are signed from the new wallet. The change waits while a payout batch of the old wallet is built or broadcast.',
             },
             {
-              text: "Subscription plans move on-chain: FiatDesk sends each plan's destination change without waiting, and charges of a plan pause until its change confirms, so no renewal pays the old wallet.",
+              text: "Subscription plans move on-chain: FiatDesk sends each plan's destination change without waiting, and charges of a plan pause until its change confirms, so no renewal pays the old wallet. A charge sent in the moment before the switch can still pay the old wallet; it is credited, and the banner flags the USDC there.",
             },
           ],
+        },
+        {
+          type: 'callout',
+          variant: 'warning',
+          title: 'Move your USDC after switching. ',
+          text: 'The USDC in the old wallet stays there. Send it to the new default wallet. Until it arrives, your available balance counts only the new wallet, and payouts above that amount fail. The Wallets list shows how much each wallet holds.',
         },
         {
           type: 'paragraph',

@@ -821,6 +821,7 @@ export class Ethereum implements Settlement {
     const receiptExpectation = {
       usdc,
       merchant: expected.merchantWalletAddress,
+      alsoPays: expected.otherMerchantWalletAddresses,
       amountCents: expected.amountInCents,
       nonce,
     };

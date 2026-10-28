@@ -54,8 +54,8 @@ describe('WalletsSectionComponent', () => {
 
   beforeEach(() => {
     stored = [
-      Wallet('wa_fd_other', OTHER, false),
-      Wallet('wa_fd_default', DEFAULT, true),
+      { ...Wallet('wa_fd_other', OTHER, false), usdc_balance: 0 },
+      { ...Wallet('wa_fd_default', DEFAULT, true), usdc_balance: 1250.5 },
     ];
     api = {
       Call: jest.fn(async (method: string, endpoint: string) => {
@@ -136,13 +136,54 @@ describe('WalletsSectionComponent', () => {
     expect(Buttons(second)).toEqual(['Set as default', 'Remove']);
   });
 
-  it('adds a wallet, as the default when asked', async () => {
+  it('lists each wallet with its on-chain USDC, read in one list request', async () => {
+    const { rows } = await Render();
+
+    expect(api.Call).toHaveBeenCalledWith(
+      'GET',
+      `accounts/${ACCOUNT}/external_accounts`,
+      { include_usdc_balance: 'true' }
+    );
+    expect(rows()[0].textContent).toContain('1,250.50 USDC');
+    expect(rows()[1].textContent).toContain('0.00 USDC');
+  });
+
+  it('adds a wallet that is not the default without a confirm', async () => {
     const { component } = await Render();
+    component.OpenAddPanel();
+    component.addWalletForm?.OnWalletAddressChange(ADDED);
+
+    await component.SubmitAdd();
+
+    expect(api.Call).toHaveBeenCalledWith(
+      'POST',
+      `accounts/${ACCOUNT}/external_accounts`,
+      expect.objectContaining({
+        wallet_address: ADDED,
+        default_for_currency: false,
+      })
+    );
+    expect(component.addPanelOpen()).toBe(false);
+  });
+
+  it('adds a wallet as the default only after the switch confirm, which says where the USDC stays', async () => {
+    const { component, text } = await Render();
     component.OpenAddPanel();
     component.addWalletForm?.OnWalletAddressChange(ADDED);
     component.makeDefault.set(true);
 
     await component.SubmitAdd();
+
+    expect(api.Call).not.toHaveBeenCalledWith(
+      'POST',
+      expect.anything(),
+      expect.anything()
+    );
+    expect(text()).toContain(
+      'Checkouts, top-ups, payouts and subscription plans move to 0x90F7...b906. 2 plans will be updated on-chain. Your USDC stays in 0x7099...79C8 (1,250.50 USDC). Send it to 0x90F7...b906 after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail.'
+    );
+
+    await component.ConfirmSetDefault();
 
     expect(api.Call).toHaveBeenCalledWith(
       'POST',
@@ -152,11 +193,8 @@ describe('WalletsSectionComponent', () => {
         default_for_currency: true,
       })
     );
-    expect(api.Call).toHaveBeenLastCalledWith(
-      'GET',
-      `accounts/${ACCOUNT}/external_accounts`
-    );
     expect(component.addPanelOpen()).toBe(false);
+    expect(component.setDefaultTarget()).toBeNull();
   });
 
   it('sets a wallet as the default after a confirm that says what moves', async () => {
@@ -165,7 +203,7 @@ describe('WalletsSectionComponent', () => {
     component.AskSetDefault(stored[0]);
 
     expect(text()).toContain(
-      'Checkouts, top-ups, payouts and subscription plans move to 0x9965...A4dc. 2 plans will be updated on-chain.'
+      'Checkouts, top-ups, payouts and subscription plans move to 0x9965...A4dc. 2 plans will be updated on-chain. Your USDC stays in 0x7099...79C8 (1,250.50 USDC). Send it to 0x9965...A4dc after switching. Until then, your available balance counts only the new wallet, and payouts above that amount will fail.'
     );
     expect(api.Call).not.toHaveBeenCalledWith(
       'POST',
@@ -194,7 +232,7 @@ describe('WalletsSectionComponent', () => {
     component.AskSetDefault(stored[0]);
     await component.ConfirmSetDefault();
 
-    expect(component.setDefaultTarget()).toEqual(stored[0]);
+    expect(component.setDefaultTarget()?.wallet).toEqual(stored[0]);
     expect(text()).toContain('has a payout batch awaiting broadcast');
   });
 
@@ -240,6 +278,71 @@ describe('WalletsSectionComponent', () => {
     await component.LoadPlans();
     expect(rows()[1].textContent).toContain(
       '1 plan could not move: the operator key does not own them'
+    );
+  });
+
+  it('counts only the plans that do not already pay the new default', async () => {
+    prices.ListPlanPrices.mockResolvedValue([
+      PlanPrice('price_fd_a'),
+      PlanPrice('price_fd_b', { subscription_plan_destination: OTHER }),
+    ]);
+    const { component, text } = await Render();
+
+    component.AskSetDefault(stored[0]);
+
+    expect(text()).toContain('1 plan will be updated on-chain.');
+  });
+
+  it('reads the plan statuses again after a switch until none is pending', async () => {
+    jest.useFakeTimers();
+    try {
+      const pending = PlanPrice('price_fd_a', {
+        subscription_plan_destination_change: {
+          destination: OTHER,
+          transaction_hash: null,
+          status: 'pending',
+          created: 1,
+          failure_message: null,
+          sent_at: null,
+        },
+      });
+      prices.ListPlanPrices.mockResolvedValue([]);
+      const { component, rows } = await Render();
+      prices.ListPlanPrices.mockResolvedValue([pending]);
+
+      component.AskSetDefault(stored[0]);
+      await component.ConfirmSetDefault();
+      expect(rows()[1].textContent).toContain('Updating 1 plan on-chain');
+      const reads = prices.ListPlanPrices.mock.calls.length;
+
+      prices.ListPlanPrices.mockResolvedValue([
+        PlanPrice('price_fd_a', { subscription_plan_destination: OTHER }),
+      ]);
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      expect(prices.ListPlanPrices.mock.calls.length).toBe(reads + 1);
+      expect(rows()[1].textContent).not.toContain('Updating');
+
+      // Nothing is pending any more: no further reads.
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(prices.ListPlanPrices.mock.calls.length).toBe(reads + 1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('says a removed wallet still holds USDC', async () => {
+    stored[0] = { ...stored[0], usdc_balance: 40 };
+    TestBed.inject(ExternalWalletService).wallets.set(stored);
+    api.Call.mockImplementation(async (method: string) =>
+      method === 'GET' ? { data: stored } : {}
+    );
+    const { component, text } = await Render();
+
+    component.AskRemove(stored[0]);
+
+    expect(text()).toContain(
+      'It still holds 40.00 USDC: send it to your default wallet first.'
     );
   });
 });

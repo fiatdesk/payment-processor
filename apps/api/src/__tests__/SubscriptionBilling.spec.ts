@@ -29,6 +29,14 @@ import { MemoryDatabase } from './mocks/MemoryDatabase';
 import { CreateMockSettlement } from './mocks/Settlement';
 
 jest.mock('../modules/Database');
+jest.mock('../utils/Logger', () => ({
+  Logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 jest.mock('../utils/Timestamp', () => ({
   ...jest.requireActual('../utils/Timestamp'),
   Now: jest.fn(() => GetFixedTimestamp()),

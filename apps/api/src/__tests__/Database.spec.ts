@@ -86,6 +86,18 @@ describe('Database.EnsureCollections', () => {
       { transaction_hash: 1, log_index: 1 },
       { unique: true },
     ]);
+    // The wallet-change guard, and the index the billing run's pending
+    // plan destination pass reads through.
+    expect(created).toEqual(
+      expect.arrayContaining(['ExternalWalletGuards', 'Prices'])
+    );
+    expect(GetModel('Prices').schema.indexes()).toContainEqual([
+      {
+        'subscription_plan_destination_change.status': 1,
+        'subscription_plan_destination_change.created': 1,
+      },
+      expect.anything(),
+    ]);
   });
 
   it('passes other index errors on unchanged', async () => {

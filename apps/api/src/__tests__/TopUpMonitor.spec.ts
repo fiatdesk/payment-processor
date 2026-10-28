@@ -536,6 +536,41 @@ describe('TopUpMonitor deposit scanning', () => {
     });
   });
 
+  it('scans the first stored wallet when none is flagged, and records it as the default', async () => {
+    memory = new MemoryDatabase();
+    memory.Seed('Accounts', { id: PLATFORM, platform_account: PLATFORM });
+    memory.Seed(
+      'ExternalWallets',
+      {
+        id: WALLET_ID,
+        account: PLATFORM,
+        wallet_address: WALLET,
+        default_for_currency: null,
+        status: 'new',
+        created: 2,
+      },
+      {
+        id: 'wa_fd_newer',
+        account: PLATFORM,
+        wallet_address: BUYER,
+        default_for_currency: null,
+        status: 'new',
+        created: 3,
+      }
+    );
+    monitor = new TopUpMonitor(memory.AsDatabase());
+
+    await monitor.CheckDepositsForAccount(PLATFORM);
+
+    expect(mockSettlement.GetIncomingDeposits.mock.calls[0][0]).toBe(WALLET);
+    expect(
+      memory.Doc<{ default_for_currency: boolean }>(
+        'ExternalWallets',
+        WALLET_ID
+      ).default_for_currency
+    ).toBe(true);
+  });
+
   it('scans the default wallet even when it is not the first one stored', async () => {
     memory = new MemoryDatabase();
     memory.Seed('Accounts', { id: PLATFORM, platform_account: PLATFORM });

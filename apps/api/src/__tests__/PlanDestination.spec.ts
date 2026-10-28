@@ -400,7 +400,76 @@ describe('PlanDestinationModule', () => {
     });
   });
 
+  describe('SyncAll', () => {
+    it('sends at most maxSends pending changes and leaves the rest queued', async () => {
+      SendsAndWaits();
+      const ids = ['a', 'b', 'c', 'd', 'e'].map((id) => `price_fd_${id}`);
+      for (const id of ids) {
+        SeedPrices(RecurringPrice({ id }));
+        await module.Request(RecurringPrice({ id }), NEW_WALLET);
+      }
+
+      await expect(module.SyncAll(ids, { maxSends: 2 })).resolves.toBe(3);
+
+      expect(settlement.SetPlanDestination).toHaveBeenCalledTimes(2);
+      expect(
+        ids.filter(
+          (id) =>
+            Stored(id).subscription_plan_destination_change
+              ?.transaction_hash === null
+        )
+      ).toHaveLength(3);
+    });
+  });
+
   describe('ReconcilePending', () => {
+    it('follows more than one page of pending changes, oldest first', async () => {
+      const prices = Array.from({ length: 150 }, (_, i) =>
+        RecurringPrice({
+          id: `price_fd_${String(i).padStart(3, '0')}`,
+          subscription_plan_destination_change: {
+            destination: NEW_WALLET,
+            transaction_hash: MOCK_DESTINATION_HASH,
+            status: 'pending',
+            created: 1000 + (149 - i),
+            failure_message: null,
+            sent_at: 1,
+          },
+        })
+      );
+      SeedPrices(...prices);
+      settlement.SetPlanDestination.mockResolvedValue({
+        status: 'confirmed',
+        transaction_hash: MOCK_DESTINATION_HASH,
+      });
+      const pages = jest.spyOn(memory, 'Query');
+
+      await module.ReconcilePending(PLATFORM);
+
+      expect(settlement.SetPlanDestination).toHaveBeenCalledTimes(150);
+      const reads = pages.mock.calls.filter(
+        ([options]) => options.collection === 'Prices'
+      );
+      expect(reads.length).toBeGreaterThanOrEqual(2);
+      expect(reads[0][0]).toMatchObject({
+        orderBy: [
+          {
+            key: 'subscription_plan_destination_change.created',
+            direction: 'asc',
+          },
+        ],
+        limit: 100,
+      });
+      expect(
+        memory
+          .All<Price>('Prices')
+          .filter(
+            (price) =>
+              price.subscription_plan_destination_change?.status === 'pending'
+          )
+      ).toHaveLength(0);
+    });
+
     it("follows every pending change of the platform's plans", async () => {
       const pending = {
         destination: NEW_WALLET,

@@ -158,6 +158,11 @@ export interface RelayCheckoutOptions {
 /** The payment a checkout session expects. */
 export interface CheckoutPaymentExpectation {
   merchantWalletAddress: string;
+  /**
+   * The platform's other wallets: a payment that used the session's
+   * authorization and pays one of them pays the session too
+   */
+  otherMerchantWalletAddresses?: string[];
   amountInCents: number;
   checkoutSessionId: string;
   /** The wallet that signed the authorization (recorded at prepare) */
@@ -185,6 +190,8 @@ export interface CheckoutPaymentVerification {
   amount_cents: number;
   /** The payer's wallet address */
   payer_address: string | null;
+  /** The wallet the verified transfer paid, when it is known */
+  merchant_address?: string | null;
   /** Reason verification failed, if it did */
   failure_reason?: string;
 }

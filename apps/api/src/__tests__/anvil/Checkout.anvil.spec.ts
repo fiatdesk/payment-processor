@@ -206,6 +206,7 @@ describe('Checkout on Anvil', () => {
       transaction_hash: hash,
       amount_cents: 1234,
       payer_address: buyer,
+      merchant_address: merchant,
     });
     expect(await BalanceOf(merchant)).toBe(merchantBefore + 12_340_000n);
     expect(await BalanceOf(buyer)).toBe(buyerBefore - 12_340_000n);
@@ -321,6 +322,7 @@ describe('Checkout on Anvil', () => {
       transaction_hash: frontRun,
       amount_cents: 900,
       payer_address: buyer,
+      merchant_address: merchant,
     });
   });
 
@@ -341,13 +343,15 @@ describe('Checkout on Anvil', () => {
       undefined,
       paymentIntents
     );
+    const merchantWallet = {
+      id: 'wa_fd_merchant',
+      wallet_address: merchant,
+      network: 'ethereum',
+      currency: 'usdc',
+    };
     const wallets = {
-      GetDefaultWallet: jest.fn(async () => ({
-        id: 'wa_fd_merchant',
-        wallet_address: merchant,
-        network: 'ethereum',
-        currency: 'usdc',
-      })),
+      GetDefaultWallet: jest.fn(async () => merchantWallet),
+      GetExternalWalletsByAccount: jest.fn(async () => [merchantWallet]),
     } as unknown as ExternalWalletModule;
     const module = new CheckoutPaymentModule(
       db,

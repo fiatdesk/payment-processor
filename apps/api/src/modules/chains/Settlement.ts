@@ -523,6 +523,7 @@ export class SimulatedSettlement implements Settlement {
       transaction_hash: transactionHash,
       amount_cents: expected.amountInCents,
       payer_address: payerAddress,
+      merchant_address: expected.merchantWalletAddress,
     };
   }
 

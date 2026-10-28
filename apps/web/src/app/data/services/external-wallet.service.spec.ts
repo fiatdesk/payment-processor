@@ -32,7 +32,7 @@ describe('ExternalWalletService', () => {
     service = TestBed.inject(ExternalWalletService);
   });
 
-  it('replaces the payout wallet by adding the new one as the default, then removing the old one', async () => {
+  it('replaces the payout wallet in one request that adds the new default and deletes the old one', async () => {
     service.wallets.set([Wallet('wa_fd_old', OLD, true)]);
     api.Call.mockImplementation(async (method: string) =>
       method === 'POST'
@@ -50,13 +50,44 @@ describe('ExternalWalletService', () => {
       [
         'POST',
         `accounts/${ACCOUNT}/external_accounts`,
-        { wallet_address: NEW, default_for_currency: true },
+        {
+          wallet_address: NEW,
+          default_for_currency: true,
+          archive_previous: true,
+        },
       ],
-      ['DELETE', `accounts/${ACCOUNT}/external_accounts/wa_fd_old`],
-      ['GET', `accounts/${ACCOUNT}/external_accounts`],
+      ['GET', `accounts/${ACCOUNT}/external_accounts`, {}],
     ]);
     expect(wallet.id).toBe('wa_fd_new');
     expect(service.wallet()?.id).toBe('wa_fd_new');
+  });
+
+  it('adds the first wallet of an account without replacing anything', async () => {
+    api.Call.mockImplementation(async (method: string) =>
+      method === 'POST'
+        ? Wallet('wa_fd_new', NEW, true)
+        : { data: [Wallet('wa_fd_new', NEW, true)] }
+    );
+
+    await service.SaveExternalWallet(ACCOUNT, { wallet_address: NEW });
+
+    expect(api.Call.mock.calls[0]).toEqual([
+      'POST',
+      `accounts/${ACCOUNT}/external_accounts`,
+      { wallet_address: NEW, default_for_currency: true },
+    ]);
+  });
+
+  it("reads each wallet's USDC when asked", async () => {
+    api.Call.mockResolvedValue({ data: [] });
+
+    await service.GetExternalWallets(ACCOUNT, { usdcBalance: true });
+
+    expect(api.Call).toHaveBeenCalledWith(
+      'GET',
+      `accounts/${ACCOUNT}/external_accounts`,
+      { include_usdc_balance: 'true' }
+    );
   });
 
   it('keeps the wallet when the address is the same, in any case', async () => {
