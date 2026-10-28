@@ -5,51 +5,77 @@
   </picture>
 </h1>
 
-<p align="center">Stablecoin settlement for high-risk businesses.</p>
+<h3 align="center">Stablecoin payment processing platform</h3>
 
 <p align="center">
-  <strong>Your own open-source payments platform.<br>Accept payments, manage subscriptions, and pay sellers globally in USDC on Ethereum from infrastructure you control. No platform fees. You pay Ethereum network gas.</strong>
+  Accept payments, bill subscriptions and pay out sellers in USDC on Ethereum, from infrastructure you control.<br>
+  Open source, with a Stripe-compatible API. No platform fees: you pay only Ethereum network gas.
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/Settlement-USDC%20on%20Ethereum-2775CA.svg" alt="Settlement: USDC on Ethereum">
+  <img src="https://img.shields.io/badge/API-Stripe--compatible-635BFF.svg" alt="API: Stripe-compatible">
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#setup-guide">Setup guide</a> ·
+  <a href="apps/docs">Documentation</a> ·
+  <a href="#a-familiar-api">API</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-home.webp" alt="FiatDesk dashboard home with gross volume, available balance and overview charts" width="900">
 </p>
 
 ---
 
-FiatDesk is an open-source payments stack for stablecoins.
+FiatDesk is a self-hosted payment processor for stablecoins. Run it for your own business, or as the payments layer of a marketplace: hosted checkout, payment links, recurring billing, connected seller accounts, payouts and webhooks, all settled in USDC on Ethereum.
 
-It includes checkout, subscriptions, marketplace accounts, and payouts through a Stripe-compatible API. Use the full platform or add it alongside your current payment setup.
+## Why FiatDesk
 
-## Features
+- **You run it.** Deploy with Docker on your own servers. Your platform wallet's key never touches the server, so funds stay in your custody.
+- **A Stripe-compatible API.** Checkout Sessions, Payment Links, Customers, Subscriptions, Accounts, Transfers and Payouts, with the same object shapes, webhooks and idempotency model.
+- **Gas-free checkout for buyers.** Customers sign one USDC authorization (EIP-3009); your relayer submits it and pays the gas.
+- **Recurring billing on-chain.** Subscribers approve a capped allowance once, and renewals are collected each period without another signature.
+- **Batch payouts.** Pay many sellers in one transaction through the `PayoutBatch` contract, so they share the gas.
+- **No percentage fees.** FiatDesk takes no cut. Your only costs are Ethereum gas and your hosting.
 
-### Platform dashboard
+## Product tour
 
-Manage payments, customers, products, subscriptions, connected accounts, and balances from one place.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/checkout.webp" alt="Hosted checkout showing line items and USDC as the payment method">
+      <h3>Hosted checkout</h3>
+      Send customers to a hosted page, or share a payment link. They pay in USDC from their own wallet, with your business name and terms on the page.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/dashboard-payments.webp" alt="Transactions list with USDC payments, statuses and customers">
+      <h3>Payments</h3>
+      Follow every payment, payout, top-up and transfer, filter by status, and export your activity.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/dashboard-subscriptions.webp" alt="Subscriptions list with active plans and customers">
+      <h3>Subscriptions and invoices</h3>
+      Monthly and yearly plans, invoices and renewals that collect themselves. Pausing, cancelling and failed payments work as you would expect.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/dashboard-connected-accounts.webp" alt="Connected seller accounts with their status">
+      <h3>Marketplaces</h3>
+      Onboard sellers through a hosted flow with identity checks, transfer their earnings, and pay them out to their own Ethereum wallets. Each seller gets their own dashboard.
+    </td>
+  </tr>
+</table>
 
-### Checkout
-
-Create products and payment links, then let customers pay with USDC on Ethereum through hosted checkout. Customers sign a message and pay no gas; your relayer pays it.
-
-### Payments
-
-Manage payments, subscription charges, payouts, refunds, and other balance activity.
-
-### Subscriptions
-
-Manage recurring payments, invoices, and subscription status. Customers authorize a bounded USDC allowance once; renewals are collected on Ethereum without further signing.
-
-### Seller onboarding
-
-Onboard sellers to your marketplace via a hosted flow where they can enter their details and connect an Ethereum wallet to receive USDC.
-
-### Identity verification
-
-Set verification rules and review sellers who need an identity check.
-
-### Seller dashboard
-
-Give each seller an Express-style dashboard for viewing earnings, payouts, and account details.
+<p align="center">
+  <img src="docs/screenshots/docs-api.webp" alt="FiatDesk API reference page for creating a Checkout Session, with a Node.js example" width="900">
+  <br>
+  <em>Full API reference, guides and Node.js examples ship with the platform (<code>npx nx serve docs</code>).</em>
+</p>
 
 ## A familiar API
 

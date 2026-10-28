@@ -2872,3 +2872,46 @@ package.json
 sdks/node/README.md
 sdks/node/package.json
 ```
+
+## Positioning and screenshots
+
+- **Tagline.** "Stablecoin payment processing platform" replaces "Stablecoin settlement for high-risk businesses" in the README, the dashboard and docs `<title>`/description/Open Graph tags, the docs page description, and their specs.
+- **README.**
+  - A new header with badges, quick links and a dashboard screenshot.
+  - A "Why FiatDesk" list.
+  - A product tour (hosted checkout, payments, subscriptions, marketplaces, API reference) that replaces the old feature list.
+- **Screenshots.** `docs/screenshots/*.webp` were captured from a local simulated-rail instance seeded with demo data ("Northwind Market"). Nothing in them is real.
+- **Upstream residue removed.**
+  - The docs header's Discord link pointed to the original project's server; it is removed, with its icon and style.
+  - The four unreferenced upstream docs screenshots under `apps/docs/src/assets/images/screenshots/` are deleted. They showed PromptBase and Solana.
+
+Added:
+
+```
+docs/screenshots/checkout.webp
+docs/screenshots/dashboard-connected-accounts.webp
+docs/screenshots/dashboard-home.webp
+docs/screenshots/dashboard-payments.webp
+docs/screenshots/dashboard-subscriptions.webp
+docs/screenshots/docs-api.webp
+```
+
+Deleted:
+
+```
+apps/docs/src/assets/images/logos/discord.svg
+apps/docs/src/assets/images/screenshots/
+```
+
+Modified:
+
+```
+README.md
+apps/docs/src/app/pages/docs/docs.html
+apps/docs/src/app/pages/docs/docs.scss
+apps/docs/src/app/pages/docs/docs.ts
+apps/docs/src/index.html
+apps/docs/src/index.spec.ts
+apps/web/src/index.html
+apps/web/src/index.spec.ts
+```

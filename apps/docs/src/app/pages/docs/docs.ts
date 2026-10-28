@@ -179,7 +179,7 @@ export class Docs implements OnInit, OnDestroy, AfterViewInit {
     this.metaService.SetMeta({
       title: 'FiatDesk',
       description:
-        'Stablecoin settlement for high-risk businesses. API reference, guides, and examples.',
+        'Stablecoin payment processing platform. API reference, guides, and examples.',
       url: 'https://docs.yourdomain.com',
       image: '/assets/brand/fiatdesk-og.png',
     });

@@ -176,11 +176,6 @@ $prose-max-width: 760px;
   opacity: 0.5;
   filter: var(--doc-icon-filter);
   transition: opacity $transition-fast;
-
-  &.discord {
-    width: 18px;
-    height: 18px;
-  }
 }
 
 .topbar-stars {
