@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const SRC = __dirname;
-const TAGLINE = 'Stablecoin payment processing platform.';
+const TAGLINE = 'Open-source stablecoin payment processing platform.';
 
 function ReadHead(): Document {
   const html = readFileSync(join(SRC, 'index.html'), 'utf8');

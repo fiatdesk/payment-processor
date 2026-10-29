@@ -4,7 +4,7 @@ import { join } from 'path';
 
 const SRC = __dirname;
 const DESCRIPTION =
-  'Stablecoin payment processing platform. API reference, guides, and examples.';
+  'Open-source stablecoin payment processing platform. API reference, guides, and examples.';
 
 function ReadHead(): Document {
   const html = readFileSync(join(SRC, 'index.html'), 'utf8');

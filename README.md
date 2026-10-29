@@ -5,11 +5,11 @@
   </picture>
 </h1>
 
-<h3 align="center">Stablecoin payment processing platform</h3>
+<h3 align="center">Open-source stablecoin payment processing platform</h3>
 
 <p align="center">
   Accept payments, bill subscriptions and pay out sellers in USDC on Ethereum, from infrastructure you control.<br>
-  Open source, with a Stripe-compatible API. No platform fees: you pay only Ethereum network gas.
+  Self-hosted, with a Stripe-compatible API. No platform fees: you pay only Ethereum network gas.
 </p>
 
 <p align="center">
