@@ -1,7 +1,7 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
  * Keeps each recurring price's on-chain plan paying the platform's default
- * wallet (Fable Q13 #1).
+ * wallet.
  *
  * A change is recorded on the Price (`subscription_plan_destination_change`)
  * before anything is sent, one in flight per plan; a repeat request for the

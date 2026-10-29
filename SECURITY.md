@@ -8,10 +8,7 @@ The FiatDesk team takes security seriously. We appreciate your efforts to respon
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via one of the following methods:
-
-1. **GitHub Security Advisories**: Use the "Report a vulnerability" button in the Security tab of this repository
-2. **Email**: Contact the maintainers directly
+Instead, report them privately through GitHub: open [Report a vulnerability](https://github.com/fiatdesk/payment-processor/security/advisories/new) (the same button is in this repository's **Security** tab). Only the maintainers can see the report.
 
 ### What to Include
 

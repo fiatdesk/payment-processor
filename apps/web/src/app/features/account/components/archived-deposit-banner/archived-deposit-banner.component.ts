@@ -18,7 +18,7 @@ interface ArchivedDepositAlert {
 
 /**
  * Home and Balances: one banner per wallet that received USDC while it was
- * not the default (Fable Q13 #2). The funds are not in the balance until
+ * not the default. The funds are not in the balance until
  * they are sent to the default wallet; "I've moved it" dismisses the alert.
  */
 @Component({
@@ -77,7 +77,7 @@ export class ArchivedDepositBannerComponent {
   }
 }
 
-/** The fixed banner copy (Fable Q13 #2). */
+/** The fixed banner copy. */
 export function ArchivedDepositMessage(
   previousWallet: string,
   currentWallet: string

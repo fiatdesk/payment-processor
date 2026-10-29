@@ -172,7 +172,7 @@ describe('Top-ups on Anvil', () => {
 
   it('credits each log as its own top-up, persists the cursor, and finds nothing on the next scan', async () => {
     const { publicClient } = Context();
-    const head = await publicClient.getBlockNumber();
+    const head = await publicClient.getBlockNumber({ cacheTime: 0 });
 
     const result = await monitor.CheckDepositsForAccount(PLATFORM_ACCOUNT);
 

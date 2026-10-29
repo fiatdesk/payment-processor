@@ -27,9 +27,9 @@
  * wallets (non-default ones, and ones removed in the last 30 days) are
  * scanned the same way, each with its own cursor and before the default,
  * but a deposit to one is recorded in ArchivedWalletDeposits and logged as
- * a warning instead: the payout signer cannot spend it (Fable Q13 #2).
+ * a warning instead: the payout signer cannot spend it.
  *
- * The ledger counts each cent once (Task 17e):
+ * The ledger counts each cent once:
  * - A deposit whose transaction is a checkout or invoice payment is not
  *   credited; the payment already is (see TopUpModule).
  * - USDC moved to the default from another of the platform's wallets is

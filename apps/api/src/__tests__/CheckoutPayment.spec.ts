@@ -1159,7 +1159,7 @@ describe('CheckoutPaymentModule.ConfirmPayment', () => {
     expect(result.payment_details?.transaction_hash).toBe(OTHER_HASH);
   });
 
-  describe('after the merchant changes its default wallet (Q13 #3)', () => {
+  describe('after the merchant changes its default wallet', () => {
     const NEW_DEFAULT = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
 
     function SwitchDefault(): void {

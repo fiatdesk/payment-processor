@@ -30,7 +30,7 @@ export const MERCHANT_WALLET_CHANGED_CALLOUT: CalloutBlock = {
 };
 
 /**
- * What happens when a platform sets another default wallet (Fable Q13):
+ * What happens when a platform sets another default wallet:
  * shared by the Self-hosting and Subscriptions pages.
  */
 export const CHANGING_PLATFORM_WALLET_SECTION: DocPageSection = {

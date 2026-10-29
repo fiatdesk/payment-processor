@@ -3,7 +3,7 @@
  * Storage for `ArchivedWalletDeposits`, the internal record of USDC that
  * reached a platform wallet other than the default (a non-default wallet, or
  * one removed in the last 30 days). Such funds are not credited while they
- * sit there: only the default wallet's funds can be paid out (Fable Q13 #2).
+ * sit there: only the default wallet's funds can be paid out.
  * They are credited once, by the top-up that sees them reach the default
  * (`topup`). Each transfer log is recorded once; a unique index on
  * (`transaction_hash`, `log_index`) stops a concurrent scan from recording it

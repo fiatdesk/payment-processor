@@ -664,7 +664,7 @@ export class EthereumSubscriptions {
 
   /**
    * What the hashes recorded for a charge say, taken together: the original
-   * and every re-priced replacement (Q10 #7).
+   * and every re-priced replacement.
    * - Any of them confirmed with its `Charged(subId, amount)` log is `paid`;
    *   one mined but not deep enough yet is `pending`.
    * - One mined without collecting (a revert) is `failed`, with the error a

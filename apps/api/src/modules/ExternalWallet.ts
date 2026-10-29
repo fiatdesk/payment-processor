@@ -514,7 +514,7 @@ export class ExternalWalletModule {
   }
 
   /**
-   * The default switch (Q13 #4), inside the wallet transaction: refuses
+   * The default switch, inside the wallet transaction: refuses
    * while a payout batch of the old platform wallet is built or broadcast
    * (409 `payout_batch_in_progress`); flags the target and unflags every
    * other active wallet with one filtered update; with `archivePrevious`,

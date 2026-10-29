@@ -1,6 +1,6 @@
 // Modified from the Zoneless project (Apache-2.0). See NOTICE and CHANGES.md.
 /**
- * Switching the platform's default wallet on a real chain (Fable Q13): the
+ * Switching the platform's default wallet on a real chain: the
  * plan's destination moves on-chain and the next charge pays the new
  * wallet, USDC sent to the old wallet is alerted and never credited, and a
  * checkout prepared before the switch is approved again for the new wallet.

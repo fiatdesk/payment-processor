@@ -1883,7 +1883,7 @@ export class InvoiceModule {
    *   started decide when this claim ever sent a charge (or for `NotDueYet`
    *   with none): a charge found there, and not recorded by another cycle,
    *   pays the invoice.
-   * The period the paid charge paid is kept on the claim (Q10 #3).
+   * The period the paid charge paid is kept on the claim.
    * Nothing new is charged while the plan's destination change is pending
    * (it is followed first): a `plan_destination_pending` wait, so no charge
    * pays the platform's old wallet.
@@ -2068,7 +2068,7 @@ export class InvoiceModule {
   }
 
   /**
-   * Reconciles every charge recorded on a claim, together (Q10 #7): paid →
+   * Reconciles every charge recorded on a claim, together: paid →
    * that charge; pending → a `charge_pending` wait (a stuck charge is
    * re-priced, and the new hash recorded); dropped → cleared, so the caller
    * goes on (the logs and a new charge decide); reverted → cleared, and its

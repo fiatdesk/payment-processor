@@ -184,7 +184,7 @@ export const MERCHANT_WALLET_CHANGED_MESSAGE =
   "The merchant's receiving wallet changed. Please approve the payment again.";
 
 /**
- * 409 `merchant_wallet_changed` (Fable Q13 #3): the payment prepared for the
+ * 409 `merchant_wallet_changed`: the payment prepared for the
  * session pays a wallet that is no longer the merchant's default. Nothing
  * else is cleared; the client prepares again and the buyer signs a new
  * authorization. With `transactionHash`, a relay to the old wallet is still

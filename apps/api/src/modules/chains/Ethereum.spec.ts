@@ -2173,7 +2173,7 @@ describe('Ethereum rail', () => {
         ).resolves.toEqual({ status: 'pending', transaction_hash: CHARGE });
       });
 
-      it('as pending when the node does not know it but its nonce is unused (Q10 #7)', async () => {
+      it('as pending when the node does not know it but its nonce is unused', async () => {
         Node({ minedNonce: 5 });
 
         await expect(

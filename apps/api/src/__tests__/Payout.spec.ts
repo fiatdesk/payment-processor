@@ -1673,7 +1673,7 @@ describe('PayoutModule payout batches', () => {
     });
   });
 
-  describe('reconcile robustness (fix round 3)', () => {
+  describe('reconcile robustness', () => {
     async function BroadcastPendingBatch(): Promise<void> {
       await Build();
       settlement.BroadcastSignedTransaction.mockResolvedValueOnce(

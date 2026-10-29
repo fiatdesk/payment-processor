@@ -31,6 +31,10 @@
 
 ---
 
+<!-- prettier-ignore -->
+> [!WARNING]
+> **Not yet production-ready.** FiatDesk's smart contracts (`PayoutBatch` and `Subscriptions`) have not been independently audited, and the full payment flow has not yet been run on a public network. Use test mode, a local Anvil chain or Sepolia, and do not process real funds until the contracts are audited. See [Before you go live](#before-you-go-live).
+
 FiatDesk is a self-hosted payment processor for stablecoins. Run it for your own business, or as the payments layer of a marketplace: hosted checkout, payment links, recurring billing, connected seller accounts, payouts and webhooks, all settled in USDC on Ethereum.
 
 ## Why FiatDesk
