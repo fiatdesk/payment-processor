@@ -54,6 +54,7 @@ import type {
   SubscriptionCollectParams,
 } from '../../modules/chains/types';
 import { ExpandableId } from '../../modules/Util';
+import { Logger } from '../../utils/Logger';
 import { MemoryDatabase } from '../mocks/MemoryDatabase';
 import { StartAnvil, type AnvilContext } from './Anvil';
 
@@ -256,8 +257,31 @@ describe('Subscriptions on Anvil', () => {
     return { hash, signed };
   }
 
+  /** Warnings and errors logged since `since`, for a failure message. */
+  function LoggedSince(since: { warn: number; error: number }): string {
+    const calls = [
+      ...jest.mocked(Logger.warn).mock.calls.slice(since.warn),
+      ...jest.mocked(Logger.error).mock.calls.slice(since.error),
+    ];
+    return calls.length === 0
+      ? 'nothing'
+      : JSON.stringify(calls, (_key, value) =>
+          value instanceof Error
+            ? `${value.name}: ${value.message}`
+            : typeof value === 'bigint'
+            ? value.toString()
+            : value
+        );
+  }
+
   /** Signs, relays and verifies a subscribe; returns the subscription id. */
   async function Subscribe(planKey: Hex, trialSeconds = 0): Promise<Hex> {
+    // The Logger is mocked, so a refused relay or a failed chain read only
+    // shows up in these calls; a failure reports them.
+    const since = {
+      warn: jest.mocked(Logger.warn).mock.calls.length,
+      error: jest.mocked(Logger.error).mock.calls.length,
+    };
     const { relay } = await Signed(planKey, trialSeconds);
     const { hash } = await Relay(relay);
     await Context().Mine(1);
@@ -266,7 +290,13 @@ describe('Subscriptions on Anvil', () => {
       { planKey, subscriberWallet: buyer },
       TIMEOUT
     );
-    expect(verification.status).toBe('verified');
+    if (verification.status !== 'verified') {
+      throw new Error(
+        `Subscribe ${hash} was ${verification.status}: ${JSON.stringify(
+          verification
+        )}; logged: ${LoggedSince(since)}`
+      );
+    }
     return verification.subscription_onchain_id as Hex;
   }
 
