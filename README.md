@@ -8,11 +8,6 @@
 <h3 align="center">Open-source stablecoin payment processing platform</h3>
 
 <p align="center">
-  Accept payments, bill subscriptions and pay out sellers in USDC on Ethereum, from infrastructure you control.<br>
-  Self-hosted, with a Stripe-compatible API. No platform fees: you pay only Ethereum network gas.
-</p>
-
-<p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
   <img src="https://img.shields.io/badge/Settlement-USDC%20on%20Ethereum-2775CA.svg" alt="Settlement: USDC on Ethereum">
   <img src="https://img.shields.io/badge/API-Stripe--compatible-635BFF.svg" alt="API: Stripe-compatible">

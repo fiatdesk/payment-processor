@@ -3,8 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const SRC = __dirname;
-const DESCRIPTION =
-  'Open-source stablecoin payment processing platform. API reference, guides, and examples.';
+const DESCRIPTION = 'Open-source stablecoin payment processing platform.';
 
 function ReadHead(): Document {
   const html = readFileSync(join(SRC, 'index.html'), 'utf8');
