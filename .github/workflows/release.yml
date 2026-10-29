@@ -1,0 +1,63 @@
+name: Release
+
+# Publishes a package to npm when its version tag is pushed:
+#   node-v0.1.0 -> @fiatdesk/node (sdks/node)
+#   cli-v0.1.0  -> @fiatdesk/cli  (apps/cli)
+# The tag's version must match the package's package.json. Needs the
+# NPM_TOKEN repository secret; provenance needs the repository to be public.
+
+on:
+  push:
+    tags:
+      - 'node-v*'
+      - 'cli-v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve package
+        id: package
+        run: |
+          case "$GITHUB_REF_NAME" in
+            node-v*) project=node-sdk; manifest=sdks/node/package.json; tarballs=dist/sdks/node ;;
+            cli-v*) project=cli; manifest=apps/cli/package.json; tarballs=dist/apps/cli ;;
+            *) echo "Unknown release tag $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+          tag_version="${GITHUB_REF_NAME#*-v}"
+          package_version=$(node -p "require('./$manifest').version")
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match $manifest version $package_version"
+            exit 1
+          fi
+          echo "project=$project" >> "$GITHUB_OUTPUT"
+          echo "tarballs=$tarballs" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npx nx run ${{ steps.package.outputs.project }}:test
+
+      - name: Build and pack
+        run: npx nx run ${{ steps.package.outputs.project }}:pack
+
+      - name: Publish
+        run: npm publish ${{ steps.package.outputs.tarballs }}/*.tgz --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

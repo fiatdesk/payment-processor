@@ -1,6 +1,6 @@
 {
   "name": "@fiatdesk/cli",
-  "version": "0.2.1",
+  "version": "0.1.0",
   "description": "Provision and manage an agent-operated FiatDesk store",
   "license": "Apache-2.0",
   "repository": {

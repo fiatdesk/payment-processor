@@ -154,6 +154,19 @@ fix: validate wallet address on paste
 docs: clarify test-mode settlement defaults
 ```
 
+## Releasing (maintainers)
+
+The Node SDK (`@fiatdesk/node`) and the CLI (`@fiatdesk/cli`) are published to npm by the [Release workflow](.github/workflows/release.yml). To release one:
+
+1. Bump `version` in `sdks/node/package.json` or `apps/cli/package.json` and merge it to `main`.
+2. Push a matching tag from that commit: `node-v<version>` for the SDK, `cli-v<version>` for the CLI.
+
+```bash
+git tag node-v0.1.0 && git push origin node-v0.1.0
+```
+
+The workflow refuses a tag whose version does not match `package.json`. It runs the package's tests, builds it and publishes it with npm provenance using the `NPM_TOKEN` repository secret.
+
 ## Working with coding agents
 
 If you use Cursor, Claude Code, or a similar agent, this repo has an [AGENTS.md](./AGENTS.md). Coding tools pick that file up automatically.
