@@ -6,4 +6,4 @@
  */
 export { createWalletClient, custom, keccak256, parseTransaction } from 'viem';
 export { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-export { sepolia } from 'viem/chains';
+export { foundry, sepolia } from 'viem/chains';

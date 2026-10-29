@@ -1,0 +1,13 @@
+{
+  "name": "fiatdesk-anvil-setup",
+  "private": true,
+  "type": "module",
+  "description": "Deploys FiatDesk's contracts and test USDC to a local Anvil chain (docker-compose.anvil.yml).",
+  "scripts": {
+    "deploy": "node deploy.mjs"
+  },
+  "dependencies": {
+    "solc": "0.8.28",
+    "viem": "2.57.11"
+  }
+}

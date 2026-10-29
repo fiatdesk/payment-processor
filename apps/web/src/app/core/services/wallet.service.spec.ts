@@ -554,6 +554,22 @@ describe('WalletService', () => {
         nativeCurrency: { symbol: 'ETH', decimals: 18 },
       });
     });
+
+    it('adds the local Anvil chain when the wallet does not know it', async () => {
+      provider = StatefulProvider({ chainId: 1, addSwitches: true });
+      service = new WalletService();
+      Announce(fakeWindow, provider);
+
+      await service.EnsureChain(31337);
+
+      const addCall = provider.request.mock.calls.find(
+        ([request]) => request.method === 'wallet_addEthereumChain'
+      )?.[0];
+      expect(addCall.params[0]).toMatchObject({
+        chainId: '0x7a69',
+        rpcUrls: ['http://127.0.0.1:8545'],
+      });
+    });
   });
 
   describe('chain and account checks before sending', () => {

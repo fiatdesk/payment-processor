@@ -196,13 +196,65 @@ The API covers checkout, subscriptions, and marketplace payouts. See the [API re
 
 ## Quick start
 
+Everything runs in Docker. Clone the repository with its contract dependencies:
+
 ```bash
-git clone https://github.com/fiatdesk/payment-processor.git
+git clone --recursive https://github.com/fiatdesk/payment-processor.git
 cd payment-processor
+```
+
+Then pick a mode. Each one is a single command, and the dashboard opens at [localhost](http://localhost). Go to [localhost/setup](http://localhost/setup) to create your platform account and API key.
+
+| Mode                                                  | Command                                                                  | Good for                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| [Simulated funds](#simulated-funds-default) (default) | `docker compose up -d`                                                   | Trying the dashboard, API and SDK in two minutes                                  |
+| [Local chain](#local-chain)                           | `docker compose -f docker-compose.yml -f docker-compose.anvil.yml up -d` | Real on-chain flows (signing, payout batches, renewals) with no faucet or RPC key |
+| [Sepolia](#sepolia)                                   | `docker compose up -d` with Sepolia settings in `.env`                   | Testing on a public testnet                                                       |
+
+All modes share one database, so start from a clean one when you switch: `docker compose down -v` deletes all local data.
+
+### Simulated funds (default)
+
+```bash
 docker compose up -d
 ```
 
-Open [localhost/setup](http://localhost/setup) to create your platform account and API key. With no configuration, FiatDesk runs in test mode with simulated funds: no RPC, keys or ETH needed. Credit test USDC from the dashboard, or with `POST /v1/test_helpers/treasury/topups`.
+No RPC, keys or ETH needed. Balances are ledger entries with no chain behind them. Credit test USDC from **Balances → Add funds**, or with `POST /v1/test_helpers/treasury/topups`.
+
+### Local chain
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.anvil.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.anvil.yml logs chain-setup
+```
+
+This adds a local [Anvil](https://getfoundry.sh) chain (chain ID `31337`, RPC `http://localhost:8545`). A one-time container deploys test USDC, `PayoutBatch` and `Subscriptions`, mints 10,000 test USDC to two of Anvil's public test accounts, and the API settles on that chain. The logs print the addresses and keys:
+
+- **Platform wallet** `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`: enter it at `/setup`, and import its key into MetaMask to sign payouts from the dashboard.
+- **Buyer wallet** `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`: import its key into MetaMask to pay at checkout.
+
+The first time the dashboard or checkout asks MetaMask to sign, it offers to add the local chain. Top-ups are detected and subscriptions renew automatically. Reset the chain with `docker compose -f docker-compose.yml -f docker-compose.anvil.yml down -v`.
+
+> These are Anvil's public test keys. Anyone can use them, so never send real funds to these addresses.
+
+### Sepolia
+
+Put your Sepolia settings in `.env`, then start as usual:
+
+```bash
+SETTLEMENT_RAIL=onchain
+ETH_RPC_URL=https://your-sepolia-rpc-url
+CHECKOUT_RELAYER_KEY=0x...        # pays checkout gas; holds Sepolia ETH only
+SUBSCRIPTION_OPERATOR_KEY=0x...   # collects renewals; holds Sepolia ETH only
+PAYOUT_BATCH_ADDRESS=0x...        # your PayoutBatch deployment
+SUBSCRIPTIONS_ADDRESS=0x...       # your Subscriptions deployment
+```
+
+```bash
+docker compose up -d
+```
+
+Sepolia USDC is preset. Shared Sepolia deployments of `PayoutBatch` and `Subscriptions` are not published yet, so for now deploy your own (see [Deploy the contracts](#4-deploy-the-contracts)). Get test USDC from the [Circle faucet](https://faucet.circle.com/) and a little Sepolia ETH for the platform wallet, relayer and operator.
 
 ## Setup guide
 
@@ -214,7 +266,7 @@ Follow these steps to settle real transactions, on Sepolia first and then on mai
 | ----------------- | ------------------------------------------- | ------------------------------ |
 | Test, simulated   | defaults                                    | Fake ledger balances, no chain |
 | Test, on Sepolia  | `LIVEMODE=false`, `SETTLEMENT_RAIL=onchain` | Sepolia USDC and Sepolia ETH   |
-| Test, local Anvil | as above, plus `ETH_CHAIN_ID=31337`         | `MockUSDC` you deploy yourself |
+| Test, local Anvil | `docker-compose.anvil.yml` sets everything  | Test USDC it deploys for you   |
 | Live, on mainnet  | `LIVEMODE=true`                             | Real USDC and ETH              |
 
 Copy [`.env.production.example`](.env.production.example) to `.env.production` (or [`.env.example`](.env.example) to `.env` for local development). Every variable is described there.
@@ -247,7 +299,7 @@ forge script script/DeployPayoutBatch.s.sol --rpc-url "$ETH_RPC_URL" --account d
 forge script script/DeploySubscriptions.s.sol --rpc-url "$ETH_RPC_URL" --account deployer --broadcast
 ```
 
-Set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addresses. On Anvil, also deploy `contracts/test/mocks/MockUSDC.sol` (for example with `forge create`) and set `USDC_ADDRESS`.
+Set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addresses. The [local chain](#local-chain) mode deploys everything for you.
 
 ### 5. Fund the accounts
 

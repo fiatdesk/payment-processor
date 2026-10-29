@@ -69,11 +69,21 @@ export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
         {
           type: 'heading',
           level: 3,
+          text: 'Optional: run on a local chain',
+        },
+        {
+          type: 'paragraph',
+          text: "To exercise real on-chain flows without a faucet or RPC key, start FiatDesk with a local Anvil chain: <code>docker compose -f docker-compose.yml -f docker-compose.anvil.yml up -d</code>. A one-time container deploys test USDC, <code>PayoutBatch</code> and <code>Subscriptions</code>, and mints 10,000 test USDC to two of Anvil's public test accounts. <code>docker compose -f docker-compose.yml -f docker-compose.anvil.yml logs chain-setup</code> prints the addresses and keys. Use the platform wallet at setup, and import the buyer key into MetaMask to pay at checkout. The chain's RPC is <code>http://localhost:8545</code> (chain ID 31337), and MetaMask is offered the chain the first time it signs. Never send real funds to these public test accounts.",
+          html: true,
+        },
+        {
+          type: 'heading',
+          level: 3,
           text: 'Optional: test on-chain with Sepolia',
         },
         {
           type: 'paragraph',
-          text: 'To exercise real Sepolia transactions instead of simulated funds, set <code>LIVEMODE=false</code>, <code>SETTLEMENT_RAIL=onchain</code> and <code>ETH_RPC_URL</code> (a Sepolia RPC URL). Then add test USDC from the <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Circle faucet</a> (select <strong>USDC</strong> and <strong>Ethereum Sepolia</strong>) and a little Sepolia ETH for gas. Do not send real ETH or USDC to a test wallet.',
+          text: 'To exercise real Sepolia transactions instead of simulated funds, set <code>LIVEMODE=false</code>, <code>SETTLEMENT_RAIL=onchain</code>, <code>ETH_RPC_URL</code> (a Sepolia RPC URL), <code>CHECKOUT_RELAYER_KEY</code>, <code>SUBSCRIPTION_OPERATOR_KEY</code>, and <code>PAYOUT_BATCH_ADDRESS</code> and <code>SUBSCRIPTIONS_ADDRESS</code> for your own Sepolia deployments of the contracts. Then add test USDC from the <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Circle faucet</a> (select <strong>USDC</strong> and <strong>Ethereum Sepolia</strong>) and a little Sepolia ETH for gas. Do not send real ETH or USDC to a test wallet.',
           html: true,
         },
         {

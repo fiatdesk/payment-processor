@@ -61,7 +61,11 @@ const UNRECOGNIZED_CHAIN_CODE = 4902;
 const INTERNAL_ERROR_CODE = -32603;
 /** EIP-1193: the user rejected the request. */
 const USER_REJECTED_CODE = 4001;
-const SEPOLIA_CHAIN_ID = 11155111;
+/** Test chains a wallet may lack, added on first use: Sepolia and local Anvil. */
+const ADDABLE_CHAINS: Record<number, 'sepolia' | 'foundry'> = {
+  11155111: 'sepolia',
+  31337: 'foundry',
+};
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
 /**
@@ -163,8 +167,9 @@ export class WalletService {
   }
 
   /**
-   * Switches the wallet to `chainId`, adding Sepolia if the wallet lacks it,
-   * and fails unless the wallet then reports that chain.
+   * Switches the wallet to `chainId`, adding Sepolia or a local Anvil chain
+   * if the wallet lacks it, and fails unless the wallet then reports that
+   * chain.
    */
   async EnsureChain(chainId: number): Promise<void> {
     const client = await this.Client();
@@ -172,11 +177,10 @@ export class WalletService {
     try {
       await client.switchChain({ id: chainId });
     } catch (error) {
-      if (chainId !== SEPOLIA_CHAIN_ID || !IsUnrecognizedChainError(error)) {
-        throw error;
-      }
-      const { sepolia } = await import('./wallet-viem');
-      await client.addChain({ chain: sepolia });
+      const addable = ADDABLE_CHAINS[chainId];
+      if (!addable || !IsUnrecognizedChainError(error)) throw error;
+      const chains = await import('./wallet-viem');
+      await client.addChain({ chain: chains[addable] });
       // EIP-3085 lets a wallet add a chain without switching to it.
       if ((await client.getChainId()) !== chainId) {
         await client.switchChain({ id: chainId });

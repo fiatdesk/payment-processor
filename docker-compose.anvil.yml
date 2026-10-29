@@ -1,0 +1,74 @@
+# Local chain mode: FiatDesk on a local Anvil chain with test USDC.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.anvil.yml up -d
+#
+# Adds an Anvil node (chain ID 31337, RPC on localhost:8545) and a one-time
+# container that deploys MockUSDC, PayoutBatch and Subscriptions and mints
+# test USDC to Anvil's public test accounts, then points the API at the chain.
+# Every key below is a public Anvil test key: never use them on a real network.
+# `docker compose logs chain-setup` prints the addresses and test accounts;
+# `down -v` resets the chain.
+
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:v1.5.1
+    container_name: fiatdesk-anvil
+    restart: unless-stopped
+    user: root
+    command:
+      - anvil --host 0.0.0.0 --chain-id 31337 --state /data/state.json --state-interval 30
+    ports:
+      - '8545:8545'
+    volumes:
+      - anvil_data:/data
+    healthcheck:
+      test: ['CMD', 'cast', 'chain-id', '--rpc-url', 'http://127.0.0.1:8545']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - fiatdesk-network
+
+  chain-setup:
+    image: node:22-alpine
+    container_name: fiatdesk-chain-setup
+    restart: 'no'
+    working_dir: /setup
+    command: sh -c "npm ci --no-audit --no-fund --loglevel=error && node deploy.mjs"
+    environment:
+      - RPC_URL=http://anvil:8545
+      - CONTRACTS_DIR=/contracts
+    volumes:
+      - ./docker/anvil:/setup
+      - chain_setup_modules:/setup/node_modules
+      - ./contracts:/contracts:ro
+    depends_on:
+      anvil:
+        condition: service_healthy
+    networks:
+      - fiatdesk-network
+
+  api:
+    environment:
+      - SETTLEMENT_RAIL=onchain
+      - LIVEMODE=false
+      - ETH_CHAIN_ID=31337
+      - ETH_RPC_URL=http://anvil:8545
+      - ETH_CONFIRMATIONS=1
+      - USDC_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+      - PAYOUT_BATCH_ADDRESS=0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+      - SUBSCRIPTIONS_ADDRESS=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+      - CHECKOUT_RELAYER_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+      - SUBSCRIPTION_OPERATOR_KEY=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+      - TOPUP_MONITOR_ENABLED=true
+      - TOPUP_POLL_INTERVAL_MS=5000
+      - BILLING_MONITOR_ENABLED=true
+    depends_on:
+      chain-setup:
+        condition: service_completed_successfully
+
+volumes:
+  anvil_data:
+    driver: local
+  chain_setup_modules:
+    driver: local

@@ -2,3 +2,5 @@
 contracts/lib
 # Agent worktrees (Claude Code) are not Nx projects
 .claude/
+# Local-chain setup script for docker-compose.anvil.yml, not an Nx project
+docker/anvil
