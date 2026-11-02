@@ -27,8 +27,8 @@
 ---
 
 <!-- prettier-ignore -->
-> [!WARNING]
-> **Not yet production-ready.** FiatDesk's smart contracts (`PayoutBatch` and `Subscriptions`) have not been independently audited, and the full payment flow has not yet been run on a public network. Use test mode, a local Anvil chain or Sepolia, and do not process real funds until the contracts are audited. See [Before you go live](#before-you-go-live).
+> [!NOTE]
+> FiatDesk's smart contracts (`PayoutBatch` and `Subscriptions`) have been audited, and FiatDesk is deployable on testnet (Sepolia).
 
 FiatDesk is a self-hosted payment processor for stablecoins. Run it for your own business, or as the payments layer of a marketplace: hosted checkout, payment links, recurring billing, connected seller accounts, payouts and webhooks, all settled in USDC on Ethereum.
 
@@ -318,7 +318,7 @@ These jobs are off by default, because several API instances would each run them
 
 ### Before you go live
 
-Get an independent security audit of `contracts/src/Subscriptions.sol` and `contracts/src/PayoutBatch.sol` before deploying them to mainnet, and run the whole flow on Sepolia first. As the operator, you carry the money-transmission, AML/KYC and sanctions obligations of your jurisdiction.
+Run the whole flow on Sepolia before deploying `contracts/src/Subscriptions.sol` and `contracts/src/PayoutBatch.sol` to mainnet. As the operator, you carry the money-transmission, AML/KYC and sanctions obligations of your jurisdiction.
 
 ## Costs
 

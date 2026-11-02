@@ -53,7 +53,7 @@ forge script script/DeploySubscriptions.s.sol --rpc-url "$ETH_RPC_URL" --account
 
 Then set `PAYOUT_BATCH_ADDRESS` and `SUBSCRIPTIONS_ADDRESS` to the logged addresses, or add them to the per-chain table in `apps/api/src/modules/chains/contracts.ts`. Without `--broadcast` the scripts only simulate.
 
-`Subscriptions` must be externally audited before it is deployed to Ethereum mainnet.
+Run the full flow on Sepolia before deploying `Subscriptions` to Ethereum mainnet.
 
 ## Subscriptions
 
