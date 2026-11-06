@@ -243,6 +243,8 @@ const CHARGE_OBJECT_JSON = `{
       "buyer_address": "0x8ba1f109551bD432803012645Ac136ddd64DBA72",
       "fingerprint": null,
       "network": "ethereum",
+      "origin_network": null,
+      "origin_transaction_hash": null,
       "token_currency": "usdc",
       "transaction_hash": "0x7f3c9a1e5b2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f"
     }
@@ -929,6 +931,24 @@ const CHARGE_ATTRIBUTES: Attribute[] = [
             ],
             enumNote:
               '<strong>Difference from Stripe:</strong> FiatDesk settles on Ethereum. Other networks are accepted for schema compatibility.',
+          },
+          {
+            name: 'origin_network',
+            type: 'string',
+            nullable: true,
+            description:
+              'The network the customer paid on, when it differs from <code>network</code>. For example, <code>near</code> for a payment made through NEAR Intents.',
+            enumNote:
+              "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+          },
+          {
+            name: 'origin_transaction_hash',
+            type: 'string',
+            nullable: true,
+            description:
+              "The customer's transaction on <code>origin_network</code>. <code>transaction_hash</code> is then the USDC settlement on <code>network</code>.",
+            enumNote:
+              "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
           },
           {
             name: 'token_currency',

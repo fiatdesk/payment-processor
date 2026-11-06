@@ -560,7 +560,25 @@ const CHECKOUT_SESSION_OBJECT_JSON = `{
   "return_url": null,
   "platform_account": "acct_fd_Platform123abc",
   "url_slug": "x7k9m2p4q8",
-  "payment_details": null
+  "payment_details": {
+    "transaction_hash": null,
+    "payer_wallet": null,
+    "cross_chain": {
+      "provider": "near_intents",
+      "origin_asset": "near",
+      "origin_network": "near",
+      "deposit_address": "4f9c2e7a1b8d3c6e5f0a9b2c7d4e1f8a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e",
+      "amount_in": "18392000000000000000000000",
+      "amount_in_formatted": "18.392",
+      "refund_address": "ava-chen.near",
+      "quote_deadline": 1723912200,
+      "correlation_id": "b2e7c1d4-9f3a-4e8b-a6c5-1d0f7e2a9b38",
+      "status": "PROCESSING",
+      "origin_transaction_hash": "9Hq4vTm2Ky7NfR5sXbW3cLpJ8dZ1uEaG6oKiP2nVrYwh",
+      "settlement_transaction_hash": null,
+      "simulated": false
+    }
+  }
 }`;
 
 const CHECKOUT_SESSION_UPDATE_RESPONSE_JSON = `{
@@ -1296,6 +1314,131 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
         nullable: true,
         description:
           'Subscription mode: the first-period charge sent and not settled yet, recorded before it is sent. Cleared once it is reconciled.',
+      },
+      {
+        name: 'cross_chain',
+        type: 'object',
+        nullable: true,
+        description:
+          'A payment from another chain, quoted through NEAR Intents. The customer deposits the origin asset to a one-time address and solvers deliver USDC to the merchant wallet. <code>payer_wallet</code> stays <code>null</code> on this path.',
+        expandable: true,
+        enumNote:
+          "<strong>FiatDesk extension:</strong> This field is not present in Stripe's API.",
+        children: [
+          {
+            name: 'amount_in',
+            type: 'string',
+            description:
+              'Amount of the origin asset to deposit, in its smallest unit.',
+          },
+          {
+            name: 'amount_in_formatted',
+            type: 'string',
+            description:
+              '<code>amount_in</code> in whole units of the origin asset.',
+          },
+          {
+            name: 'correlation_id',
+            type: 'string',
+            nullable: true,
+            description: "The provider's reference for the quote.",
+          },
+          {
+            name: 'deposit_address',
+            type: 'string',
+            description:
+              'One-time address on the origin network the customer deposits to.',
+          },
+          {
+            name: 'origin_asset',
+            type: 'string',
+            description: 'The asset the customer pays with.',
+          },
+          {
+            name: 'origin_network',
+            type: 'string',
+            description: 'The network the customer pays on.',
+          },
+          {
+            name: 'origin_transaction_hash',
+            type: 'string',
+            nullable: true,
+            description:
+              "Hash of the customer's deposit on the origin network.",
+          },
+          {
+            name: 'provider',
+            type: 'enum',
+            description: 'The cross-chain provider.',
+            enumValues: [
+              { value: 'near_intents', description: 'NEAR Intents.' },
+            ],
+          },
+          {
+            name: 'quote_deadline',
+            type: 'timestamp',
+            description:
+              'Time at which the quote expires. A deposit after it is refunded. Measured in seconds since the Unix epoch.',
+          },
+          {
+            name: 'refund_address',
+            type: 'string',
+            description:
+              'Address on the origin network that receives refunds for short, late, or failed deposits.',
+          },
+          {
+            name: 'settlement_transaction_hash',
+            type: 'string',
+            nullable: true,
+            description:
+              "Hash of the USDC delivery to the merchant wallet. Becomes the session's <code>transaction_hash</code> on success.",
+          },
+          {
+            name: 'simulated',
+            type: 'boolean',
+            description:
+              'Whether the quote comes from the simulated provider. No funds move.',
+          },
+          {
+            name: 'status',
+            type: 'enum',
+            description:
+              'Status of the swap. The session completes only on <code>SUCCESS</code>.',
+            enumValues: [
+              {
+                value: 'PENDING_DEPOSIT',
+                description: 'Waiting for the customer to deposit.',
+              },
+              {
+                value: 'KNOWN_DEPOSIT_TX',
+                description:
+                  'The deposit transaction is known but not yet seen on-chain.',
+              },
+              {
+                value: 'INCOMPLETE_DEPOSIT',
+                description: 'The deposit is below the quoted amount.',
+              },
+              {
+                value: 'PROCESSING',
+                description: 'The deposit arrived and the swap is in progress.',
+              },
+              {
+                value: 'SUCCESS',
+                description:
+                  'USDC was delivered to the merchant wallet and the session is complete.',
+              },
+              {
+                value: 'REFUNDED',
+                description:
+                  'The deposit was returned to <code>refund_address</code>. The session stays open.',
+              },
+              {
+                value: 'FAILED',
+                description: 'The swap failed. The session stays open.',
+              },
+            ],
+          },
+        ],
       },
     ],
   },

@@ -496,6 +496,13 @@ export interface CheckoutSession {
      * recorded before it is sent; cleared once it is reconciled.
      */
     pending_charge_hash?: string | null;
+    /**
+     * Cross-chain payment quoted through NEAR Intents: the customer deposits
+     * the origin asset and solvers deliver USDC to the merchant wallet.
+     * `payer_wallet` stays null on this path.
+     * @fiatdesk_extension
+     */
+    cross_chain?: CheckoutCrossChainPayment | null;
   } | null;
 
   /**
@@ -526,6 +533,53 @@ export interface CheckoutSession {
     privacy_url: string | null;
     icon_url: string | null;
   } | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-Chain Payment
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** NEAR Intents 1Click swap status of a cross-chain payment. */
+export type CrossChainPaymentStatus =
+  | 'PENDING_DEPOSIT'
+  | 'KNOWN_DEPOSIT_TX'
+  | 'INCOMPLETE_DEPOSIT'
+  | 'PROCESSING'
+  | 'SUCCESS'
+  | 'REFUNDED'
+  | 'FAILED';
+
+/**
+ * A cross-chain payment quote and its progress on a Checkout Session.
+ * @fiatdesk_extension
+ */
+export interface CheckoutCrossChainPayment {
+  /** The cross-chain provider. */
+  provider: 'near_intents';
+  /** The asset the customer pays with. */
+  origin_asset: string;
+  /** The network the customer pays on. */
+  origin_network: string;
+  /** One-time address the customer deposits the origin asset to. */
+  deposit_address: string;
+  /** Amount of the origin asset to deposit, in its smallest unit. */
+  amount_in: string;
+  /** `amount_in` in whole units of the origin asset. */
+  amount_in_formatted: string;
+  /** Address on the origin network that receives refunds. */
+  refund_address: string;
+  /** Time at which the quote expires. Measured in seconds since the Unix epoch. */
+  quote_deadline: number;
+  /** The provider's quote reference. */
+  correlation_id: string | null;
+  /** Status of the swap. The session completes only on `SUCCESS`. */
+  status: CrossChainPaymentStatus;
+  /** Hash of the customer's deposit on the origin network. */
+  origin_transaction_hash: string | null;
+  /** Hash of the USDC delivery to the merchant wallet. */
+  settlement_transaction_hash: string | null;
+  /** True when the quote comes from the simulated provider and no funds move. */
+  simulated: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

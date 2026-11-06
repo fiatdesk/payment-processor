@@ -69,6 +69,17 @@ export interface ChargePaymentMethodDetailsCrypto {
     | 'sui'
     | 'tempo'
     | null;
+  /**
+   * The network the customer paid on, when it differs from `network`.
+   * @fiatdesk_extension
+   */
+  origin_network?: string | null;
+  /**
+   * The customer's transaction on `origin_network`. `transaction_hash` is
+   * the settlement on `network`.
+   * @fiatdesk_extension
+   */
+  origin_transaction_hash?: string | null;
   token_currency: 'usdc' | 'usdg' | 'usdp' | 'usdsui' | 'usdt' | null;
   transaction_hash: string | null;
 }

@@ -786,6 +786,35 @@ export type PrepareCheckoutPaymentInput = z.infer<
 >;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Cross-Chain Checkout Payment Schemas (public payment_pages)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Body for POST /v1/payment_pages/:urlSlug/cross_chain. Quotes a NEAR Intents
+ * payment from `origin_asset`; refunds go to `refund_address` on its network.
+ */
+export const StartCrossChainPaymentSchema = PrepareCheckoutPaymentSchema.omit({
+  payer_wallet: true,
+}).extend({
+  origin_asset: z.string().min(1).max(200),
+  refund_address: z.string().min(1).max(200),
+});
+export type StartCrossChainPaymentInput = z.infer<
+  typeof StartCrossChainPaymentSchema
+>;
+
+/**
+ * Body for POST /v1/payment_pages/:urlSlug/cross_chain/deposit. The optional
+ * `transaction_hash` of the customer's deposit speeds up detection.
+ */
+export const SubmitCrossChainDepositSchema = z.object({
+  transaction_hash: z.string().min(1).max(200).optional(),
+});
+export type SubmitCrossChainDepositInput = z.infer<
+  typeof SubmitCrossChainDepositSchema
+>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Confirm Checkout Payment Schema (public payment_pages)
 // ─────────────────────────────────────────────────────────────────────────────
 
