@@ -128,6 +128,8 @@ export interface CreateChargeFromPaymentAttemptInput {
   crypto: {
     buyer_address: string | null;
     transaction_hash: string | null;
+    origin_network?: string;
+    origin_transaction_hash?: string | null;
   };
   outcome: 'succeeded' | 'failed';
   failure_code?: string | null;
@@ -283,6 +285,13 @@ export class ChargeModule {
           buyer_address: input.crypto.buyer_address,
           fingerprint: null,
           network: GetSettlement().Describe().network,
+          ...(input.crypto.origin_network
+            ? {
+                origin_network: input.crypto.origin_network,
+                origin_transaction_hash:
+                  input.crypto.origin_transaction_hash ?? null,
+              }
+            : {}),
           token_currency: 'usdc',
           transaction_hash: input.crypto.transaction_hash,
         },

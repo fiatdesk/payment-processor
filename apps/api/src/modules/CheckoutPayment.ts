@@ -45,6 +45,12 @@ import {
   RecurringIntervalToSeconds,
   SECONDS_PER_DAY,
 } from '../utils/RecurringInterval';
+import {
+  GetNearIntents,
+  IsNearIntentsSimulated,
+  ORIGIN_ASSETS,
+  USDC_ETHEREUM_ASSET_ID,
+} from './intents';
 import { GetCheckoutConfirmTimeoutMs } from './AppConfig';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
@@ -54,13 +60,17 @@ import { Now } from '../utils/Timestamp';
 import {
   ConfirmCheckoutPaymentInput,
   PrepareCheckoutPaymentInput,
+  StartCrossChainPaymentInput,
+  SubmitCrossChainDepositInput,
 } from '@fiatdesk/shared-schemas';
 import {
   Account,
   BalanceTransaction,
   Charge,
+  CheckoutCrossChainPayment,
   CheckoutPaymentTransaction,
   CheckoutSession,
+  CrossChainPaymentStatus,
   ExternalWallet,
   IsTransactionHash,
   Price,
@@ -216,6 +226,39 @@ function ResubmitRequired(transactionHash: string): AppError {
     'payment_resubmit_required',
     { code: 'payment_resubmit_required', transaction_hash: transactionHash }
   );
+}
+
+/** A cross-chain quote stays open this long, and never past the session. */
+const CROSS_CHAIN_QUOTE_SECONDS = 30 * 60;
+
+/** The customer has deposited: a new quote would lose track of the deposit. */
+const CROSS_CHAIN_DEPOSITED: ReadonlySet<CrossChainPaymentStatus> = new Set([
+  'KNOWN_DEPOSIT_TX',
+  'INCOMPLETE_DEPOSIT',
+  'PROCESSING',
+  'SUCCESS',
+]);
+
+/**
+ * What a cross-chain payment records as its transaction: the USDC delivery,
+ * or a reference to the deposit when NEAR Intents reports no delivery hash.
+ */
+function CrossChainReference(crossChain: CheckoutCrossChainPayment): string {
+  return (
+    crossChain.settlement_transaction_hash ??
+    `near_intents:${crossChain.deposit_address}`
+  );
+}
+
+/** The session's cross-chain payment when `transactionHash` settled it. */
+function SettledCrossChain(
+  session: CheckoutSession,
+  transactionHash: string
+): CheckoutCrossChainPayment | null {
+  const crossChain = session.payment_details?.cross_chain ?? null;
+  return crossChain && CrossChainReference(crossChain) === transactionHash
+    ? crossChain
+    : null;
 }
 
 /** Lowercases an Ethereum hash; simulated references pass through. */
@@ -446,17 +489,10 @@ export class CheckoutPaymentModule {
       );
     }
 
-    // Existing customers with an email cannot change it at checkout.
-    const lockedEmail = session.customer
-      ? session.customer_email?.trim() ||
-        session.customer_details?.email?.trim() ||
-        null
-      : null;
-    const resolvedDetails = lockedEmail
-      ? { ...customerDetails, email: lockedEmail }
-      : customerDetails;
-
-    this.AssertCollectedCustomerDetails(session, resolvedDetails);
+    const resolvedDetails = this.ResolveCustomerDetails(
+      session,
+      customerDetails
+    );
 
     const merchantWallet = await this.ResolveMerchantWallet(
       session.platform_account
@@ -754,6 +790,251 @@ export class CheckoutPaymentModule {
     });
   }
 
+  /**
+   * Quote a payment from another chain through NEAR Intents: the customer
+   * deposits `origin_asset` and solvers deliver the amount due in USDC to
+   * the merchant wallet. An open quote for the same asset, refund address
+   * and wallet is reused, and a quote the customer has deposited to is
+   * never replaced.
+   */
+  async StartCrossChainPayment(
+    urlSlug: string,
+    input: StartCrossChainPaymentInput
+  ): Promise<CheckoutSession> {
+    const client = GetNearIntents();
+    const { origin_asset, refund_address, ...customerDetails } = input;
+    const asset = ORIGIN_ASSETS.find(({ key }) => key === origin_asset);
+    if (!asset) {
+      throw new AppError(
+        `origin_asset must be one of: ${ORIGIN_ASSETS.map(
+          ({ key }) => key
+        ).join(', ')}`,
+        ERRORS.VALIDATION_ERROR.status,
+        ERRORS.VALIDATION_ERROR.type
+      );
+    }
+
+    const session = await this.GetSessionOrThrow(urlSlug);
+    this.AssertSessionPayable(session);
+    if (session.mode !== 'payment') {
+      throw new AppError(
+        'Cross-chain payments are available for payment mode Checkout Sessions only',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    const inFlight = session.payment_details?.transaction_hash ?? null;
+    if (inFlight) {
+      throw PaymentPending(
+        inFlight,
+        'A payment is confirming for this Checkout Session'
+      );
+    }
+
+    const resolvedDetails = this.ResolveCustomerDetails(
+      session,
+      customerDetails
+    );
+    const merchantWallet = (
+      await this.ResolveMerchantWallet(session.platform_account)
+    ).wallet_address;
+    if (resolvedDetails) {
+      await this.checkoutSessionModule.SetCollectedCustomerDetails(
+        session.id,
+        resolvedDetails
+      );
+    }
+
+    const existing = session.payment_details?.cross_chain ?? null;
+    const reusable =
+      existing &&
+      (CROSS_CHAIN_DEPOSITED.has(existing.status) ||
+        (existing.status === 'PENDING_DEPOSIT' &&
+          existing.origin_asset === asset.key &&
+          existing.refund_address === refund_address &&
+          existing.quote_deadline > Now() &&
+          SameAddress(
+            session.payment_details?.merchant_wallet,
+            merchantWallet
+          )));
+    if (reusable) return this.SanitizeCheckoutSession(session);
+
+    const deadline = Math.min(
+      Now() + CROSS_CHAIN_QUOTE_SECONDS,
+      session.expires_at
+    );
+    const quote = await client.Quote({
+      dry: false,
+      swapType: 'EXACT_OUTPUT',
+      slippageTolerance: 100,
+      originAsset: asset.assetId,
+      depositType: 'ORIGIN_CHAIN',
+      destinationAsset: USDC_ETHEREUM_ASSET_ID,
+      amount: CentsToTokenUnits(this.AmountDue(session)).toString(),
+      refundTo: refund_address,
+      refundType: 'ORIGIN_CHAIN',
+      recipient: merchantWallet,
+      recipientType: 'DESTINATION_CHAIN',
+      deadline: new Date(deadline * 1000).toISOString(),
+    });
+    if (!quote.depositAddress) {
+      throw new AppError(
+        'NEAR Intents returned a quote without a deposit address',
+        502,
+        'api_error'
+      );
+    }
+
+    Logger.info('Quoted cross-chain checkout payment', {
+      checkoutSessionId: session.id,
+      originAsset: asset.key,
+      correlationId: quote.correlationId,
+    });
+
+    const updated = await this.checkoutSessionModule.SetCrossChainPayment(
+      session.id,
+      {
+        merchant_wallet: merchantWallet,
+        cross_chain: {
+          provider: 'near_intents',
+          origin_asset: asset.key,
+          origin_network: asset.network,
+          deposit_address: quote.depositAddress,
+          amount_in: quote.amountIn,
+          amount_in_formatted: quote.amountInFormatted,
+          refund_address,
+          quote_deadline:
+            Math.floor(Date.parse(quote.deadline) / 1000) || deadline,
+          correlation_id: quote.correlationId ?? null,
+          status: 'PENDING_DEPOSIT',
+          origin_transaction_hash: null,
+          settlement_transaction_hash: null,
+          simulated: IsNearIntentsSimulated(),
+        },
+      }
+    );
+    if (!updated) throw await this.PaymentConfirming(session.id);
+    return this.SanitizeCheckoutSession(updated);
+  }
+
+  /**
+   * Refresh the cross-chain payment from NEAR Intents and, on `SUCCESS`,
+   * complete the session through the same settlement claim as an on-chain
+   * payment, so it completes once. Polls of one session run one at a time
+   * in this process.
+   */
+  async PollCrossChainPayment(urlSlug: string): Promise<CheckoutSession> {
+    return WithKeyedLock(`checkout:${urlSlug}`, () =>
+      this.PollCrossChain(urlSlug)
+    );
+  }
+
+  /**
+   * Forward the customer's deposit transaction to NEAR Intents, then poll.
+   * The simulated provider takes the call as the deposit itself, so the
+   * hash is optional there.
+   */
+  async SubmitCrossChainDeposit(
+    urlSlug: string,
+    input: SubmitCrossChainDepositInput
+  ): Promise<CheckoutSession> {
+    const session = await this.GetSessionOrThrow(urlSlug);
+    if (session.status !== 'complete') {
+      const client = GetNearIntents();
+      const crossChain = this.RequireCrossChain(session);
+      if (!input.transaction_hash && !IsNearIntentsSimulated()) {
+        throw new AppError(
+          'transaction_hash is required',
+          ERRORS.VALIDATION_ERROR.status,
+          ERRORS.VALIDATION_ERROR.type
+        );
+      }
+      await client.SubmitDeposit(
+        crossChain.deposit_address,
+        input.transaction_hash ?? ''
+      );
+    }
+    return this.PollCrossChainPayment(urlSlug);
+  }
+
+  private async PollCrossChain(urlSlug: string): Promise<CheckoutSession> {
+    const session = await this.GetSessionOrThrow(urlSlug);
+    if (session.status === 'complete') {
+      return this.SanitizeCheckoutSession(session);
+    }
+    const crossChain = this.RequireCrossChain(session);
+    const status = await GetNearIntents().GetStatus(crossChain.deposit_address);
+    const updated = await this.checkoutSessionModule.UpdateCrossChainStatus(
+      session.id,
+      crossChain.deposit_address,
+      {
+        status: status.status,
+        origin_transaction_hash:
+          status.originChainTxHashes[0]?.hash ??
+          crossChain.origin_transaction_hash,
+        settlement_transaction_hash:
+          status.destinationChainTxHashes[0]?.hash ??
+          crossChain.settlement_transaction_hash,
+      }
+    );
+    // Null when a new quote replaced this one meanwhile.
+    if (!updated) {
+      return this.SanitizeCheckoutSession(
+        await this.GetSessionOrThrow(urlSlug)
+      );
+    }
+    if (status.status !== 'SUCCESS') {
+      return this.SanitizeCheckoutSession(updated);
+    }
+
+    const settled = this.RequireCrossChain(updated);
+    const paidBy = CrossChainReference(settled);
+    if (!settled.settlement_transaction_hash) {
+      Logger.warn('NEAR Intents reported SUCCESS without a settlement hash', {
+        checkoutSessionId: session.id,
+        depositAddress: settled.deposit_address,
+        reference: paidBy,
+      });
+    }
+    await this.AssertTransactionUnused(updated, paidBy);
+
+    Logger.info('Completing cross-chain checkout payment', {
+      checkoutSessionId: session.id,
+      transactionHash: paidBy,
+    });
+
+    return this.SettleVerifiedPayment(
+      updated,
+      {
+        status: 'verified',
+        transaction_hash: paidBy,
+        amount_cents: this.AmountDue(updated),
+        payer_address: null,
+      },
+      {
+        paidBy,
+        merchantWallet:
+          updated.payment_details?.merchant_wallet ??
+          (await this.ResolveMerchantWallet(updated.platform_account))
+            .wallet_address,
+      }
+    );
+  }
+
+  private RequireCrossChain(
+    session: CheckoutSession
+  ): CheckoutCrossChainPayment {
+    const crossChain = session.payment_details?.cross_chain;
+    if (!crossChain) {
+      throw new AppError(
+        'Start a cross-chain payment for this Checkout Session first',
+        ERRORS.INVALID_REQUEST.status,
+        ERRORS.INVALID_REQUEST.type
+      );
+    }
+    return crossChain;
+  }
+
   private async ConfirmOneTimePayment(
     session: CheckoutSession,
     input: { signature?: string; transactionHash?: string }
@@ -1019,12 +1300,14 @@ export class CheckoutPaymentModule {
       );
     }
 
+    const crossChain = SettledCrossChain(session, paidBy);
     const completedSession =
       await this.checkoutSessionModule.CompleteCheckoutSession(session.id, {
         transaction_hash: paidBy,
         payer_wallet: verification.payer_address,
         relayed: session.payment_details?.relayed ?? false,
         merchant_wallet: payment.merchantWallet,
+        ...(crossChain ? { cross_chain: crossChain } : {}),
       });
 
     if (completedSession.payment_link && this.paymentLinkModule) {
@@ -2210,6 +2493,27 @@ export class CheckoutPaymentModule {
   }
 
   /**
+   * The customer details a payment records, checked against the session's
+   * required fields. Existing customers with an email cannot change it at
+   * checkout.
+   */
+  private ResolveCustomerDetails(
+    session: CheckoutSession,
+    customerDetails?: Omit<PrepareCheckoutPaymentInput, 'payer_wallet'>
+  ): Omit<PrepareCheckoutPaymentInput, 'payer_wallet'> | undefined {
+    const lockedEmail = session.customer
+      ? session.customer_email?.trim() ||
+        session.customer_details?.email?.trim() ||
+        null
+      : null;
+    const resolvedDetails = lockedEmail
+      ? { ...customerDetails, email: lockedEmail }
+      : customerDetails;
+    this.AssertCollectedCustomerDetails(session, resolvedDetails);
+    return resolvedDetails;
+  }
+
+  /**
    * Enforce required collection fields configured on the session (name,
    * phone, address, tax ID, custom fields, terms) before building a payment.
    */
@@ -2333,13 +2637,7 @@ export class CheckoutPaymentModule {
         details
       ))
     ) {
-      const latest = await this.checkoutSessionModule.GetCheckoutSession(
-        session.id
-      );
-      throw PaymentPending(
-        latest?.payment_details?.transaction_hash ?? null,
-        'A payment is confirming for this Checkout Session'
-      );
+      throw await this.PaymentConfirming(session.id);
     }
 
     if (!session.payment_intent || !this.paymentIntentModule) return;
@@ -2350,6 +2648,17 @@ export class CheckoutPaymentModule {
     await this.paymentIntentModule.MarkRequiresConfirmation(
       session.payment_intent,
       { paymentMethod: details.payer_wallet }
+    );
+  }
+
+  /** 409 naming the payment recorded since this request read the session. */
+  private async PaymentConfirming(sessionId: string): Promise<AppError> {
+    const latest = await this.checkoutSessionModule.GetCheckoutSession(
+      sessionId
+    );
+    return PaymentPending(
+      latest?.payment_details?.transaction_hash ?? null,
+      'A payment is confirming for this Checkout Session'
     );
   }
 
@@ -2415,6 +2724,7 @@ export class CheckoutPaymentModule {
     const paymentIntent = this.paymentIntentModule
       ? await this.paymentIntentModule.GetPaymentIntent(session.payment_intent)
       : null;
+    const crossChain = SettledCrossChain(session, details.transactionHash);
 
     return this.chargeModule.CreateFromPaymentAttempt(
       session.platform_account,
@@ -2440,6 +2750,12 @@ export class CheckoutPaymentModule {
         crypto: {
           buyer_address: details.payerAddress,
           transaction_hash: details.transactionHash,
+          ...(crossChain
+            ? {
+                origin_network: crossChain.origin_network,
+                origin_transaction_hash: crossChain.origin_transaction_hash,
+              }
+            : {}),
         },
         outcome: details.outcome,
         failure_code:

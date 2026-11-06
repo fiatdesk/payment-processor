@@ -13,6 +13,7 @@ import {
   GenerateUrlSlug,
 } from '../utils/IdGenerator';
 import {
+  CheckoutCrossChainPayment,
   CheckoutSession as CheckoutSessionType,
   CheckoutSessionCustomField,
   CheckoutSessionLineItem,
@@ -679,6 +680,7 @@ export class CheckoutSessionModule {
       payer_wallet: string | null;
       relayed?: boolean;
       merchant_wallet?: string | null;
+      cross_chain?: CheckoutCrossChainPayment;
     },
     options?: {
       subscription?: string | null;
@@ -933,6 +935,65 @@ export class CheckoutSessionModule {
       }
     );
     return updated !== null;
+  }
+
+  /**
+   * Record a cross-chain quote on an open session and the merchant wallet it
+   * pays. Only while no payment transaction is recorded, like
+   * `RecordPreparedPayment`. Returns null when one is.
+   */
+  async SetCrossChainPayment(
+    id: string,
+    details: {
+      cross_chain: CheckoutCrossChainPayment;
+      merchant_wallet: string;
+    }
+  ): Promise<CheckoutSessionType | null> {
+    const created = await this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, status: 'open', payment_details: null },
+      {
+        payment_details: {
+          transaction_hash: null,
+          payer_wallet: null,
+          ...details,
+        },
+      }
+    );
+    if (created) return created;
+    return this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, status: 'open', 'payment_details.transaction_hash': null },
+      {
+        'payment_details.cross_chain': details.cross_chain,
+        'payment_details.merchant_wallet': details.merchant_wallet,
+      }
+    );
+  }
+
+  /**
+   * Record the provider status of the cross-chain quote at `depositAddress`.
+   * Returns null when the session holds another quote by now.
+   */
+  async UpdateCrossChainStatus(
+    id: string,
+    depositAddress: string,
+    update: Pick<
+      CheckoutCrossChainPayment,
+      'status' | 'origin_transaction_hash' | 'settlement_transaction_hash'
+    >
+  ): Promise<CheckoutSessionType | null> {
+    return this.db.FindOneAndUpdateByFilter<CheckoutSessionType>(
+      'CheckoutSessions',
+      { id, 'payment_details.cross_chain.deposit_address': depositAddress },
+      {
+        'payment_details.cross_chain.status': update.status,
+        'payment_details.cross_chain.origin_transaction_hash':
+          update.origin_transaction_hash,
+        'payment_details.cross_chain.settlement_transaction_hash':
+          update.settlement_transaction_hash,
+      }
+    );
   }
 
   /**
