@@ -636,7 +636,11 @@ export class CheckoutComponent implements OnInit {
           refund_address: refundAddress,
         }
       );
-      this.checkoutSession.set(quoted);
+      this.checkoutSession.update((current) =>
+        current
+          ? { ...current, payment_details: quoted.payment_details }
+          : quoted
+      );
       this.crossChainDepositHash = '';
       void this.FollowCrossChain(quoted);
     } catch (error) {
@@ -673,7 +677,11 @@ export class CheckoutComponent implements OnInit {
         this.CompletePayment(latest);
         return;
       }
-      this.checkoutSession.set(latest);
+      this.checkoutSession.update((current) =>
+        current
+          ? { ...current, payment_details: latest.payment_details }
+          : latest
+      );
       if (!this.crossChainPoller) void this.FollowCrossChain(latest);
     } catch (error) {
       this.paymentError.set(CheckoutErrorMessage(error, false));
