@@ -28,6 +28,7 @@ import type {
   AppSecrets,
   SettlementRail,
 } from '@fiatdesk/shared-types';
+import { NEAR_INTENTS_BASE_URL } from './intents/NearIntents';
 import type { Hex } from 'viem';
 import { DeriveKey } from './Encryption';
 
@@ -123,6 +124,50 @@ function ResolveSettlementRail(livemode: boolean): SettlementRail {
   return 'simulated';
 }
 
+export type NearIntentsMode = 'off' | 'simulated' | 'live';
+
+const NEAR_INTENTS_MODES: readonly NearIntentsMode[] = [
+  'off',
+  'simulated',
+  'live',
+];
+
+/**
+ * Cross-chain payments through NEAR Intents. Unset means simulated on the
+ * simulated rail and off otherwise. Live needs LIVEMODE=true; simulated needs
+ * the simulated rail, because no real USDC arrives behind a fake deposit.
+ */
+export function GetNearIntentsConfig(): {
+  mode: NearIntentsMode;
+  apiKey: string | null;
+  baseUrl: string;
+} {
+  const livemode = process.env.LIVEMODE === 'true';
+  const simulatedRail = ResolveSettlementRail(livemode) === 'simulated';
+  const value = (process.env.NEAR_INTENTS_MODE || '').trim().toLowerCase();
+  const mode = (value || (simulatedRail ? 'simulated' : 'off')) as string;
+  if (!NEAR_INTENTS_MODES.includes(mode as NearIntentsMode)) {
+    throw new Error(
+      `NEAR_INTENTS_MODE must be one of ${NEAR_INTENTS_MODES.join(', ')}`
+    );
+  }
+  if (mode === 'live' && !livemode) {
+    throw new Error('NEAR_INTENTS_MODE=live requires LIVEMODE=true');
+  }
+  if (mode === 'simulated' && !simulatedRail) {
+    throw new Error(
+      'NEAR_INTENTS_MODE=simulated requires the simulated settlement rail'
+    );
+  }
+  return {
+    mode: mode as NearIntentsMode,
+    apiKey: process.env.NEAR_INTENTS_API_KEY?.trim() || null,
+    baseUrl: NormalizeOrigin(
+      process.env.NEAR_INTENTS_BASE_URL?.trim() || NEAR_INTENTS_BASE_URL
+    ),
+  };
+}
+
 /** Live mode and settlement rail, after checking the private-key settings. */
 function ReadRailSettings(): Pick<AppConfig, 'livemode' | 'settlement_rail'> {
   const livemode = process.env.LIVEMODE === 'true';
@@ -152,6 +197,7 @@ function BuildConfigFromEnv(): AppConfig {
   if (railSettings.settlement_rail === 'onchain') GetChainConfig();
   GetPayoutDeadlineSeconds();
   GetCheckoutConfirmTimeoutMs();
+  GetNearIntentsConfig();
 
   return {
     mongodbUri:

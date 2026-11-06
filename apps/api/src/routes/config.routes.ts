@@ -23,7 +23,11 @@ import { AsyncHandler } from '../utils/AsyncHandler';
 import { AppError } from '../utils/AppError';
 import { ERRORS } from '../utils/Errors';
 import { VerifyToken } from '../utils/Token';
-import { GetJwtSecret, GetAppConfig } from '../modules/AppConfig';
+import {
+  GetJwtSecret,
+  GetAppConfig,
+  GetNearIntentsConfig,
+} from '../modules/AppConfig';
 import {
   ExplorerUrl,
   GetSettlement,
@@ -45,6 +49,9 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
   const { livemode, settlement_rail } = GetAppConfig();
   const settlement = settlement_rail ?? 'simulated';
   const rail = PublicRailConfig();
+  const { mode } = GetNearIntentsConfig();
+  const cross_chain: PublicConfig['cross_chain'] =
+    mode === 'off' ? null : { provider: 'near_intents', mode };
 
   if (!platformAccount) {
     return {
@@ -56,6 +63,7 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
       livemode,
       settlement,
       ...rail,
+      cross_chain,
     };
   }
 
@@ -71,6 +79,7 @@ function BuildPublicConfig(platformAccount: Account | null): PublicConfig {
     livemode,
     settlement,
     ...rail,
+    cross_chain,
   };
 }
 

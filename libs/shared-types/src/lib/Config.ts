@@ -83,6 +83,11 @@ export interface PublicConfig {
    * `/address/…` links; empty when the chain has none (Anvil, simulated)
    */
   explorer_url_base: string;
+  /**
+   * Cross-chain checkout through NEAR Intents, or null when it is off
+   * @fiatdesk_extension
+   */
+  cross_chain: { provider: 'near_intents'; mode: 'simulated' | 'live' } | null;
 }
 
 /**

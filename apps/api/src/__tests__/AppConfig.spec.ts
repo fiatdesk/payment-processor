@@ -3,6 +3,7 @@ import {
   GetChainConfig,
   GetCheckoutConfirmTimeoutMs,
   GetCheckoutRelayerKey,
+  GetNearIntentsConfig,
   GetPayoutDeadlineSeconds,
   IsCheckoutRelayed,
   RequireSubscriptionOperatorKey,
@@ -16,6 +17,9 @@ const OPERATOR_KEY =
 const ENV_KEYS = [
   'LIVEMODE',
   'SETTLEMENT_RAIL',
+  'NEAR_INTENTS_MODE',
+  'NEAR_INTENTS_API_KEY',
+  'NEAR_INTENTS_BASE_URL',
   'APP_SECRET',
   'ETH_CHAIN_ID',
   'ETH_RPC_URL',
@@ -298,6 +302,60 @@ describe('AppConfig', () => {
 
       expect(() => GetChainConfig()).toThrow(
         'ETH_CONFIRMATIONS must be a positive integer'
+      );
+    });
+  });
+
+  describe('NEAR Intents settings', () => {
+    it('defaults to simulated on the simulated rail', () => {
+      expect(GetNearIntentsConfig()).toEqual({
+        mode: 'simulated',
+        apiKey: null,
+        baseUrl: 'https://1click.chaindefuser.com/v0',
+      });
+    });
+
+    it('defaults to off on the on-chain rail', () => {
+      process.env.SETTLEMENT_RAIL = 'onchain';
+
+      expect(GetNearIntentsConfig().mode).toBe('off');
+    });
+
+    it('reads live mode, the API key, and a trimmed base URL', () => {
+      process.env.LIVEMODE = 'true';
+      process.env.NEAR_INTENTS_MODE = ' LIVE ';
+      process.env.NEAR_INTENTS_API_KEY = ' key ';
+      process.env.NEAR_INTENTS_BASE_URL = 'https://example.test/v0/';
+
+      expect(GetNearIntentsConfig()).toEqual({
+        mode: 'live',
+        apiKey: 'key',
+        baseUrl: 'https://example.test/v0',
+      });
+    });
+
+    it('rejects live mode without LIVEMODE=true', () => {
+      process.env.NEAR_INTENTS_MODE = 'live';
+
+      expect(() => GetNearIntentsConfig()).toThrow(
+        'NEAR_INTENTS_MODE=live requires LIVEMODE=true'
+      );
+    });
+
+    it('rejects simulated mode on the on-chain rail', () => {
+      process.env.SETTLEMENT_RAIL = 'onchain';
+      process.env.NEAR_INTENTS_MODE = 'simulated';
+
+      expect(() => GetNearIntentsConfig()).toThrow(
+        'NEAR_INTENTS_MODE=simulated requires the simulated settlement rail'
+      );
+    });
+
+    it('rejects an unknown mode', () => {
+      process.env.NEAR_INTENTS_MODE = 'on';
+
+      expect(() => GetNearIntentsConfig()).toThrow(
+        'NEAR_INTENTS_MODE must be one of off, simulated, live'
       );
     });
   });
