@@ -5,6 +5,8 @@
  * @module SimulatedNearIntents
  */
 
+import { randomUUID } from 'crypto';
+
 import type {
   NearIntentsClient,
   NearIntentsQuote,
@@ -43,9 +45,7 @@ export class SimulatedNearIntents implements NearIntentsClient {
     const amountIn = BigInt(request.amount) * YOCTO_PER_USDC_MINOR;
     return {
       correlationId: `sim_corr_${request.recipient}_${request.amount}`,
-      depositAddress: request.dry
-        ? null
-        : `sim_near_deposit:${request.recipient}:${request.amount}`,
+      depositAddress: request.dry ? null : `sim_near_deposit:${randomUUID()}`,
       amountIn: amountIn.toString(),
       amountInFormatted: FormatNear(amountIn),
       amountOut: request.amount,

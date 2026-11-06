@@ -28,10 +28,17 @@ describe('SimulatedNearIntents', () => {
 
   beforeEach(() => ResetSimulatedNearIntentsForTests());
 
+  it('gives each quote a unique deposit address', async () => {
+    const first = await client.Quote(REQUEST);
+    const second = await client.Quote(REQUEST);
+
+    expect(first.depositAddress).not.toBe(second.depositAddress);
+  });
+
   it('quotes at 1 NEAR = 2.5 USD', async () => {
     const quote = await client.Quote(REQUEST);
 
-    expect(quote.depositAddress).toBe(`sim_near_deposit:${RECIPIENT}:5000000`);
+    expect(quote.depositAddress).toMatch(/^sim_near_deposit:/);
     expect(quote.amountIn).toBe('2000000000000000000000000');
     expect(quote.amountInFormatted).toBe('2');
     expect(quote.amountOut).toBe('5000000');
