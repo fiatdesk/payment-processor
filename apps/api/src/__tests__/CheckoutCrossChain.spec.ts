@@ -215,6 +215,15 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
     });
   }
 
+  /** The line items changed: the session now collects `cents`. */
+  function SetAmountDue(cents: number): void {
+    memory.Seed('CheckoutSessions', {
+      ...Session(),
+      amount_subtotal: cents,
+      amount_total: cents,
+    });
+  }
+
   function ExpectPayable(): void {
     expect(Session()).toMatchObject({
       status: 'open',
@@ -250,6 +259,7 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
         deposit_address: DEPOSIT_ADDRESS,
         amount_in: '2950000000000000000000000',
         amount_in_formatted: '2.95',
+        amount_out: '10000000',
         refund_address: REFUND_ADDRESS,
         quote_deadline: NOW + 1800,
         correlation_id: 'corr_7f3a',
@@ -309,6 +319,35 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
         refund_address: REFUND_ADDRESS,
         quote_deadline: NOW + 1800,
       });
+    });
+
+    it('quotes again when the amount due changed', async () => {
+      await module.StartCrossChainPayment(SLUG, START);
+      SetAmountDue(10000);
+      mockNearIntents.Quote.mockResolvedValueOnce(
+        LiveQuote({ depositAddress: 'deposit_second', amountOut: '100000000' })
+      );
+
+      await module.StartCrossChainPayment(SLUG, START);
+
+      expect(mockNearIntents.Quote).toHaveBeenLastCalledWith(
+        expect.objectContaining({ amount: '100000000' })
+      );
+      expect(CrossChain()).toMatchObject({
+        deposit_address: 'deposit_second',
+        amount_out: '100000000',
+      });
+    });
+
+    it('rejects a quote that delivers another amount than the amount due', async () => {
+      mockNearIntents.Quote.mockResolvedValueOnce(
+        LiveQuote({ amountOut: '9990000' })
+      );
+
+      await expect(
+        module.StartCrossChainPayment(SLUG, START)
+      ).rejects.toMatchObject({ statusCode: 502 });
+      expect(Session().payment_details?.cross_chain).toBeUndefined();
     });
 
     it('keeps an expired quote the customer has deposited to', async () => {
@@ -456,6 +495,37 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
           }),
         }),
       ]);
+    });
+
+    it('does not complete when the amount due changed after the quote', async () => {
+      SetAmountDue(10000);
+      mockNearIntents.GetStatus.mockResolvedValue(
+        Status('SUCCESS', { origin: ORIGIN_HASH, settlement: SETTLEMENT_HASH })
+      );
+
+      const result = await module.PollCrossChainPayment(SLUG);
+
+      expect(result.payment_details?.cross_chain).toMatchObject({
+        status: 'SUCCESS',
+        amount_out: '10000000',
+        settlement_transaction_hash: SETTLEMENT_HASH,
+      });
+      ExpectPayable();
+      expect(events).toEqual([]);
+      expect(Logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('another amount'),
+        expect.objectContaining({ amountOut: '10000000', amountDue: 10000 })
+      );
+
+      mockNearIntents.Quote.mockResolvedValueOnce(
+        LiveQuote({ depositAddress: 'deposit_retry', amountOut: '100000000' })
+      );
+      await module.StartCrossChainPayment(SLUG, START);
+      expect(CrossChain()).toMatchObject({
+        deposit_address: 'deposit_retry',
+        amount_out: '100000000',
+        status: 'PENDING_DEPOSIT',
+      });
     });
 
     it.each(['REFUNDED', 'FAILED'] as const)(

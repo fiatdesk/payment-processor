@@ -566,6 +566,11 @@ export interface CheckoutCrossChainPayment {
   amount_in: string;
   /** `amount_in` in whole units of the origin asset. */
   amount_in_formatted: string;
+  /**
+   * USDC the quote delivers to the merchant wallet, in its smallest unit.
+   * The session completes only while this equals the amount due.
+   */
+  amount_out: string;
   /** Address on the origin network that receives refunds. */
   refund_address: string;
   /** Time at which the quote expires. Measured in seconds since the Unix epoch. */

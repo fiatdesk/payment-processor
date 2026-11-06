@@ -231,13 +231,17 @@ function ResubmitRequired(transactionHash: string): AppError {
 /** A cross-chain quote stays open this long, and never past the session. */
 const CROSS_CHAIN_QUOTE_SECONDS = 30 * 60;
 
-/** The customer has deposited: a new quote would lose track of the deposit. */
+/** The deposit is being swapped: a new quote would lose track of it. */
 const CROSS_CHAIN_DEPOSITED: ReadonlySet<CrossChainPaymentStatus> = new Set([
   'KNOWN_DEPOSIT_TX',
   'INCOMPLETE_DEPOSIT',
   'PROCESSING',
-  'SUCCESS',
 ]);
+
+/** The USDC a quote for `amountCents` delivers, in its smallest unit. */
+function CrossChainAmountOut(amountCents: number): string {
+  return CentsToTokenUnits(amountCents).toString();
+}
 
 /** The session's cross-chain payment when `transactionHash` settled it. */
 function SettledCrossChain(
@@ -834,18 +838,21 @@ export class CheckoutPaymentModule {
       );
     }
 
+    const amountOut = CrossChainAmountOut(this.AmountDue(session));
     const existing = session.payment_details?.cross_chain ?? null;
     const reusable =
       existing &&
       (CROSS_CHAIN_DEPOSITED.has(existing.status) ||
-        (existing.status === 'PENDING_DEPOSIT' &&
-          existing.origin_asset === asset.key &&
-          existing.refund_address === refund_address &&
-          existing.quote_deadline > Now() &&
-          SameAddress(
-            session.payment_details?.merchant_wallet,
-            merchantWallet
-          )));
+        (existing.amount_out === amountOut &&
+          (existing.status === 'SUCCESS' ||
+            (existing.status === 'PENDING_DEPOSIT' &&
+              existing.origin_asset === asset.key &&
+              existing.refund_address === refund_address &&
+              existing.quote_deadline > Now() &&
+              SameAddress(
+                session.payment_details?.merchant_wallet,
+                merchantWallet
+              )))));
     if (reusable) return this.SanitizeCheckoutSession(session);
 
     const deadline = Math.min(
@@ -859,7 +866,7 @@ export class CheckoutPaymentModule {
       originAsset: asset.assetId,
       depositType: 'ORIGIN_CHAIN',
       destinationAsset: USDC_ETHEREUM_ASSET_ID,
-      amount: CentsToTokenUnits(this.AmountDue(session)).toString(),
+      amount: amountOut,
       refundTo: refund_address,
       refundType: 'ORIGIN_CHAIN',
       recipient: merchantWallet,
@@ -869,6 +876,13 @@ export class CheckoutPaymentModule {
     if (!quote.depositAddress) {
       throw new AppError(
         'NEAR Intents returned a quote without a deposit address',
+        502,
+        'api_error'
+      );
+    }
+    if (quote.amountOut !== amountOut) {
+      throw new AppError(
+        'NEAR Intents quoted a different amount than the amount due',
         502,
         'api_error'
       );
@@ -891,6 +905,7 @@ export class CheckoutPaymentModule {
           deposit_address: quote.depositAddress,
           amount_in: quote.amountIn,
           amount_in_formatted: quote.amountInFormatted,
+          amount_out: quote.amountOut,
           refund_address,
           quote_deadline:
             Math.floor(Date.parse(quote.deadline) / 1000) || deadline,
@@ -987,6 +1002,19 @@ export class CheckoutPaymentModule {
       });
       return this.SanitizeCheckoutSession(updated);
     }
+    // The amount due changed after the quote: the delivery does not pay the
+    // session, and the next start quotes the new amount.
+    const amountDue = this.AmountDue(updated);
+    if (settled.amount_out !== CrossChainAmountOut(amountDue)) {
+      Logger.warn('Cross-chain payment settled a quote for another amount', {
+        checkoutSessionId: session.id,
+        depositAddress: settled.deposit_address,
+        transactionHash: paidBy,
+        amountOut: settled.amount_out,
+        amountDue,
+      });
+      return this.SanitizeCheckoutSession(updated);
+    }
     await this.AssertTransactionUnused(updated, paidBy);
 
     Logger.info('Completing cross-chain checkout payment', {
@@ -999,7 +1027,7 @@ export class CheckoutPaymentModule {
       {
         status: 'verified',
         transaction_hash: paidBy,
-        amount_cents: this.AmountDue(updated),
+        amount_cents: amountDue,
         payer_address: null,
       },
       {

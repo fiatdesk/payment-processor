@@ -18,6 +18,7 @@ const CROSS_CHAIN_JSON = `{
       "deposit_address": "d41f5c0e7a9b3b62e08c1f7d5a46e9b210c3f8a7d5e4b6c9a1f20d3e8b7c4a51",
       "amount_in": "2310000000000000000000000",
       "amount_in_formatted": "2.31",
+      "amount_out": "5750000",
       "refund_address": "mara.near",
       "quote_deadline": 1793958300,
       "correlation_id": "c0a8f1e2-7b3d-4e6a-9d12-5f48b3a07c91",

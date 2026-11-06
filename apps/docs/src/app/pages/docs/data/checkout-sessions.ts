@@ -570,6 +570,7 @@ const CHECKOUT_SESSION_OBJECT_JSON = `{
       "deposit_address": "4f9c2e7a1b8d3c6e5f0a9b2c7d4e1f8a3b6c9d2e5f8a1b4c7d0e3f6a9b2c5d8e",
       "amount_in": "18392000000000000000000000",
       "amount_in_formatted": "18.392",
+      "amount_out": "45980000",
       "refund_address": "ava-chen.near",
       "quote_deadline": 1723912200,
       "correlation_id": "b2e7c1d4-9f3a-4e8b-a6c5-1d0f7e2a9b38",
@@ -1336,6 +1337,12 @@ const CHECKOUT_SESSION_ATTRIBUTES: Attribute[] = [
             type: 'string',
             description:
               '<code>amount_in</code> in whole units of the origin asset.',
+          },
+          {
+            name: 'amount_out',
+            type: 'string',
+            description:
+              'USDC the quote delivers to the merchant wallet, in its smallest unit. The session completes only while this equals the amount due; if the amount due changes, the customer gets a new quote.',
           },
           {
             name: 'correlation_id',
