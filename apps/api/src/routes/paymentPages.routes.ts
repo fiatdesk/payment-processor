@@ -21,6 +21,8 @@ import { ValidateRequest } from '../middleware/ValidateRequest';
 import {
   ConfirmCheckoutPaymentSchema,
   PrepareCheckoutPaymentSchema,
+  StartCrossChainPaymentSchema,
+  SubmitCrossChainDepositSchema,
   type ConfirmCheckoutPaymentInput,
 } from '@fiatdesk/shared-schemas';
 
@@ -212,6 +214,55 @@ router.post(
         already_subscribed: alreadySubscribed,
         subscription_onchain_id: subscriptionOnchainId,
       }
+    );
+    res.json(session);
+  })
+);
+
+/**
+ * POST /v1/payment_pages/:urlSlug/cross_chain
+ * Body `{ origin_asset, refund_address }`. Quotes a payment from another chain
+ * through NEAR Intents and returns the session with its `cross_chain` deposit
+ * address and amount. A 409 `payment_pending` means a transfer is confirming.
+ */
+router.post(
+  '/:urlSlug/cross_chain',
+  ValidateRequest(StartCrossChainPaymentSchema),
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    const session = await checkoutPaymentModule.StartCrossChainPayment(
+      req.params.urlSlug,
+      req.body
+    );
+    res.json(session);
+  })
+);
+
+/**
+ * GET /v1/payment_pages/:urlSlug/cross_chain
+ * Checks the swap status and completes the session once the swap succeeds.
+ */
+router.get(
+  '/:urlSlug/cross_chain',
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    const session = await checkoutPaymentModule.PollCrossChainPayment(
+      req.params.urlSlug
+    );
+    res.json(session);
+  })
+);
+
+/**
+ * POST /v1/payment_pages/:urlSlug/cross_chain/deposit
+ * Body `{ transaction_hash? }`. In simulated mode this marks the deposit as
+ * seen; in live mode it relays the hash to 1Click `/deposit/submit`.
+ */
+router.post(
+  '/:urlSlug/cross_chain/deposit',
+  ValidateRequest(SubmitCrossChainDepositSchema),
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    const session = await checkoutPaymentModule.SubmitCrossChainDeposit(
+      req.params.urlSlug,
+      req.body
     );
     res.json(session);
   })

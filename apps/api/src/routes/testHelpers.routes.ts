@@ -144,6 +144,35 @@ router.post(
 );
 
 /**
+ * POST /v1/test_helpers/checkout/sessions/:id/cross_chain_deposit
+ * Marks the simulated cross-chain deposit as seen and completes the session.
+ */
+router.post(
+  '/checkout/sessions/:id/cross_chain_deposit',
+  RequirePlatform(),
+  AsyncHandler(async (req: express.Request, res: express.Response) => {
+    AssertSimulatedSettlement();
+
+    const session = await checkoutSessionModule.GetCheckoutSession(
+      req.params.id
+    );
+    if (!session || session.platform_account !== req.user.account) {
+      throw new AppError(
+        ERRORS.CHECKOUT_SESSION_NOT_FOUND.message,
+        ERRORS.CHECKOUT_SESSION_NOT_FOUND.status,
+        ERRORS.CHECKOUT_SESSION_NOT_FOUND.type
+      );
+    }
+
+    const completed = await checkoutPaymentModule.SubmitCrossChainDeposit(
+      session.url_slug,
+      {}
+    );
+    res.json(completed);
+  })
+);
+
+/**
  * POST /v1/test_helpers/treasury/topups
  * Credits the platform ledger with fake USDC.
  */

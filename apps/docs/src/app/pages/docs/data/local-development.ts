@@ -67,6 +67,11 @@ export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
           html: true,
         },
         {
+          type: 'paragraph',
+          text: 'In simulated mode, hosted checkout offers <strong>Pay from another chain</strong>, and <code>POST /v1/test_helpers/checkout/sessions/:id/cross_chain_deposit</code> completes a quoted session.',
+          html: true,
+        },
+        {
           type: 'heading',
           level: 3,
           text: 'Optional: run on a local chain',
