@@ -168,6 +168,14 @@ export class ConfigService {
   }
 
   /**
+   * Cross-chain payments through NEAR Intents and whether they are
+   * simulated; null when they are off or the config is not loaded.
+   */
+  CrossChain(): PublicConfig['cross_chain'] {
+    return this.config()?.cross_chain ?? null;
+  }
+
+  /**
    * Clear the cached config. Useful when switching contexts.
    */
   ClearConfig(): void {

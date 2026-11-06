@@ -116,6 +116,54 @@ describe('CheckoutSessionService', () => {
     });
   });
 
+  describe('cross-chain payments', () => {
+    const START = {
+      origin_asset: 'nep141:wrap.near',
+      refund_address: 'buyer-refunds.near',
+      email: 'buyer@example.com',
+    };
+
+    it.each([
+      [
+        'starts',
+        () => service.StartCrossChainPayment('xchain-session', START),
+        'POST',
+        '/v1/payment_pages/xchain-session/cross_chain',
+        START,
+      ],
+      [
+        'reads',
+        () => service.GetCrossChainPayment('xchain-session'),
+        'GET',
+        '/v1/payment_pages/xchain-session/cross_chain',
+        undefined,
+      ],
+      [
+        'submits the deposit of',
+        () =>
+          service.SubmitCrossChainDeposit('xchain-session', {
+            transaction_hash: 'near-deposit-hash',
+          }),
+        'POST',
+        '/v1/payment_pages/xchain-session/cross_chain/deposit',
+        { transaction_hash: 'near-deposit-hash' },
+      ],
+    ])('%s a payment', async (_label, call, method, url, body) => {
+      fetchMock.mockResolvedValue(
+        JsonResponse(200, { id: 'cs_test', status: 'open' })
+      );
+
+      await expect(call()).resolves.toEqual({ id: 'cs_test', status: 'open' });
+
+      const [calledUrl, init] = fetchMock.mock.calls[0];
+      expect(calledUrl).toBe(url);
+      expect(init.method).toBe(method);
+      expect(
+        init.body === undefined ? undefined : JSON.parse(init.body)
+      ).toEqual(body);
+    });
+  });
+
   describe('ReadConfirmRetry', () => {
     function ApiFailure(
       status: number | undefined,

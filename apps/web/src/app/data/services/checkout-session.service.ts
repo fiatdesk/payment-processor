@@ -7,6 +7,8 @@ import {
 } from '@fiatdesk/shared-types';
 import {
   CreateCheckoutSessionInput,
+  StartCrossChainPaymentInput,
+  SubmitCrossChainDepositInput,
   UpdateCheckoutSessionInput,
 } from '@fiatdesk/shared-schemas';
 
@@ -55,10 +57,20 @@ export interface CheckoutConfirmRetry {
   anotherConfirmation: boolean;
 }
 
+/**
+ * No answer (network error or timeout) or a 502/503/504: the request may
+ * have been handled, and sending it again can help.
+ */
+export function IsUnreachableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const { status } = error as ApiError;
+  return status === undefined || GATEWAY_FAILURE_STATUSES.includes(status);
+}
+
 /** How to retry a failed confirm, or null when retrying cannot help. */
 export function ReadConfirmRetry(error: unknown): CheckoutConfirmRetry | null {
   if (!(error instanceof Error)) return null;
-  const { status, type, details } = error as ApiError;
+  const { type, details } = error as ApiError;
   if (type === 'payment_pending' || type === 'payment_resubmit_required') {
     const transactionHash = details?.['transaction_hash'];
     return {
@@ -71,7 +83,7 @@ export function ReadConfirmRetry(error: unknown): CheckoutConfirmRetry | null {
   // A gateway's 502/503 is as unknown an outcome as its 504, and the API's
   // own 502 (the network was unreachable) asks for a retry too. Retrying with
   // the signature never pays twice; the poll's 5 minutes bound the cost.
-  if (status === undefined || GATEWAY_FAILURE_STATUSES.includes(status)) {
+  if (IsUnreachableError(error)) {
     return {
       reason: 'unreachable',
       transactionHash: null,
@@ -243,6 +255,44 @@ export class CheckoutSessionService {
       `payment_pages/${urlSlug}/confirm`,
       confirmation,
       { timeout: CONFIRM_REQUEST_TIMEOUT_MS }
+    );
+  }
+
+  /**
+   * Quote a cross-chain payment through NEAR Intents: the customer deposits
+   * `origin_asset` to the returned `payment_details.cross_chain` address.
+   */
+  async StartCrossChainPayment(
+    urlSlug: string,
+    body: StartCrossChainPaymentInput
+  ): Promise<CheckoutSession> {
+    return this.api.Call<CheckoutSession>(
+      'POST',
+      `payment_pages/${urlSlug}/cross_chain`,
+      body
+    );
+  }
+
+  /** The session with the cross-chain payment's latest status. */
+  async GetCrossChainPayment(urlSlug: string): Promise<CheckoutSession> {
+    return this.api.Call<CheckoutSession>(
+      'GET',
+      `payment_pages/${urlSlug}/cross_chain`
+    );
+  }
+
+  /**
+   * Tell the API the customer sent the deposit; its `transaction_hash`
+   * speeds up detection.
+   */
+  async SubmitCrossChainDeposit(
+    urlSlug: string,
+    body: SubmitCrossChainDepositInput
+  ): Promise<CheckoutSession> {
+    return this.api.Call<CheckoutSession>(
+      'POST',
+      `payment_pages/${urlSlug}/cross_chain/deposit`,
+      body
     );
   }
 }
