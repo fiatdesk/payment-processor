@@ -58,6 +58,8 @@ export type CrossChainApi = Pick<
 /** The page state the poller writes. */
 export interface CrossChainPollState {
   status: WritableSignal<CrossChainPaymentStatus | null>;
+  /** The page's session: each poll writes its latest payment details. */
+  session: WritableSignal<CheckoutSession | null>;
 }
 
 export class CrossChainPoller {
@@ -75,7 +77,8 @@ export class CrossChainPoller {
 
   /**
    * Read the cross-chain payment every 5 s for up to 30 minutes until the
-   * session completes. A refunded or failed swap throws
+   * session completes. Each answer replaces the shown quote, so another tab
+   * that re-quoted is followed. A refunded or failed swap throws
    * `CrossChainFailedError`; no answer from the API is retried.
    */
   async PollUntilSettled(session: CheckoutSession): Promise<CheckoutSession> {
@@ -88,9 +91,15 @@ export class CrossChainPoller {
           if (IsUnreachableError(error)) return null;
           throw error;
         });
+      if (this.stopped) break;
       if (latest) {
         const status = latest.payment_details?.cross_chain?.status ?? null;
         this.state.status.set(status);
+        this.state.session.update((current) =>
+          current
+            ? { ...current, payment_details: latest.payment_details }
+            : latest
+        );
         if (latest.status === 'complete') return latest;
         if (status === 'REFUNDED' || status === 'FAILED') {
           throw new CrossChainFailedError(status);

@@ -42,7 +42,10 @@ function ApiFailure(status: number): Error {
 
 describe('CrossChainPoller', () => {
   const api = { GetCrossChainPayment: jest.fn() };
-  const state = { status: signal<CrossChainPaymentStatus | null>(null) };
+  const state = {
+    status: signal<CrossChainPaymentStatus | null>(null),
+    session: signal<CheckoutSession | null>(null),
+  };
   let poller: CrossChainPoller;
 
   /** Poll until settled, letting the poll's timers run. */
@@ -59,6 +62,7 @@ describe('CrossChainPoller', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     state.status.set(null);
+    state.session.set(SESSION);
     api.GetCrossChainPayment.mockResolvedValue(COMPLETED);
     poller = new CrossChainPoller(api, state);
   });
@@ -92,6 +96,54 @@ describe('CrossChainPoller', () => {
     await jest.advanceTimersByTimeAsync(CROSS_CHAIN_POLL_INTERVAL_MS);
     await expect(settling).resolves.toBe(COMPLETED);
     expect(api.GetCrossChainPayment).toHaveBeenCalledTimes(3);
+  });
+
+  it('shows the quote from each poll, keeping the rest of the page', async () => {
+    state.session.set({
+      ...SESSION,
+      merchant: { display_name: 'Lumen Prints' },
+      payment_details: {
+        cross_chain: { status: 'PENDING_DEPOSIT', deposit_address: 'old' },
+      },
+    } as unknown as CheckoutSession);
+    const requoted = {
+      ...SESSION,
+      payment_details: {
+        cross_chain: {
+          status: 'PENDING_DEPOSIT',
+          deposit_address: 'b7e2d40c19a3',
+          amount_in_formatted: '4.12',
+          quote_deadline: 1_793_201_800,
+          origin_transaction_hash: null,
+        },
+      },
+    } as unknown as CheckoutSession;
+    api.GetCrossChainPayment.mockResolvedValue(requoted);
+
+    void poller.PollUntilSettled(SESSION).catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(0);
+
+    expect(state.session()?.payment_details).toBe(requoted.payment_details);
+    expect(state.session()?.merchant?.display_name).toBe('Lumen Prints');
+    poller.Stop();
+  });
+
+  it('writes nothing once stopped mid-poll', async () => {
+    let answer: (session: CheckoutSession) => void = () => undefined;
+    api.GetCrossChainPayment.mockReturnValue(
+      new Promise<CheckoutSession>((resolve) => (answer = resolve))
+    );
+
+    const settling = poller
+      .PollUntilSettled(SESSION)
+      .catch((error: Error) => error);
+    await jest.advanceTimersByTimeAsync(0);
+    poller.Stop();
+    answer(WithStatus('PROCESSING'));
+
+    expect(await settling).toBeInstanceOf(CrossChainTimeoutError);
+    expect(state.status()).toBeNull();
+    expect(state.session()).toBe(SESSION);
   });
 
   it.each(['REFUNDED', 'FAILED'] as const)(

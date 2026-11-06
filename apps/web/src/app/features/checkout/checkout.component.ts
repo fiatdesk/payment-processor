@@ -1078,6 +1078,7 @@ export class CheckoutComponent implements OnInit {
     this.StopCrossChain();
     const poller = new CrossChainPoller(this.checkoutSessionService, {
       status: this.crossChainStatus,
+      session: this.checkoutSession,
     });
     this.crossChainPoller = poller;
     this.crossChainOutcome.set(null);
