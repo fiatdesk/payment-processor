@@ -239,24 +239,13 @@ const CROSS_CHAIN_DEPOSITED: ReadonlySet<CrossChainPaymentStatus> = new Set([
   'SUCCESS',
 ]);
 
-/**
- * What a cross-chain payment records as its transaction: the USDC delivery,
- * or a reference to the deposit when NEAR Intents reports no delivery hash.
- */
-function CrossChainReference(crossChain: CheckoutCrossChainPayment): string {
-  return (
-    crossChain.settlement_transaction_hash ??
-    `near_intents:${crossChain.deposit_address}`
-  );
-}
-
 /** The session's cross-chain payment when `transactionHash` settled it. */
 function SettledCrossChain(
   session: CheckoutSession,
   transactionHash: string
 ): CheckoutCrossChainPayment | null {
   const crossChain = session.payment_details?.cross_chain ?? null;
-  return crossChain && CrossChainReference(crossChain) === transactionHash
+  return crossChain?.settlement_transaction_hash === transactionHash
     ? crossChain
     : null;
 }
@@ -973,7 +962,7 @@ export class CheckoutPaymentModule {
           status.originChainTxHashes[0]?.hash ??
           crossChain.origin_transaction_hash,
         settlement_transaction_hash:
-          status.destinationChainTxHashes[0]?.hash ??
+          NormalizeTransactionHash(status.destinationChainTxHashes[0]?.hash) ??
           crossChain.settlement_transaction_hash,
       }
     );
@@ -988,13 +977,15 @@ export class CheckoutPaymentModule {
     }
 
     const settled = this.RequireCrossChain(updated);
-    const paidBy = CrossChainReference(settled);
-    if (!settled.settlement_transaction_hash) {
+    const paidBy = settled.settlement_transaction_hash;
+    // Without the delivery hash the ledger cannot match the USDC transfer
+    // the deposit scan sees, so the payment would be credited twice.
+    if (!paidBy) {
       Logger.warn('NEAR Intents reported SUCCESS without a settlement hash', {
         checkoutSessionId: session.id,
         depositAddress: settled.deposit_address,
-        reference: paidBy,
       });
+      return this.SanitizeCheckoutSession(updated);
     }
     await this.AssertTransactionUnused(updated, paidBy);
 

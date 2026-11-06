@@ -12,6 +12,7 @@ import {
   type NearIntentsQuote,
   type NearIntentsStatus,
 } from '../modules/intents';
+import { SimulatedNearIntents } from '../modules/intents/SimulatedNearIntents';
 import { Logger } from '../utils/Logger';
 import {
   BalanceTransaction,
@@ -413,29 +414,48 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
       ]);
     });
 
-    it('references the deposit when SUCCESS carries no settlement hash', async () => {
+    it('keeps the session pending when SUCCESS carries no settlement hash', async () => {
       mockNearIntents.GetStatus.mockResolvedValue(
         Status('SUCCESS', { origin: ORIGIN_HASH })
       );
 
       const result = await module.PollCrossChainPayment(SLUG);
 
-      const reference = `near_intents:${DEPOSIT_ADDRESS}`;
-      expect(result.payment_details?.transaction_hash).toBe(reference);
+      expect(result.payment_details).toMatchObject({
+        transaction_hash: null,
+        cross_chain: { status: 'SUCCESS', settlement_transaction_hash: null },
+      });
+      ExpectPayable();
+      expect(events).toEqual([]);
+      expect(Logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('without a settlement hash'),
+        expect.objectContaining({ depositAddress: DEPOSIT_ADDRESS })
+      );
+    });
+
+    it('records the settlement hash in lowercase, like an on-chain payment', async () => {
+      mockNearIntents.GetStatus.mockResolvedValue(
+        Status('SUCCESS', {
+          origin: ORIGIN_HASH,
+          settlement: SETTLEMENT_HASH.toUpperCase().replace('0X', '0x'),
+        })
+      );
+
+      const result = await module.PollCrossChainPayment(SLUG);
+
+      expect(result.payment_details).toMatchObject({
+        transaction_hash: SETTLEMENT_HASH,
+        cross_chain: { settlement_transaction_hash: SETTLEMENT_HASH },
+      });
       expect(memory.All<Charge>('Charges')).toEqual([
         expect.objectContaining({
           payment_method_details: expect.objectContaining({
             crypto: expect.objectContaining({
-              origin_network: 'near',
-              transaction_hash: reference,
+              transaction_hash: SETTLEMENT_HASH,
             }),
           }),
         }),
       ]);
-      expect(Logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('without a settlement hash'),
-        expect.objectContaining({ reference })
-      );
     });
 
     it.each(['REFUNDED', 'FAILED'] as const)(
@@ -474,6 +494,41 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
         statusCode: 400,
       });
       expect(mockNearIntents.GetStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('simulated provider', () => {
+    it('completes a simulated deposit by its sim_eth_tx settlement', async () => {
+      const simulated = new SimulatedNearIntents();
+      mockNearIntents.Quote.mockImplementation((request) =>
+        simulated.Quote(request)
+      );
+      mockNearIntents.GetStatus.mockImplementation((address) =>
+        simulated.GetStatus(address)
+      );
+      mockNearIntents.SubmitDeposit.mockImplementationOnce((address) =>
+        simulated.SubmitDeposit(address)
+      );
+      jest
+        .mocked(IsNearIntentsSimulated)
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(true);
+      await module.StartCrossChainPayment(SLUG, START);
+      const depositAddress = CrossChain().deposit_address;
+
+      const result = await module.SubmitCrossChainDeposit(SLUG, {});
+
+      expect(result).toMatchObject({
+        status: 'complete',
+        payment_status: 'paid',
+        payment_details: {
+          transaction_hash: `sim_eth_tx:${depositAddress}`,
+          cross_chain: { simulated: true, status: 'SUCCESS' },
+        },
+      });
+      expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([
+        expect.objectContaining({ amount: 1000, source: 'cs_fd_cross' }),
+      ]);
     });
   });
 
