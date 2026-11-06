@@ -184,6 +184,145 @@
         </div>
         }
       </div>
+      } @else if (crossChainOpen()) {
+      <section class="cross-chain" aria-labelledby="cross-chain-title">
+        <h1 id="cross-chain-title" class="checkout-confirmation-title">
+          Pay from another chain
+        </h1>
+        <div class="cross-chain-banner">{{ CrossChainBanner() }}</div>
+        @if (CrossChainQuote(); as quote) {
+        <div class="checkout-confirmation-card">
+          <div class="checkout-confirmation-body">
+            <div class="checkout-confirmation-row">
+              <span class="checkout-confirmation-label">Send exactly</span>
+              <span class="cross-chain-amount">{{
+                CrossChainAmount(quote)
+              }}</span>
+            </div>
+            <div class="checkout-confirmation-row">
+              <span class="checkout-confirmation-label">To this address</span>
+              <div class="cross-chain-address">
+                <code>{{ quote.deposit_address }}</code>
+                <button
+                  type="button"
+                  class="checkout-text-button"
+                  (click)="CopyDepositAddress(quote.deposit_address)"
+                >
+                  {{ crossChainCopied() ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+            </div>
+            @if (IsAwaitingCrossChainDeposit(quote)) {
+            <div class="checkout-confirmation-row">
+              <span class="checkout-confirmation-label">Quote expires in</span>
+              <span>{{ CrossChainCountdown(quote) }}</span>
+            </div>
+            }
+            <div class="checkout-confirmation-row" role="status">
+              <span class="checkout-confirmation-label">Status</span>
+              <span>{{ CrossChainStatusLabel(quote) }}</span>
+              @if (CrossChainOriginTxUrl(quote); as originTxUrl) {
+              <a [href]="originTxUrl" target="_blank" rel="noopener"
+                >View deposit</a
+              >
+              }
+            </div>
+          </div>
+        </div>
+        @if (NeedsNewCrossChainQuote(quote)) {
+        <button
+          type="button"
+          class="checkout-pay-button"
+          [disabled]="crossChainBusy()"
+          (click)="GetCrossChainQuote()"
+        >
+          Get a new quote
+        </button>
+        } @else if (crossChainOutcome() === 'waiting') {
+        <button
+          type="button"
+          class="checkout-pay-button"
+          (click)="CheckCrossChainAgain()"
+        >
+          Check again
+        </button>
+        } @else if (IsAwaitingCrossChainDeposit(quote)) { @if
+        (IsCrossChainSimulated()) {
+        <button
+          type="button"
+          class="checkout-pay-button"
+          [disabled]="crossChainBusy()"
+          (click)="SubmitCrossChainDeposit()"
+        >
+          Simulate deposit
+        </button>
+        } @else {
+        <label class="checkout-field">
+          <span class="checkout-field-label"
+            >Deposit transaction hash (optional)</span
+          >
+          <input
+            class="checkout-field-control"
+            type="text"
+            name="crossChainDepositHash"
+            [(ngModel)]="crossChainDepositHash"
+            placeholder="Speeds up detection"
+          />
+        </label>
+        <button
+          type="button"
+          class="checkout-pay-button"
+          [disabled]="crossChainBusy()"
+          (click)="SubmitCrossChainDeposit()"
+        >
+          I sent it
+        </button>
+        } } } @else {
+        <div class="checkout-field-group">
+          <label class="checkout-field">
+            <select
+              class="checkout-field-control"
+              name="crossChainOriginAsset"
+              aria-label="Pay with"
+              [(ngModel)]="crossChainOriginAsset"
+            >
+              @for (asset of crossChainOriginAssets; track asset.key) {
+              <option [value]="asset.key">{{ asset.label }}</option>
+              }
+            </select>
+          </label>
+          <label class="checkout-field">
+            <input
+              class="checkout-field-control"
+              type="text"
+              name="crossChainRefundAddress"
+              aria-label="Refund address"
+              [(ngModel)]="crossChainRefundAddress"
+              placeholder="Refund address, like alice.near"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          class="checkout-pay-button"
+          [disabled]="crossChainBusy()"
+          (click)="GetCrossChainQuote()"
+        >
+          {{ crossChainBusy() ? 'Getting quote…' : 'Get quote' }}
+        </button>
+        } @if (paymentNotice(); as notice) {
+        <div class="payment-status" role="status">{{ notice }}</div>
+        } @if (paymentError(); as errorMessage) {
+        <div class="payment-error">{{ errorMessage }}</div>
+        }
+        <button
+          type="button"
+          class="checkout-text-button"
+          (click)="CloseCrossChain()"
+        >
+          Pay with USDC instead
+        </button>
+      </section>
       } @else { @if (NeedsMobileWalletHandoff()) {
       <section
         class="mobile-wallet-handoff"
@@ -537,7 +676,16 @@
         }
       </button>
 
-      @if (paymentNotice(); as notice) {
+      @if (CanPayCrossChain()) {
+      <button
+        type="button"
+        class="checkout-text-button cross-chain-link"
+        [disabled]="IsBusy()"
+        (click)="OpenCrossChain()"
+      >
+        Pay from another chain
+      </button>
+      } @if (paymentNotice(); as notice) {
       <div class="payment-status" role="status">{{ notice }}</div>
       } @if (pendingTransactionHash(); as transactionHash) {
       <div class="payment-status">

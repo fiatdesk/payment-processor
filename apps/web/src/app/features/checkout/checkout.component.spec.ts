@@ -5,6 +5,7 @@ import {
   CheckoutPaymentTransaction,
   CheckoutSession,
   CheckoutSubscribeAuthorization,
+  CrossChainPaymentStatus,
   Eip712TypedData,
 } from '@fiatdesk/shared-types';
 
@@ -430,11 +431,18 @@ describe('CheckoutComponent', () => {
       (type: string, value: string) =>
         `https://sepolia.etherscan.io/${type}/${value}`
     ),
+    CrossChain: jest.fn(
+      (): { provider: 'near_intents'; mode: 'simulated' | 'live' } | null =>
+        null
+    ),
   };
   const checkoutSessionService = {
     PreparePayment: jest.fn(),
     ConfirmPayment: jest.fn(),
     GetPublicCheckoutSession: jest.fn(),
+    StartCrossChainPayment: jest.fn(),
+    GetCrossChainPayment: jest.fn(),
+    SubmitCrossChainDeposit: jest.fn(),
   };
   let wallet: ReturnType<typeof FakeWallet>;
   /** False: the browser has no wallet, so discovery finds nothing. */
@@ -497,6 +505,7 @@ describe('CheckoutComponent', () => {
     checkoutSessionService.ConfirmPayment.mockResolvedValue(COMPLETED);
     configService.IsSimulatedSettlement.mockReturnValue(false);
     configService.GetChainId.mockReturnValue(SEPOLIA);
+    configService.CrossChain.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -1980,6 +1989,233 @@ describe('CheckoutComponent', () => {
         }
       );
       expect(wallet.request).not.toHaveBeenCalled();
+      expect(component.paymentPhase()).toBe('complete');
+    });
+  });
+
+  describe('cross-chain payments', () => {
+    /** 9 Nov 2026, 10:40 UTC, in seconds. */
+    const NOW = 1794220800;
+    const DEPOSIT_ADDRESS = 'sim_near_deposit:4b1e9c07';
+
+    function CrossChainSession(
+      status: CrossChainPaymentStatus,
+      { simulated = true, sessionStatus = 'open' } = {}
+    ): CheckoutSession {
+      return {
+        ...SESSION,
+        status: sessionStatus,
+        payment_details: {
+          cross_chain: {
+            provider: 'near_intents',
+            origin_asset: 'near',
+            origin_network: 'near',
+            deposit_address: DEPOSIT_ADDRESS,
+            amount_in: '1240000000000000000000000',
+            amount_in_formatted: '1.24',
+            refund_address: 'buyer-refunds.near',
+            quote_deadline: NOW + 600,
+            correlation_id: 'sim_corr_4b1e9c07',
+            status,
+            origin_transaction_hash: null,
+            settlement_transaction_hash: null,
+            simulated,
+          },
+        },
+      } as CheckoutSession;
+    }
+
+    const QUOTED = CrossChainSession('PENDING_DEPOSIT');
+    const PAID = CrossChainSession('SUCCESS', { sessionStatus: 'complete' });
+
+    function Button(
+      fixture: ComponentFixture<CheckoutComponent>,
+      label: string
+    ): HTMLButtonElement | undefined {
+      fixture.detectChanges();
+      return Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('button')
+      ).find((button) => button.textContent?.trim() === label);
+    }
+
+    /** Renders checkout and opens the panel from its link. */
+    function OpenPanel(): ReturnType<typeof Render> {
+      const rendered = Render();
+      Button(rendered.fixture, 'Pay from another chain')?.click();
+      rendered.component.crossChainRefundAddress = 'buyer-refunds.near';
+      return rendered;
+    }
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW * 1000);
+      configService.CrossChain.mockReturnValue({
+        provider: 'near_intents',
+        mode: 'simulated',
+      });
+      checkoutSessionService.StartCrossChainPayment.mockResolvedValue(QUOTED);
+      checkoutSessionService.GetCrossChainPayment.mockResolvedValue(QUOTED);
+    });
+
+    it('offers no cross-chain payment when it is off', () => {
+      configService.CrossChain.mockReturnValue(null);
+      const { fixture } = Render();
+
+      expect(Button(fixture, 'Pay from another chain')).toBeUndefined();
+    });
+
+    it('offers no cross-chain payment for a subscription', () => {
+      const { fixture } = Render(SUBSCRIPTION_SESSION);
+
+      expect(Button(fixture, 'Pay from another chain')).toBeUndefined();
+    });
+
+    it('opens the panel with the simulated banner from the link', () => {
+      const { fixture, component } = OpenPanel();
+
+      expect(component.crossChainOpen()).toBe(true);
+      expect(Text(fixture)).toContain('Simulated NEAR Intents: no funds move');
+      expect(Button(fixture, 'Get quote')).toBeDefined();
+      expect(Button(fixture, 'Pay')).toBeUndefined();
+    });
+
+    it('keeps the form open until the required details are filled', () => {
+      const { fixture, component } = Render();
+      component.email = '';
+
+      Button(fixture, 'Pay from another chain')?.click();
+
+      expect(component.crossChainOpen()).toBe(false);
+      expect(component.paymentError()).toBe('Email is required');
+    });
+
+    it('quotes with the customer details and shows where to deposit', async () => {
+      const { fixture, component } = OpenPanel();
+
+      await component.GetCrossChainQuote();
+
+      expect(
+        checkoutSessionService.StartCrossChainPayment
+      ).toHaveBeenCalledWith(SESSION.url_slug, {
+        email: 'payer@example.com',
+        origin_asset: 'near',
+        refund_address: 'buyer-refunds.near',
+      });
+      const text = Text(fixture);
+      expect(text).toContain('1.24 NEAR');
+      expect(text).toContain(DEPOSIT_ADDRESS);
+      expect(text).toContain('10:00');
+      expect(text).toContain('Waiting for your deposit');
+
+      await jest.advanceTimersByTimeAsync(61_000);
+      expect(Text(fixture)).toContain('8:59');
+      expect(checkoutSessionService.GetCrossChainPayment).toHaveBeenCalledWith(
+        SESSION.url_slug
+      );
+    });
+
+    it('asks for a refund address before quoting', async () => {
+      const { component } = OpenPanel();
+      component.crossChainRefundAddress = ' ';
+
+      await component.GetCrossChainQuote();
+
+      expect(
+        checkoutSessionService.StartCrossChainPayment
+      ).not.toHaveBeenCalled();
+      expect(component.paymentError()).toBe('Refund address is required');
+    });
+
+    it('completes from a simulated deposit', async () => {
+      checkoutSessionService.SubmitCrossChainDeposit.mockResolvedValue(PAID);
+      const { fixture, component } = OpenPanel();
+      await component.GetCrossChainQuote();
+
+      Button(fixture, 'Simulate deposit')?.click();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(
+        checkoutSessionService.SubmitCrossChainDeposit
+      ).toHaveBeenCalledWith(SESSION.url_slug, {});
+      expect(component.paymentPhase()).toBe('complete');
+      expect(Text(fixture)).toContain('Thanks for your order');
+    });
+
+    it('sends the live deposit hash', async () => {
+      configService.CrossChain.mockReturnValue({
+        provider: 'near_intents',
+        mode: 'live',
+      });
+      const live = CrossChainSession('PENDING_DEPOSIT', { simulated: false });
+      checkoutSessionService.StartCrossChainPayment.mockResolvedValue(live);
+      checkoutSessionService.GetCrossChainPayment.mockResolvedValue(live);
+      checkoutSessionService.SubmitCrossChainDeposit.mockResolvedValue(live);
+      const { fixture, component } = OpenPanel();
+      await component.GetCrossChainQuote();
+
+      expect(Text(fixture)).toContain(
+        'Live via NEAR Intents, settles as USDC on Ethereum'
+      );
+      component.crossChainDepositHash = 'FQ7nD3qkH9Tc2ZpX';
+      await component.SubmitCrossChainDeposit();
+
+      expect(
+        checkoutSessionService.SubmitCrossChainDeposit
+      ).toHaveBeenCalledWith(SESSION.url_slug, {
+        transaction_hash: 'FQ7nD3qkH9Tc2ZpX',
+      });
+    });
+
+    it('offers a new quote once the swap is refunded', async () => {
+      checkoutSessionService.GetCrossChainPayment.mockResolvedValue(
+        CrossChainSession('REFUNDED')
+      );
+      const { fixture, component } = OpenPanel();
+      await component.GetCrossChainQuote();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(component.crossChainOutcome()).toBe('failed');
+      expect(Text(fixture)).toContain('refunded to your refund address');
+      expect(Button(fixture, 'Get a new quote')).toBeDefined();
+    });
+
+    it('stops polling when the customer goes back to USDC', async () => {
+      const { fixture, component } = OpenPanel();
+      await component.GetCrossChainQuote();
+      await jest.advanceTimersByTimeAsync(0);
+      checkoutSessionService.GetCrossChainPayment.mockClear();
+
+      Button(fixture, 'Pay with USDC instead')?.click();
+      await jest.advanceTimersByTimeAsync(60_000);
+
+      expect(component.crossChainOpen()).toBe(false);
+      expect(
+        checkoutSessionService.GetCrossChainPayment
+      ).not.toHaveBeenCalled();
+    });
+
+    it('resumes the panel after a reload and completes from the poll', async () => {
+      routeSlug = SESSION.url_slug;
+      checkoutSessionService.GetPublicCheckoutSession.mockResolvedValue(
+        CrossChainSession('PROCESSING')
+      );
+      checkoutSessionService.GetCrossChainPayment.mockResolvedValueOnce(
+        CrossChainSession('PROCESSING')
+      ).mockResolvedValueOnce(PAID);
+      const fixture = TestBed.createComponent(CheckoutComponent);
+      fixture.detectChanges();
+      await jest.advanceTimersByTimeAsync(0);
+      const component = fixture.componentInstance;
+
+      expect(component.crossChainOpen()).toBe(true);
+      expect(component.crossChainRefundAddress).toBe('buyer-refunds.near');
+      expect(Text(fixture)).toContain('Converting to USDC');
+
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      expect(checkoutSessionService.GetCrossChainPayment).toHaveBeenCalledTimes(
+        2
+      );
       expect(component.paymentPhase()).toBe('complete');
     });
   });

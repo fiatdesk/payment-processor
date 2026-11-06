@@ -327,6 +327,45 @@
   }
 }
 
+.cross-chain {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing;
+
+  > * {
+    margin: 0;
+  }
+}
+
+.cross-chain-link {
+  margin-top: $spacing-small;
+}
+
+.cross-chain-banner {
+  padding: $spacing-small $spacing-snug;
+  border-radius: $border-radius-small;
+  background-color: $darker-background-color;
+  color: $checkout-heading;
+  font-size: $font-size-small;
+}
+
+.cross-chain-amount {
+  font-family: $title-font;
+  font-size: $font-size-large;
+  font-weight: $title-weight;
+}
+
+.cross-chain-address {
+  display: flex;
+  align-items: center;
+  gap: $spacing-small;
+
+  code {
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+}
+
 .form-section {
   margin-bottom: $spacing-medium;
 }

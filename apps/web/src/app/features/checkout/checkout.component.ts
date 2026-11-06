@@ -26,10 +26,12 @@ import {
 } from '../../shared';
 import { ISO_CODES } from '../../utils';
 import {
+  CheckoutCrossChainPayment,
   CheckoutPaymentTransaction,
   CheckoutSession,
   CheckoutSessionCustomField,
   CheckoutSessionLineItem,
+  CrossChainPaymentStatus,
   IsTransactionHash,
   Price,
   Product,
@@ -48,6 +50,13 @@ import {
   GetCheckoutRedirectUrl,
   HasCheckoutConfirmationDetails,
 } from './util/checkout-completion';
+import {
+  CrossChainFailedError,
+  CrossChainPoller,
+  DeadlineSeconds,
+  FormatOriginAmount,
+  OriginExplorerTxUrl,
+} from './util/checkout-cross-chain';
 import {
   FormatUsdcAmount,
   GetCheckoutBusyLabel,
@@ -111,6 +120,19 @@ type CustomerDetailsPayload = {
   terms_of_service_accepted?: boolean;
 };
 
+/** Assets a customer can pay from, by the API's `origin_asset` key. */
+const CROSS_CHAIN_ORIGIN_ASSETS = [{ key: 'near', label: 'NEAR' }];
+
+const CROSS_CHAIN_STATUS_LABELS: Record<CrossChainPaymentStatus, string> = {
+  PENDING_DEPOSIT: 'Waiting for your deposit',
+  KNOWN_DEPOSIT_TX: 'Deposit seen, waiting for confirmations',
+  INCOMPLETE_DEPOSIT: 'The deposit is less than the quoted amount',
+  PROCESSING: 'Converting to USDC',
+  SUCCESS: 'Payment received',
+  REFUNDED: 'Refunded',
+  FAILED: 'Failed',
+};
+
 function EmptyAddressForm(): AddressFormValue {
   return {
     name: '',
@@ -172,6 +194,19 @@ export class CheckoutComponent implements OnInit {
   confirmationExpanded: WritableSignal<boolean> = signal(false);
   billingAddressExpanded: WritableSignal<boolean> = signal(false);
   shippingAddressExpanded: WritableSignal<boolean> = signal(false);
+  crossChainOpen: WritableSignal<boolean> = signal(false);
+  crossChainBusy: WritableSignal<boolean> = signal(false);
+  /** The swap's latest status, written while it is followed. */
+  crossChainStatus: WritableSignal<CrossChainPaymentStatus | null> =
+    signal(null);
+  /**
+   * Why following the swap stopped: `failed` needs a new quote, `waiting`
+   * can check again.
+   */
+  crossChainOutcome: WritableSignal<'failed' | 'waiting' | null> = signal(null);
+  crossChainCopied: WritableSignal<boolean> = signal(false);
+  /** Ticks every second while the swap is followed, for the countdown. */
+  crossChainNow: WritableSignal<number> = signal(Date.now());
 
   readonly countryOptions = [...ISO_CODES].sort((a, b) =>
     a.country.localeCompare(b.country)
@@ -187,6 +222,12 @@ export class CheckoutComponent implements OnInit {
   promotionCode = '';
   termsAccepted = false;
   customFieldValues: Record<string, string> = {};
+  readonly crossChainOriginAssets = CROSS_CHAIN_ORIGIN_ASSETS;
+  crossChainOriginAsset = CROSS_CHAIN_ORIGIN_ASSETS[0].key;
+  crossChainRefundAddress = '';
+  crossChainDepositHash = '';
+
+  private crossChainPoller: CrossChainPoller | null = null;
 
   private readonly confirmer = new CheckoutPaymentConfirmer(
     this.checkoutSessionService,
@@ -204,7 +245,10 @@ export class CheckoutComponent implements OnInit {
   );
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.confirmer.Stop());
+    inject(DestroyRef).onDestroy(() => {
+      this.confirmer.Stop();
+      this.StopCrossChain();
+    });
     // The wallet switched to the payer that must sign again: it may pay.
     effect(() => {
       const account = this.walletService.account();
@@ -284,6 +328,13 @@ export class CheckoutComponent implements OnInit {
       if (checkoutSession.status === 'complete') {
         this.paymentPhase.set('complete');
         this.HandleAfterCompletion(checkoutSession);
+      }
+      const crossChain = checkoutSession.payment_details?.cross_chain;
+      if (checkoutSession.status === 'open' && crossChain) {
+        this.crossChainOriginAsset = crossChain.origin_asset;
+        this.crossChainRefundAddress = crossChain.refund_address;
+        this.crossChainOpen.set(true);
+        void this.FollowCrossChain(checkoutSession);
       }
     } finally {
       this.loading.set(false);
@@ -472,6 +523,168 @@ export class CheckoutComponent implements OnInit {
   DeclineSimulatedWallet(): void {
     this.simulatedWalletOpen.set(false);
     this.paymentError.set('Payment was declined');
+  }
+
+  /** Cross-chain payments are on and this open payment can take one. */
+  CanPayCrossChain(): boolean {
+    const session = this.checkoutSession();
+    return (
+      !!this.configService.CrossChain() &&
+      session?.mode === 'payment' &&
+      session.status === 'open'
+    );
+  }
+
+  OpenCrossChain(): void {
+    const validationError = this.ValidateCollectedDetails();
+    this.paymentError.set(validationError);
+    if (!validationError) this.crossChainOpen.set(true);
+  }
+
+  CloseCrossChain(): void {
+    this.StopCrossChain();
+    this.crossChainOpen.set(false);
+    this.paymentError.set(null);
+    this.paymentNotice.set(null);
+  }
+
+  CrossChainQuote(): CheckoutCrossChainPayment | null {
+    return this.checkoutSession()?.payment_details?.cross_chain ?? null;
+  }
+
+  IsCrossChainSimulated(): boolean {
+    return (
+      this.CrossChainQuote()?.simulated ??
+      this.configService.CrossChain()?.mode === 'simulated'
+    );
+  }
+
+  CrossChainBanner(): string {
+    return this.IsCrossChainSimulated()
+      ? 'Simulated NEAR Intents: no funds move'
+      : 'Live via NEAR Intents, settles as USDC on Ethereum';
+  }
+
+  CrossChainAmount(quote: CheckoutCrossChainPayment): string {
+    const label =
+      CROSS_CHAIN_ORIGIN_ASSETS.find(({ key }) => key === quote.origin_asset)
+        ?.label ?? quote.origin_asset.toUpperCase();
+    return FormatOriginAmount(quote.amount_in_formatted, label);
+  }
+
+  CrossChainStatusLabel(quote: CheckoutCrossChainPayment): string {
+    return CROSS_CHAIN_STATUS_LABELS[this.crossChainStatus() ?? quote.status];
+  }
+
+  CrossChainOriginTxUrl(quote: CheckoutCrossChainPayment): string | null {
+    return OriginExplorerTxUrl(
+      quote.origin_network,
+      quote.origin_transaction_hash
+    );
+  }
+
+  /** `m:ss` until the quote expires. */
+  CrossChainCountdown(quote: CheckoutCrossChainPayment): string {
+    const seconds = DeadlineSeconds(quote.quote_deadline, this.crossChainNow());
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(
+      2,
+      '0'
+    )}`;
+  }
+
+  IsAwaitingCrossChainDeposit(quote: CheckoutCrossChainPayment): boolean {
+    return (this.crossChainStatus() ?? quote.status) === 'PENDING_DEPOSIT';
+  }
+
+  /** The swap failed, or the quote expired before a deposit. */
+  NeedsNewCrossChainQuote(quote: CheckoutCrossChainPayment): boolean {
+    return (
+      this.crossChainOutcome() === 'failed' ||
+      (this.IsAwaitingCrossChainDeposit(quote) &&
+        DeadlineSeconds(quote.quote_deadline, this.crossChainNow()) === 0)
+    );
+  }
+
+  async CopyDepositAddress(address: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(address);
+      this.crossChainCopied.set(true);
+      window.setTimeout(() => this.crossChainCopied.set(false), 2000);
+    } catch {
+      // No clipboard access: the address stays selectable.
+    }
+  }
+
+  /** Quote the payment, or quote it again, and follow the swap. */
+  async GetCrossChainQuote(): Promise<void> {
+    const session = this.checkoutSession();
+    if (!session || this.crossChainBusy()) return;
+    const refundAddress = this.crossChainRefundAddress.trim();
+    const validationError =
+      this.ValidateCollectedDetails() ??
+      (refundAddress ? null : 'Refund address is required');
+    this.paymentError.set(validationError);
+    if (validationError) return;
+
+    this.crossChainBusy.set(true);
+    try {
+      const quoted = await this.checkoutSessionService.StartCrossChainPayment(
+        session.url_slug,
+        {
+          ...this.BuildCustomerDetailsPayload(),
+          origin_asset: this.crossChainOriginAsset,
+          refund_address: refundAddress,
+        }
+      );
+      this.checkoutSession.set(quoted);
+      this.crossChainDepositHash = '';
+      void this.FollowCrossChain(quoted);
+    } catch (error) {
+      this.paymentError.set(CheckoutErrorMessage(error, false));
+    } finally {
+      this.crossChainBusy.set(false);
+    }
+  }
+
+  /**
+   * Tell the API the deposit was sent. Simulated mode settles on this call.
+   * Live mode without a hash leaves detection to the poll.
+   */
+  async SubmitCrossChainDeposit(): Promise<void> {
+    const session = this.checkoutSession();
+    if (!session || this.crossChainBusy()) return;
+    const transactionHash = this.crossChainDepositHash.trim();
+    if (!transactionHash && !this.IsCrossChainSimulated()) {
+      this.paymentNotice.set(
+        'Your deposit is detected automatically. This can take a few minutes.'
+      );
+      return;
+    }
+
+    this.paymentError.set(null);
+    this.crossChainBusy.set(true);
+    try {
+      const latest = await this.checkoutSessionService.SubmitCrossChainDeposit(
+        session.url_slug,
+        transactionHash ? { transaction_hash: transactionHash } : {}
+      );
+      if (latest.status === 'complete') {
+        this.StopCrossChain();
+        this.CompletePayment(latest);
+        return;
+      }
+      this.checkoutSession.set(latest);
+      if (!this.crossChainPoller) void this.FollowCrossChain(latest);
+    } catch (error) {
+      this.paymentError.set(CheckoutErrorMessage(error, false));
+    } finally {
+      this.crossChainBusy.set(false);
+    }
+  }
+
+  CheckCrossChainAgain(): void {
+    const session = this.checkoutSession();
+    if (session) void this.FollowCrossChain(session);
   }
 
   ConfirmationMessage(): string {
@@ -855,6 +1068,43 @@ export class CheckoutComponent implements OnInit {
     this.checkoutSession.set(completedSession);
     this.paymentPhase.set('complete');
     this.HandleAfterCompletion(completedSession);
+  }
+
+  /**
+   * Poll the swap until the session completes. A poller that was stopped or
+   * replaced meanwhile changes nothing.
+   */
+  private async FollowCrossChain(session: CheckoutSession): Promise<void> {
+    this.StopCrossChain();
+    const poller = new CrossChainPoller(this.checkoutSessionService, {
+      status: this.crossChainStatus,
+    });
+    this.crossChainPoller = poller;
+    this.crossChainOutcome.set(null);
+    this.paymentError.set(null);
+    this.crossChainStatus.set(
+      session.payment_details?.cross_chain?.status ?? null
+    );
+    this.crossChainNow.set(Date.now());
+    const ticker = setInterval(() => this.crossChainNow.set(Date.now()), 1000);
+    try {
+      const completed = await poller.PollUntilSettled(session);
+      if (poller === this.crossChainPoller) this.CompletePayment(completed);
+    } catch (error) {
+      if (poller !== this.crossChainPoller) return;
+      this.crossChainOutcome.set(
+        error instanceof CrossChainFailedError ? 'failed' : 'waiting'
+      );
+      this.paymentError.set(CheckoutErrorMessage(error, false));
+    } finally {
+      clearInterval(ticker);
+      if (poller === this.crossChainPoller) this.crossChainPoller = null;
+    }
+  }
+
+  private StopCrossChain(): void {
+    this.crossChainPoller?.Stop();
+    this.crossChainPoller = null;
   }
 
   /**

@@ -298,6 +298,28 @@ select.checkout-field-control {
   flex-shrink: 0;
 }
 
+// A secondary action shown as a link.
+.checkout-text-button {
+  align-self: center;
+  padding: $spacing-small;
+  border: none;
+  background: none;
+  color: $checkout-label;
+  font-family: $text-font;
+  font-size: $font-size-small;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: $checkout-heading;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: $dimmed;
+  }
+}
+
 .checkout-payment-footer {
   display: flex;
   align-items: center;
