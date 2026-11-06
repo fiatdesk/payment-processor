@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
+  <a href="#pay-from-another-chain-near-intents">Pay from another chain</a> ·
   <a href="#setup-guide">Setup guide</a> ·
   <a href="apps/docs">Documentation</a> ·
   <a href="#a-familiar-api">API</a>
@@ -29,6 +30,10 @@
 <!-- prettier-ignore -->
 > [!NOTE]
 > FiatDesk's smart contracts (`PayoutBatch` and `Subscriptions`) have been audited, and FiatDesk is deployable on testnet (Sepolia).
+
+<!-- prettier-ignore -->
+> [!NOTE]
+> NEAR HACKATHON (Real-World Money track) entry: hosted checkout can be paid from NEAR through NEAR Intents and settles as USDC on Ethereum. See [Pay from another chain](#pay-from-another-chain-near-intents).
 
 FiatDesk is a self-hosted payment processor for stablecoins. Run it for your own business, or as the payments layer of a marketplace: hosted checkout, payment links, recurring billing, connected seller accounts, payouts and webhooks, all settled in USDC on Ethereum.
 
@@ -250,6 +255,62 @@ docker compose up -d
 ```
 
 Sepolia USDC is preset. Shared Sepolia deployments of `PayoutBatch` and `Subscriptions` are not published yet, so for now deploy your own (see [Deploy the contracts](#4-deploy-the-contracts)). Get test USDC from the [Circle faucet](https://faucet.circle.com/) and a little Sepolia ETH for the platform wallet, relayer and operator.
+
+## Pay from another chain (NEAR Intents)
+
+Buyers can only pay a FiatDesk checkout if they already hold USDC on Ethereum. The hosted checkout now has a **Pay from another chain** link: the buyer pays in NEAR, the merchant receives exactly the invoiced USDC on Ethereum, and the same `checkout.session.completed` webhook fires and the same Charge is created. FiatDesk takes no percentage fee, and the platform wallet key still never touches the server.
+
+**NEAR tools used.** The [NEAR Intents 1Click API](https://docs.near-intents.org/) is the swap provider. FiatDesk calls `GET /v0/tokens`, `POST /v0/quote` (swap type `EXACT_OUTPUT`), `GET /v0/status` and `POST /v0/deposit/submit`. The origin asset is NEAR as wNEAR (`nep141:wrap.near`, 24 decimals), and settlement is USDC on Ethereum.
+
+### Run it (simulated, no keys)
+
+Simulated mode returns fake quotes and moves no funds. It needs the simulated settlement rail, which is the default.
+
+1. Do: `git clone --recursive https://github.com/fiatdesk/payment-processor.git && cd payment-processor`. See: a `payment-processor` directory with `docker-compose.yml`.
+2. Do: `docker compose up -d`. See: the containers start, and [localhost](http://localhost) loads the dashboard sign-in.
+3. Do: open [localhost/setup](http://localhost/setup), then create the platform account and API key. See: the dashboard home.
+4. Do: create a Payment Link for a $5.00 invoice. See: a link URL of the form `/b/<slug>`.
+5. Do: open the link and click **Pay from another chain**. See: the **Pay from another chain** panel with the banner "Simulated NEAR Intents: no funds move".
+6. Do: choose **NEAR**, enter a refund address and click **Get quote**. See: the amount in NEAR, a deposit address with a copy button, a deadline countdown and the status "Waiting for your deposit".
+7. Do: click **Simulate deposit**. See: the status moves to "Converting to USDC" and then "Payment received", and checkout shows "Payment successful". Refreshing the page mid-way resumes the panel.
+8. Do: in the dashboard, open **Payments** and the new payment. See: a Charge on network `ethereum`, "Paid from NEAR", the origin and settlement hashes, an amount of 500 cents and one balance transaction.
+9. Do: open **Developers** and the webhook endpoint (create one first if you want to see deliveries). See: one `checkout.session.completed` delivery.
+
+If a quote expires, click **Get a new quote**. If the status looks stuck, click **Check again**. To pay with a wallet instead, click **Pay with USDC instead**.
+
+### Run it live (mainnet)
+
+Live mode moves real money on Ethereum mainnet. 1Click has no testnet, so every swap is a real one: use small amounts. Set this in `.env`, then run `docker compose up -d`:
+
+```bash
+LIVEMODE=true
+ETH_RPC_URL=https://your-mainnet-rpc-url
+NEAR_INTENTS_MODE=live
+NEAR_INTENTS_API_KEY=             # optional
+```
+
+- `NEAR_INTENTS_MODE`: Cross-chain Checkout through NEAR Intents: `off`, `simulated` (fake quotes, no funds move), or `live` (real swaps on mainnet). Unset means `simulated` on the simulated settlement rail and `off` otherwise. `live` requires `LIVEMODE=true`, and `simulated` requires the simulated rail.
+- `NEAR_INTENTS_API_KEY`: Optional NEAR Intents partner key, sent as `X-API-Key`. Quotes without one carry an extra 0.25% fee.
+- `NEAR_INTENTS_BASE_URL`: defaults to `https://1click.chaindefuser.com/v0`.
+
+Follow steps 3 to 6 above. The panel banner then reads "Live via NEAR Intents, settles as USDC on Ethereum". Send the quoted NEAR to the deposit address, optionally paste the transaction hash and click **I sent it**. Checkout completes only when 1Click reports `SUCCESS`, which is expected to take 1 to 10 minutes. The other final states are "Refunded" and "Failed".
+
+### Limits
+
+- Mainnet only. Simulated mode is the only way to try it without real funds.
+- NEAR is the only origin asset. Adding another 1Click asset is one row in `ORIGIN_ASSETS`.
+- Settlement is trusted from the 1Click status. FiatDesk does not re-verify it by RPC.
+- Mobile without an injected wallet cannot reach the NEAR link, because it is hidden on the wallet-app handoff screen.
+- The manual browser run of the simulated flow has not been done yet, so the steps above are not yet confirmed end to end. The API and web unit tests cover the pieces.
+- Live mode has been checked against 1Click only with dry quotes and read-only calls (2026-11-06). Quotes without a key carried a default 20 bps app fee and a fixed 0.30 USDC withdraw fee, so the buyer pays above the invoice amount in NEAR.
+
+### Where the code is
+
+- `apps/api/src/modules/intents/`: the live and simulated 1Click clients.
+- `apps/api/src/modules/CheckoutPayment.ts`: the start, poll and deposit methods.
+- `apps/api/src/routes/paymentPages.routes.ts`: `/v1/payment_pages/:urlSlug/cross_chain` routes.
+- `apps/web/src/app/features/checkout/`: the checkout panel.
+- `apps/docs/src/app/pages/docs/data/accept-payments-from-any-chain.ts`: the docs guide.
 
 ## Setup guide
 
