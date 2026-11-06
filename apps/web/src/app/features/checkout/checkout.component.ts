@@ -1073,7 +1073,15 @@ export class CheckoutComponent implements OnInit {
   private CompletePayment(completedSession: CheckoutSession): void {
     this.confirmer.Forget();
     this.paymentNotice.set(null);
-    this.checkoutSession.set(completedSession);
+    this.checkoutSession.update((current) =>
+      current
+        ? {
+            ...current,
+            ...completedSession,
+            merchant: completedSession.merchant ?? current.merchant,
+          }
+        : completedSession
+    );
     this.paymentPhase.set('complete');
     this.HandleAfterCompletion(completedSession);
   }
