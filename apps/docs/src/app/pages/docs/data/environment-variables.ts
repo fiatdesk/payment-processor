@@ -74,6 +74,18 @@ export const ENVIRONMENT_VARIABLES_PAGE: DocPage = {
               html: true,
             },
             {
+              text: '<code>NEAR_INTENTS_MODE</code>: Cross-chain Checkout through NEAR Intents: <code>off</code>, <code>simulated</code> (fake quotes, no funds move), or <code>live</code> (real swaps on mainnet). Unset means <code>simulated</code> on the simulated settlement rail and <code>off</code> otherwise. <code>live</code> requires <code>LIVEMODE=true</code>, and <code>simulated</code> requires the simulated rail. See <a href="/accept-payments-from-any-chain">Accept payments from any chain</a>.',
+              html: true,
+            },
+            {
+              text: '<code>NEAR_INTENTS_API_KEY</code>: Optional NEAR Intents partner key, sent as <code>X-API-Key</code>. Quotes without one carry an extra 0.25% fee.',
+              html: true,
+            },
+            {
+              text: '<code>NEAR_INTENTS_BASE_URL</code>: NEAR Intents API origin. Defaults to <code>https://1click.chaindefuser.com/v0</code>.',
+              html: true,
+            },
+            {
               text: '<code>ETH_CONFIRMATIONS</code>: Blocks to wait before a transaction counts as settled. Defaults to <code>2</code>.',
               html: true,
             },

@@ -119,6 +119,7 @@ test('agent guides use a dedicated final sidebar section', () => {
     [
       'payment-link-quickstart',
       'checkout-api-quickstart',
+      'accept-payments-from-any-chain',
       'authentication',
       'migrate-from-stripe',
       'platform-dashboard',

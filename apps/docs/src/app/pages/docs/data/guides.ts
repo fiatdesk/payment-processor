@@ -14,6 +14,11 @@ export const GET_STARTED_SECTION: DocSection = {
       title: 'API Quickstart',
       children: [],
     },
+    {
+      id: 'accept-payments-from-any-chain',
+      title: 'Pay from another chain',
+      children: [],
+    },
     { id: 'authentication', title: 'Authentication', children: [] },
     { id: 'migrate-from-stripe', title: 'Migrate from Stripe', children: [] },
     { id: 'platform-dashboard', title: 'Platform Dashboard', children: [] },
