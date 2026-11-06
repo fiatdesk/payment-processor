@@ -248,42 +248,12 @@ describe('NearIntents', () => {
     it('maps a network failure to a 502 AppError', async () => {
       fetchMock.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND'));
 
-      await expect(new NearIntents().GetTokens()).rejects.toMatchObject({
+      await expect(
+        new NearIntents().GetStatus(DEPOSIT_ADDRESS)
+      ).rejects.toMatchObject({
         statusCode: 502,
-        message: 'NEAR Intents /tokens failed: getaddrinfo ENOTFOUND',
+        message: 'NEAR Intents /status failed: getaddrinfo ENOTFOUND',
       });
-    });
-  });
-
-  describe('GetTokens', () => {
-    it('lists tokens without an API key', async () => {
-      Respond([
-        {
-          assetId: USDC_ETHEREUM_ASSET_ID,
-          decimals: 6,
-          blockchain: 'eth',
-          symbol: 'USDC',
-          price: 0.9998,
-          priceUpdatedAt: '2026-11-06T10:30:00.000Z',
-          contractAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-          coingeckoId: 'usd-coin',
-        },
-      ]);
-
-      const tokens = await new NearIntents().GetTokens();
-
-      expect(LastCall().url).toBe(`${NEAR_INTENTS_BASE_URL}/tokens`);
-      expect(LastHeaders()).not.toHaveProperty('X-API-Key');
-      expect(tokens).toEqual([
-        {
-          assetId: USDC_ETHEREUM_ASSET_ID,
-          symbol: 'USDC',
-          blockchain: 'eth',
-          decimals: 6,
-          contractAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-          price: 0.9998,
-        },
-      ]);
     });
   });
 

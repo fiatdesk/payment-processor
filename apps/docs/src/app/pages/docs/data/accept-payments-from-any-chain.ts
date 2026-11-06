@@ -111,7 +111,7 @@ export const ACCEPT_PAYMENTS_FROM_ANY_CHAIN_PAGE: DocPage = {
           type: 'list',
           items: [
             {
-              text: 'FiatDesk asks NEAR Intents for an <code>EXACT_OUTPUT</code> quote, so the swap delivers exactly the session total in USDC. The customer pays whatever amount of their asset that takes.',
+              text: 'FiatDesk asks NEAR Intents for an <code>EXACT_OUTPUT</code> quote for the session total in USDC, recorded as <code>amount_out</code>. The swap is expected to deliver that amount; FiatDesk does not check the delivered amount on-chain. The customer pays whatever amount of their asset that takes.',
               html: true,
             },
             {
@@ -177,12 +177,18 @@ export const ACCEPT_PAYMENTS_FROM_ANY_CHAIN_PAGE: DocPage = {
               text: 'Mainnet only. Only the assets Checkout lists are accepted.',
             },
             {
-              text: 'A quote lasts a few minutes, and a swap usually finishes within 1 to 10 minutes. After <code>quote_deadline</code> the customer must request a new quote.',
+              text: 'A quote lasts 30 minutes, or until the session expires if that is sooner. A swap usually finishes within 1 to 10 minutes. After <code>quote_deadline</code> the customer must request a new quote.',
               html: true,
             },
             {
-              text: 'A session completes only on <code>SUCCESS</code>. If the swap ends as <code>REFUNDED</code> or <code>FAILED</code>, the session stays open and the customer is refunded.',
+              text: 'A session completes only on <code>SUCCESS</code>. If the swap ends as <code>REFUNDED</code> or <code>FAILED</code>, the session stays open. NEAR Intents is expected to return the deposit to the refund address; FiatDesk does not confirm the refund.',
               html: true,
+            },
+            {
+              text: 'The amount due is checked against the quote. If the line items change after the quote, a delivery for the old amount does not complete the session, and the customer gets a new quote.',
+            },
+            {
+              text: 'Settlement is trusted from the NEAR Intents status. FiatDesk does not check the USDC delivery independently on-chain.',
             },
             {
               text: 'Refunds go to the refund address the customer entered, on their own chain. Ask for it carefully: a wrong address cannot be corrected.',

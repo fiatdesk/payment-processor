@@ -258,9 +258,9 @@ Sepolia USDC is preset. Shared Sepolia deployments of `PayoutBatch` and `Subscri
 
 ## Pay from another chain (NEAR Intents)
 
-Buyers can only pay a FiatDesk checkout if they already hold USDC on Ethereum. The hosted checkout now has a **Pay from another chain** link: the buyer pays in NEAR, the merchant receives exactly the invoiced USDC on Ethereum, and the same `checkout.session.completed` webhook fires and the same Charge is created. FiatDesk takes no percentage fee, and the platform wallet key still never touches the server.
+Buyers can only pay a FiatDesk checkout if they already hold USDC on Ethereum. The hosted checkout now has a **Pay from another chain** link: the buyer pays in NEAR, the merchant is expected to receive the invoiced USDC on Ethereum, and the same `checkout.session.completed` webhook fires and the same Charge is created. FiatDesk takes no percentage fee, and the platform wallet key still never touches the server.
 
-**NEAR tools used.** The [NEAR Intents 1Click API](https://docs.near-intents.org/) is the swap provider. FiatDesk calls `GET /v0/tokens`, `POST /v0/quote` (swap type `EXACT_OUTPUT`), `GET /v0/status` and `POST /v0/deposit/submit`. The origin asset is NEAR as wNEAR (`nep141:wrap.near`, 24 decimals), and settlement is USDC on Ethereum.
+**NEAR tools used.** The [NEAR Intents 1Click API](https://docs.near-intents.org/) is the swap provider. FiatDesk calls `POST /v0/quote` (swap type `EXACT_OUTPUT`), `GET /v0/status` and `POST /v0/deposit/submit`. It does not call `GET /v0/tokens`; the accepted assets are fixed in `ORIGIN_ASSETS`. The origin asset is NEAR as wNEAR (`nep141:wrap.near`, 24 decimals), and settlement is USDC on Ethereum.
 
 ### Run it (simulated, no keys)
 
@@ -272,8 +272,8 @@ Simulated mode returns fake quotes and moves no funds. It needs the simulated se
 4. Do: create a Payment Link for a $5.00 invoice. See: a link URL of the form `/b/<slug>`.
 5. Do: open the link and click **Pay from another chain**. See: the **Pay from another chain** panel with the banner "Simulated NEAR Intents: no funds move".
 6. Do: choose **NEAR**, enter a refund address and click **Get quote**. See: the amount in NEAR, a deposit address with a copy button, a deadline countdown and the status "Waiting for your deposit".
-7. Do: click **Simulate deposit**. See: the status moves to "Converting to USDC" and then "Payment received", and checkout shows "Payment successful". Refreshing the page mid-way resumes the panel.
-8. Do: in the dashboard, open **Payments** and the new payment. See: a Charge on network `ethereum`, "Paid from NEAR", the origin and settlement hashes, an amount of 500 cents and one balance transaction.
+7. Do: click **Simulate deposit**. See: checkout shows "Payment successful". The simulated deposit settles in that one call, so no in-between status appears. Refreshing the page while the quote waits for a deposit resumes the panel.
+8. Do: in the dashboard, open **Payments** and the new payment. See: a Charge on network `simulated`, "Paid from NEAR", the origin and settlement hashes, an amount of 500 cents and one balance transaction.
 9. Do: open **Developers** and the webhook endpoint (create one first if you want to see deliveries). See: one `checkout.session.completed` delivery.
 
 If a quote expires, click **Get a new quote**. If the status looks stuck, click **Check again**. To pay with a wallet instead, click **Pay with USDC instead**.
@@ -300,9 +300,10 @@ Follow steps 3 to 6 above. The panel banner then reads "Live via NEAR Intents, s
 - Mainnet only. Simulated mode is the only way to try it without real funds.
 - NEAR is the only origin asset. Adding another 1Click asset is one row in `ORIGIN_ASSETS`.
 - Settlement is trusted from the 1Click status. FiatDesk does not re-verify it by RPC.
+- The session completes only when the quoted USDC amount still equals the amount due. If the line items change after the quote, the delivery does not complete the session and the buyer gets a new quote.
 - Mobile without an injected wallet cannot reach the NEAR link, because it is hidden on the wallet-app handoff screen.
 - The manual browser run of the simulated flow has not been done yet, so the steps above are not yet confirmed end to end. The API and web unit tests cover the pieces.
-- Live mode has been checked against 1Click only with dry quotes and read-only calls (2026-11-06). Quotes without a key carried a default 20 bps app fee and a fixed 0.30 USDC withdraw fee, so the buyer pays above the invoice amount in NEAR.
+- Live mode has been checked against 1Click only with dry quotes and read-only calls (2026-11-06). Quotes without a key carry the extra 0.25% fee described under `NEAR_INTENTS_API_KEY`; with a partner key the fee is typically 20 bps. Dry quotes also showed a fixed 0.30 USDC withdraw fee, so the buyer pays above the invoice amount in NEAR.
 
 ### Where the code is
 

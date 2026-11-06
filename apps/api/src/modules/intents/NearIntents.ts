@@ -2,7 +2,7 @@
  * NEAR Intents 1Click API client. Buyers pay from another chain; 1Click swaps
  * the deposit and delivers USDC on Ethereum to the merchant wallet.
  *
- * 1Click (checked 2026-11-06): GET /v0/tokens and POST /v0/quote (dry) answer without an API key; GET /v0/status 404s on unknown addresses keyless (401 only on a bad key), real-address behaviour unverified.
+ * 1Click (checked 2026-11-06): POST /v0/quote (dry) answers without an API key; GET /v0/status 404s on unknown addresses keyless (401 only on a bad key), real-address behaviour unverified.
  * Assets: USDC on Ethereum = nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near (6 dp); NEAR chain native = nep141:wrap.near (wNEAR, 24 dp), no native entry exists.
  * EXACT_OUTPUT amount is destination minor units; quote.amountIn is origin minor units, minAmountIn is ~1% lower at slippageTolerance 100.
  * Dry quotes return no depositAddress and no quote.deadline (deadline is echoed in quoteRequest); dry:false is needed for them.
@@ -54,15 +54,6 @@ export const NEAR_INTENTS_STATUS_VALUES = [
 export type NearIntentsStatusValue =
   (typeof NEAR_INTENTS_STATUS_VALUES)[number];
 
-export interface NearIntentsToken {
-  assetId: string;
-  symbol: string;
-  blockchain: string;
-  decimals: number;
-  contractAddress?: string;
-  price?: number;
-}
-
 export interface NearIntentsQuoteRequest {
   dry: boolean;
   swapType: 'EXACT_OUTPUT';
@@ -108,7 +99,6 @@ export interface NearIntentsStatus {
 
 /** Implemented by the live client and the simulated client. */
 export interface NearIntentsClient {
-  GetTokens(): Promise<NearIntentsToken[]>;
   Quote(request: NearIntentsQuoteRequest): Promise<NearIntentsQuote>;
   GetStatus(depositAddress: string): Promise<NearIntentsStatus>;
   SubmitDeposit(depositAddress: string, txHash: string): Promise<void>;
@@ -169,20 +159,6 @@ export class NearIntents implements NearIntentsClient {
   constructor(options: NearIntentsOptions = {}) {
     this.baseUrl = options.baseUrl ?? NEAR_INTENTS_BASE_URL;
     this.apiKey = options.apiKey?.trim() || null;
-  }
-
-  async GetTokens(): Promise<NearIntentsToken[]> {
-    const tokens = await this.Request<NearIntentsToken[]>('/tokens');
-    return tokens.map(
-      ({ assetId, symbol, blockchain, decimals, contractAddress, price }) => ({
-        assetId,
-        symbol,
-        blockchain,
-        decimals,
-        contractAddress,
-        price,
-      })
-    );
   }
 
   async Quote(request: NearIntentsQuoteRequest): Promise<NearIntentsQuote> {

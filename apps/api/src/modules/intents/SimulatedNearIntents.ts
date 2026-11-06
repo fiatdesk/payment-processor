@@ -12,9 +12,7 @@ import type {
   NearIntentsQuote,
   NearIntentsQuoteRequest,
   NearIntentsStatus,
-  NearIntentsToken,
 } from './NearIntents';
-import { ORIGIN_ASSETS } from './NearIntents';
 
 const NEAR_DECIMALS = 24;
 /** 1 NEAR = 2.5 USD: one USDC minor unit (1e-6 USD) is 4e17 yoctoNEAR (1e-24 NEAR). */
@@ -32,15 +30,6 @@ function FormatNear(yocto: bigint): string {
 }
 
 export class SimulatedNearIntents implements NearIntentsClient {
-  async GetTokens(): Promise<NearIntentsToken[]> {
-    return ORIGIN_ASSETS.map(({ assetId, label, network, decimals }) => ({
-      assetId,
-      symbol: label,
-      blockchain: network,
-      decimals,
-    }));
-  }
-
   async Quote(request: NearIntentsQuoteRequest): Promise<NearIntentsQuote> {
     const amountIn = BigInt(request.amount) * YOCTO_PER_USDC_MINOR;
     return {

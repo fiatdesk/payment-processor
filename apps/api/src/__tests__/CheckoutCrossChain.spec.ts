@@ -27,7 +27,6 @@ import { DeterministicId, GetFixedTimestamp, ResetIdCounter } from './Setup';
 import { MemoryDatabase } from './mocks/MemoryDatabase';
 
 const mockNearIntents: jest.Mocked<NearIntentsClient> = {
-  GetTokens: jest.fn(),
   Quote: jest.fn(),
   GetStatus: jest.fn(),
   SubmitDeposit: jest.fn(),
