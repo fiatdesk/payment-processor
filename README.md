@@ -266,15 +266,15 @@ Buyers can only pay a FiatDesk checkout if they already hold USDC on Ethereum. T
 
 Simulated mode returns fake quotes and moves no funds. It needs the simulated settlement rail, which is the default.
 
-1. Do: `git clone --recursive https://github.com/fiatdesk/payment-processor.git && cd payment-processor`. See: a `payment-processor` directory with `docker-compose.yml`.
-2. Do: `docker compose up -d`. See: the containers start, and [localhost](http://localhost) loads the dashboard sign-in.
-3. Do: open [localhost/setup](http://localhost/setup), then create the platform account and API key. See: the dashboard home.
-4. Do: create a Payment Link for a $5.00 invoice. See: a link URL of the form `/b/<slug>`.
-5. Do: open the link and click **Pay from another chain**. See: the **Pay from another chain** panel with the banner "Simulated NEAR Intents: no funds move".
-6. Do: choose **NEAR**, enter a refund address and click **Get quote**. See: the amount in NEAR, a deposit address with a copy button, a deadline countdown and the status "Waiting for your deposit".
-7. Do: click **Simulate deposit**. See: checkout shows "Payment successful". The simulated deposit settles in that one call, so no in-between status appears. Refreshing the page while the quote waits for a deposit resumes the panel.
-8. Do: in the dashboard, open **Payments** and the new payment. See: a Charge on network `simulated`, "Paid from NEAR", the origin and settlement hashes, an amount of 500 cents and one balance transaction.
-9. Do: open **Developers** and the webhook endpoint (create one first if you want to see deliveries). See: one `checkout.session.completed` delivery.
+1. Do: `git clone --recursive https://github.com/fiatdesk/payment-processor.git && cd payment-processor`. Until this branch is merged, add `--branch feat/near-intents-cross-chain`. See: a `payment-processor` directory with `docker-compose.yml`.
+2. Do: `docker compose up -d`. See: the containers start, and [localhost](http://localhost) loads the dashboard sign-in. MongoDB is published on host port 27017, so stop anything else that uses that port first.
+3. Do: open [localhost/setup](http://localhost/setup), create the platform account and choose a wallet ("Use an existing wallet" or "Generate"). The API key is shown once. See: the dashboard home.
+4. Do: open **Developers** and create a webhook endpoint, if you want to see deliveries. See: the endpoint is listed and you can copy its signing secret.
+5. Do: create a Payment Link for a one-time $5.00 product. In the product form, set Pricing to **One-time** (the default is a recurring monthly price, which gives a subscription checkout with no cross-chain link). See: a link URL of the form `/b/<slug>`.
+6. Do: open the link, enter an email, and click **Pay from another chain**. The email is required before the panel opens. See: the **Pay from another chain** panel with the banner "Simulated NEAR Intents: no funds move".
+7. Do: choose **NEAR**, enter a refund address and click **Get quote**. See: the amount in NEAR, a deposit address with a copy button, a deadline countdown and the status "Waiting for your deposit".
+8. Do: click **Simulate deposit**. See: checkout shows "Thanks for your order" and completes in that one call, so no in-between status appears. Refreshing the page while the quote waits for a deposit resumes the panel.
+9. Do: in the dashboard, open **Transactions** and the new payment, then its Charge under Related objects. See: a Charge on network `simulated`, "Paid from NEAR", the origin and settlement hashes, an amount of $5.00 and one balance transaction. If you created an endpoint in step 4, its Deliveries list shows one `checkout.session.completed` delivery.
 
 If a quote expires, click **Get a new quote**. If the status looks stuck, click **Check again**. To pay with a wallet instead, click **Pay with USDC instead**.
 
@@ -302,7 +302,7 @@ Follow steps 3 to 6 above. The panel banner then reads "Live via NEAR Intents, s
 - Settlement is trusted from the 1Click status. FiatDesk does not re-verify it by RPC.
 - The session completes only when the quoted USDC amount still equals the amount due. If the line items change after the quote, the delivery does not complete the session and the buyer gets a new quote.
 - Mobile without an injected wallet cannot reach the NEAR link, because it is hidden on the wallet-app handoff screen.
-- The manual browser run of the simulated flow has not been done yet, so the steps above are not yet confirmed end to end. The API and web unit tests cover the pieces.
+- The simulated steps above were rehearsed from a fresh clone on 2026-11-06 through the browser and API. The webhook delivery in step 9 has not been observed yet, because no endpoint existed during the rehearsal payment. Live mainnet has not been run.
 - Live mode has been checked against 1Click only with dry quotes and read-only calls (2026-11-06). Quotes without a key carry the extra 0.25% fee described under `NEAR_INTENTS_API_KEY`; with a partner key the fee is typically 20 bps. Dry quotes also showed a fixed 0.30 USDC withdraw fee, so the buyer pays above the invoice amount in NEAR.
 
 ### Where the code is
