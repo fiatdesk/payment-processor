@@ -25,6 +25,7 @@ export { Checkout } from './Checkout';
 export { CheckoutSessions } from './CheckoutSessions';
 export { Subscriptions } from './Subscriptions';
 export { SubscriptionItems } from './SubscriptionItems';
+export { TestHelpers, TestHelpersCheckoutSessions } from './TestHelpers';
 export { TopUps } from './TopUps';
 export { Transfers } from './Transfers';
 export { WebhookEndpoints } from './WebhookEndpoints';

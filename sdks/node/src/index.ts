@@ -17,6 +17,7 @@ import { PaymentLinks } from './resources/PaymentLinks';
 import { Payouts } from './resources/Payouts';
 import { Prices } from './resources/Prices';
 import { Products } from './resources/Products';
+import { TestHelpers } from './resources/TestHelpers';
 import { Subscriptions } from './resources/Subscriptions';
 import { SubscriptionItems } from './resources/SubscriptionItems';
 import { TopUps } from './resources/TopUps';
@@ -132,6 +133,9 @@ export class FiatDesk {
   /** SubscriptionItems API resource */
   readonly subscriptionItems: SubscriptionItems;
 
+  /** Test helpers (simulated settlement, platform keys only) */
+  readonly testHelpers: TestHelpers;
+
   /** TopUps API resource */
   readonly topups: TopUps;
 
@@ -186,6 +190,7 @@ export class FiatDesk {
     this.products = new Products(this.client);
     this.subscriptions = new Subscriptions(this.client);
     this.subscriptionItems = new SubscriptionItems(this.client);
+    this.testHelpers = new TestHelpers(this.client);
     this.topups = new TopUps(this.client);
     this.transfers = new Transfers(this.client);
     this.webhookEndpoints = new WebhookEndpoints(this.client);

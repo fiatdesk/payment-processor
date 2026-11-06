@@ -1,3 +1,4 @@
+import { NODE_INIT } from './shared';
 import { DocPage } from './types';
 
 export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
@@ -102,6 +103,33 @@ export const LOCAL_DEVELOPMENT_PAGE: DocPage = {
           title: 'Keep test and live separate. ',
           text: 'Run separate instances and databases for test and live. Do not switch an existing instance between simulated settlement, on-chain test, and mainnet.',
           html: true,
+        },
+      ],
+      right: [
+        {
+          type: 'code',
+          title: 'Complete a cross-chain checkout',
+          endpoint: {
+            method: 'POST',
+            path: '/v1/test_helpers/checkout/sessions/:id/cross_chain_deposit',
+          },
+          tabs: [
+            {
+              id: 'curl',
+              label: 'cURL',
+              code: `curl -X POST https://api.yourdomain.com/v1/test_helpers/checkout/sessions/cs_test_fd_a1B2c3D4/cross_chain_deposit \\
+  -H "x-api-key: sk_test_fd_YOUR_API_KEY"`,
+            },
+            {
+              id: 'node',
+              label: 'Node.js',
+              code: `${NODE_INIT}
+
+const session = await fiatdesk.testHelpers.checkout.sessions.crossChainDeposit(
+  'cs_test_fd_a1B2c3D4'
+);`,
+            },
+          ],
         },
       ],
     },
