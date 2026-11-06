@@ -300,12 +300,9 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
       );
     });
 
-    it.each([
-      ['the quote expired', { quote_deadline: NOW - 1 }],
-      ['the refund address changed', { refund_address: 'old.near' }],
-    ])('quotes again when %s', async (_label, stale) => {
+    it('quotes again when the quote expired without a deposit', async () => {
       await module.StartCrossChainPayment(SLUG, START);
-      SetCrossChain(stale);
+      SetCrossChain({ quote_deadline: NOW - 1, refund_address: 'old.near' });
       mockNearIntents.Quote.mockResolvedValueOnce(
         LiveQuote({ depositAddress: 'deposit_second', correlationId: 'c2' })
       );
@@ -321,9 +318,13 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
       });
     });
 
-    it('quotes again when the amount due changed', async () => {
+    it('quotes again when the amount due changed and the quote expired', async () => {
       await module.StartCrossChainPayment(SLUG, START);
       SetAmountDue(10000);
+      await expect(
+        module.StartCrossChainPayment(SLUG, START)
+      ).rejects.toMatchObject({ statusCode: 409, type: 'payment_pending' });
+      SetCrossChain({ quote_deadline: NOW - 1 });
       mockNearIntents.Quote.mockResolvedValueOnce(
         LiveQuote({ depositAddress: 'deposit_second', amountOut: '100000000' })
       );
@@ -348,6 +349,49 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
         module.StartCrossChainPayment(SLUG, START)
       ).rejects.toMatchObject({ statusCode: 502 });
       expect(Session().payment_details?.cross_chain).toBeUndefined();
+    });
+
+    it.each([
+      [
+        'NEAR Intents knows a deposit',
+        { quote_deadline: NOW - 1 },
+        Status('KNOWN_DEPOSIT_TX', { origin: ORIGIN_HASH }),
+      ],
+      [
+        'a deposit to the expired quote was seen',
+        { quote_deadline: NOW - 1 },
+        Status('PENDING_DEPOSIT', { origin: ORIGIN_HASH }),
+      ],
+      [
+        'the quote is still open',
+        { refund_address: 'old.near' },
+        Status('PENDING_DEPOSIT'),
+      ],
+    ])('refuses to replace a quote when %s', async (_label, stored, live) => {
+      await module.StartCrossChainPayment(SLUG, START);
+      SetCrossChain(stored);
+      mockNearIntents.GetStatus.mockResolvedValue(live);
+
+      await expect(
+        module.StartCrossChainPayment(SLUG, START)
+      ).rejects.toMatchObject({ statusCode: 409, type: 'payment_pending' });
+
+      expect(mockNearIntents.GetStatus).toHaveBeenCalledWith(DEPOSIT_ADDRESS);
+      expect(mockNearIntents.Quote).toHaveBeenCalledTimes(1);
+      expect(CrossChain().deposit_address).toBe(DEPOSIT_ADDRESS);
+    });
+
+    it('refuses to replace a quote whose status cannot be read', async () => {
+      await module.StartCrossChainPayment(SLUG, START);
+      SetCrossChain({ quote_deadline: NOW - 1 });
+      mockNearIntents.GetStatus.mockRejectedValue(new Error('timeout'));
+
+      await expect(
+        module.StartCrossChainPayment(SLUG, START)
+      ).rejects.toMatchObject({ statusCode: 409, type: 'payment_pending' });
+
+      expect(mockNearIntents.Quote).toHaveBeenCalledTimes(1);
+      expect(CrossChain().deposit_address).toBe(DEPOSIT_ADDRESS);
     });
 
     it('keeps an expired quote the customer has deposited to', async () => {

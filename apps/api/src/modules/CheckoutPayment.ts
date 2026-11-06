@@ -50,6 +50,7 @@ import {
   IsNearIntentsSimulated,
   ORIGIN_ASSETS,
   USDC_ETHEREUM_ASSET_ID,
+  type NearIntentsClient,
 } from './intents';
 import { GetCheckoutConfirmTimeoutMs } from './AppConfig';
 import { AppError } from '../utils/AppError';
@@ -241,6 +242,44 @@ const CROSS_CHAIN_DEPOSITED: ReadonlySet<CrossChainPaymentStatus> = new Set([
 /** The USDC a quote for `amountCents` delivers, in its smallest unit. */
 function CrossChainAmountOut(amountCents: number): string {
   return CentsToTokenUnits(amountCents).toString();
+}
+
+/**
+ * A quote may be replaced only once NEAR Intents says no deposit to it can
+ * still pay the merchant: refunded, failed, expired without a deposit, or
+ * delivered for an amount that is no longer due. Otherwise, and when its
+ * status cannot be read, 409 `payment_pending`.
+ */
+async function AssertCrossChainReplaceable(
+  client: NearIntentsClient,
+  crossChain: CheckoutCrossChainPayment,
+  amountOut: string
+): Promise<void> {
+  const live = await client
+    .GetStatus(crossChain.deposit_address)
+    .catch((error: unknown) => {
+      Logger.warn('Could not read a cross-chain quote before replacing it', {
+        depositAddress: crossChain.deposit_address,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw PaymentPending(
+        null,
+        'Could not check the current cross-chain quote. Try again shortly.'
+      );
+    });
+  const replaceable =
+    live.status === 'REFUNDED' ||
+    live.status === 'FAILED' ||
+    (live.status === 'SUCCESS' && crossChain.amount_out !== amountOut) ||
+    (live.status === 'PENDING_DEPOSIT' &&
+      crossChain.quote_deadline <= Now() &&
+      live.originChainTxHashes.length === 0);
+  if (!replaceable) {
+    throw PaymentPending(
+      null,
+      'The current cross-chain quote can still receive a deposit. Request a new quote after it expires.'
+    );
+  }
 }
 
 /** The session's cross-chain payment when `transactionHash` settled it. */
@@ -786,9 +825,10 @@ export class CheckoutPaymentModule {
   /**
    * Quote a payment from another chain through NEAR Intents: the customer
    * deposits `origin_asset` and solvers deliver the amount due in USDC to
-   * the merchant wallet. An open quote for the same asset, refund address
-   * and wallet is reused, and a quote the customer has deposited to is
-   * never replaced.
+   * the merchant wallet. An open quote for the same amount, asset, refund
+   * address and wallet is reused, and a quote the customer has deposited
+   * to is kept. Any other quote is replaced only when NEAR Intents reports
+   * it can no longer pay the merchant (`AssertCrossChainReplaceable`).
    */
   async StartCrossChainPayment(
     urlSlug: string,
@@ -854,6 +894,9 @@ export class CheckoutPaymentModule {
                 merchantWallet
               )))));
     if (reusable) return this.SanitizeCheckoutSession(session);
+    if (existing) {
+      await AssertCrossChainReplaceable(client, existing, amountOut);
+    }
 
     const deadline = Math.min(
       Now() + CROSS_CHAIN_QUOTE_SECONDS,
