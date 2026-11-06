@@ -113,9 +113,29 @@
             {{ FormatCurrency(crypto.token_currency ?? 'usdc') }}
           </div>
         </div>
-        @if (crypto.transaction_hash) {
+        @if (originNetwork()) {
         <div class="pm-field">
-          <div class="bolded mb-small">Transaction</div>
+          <div class="bolded mb-small">Paid from</div>
+          <div class="dimmed">{{ originNetwork() }}</div>
+        </div>
+        } @if (originTransactionHash(); as originHash) {
+        <div class="pm-field">
+          <div class="bolded mb-small">Origin transaction</div>
+          <app-copy-text
+            [text]="originHash"
+            [displayText]="ShortenAddress(originHash)"
+          ></app-copy-text>
+          @if (GetOriginExplorerUrl(originHash); as originUrl) {
+          <a [href]="originUrl" target="_blank" rel="noopener noreferrer"
+            >View on explorer</a
+          >
+          }
+        </div>
+        } @if (crypto.transaction_hash) {
+        <div class="pm-field">
+          <div class="bolded mb-small">
+            {{ originNetwork() ? 'Settlement transaction' : 'Transaction' }}
+          </div>
           <app-copy-text
             [text]="crypto.transaction_hash"
             [displayText]="ShortenAddress(crypto.transaction_hash)"
@@ -289,7 +309,9 @@
           }}</span>
           }
         </div>
-        } @else if (pi.payment_method) {
+        @if (originNetwork()) {
+        <div class="dimmed mt-extra-small">Paid from {{ originNetwork() }}</div>
+        } } @else if (pi.payment_method) {
         <app-copy-text [text]="pi.payment_method"></app-copy-text>
         } @else {
         <div class="dimmed">—</div>

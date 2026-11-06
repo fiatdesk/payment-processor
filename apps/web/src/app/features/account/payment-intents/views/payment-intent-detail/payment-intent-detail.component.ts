@@ -26,6 +26,10 @@ import { PaymentIntentActionsHostComponent } from '../../components/payment-inte
 import { CopyTextComponent, StatusChipComponent } from '../../../../../shared';
 import { EventsListComponent } from '../../../components';
 import { MetadataToArray } from '../../../util/metadata';
+import {
+  OriginExplorerTxUrl,
+  OriginNetworkLabel,
+} from '../../../util/origin-chain';
 import { MetaService } from '../../../../../core';
 import { Subscription } from 'rxjs';
 
@@ -83,6 +87,15 @@ export class PaymentIntentDetailComponent implements OnInit, OnDestroy {
     (): ChargePaymentMethodDetailsCrypto | null => {
       return this.charge()?.payment_method_details?.crypto ?? null;
     }
+  );
+
+  readonly originNetwork = computed(() => {
+    const network = this.cryptoDetails()?.origin_network;
+    return network ? OriginNetworkLabel(network) : null;
+  });
+
+  readonly originTransactionHash = computed(
+    () => this.cryptoDetails()?.origin_transaction_hash ?? null
   );
 
   readonly feeAmount = computed(() => {
@@ -206,6 +219,10 @@ export class PaymentIntentDetailComponent implements OnInit, OnDestroy {
   GetExplorerUrl(txHash: string | null | undefined): string | null {
     if (!txHash || txHash.startsWith('sim_')) return null;
     return this.configService.GetExplorerUrl('tx', txHash) || null;
+  }
+
+  GetOriginExplorerUrl(hash: string | null | undefined): string | null {
+    return OriginExplorerTxUrl(this.cryptoDetails()?.origin_network, hash);
   }
 
   OnViewOnBlockchain(): void {
