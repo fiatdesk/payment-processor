@@ -1007,6 +1007,20 @@ export class CheckoutPaymentModule {
   private async PollCrossChain(urlSlug: string): Promise<CheckoutSession> {
     const session = await this.GetSessionOrThrow(urlSlug);
     if (session.status === 'complete') {
+      // A completion that stopped before its ledger entry records it now.
+      const paidBy = session.payment_details?.transaction_hash;
+      if (
+        session.amount_total &&
+        paidBy &&
+        SettledCrossChain(session, paidBy)
+      ) {
+        await this.RecordPaymentOnLedger(
+          session,
+          session.amount_total,
+          null,
+          paidBy
+        );
+      }
       return this.SanitizeCheckoutSession(session);
     }
     const crossChain = this.RequireCrossChain(session);

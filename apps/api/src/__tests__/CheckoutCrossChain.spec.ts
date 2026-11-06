@@ -15,6 +15,7 @@ import {
 import { SimulatedNearIntents } from '../modules/intents/SimulatedNearIntents';
 import { Logger } from '../utils/Logger';
 import {
+  Balance,
   BalanceTransaction,
   Charge,
   CheckoutCrossChainPayment,
@@ -599,6 +600,41 @@ describe('CheckoutPaymentModule cross-chain payments', () => {
         });
       }
     );
+
+    it('credits the ledger, once, for a completed session the ledger missed', async () => {
+      SetCrossChain({
+        status: 'SUCCESS',
+        settlement_transaction_hash: SETTLEMENT_HASH,
+      });
+      const session = Session();
+      memory.Seed('CheckoutSessions', {
+        ...session,
+        status: 'complete',
+        payment_status: 'paid',
+        payment_details: {
+          ...session.payment_details,
+          transaction_hash: SETTLEMENT_HASH,
+        },
+      });
+
+      await module.PollCrossChainPayment(SLUG);
+      await module.PollCrossChainPayment(SLUG);
+
+      expect(mockNearIntents.GetStatus).not.toHaveBeenCalled();
+      expect(memory.All<BalanceTransaction>('BalanceTransactions')).toEqual([
+        expect.objectContaining({
+          type: 'payment',
+          amount: 1000,
+          source: 'cs_fd_cross',
+          metadata: expect.objectContaining({ blockchain_tx: SETTLEMENT_HASH }),
+        }),
+      ]);
+      expect(memory.All<Balance>('Balances')).toEqual([
+        expect.objectContaining({
+          available: [expect.objectContaining({ amount: 1000 })],
+        }),
+      ]);
+    });
 
     it('rejects a session without a cross-chain payment', async () => {
       const session = Session();
