@@ -241,7 +241,7 @@ export type CreateChargeInput = {
 };
 
 export type CreateCheckoutSessionInput = {
-  mode: 'payment' | 'setup' | 'subscription';
+  mode: 'payment' | 'subscription' | 'setup';
   adaptive_pricing?: { enabled?: boolean | undefined } | undefined;
   after_completion?:
     | {
@@ -792,7 +792,7 @@ export type CreateInvoiceInput = {
           | 'exclude_tax'
           | 'include_inclusive_tax'
           | undefined;
-        pdf?: { page_size?: 'auto' | 'a4' | 'letter' | undefined } | undefined;
+        pdf?: { page_size?: 'a4' | 'auto' | 'letter' | undefined } | undefined;
         template?: string | undefined;
         template_version?: number | undefined;
       }
@@ -1915,7 +1915,7 @@ export type ListCheckoutSessionsInput = {
   payment_intent?: string | undefined;
   payment_link?: string | undefined;
   starting_after?: string | undefined;
-  status?: 'complete' | 'expired' | 'open' | undefined;
+  status?: 'expired' | 'open' | 'complete' | undefined;
   subscription?: string | undefined;
   expand?: string[] | undefined;
 };
@@ -2121,7 +2121,7 @@ export type ListPricesInput = {
   active?: boolean | undefined;
   currency?: string | undefined;
   product?: string | undefined;
-  type?: 'recurring' | 'one_time' | undefined;
+  type?: 'one_time' | 'recurring' | undefined;
   created?:
     | {
         gt?: number | undefined;
@@ -2226,8 +2226,8 @@ export type ListTopUpsInput = {
   ending_before?: string | undefined;
   status?:
     | 'pending'
-    | 'succeeded'
     | 'failed'
+    | 'succeeded'
     | 'canceled'
     | 'reversed'
     | undefined;
@@ -2750,7 +2750,7 @@ export type UpdateInvoiceInput = {
           | 'exclude_tax'
           | 'include_inclusive_tax'
           | undefined;
-        pdf?: { page_size?: 'auto' | 'a4' | 'letter' | undefined } | undefined;
+        pdf?: { page_size?: 'a4' | 'auto' | 'letter' | undefined } | undefined;
         template?: string | undefined;
         template_version?: number | undefined;
       }
